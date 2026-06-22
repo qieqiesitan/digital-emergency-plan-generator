@@ -1,0 +1,140 @@
+﻿/* ===== Custom spacing utilities (xs=4 sm=8 md=16 lg=24 xl=32) ===== */
+.p-xs  { padding: 4px; }
+.px-xs { padding-left: 4px; padding-right: 4px; }
+.py-xs { padding-top: 4px; padding-bottom: 4px; }
+.pt-xs { padding-top: 4px; }
+.pb-xs { padding-bottom: 4px; }
+.pl-xs { padding-left: 4px; }
+.pr-xs { padding-right: 4px; }
+.m-xs  { margin: 4px; }
+.mx-xs { margin-left: 4px; margin-right: 4px; }
+.my-xs { margin-top: 4px; margin-bottom: 4px; }
+.mt-xs { margin-top: 4px; }
+.mb-xs { margin-bottom: 4px; }
+.ml-xs { margin-left: 4px; }
+.mr-xs { margin-right: 4px; }
+.gap-xs { gap: 4px; }
+.space-y-xs > * + * { margin-top: 4px; }
+.space-x-xs > * + * { margin-left: 4px; }
+
+.p-sm  { padding: 8px; }
+.px-sm { padding-left: 8px; padding-right: 8px; }
+.py-sm { padding-top: 8px; padding-bottom: 8px; }
+.pt-sm { padding-top: 8px; }
+.pb-sm { padding-bottom: 8px; }
+.pl-sm { padding-left: 8px; }
+.pr-sm { padding-right: 8px; }
+.m-sm  { margin: 8px; }
+.mx-sm { margin-left: 8px; margin-right: 8px; }
+.my-sm { margin-top: 8px; margin-bottom: 8px; }
+.mt-sm { margin-top: 8px; }
+.mb-sm { margin-bottom: 8px; }
+.ml-sm { margin-left: 8px; }
+.mr-sm { margin-right: 8px; }
+.gap-sm { gap: 8px; }
+.space-y-sm > * + * { margin-top: 8px; }
+.space-x-sm > * + * { margin-left: 8px; }
+
+.p-md  { padding: 16px; }
+.px-md { padding-left: 16px; padding-right: 16px; }
+.py-md { padding-top: 16px; padding-bottom: 16px; }
+.pt-md { padding-top: 16px; }
+.pb-md { padding-bottom: 16px; }
+.pl-md { padding-left: 16px; }
+.pr-md { padding-right: 16px; }
+.m-md  { margin: 16px; }
+.mx-md { margin-left: 16px; margin-right: 16px; }
+.my-md { margin-top: 16px; margin-bottom: 16px; }
+.mt-md { margin-top: 16px; }
+.mb-md { margin-bottom: 16px; }
+.ml-md { margin-left: 16px; }
+.mr-md { margin-right: 16px; }
+.gap-md { gap: 16px; }
+.space-y-md > * + * { margin-top: 16px; }
+.space-x-md > * + * { margin-left: 16px; }
+
+.p-lg  { padding: 24px; }
+.px-lg { padding-left: 24px; padding-right: 24px; }
+.py-lg { padding-top: 24px; padding-bottom: 24px; }
+.pt-lg { padding-top: 24px; }
+.pb-lg { padding-bottom: 24px; }
+.pl-lg { padding-left: 24px; }
+.pr-lg { padding-right: 24px; }
+.m-lg  { margin: 24px; }
+.mx-lg { margin-left: 24px; margin-right: 24px; }
+.my-lg { margin-top: 24px; margin-bottom: 24px; }
+.mt-lg { margin-top: 24px; }
+.mb-lg { margin-bottom: 24px; }
+.ml-lg { margin-left: 24px; }
+.mr-lg { margin-right: 24px; }
+.gap-lg { gap: 24px; }
+.space-y-lg > * + * { margin-top: 24px; }
+.space-x-lg > * + * { margin-left: 24px; }
+
+.p-xl  { padding: 32px; }
+.px-xl { padding-left: 32px; padding-right: 32px; }
+.py-xl { padding-top: 32px; padding-bottom: 32px; }
+.pt-xl { padding-top: 32px; }
+.pb-xl { padding-bottom: 32px; }
+.pl-xl { padding-left: 32px; }
+.pr-xl { padding-right: 32px; }
+.m-xl  { margin: 32px; }
+.mx-xl { margin-left: 32px; margin-right: 32px; }
+.my-xl { margin-top: 32px; margin-bottom: 32px; }
+.mt-xl { margin-top: 32px; }
+.mb-xl { margin-bottom: 32px; }
+.ml-xl { margin-left: 32px; }
+.mr-xl { margin-right: 32px; }
+.gap-xl { gap: 32px; }
+.space-y-xl > * + * { margin-top: 32px; }
+.space-x-xl > * + * { margin-left: 32px; }
+
+/* ===== Custom font-size utilities ===== */
+.text-display { font-size: 34px; line-height: 41px; font-weight: 700; }
+.text-h1      { font-size: 28px; line-height: 34px; font-weight: 600; }
+.text-h2      { font-size: 22px; line-height: 28px; font-weight: 600; }
+.text-h3      { font-size: 17px; line-height: 22px; font-weight: 600; }
+.text-body    { font-size: 16px; line-height: 24px; font-weight: 400; }
+.text-body-sm { font-size: 14px; line-height: 20px; font-weight: 400; }
+.text-caption { font-size: 12px; line-height: 16px; font-weight: 500; }
+
+/* ===== Custom shadow utilities ===== */
+.shadow-card  { box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06); }
+.shadow-modal { box-shadow: 0 20px 25px rgba(0,0,0,0.1), 0 10px 10px rgba(0,0,0,0.04); }
+.shadow-fab   { box-shadow: 0 4px 12px rgba(26,86,219,0.35); }
+
+/* ===== Custom animation utilities ===== */
+@keyframes skeleton-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes fade-in { 0%{opacity:0} 100%{opacity:1} }
+@keyframes slide-up { 0%{transform:translateY(100%)} 100%{transform:translateY(0)} }
+.animate-skeleton-pulse { animation: skeleton-pulse 1.5s ease-in-out infinite; }
+.animate-spin-slow      { animation: spin 2s linear infinite; }
+.animate-fade-in        { animation: fade-in 200ms ease-out; }
+.animate-slide-up       { animation: slide-up 300ms ease-out; }
+
+/* ===== Custom color utilities (mapped to CSS variables) ===== */
+.bg-primary-50  { background-color: #EFF6FF; }
+.bg-primary-500 { background-color: #3B82F6; }
+.bg-primary-600 { background-color: #1A56DB; }
+.text-primary-50  { color: #EFF6FF; }
+.text-primary-500 { color: #3B82F6; }
+.text-primary-600 { color: #1A56DB; }
+.bg-danger  { background-color: #DC2626; }
+.bg-warning { background-color: #F59E0B; }
+.bg-success { background-color: #10B981; }
+.bg-info    { background-color: #6366F1; }
+.text-danger  { color: #DC2626; }
+.text-warning { color: #F59E0B; }
+.text-success { color: #10B981; }
+.text-info    { color: #6366F1; }
+.border-primary-600 { border-color: #1A56DB; }
+
+/* ===== Custom border-radius utilities ===== */
+.rounded-sm  { border-radius: 6px; }
+.rounded-md  { border-radius: 8px; }
+.rounded-lg  { border-radius: 12px; }
+.rounded-full { border-radius: 9999px; }
+
+/* ===== Hide scrollbar ===== */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }

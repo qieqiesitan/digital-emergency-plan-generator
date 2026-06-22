@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: emergency-plan-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: emergency_plan
+    ports:
+      - "5438:5438"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: emergency-plan-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/emergency_plan
+      SECRET_KEY: emergency-plan-docker-secret-key-2026
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      ENCRYPTION_KEY: abcdefghijklmnopqrstuvwxyz123456
+      EXPORT_DIR: /app/exports
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/exports:/app/exports
+      - ./backend/uploads:/app/uploads
+      - ./backend/app/templates:/app/app/templates
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: emergency-plan-frontend
+    environment:
+      VITE_API_TARGET: http://backend:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  shuzihuayuan:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.mobile
+    container_name: shuzihuayuan
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+    restart: unless-stopped
+volumes:
+  pgdata:

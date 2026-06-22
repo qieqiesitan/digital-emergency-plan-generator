@@ -1,0 +1,45 @@
+﻿@media print {
+  body {
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .export-preview-container {
+    max-width: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+  .export-preview-container h1,
+  .export-preview-container h2,
+  .export-preview-container h3,
+  .export-preview-container h4,
+  .export-preview-container h5,
+  .export-preview-container h6 {
+    page-break-after: avoid;
+  }
+  .export-preview-container table {
+    page-break-inside: avoid;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+  .export-preview-container {
+    flex: 1;
+    overflow: auto;
+    background: #fff;
+    max-width: 210mm;
+    margin: 0 auto;
+    width: 100%;
+    padding: 20mm 32px;
+    border: 1px solid #d9d9d9;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+}

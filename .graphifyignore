@@ -1,0 +1,25 @@
+﻿# 图片文件
+*.svg
+*.png
+*.jpg
+*.jpeg
+*.gif
+# 日志和进程
+*.log
+*.pid
+# 环境文件
+**/.env
+**/.env.*
+# Node modules
+node_modules/
+# 构建输出
+dist/
+# CodeGraph 数据
+.codegraph/
+# Python 缓存
+__pycache__/
+*.pyc
+# Lock 文件
+package-lock.json
+# Graphify 自身
+.graphifyignore

@@ -1,0 +1,53 @@
+# 敏感文件
+华为云虚拟机密码.csv
+ssh-ed25519
+*.pem
+*.key
+.env
+.env.*
+
+# 日志
+*.log
+
+# 依赖
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 构建产物
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# 图谱/索引
+.codegraph/
+graphify-out/
+
+# 测试产物
+screenshots/
+test-results/
+prompt_test_results/
+.playwright-cli/
+
+# 临时文件
+*.tmp
+*.swp
+.DS_Store
+
+# Docker
+docker-compose.override.yml
+# 导出产物
+backend/exports/*.docx
+
+# 二进制
+hdspace.exe
+chmod
+
+# 备份文件
+*.bak

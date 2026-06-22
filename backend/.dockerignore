@@ -1,0 +1,16 @@
+﻿.venv
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+.env
+*.log
+test_*.py
+check_*.py
+fix_*.py
+backfill_*.py
+exports/*
+uploads/*
+!exports/.gitkeep
+!uploads/.gitkeep
