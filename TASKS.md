@@ -3,8 +3,8 @@
 > 每次对话有进展后更新此文件。
 
 ## 🔴 当前状态快照（压缩恢复用）
-- 正在做什么：业务数据已从 shuzihuayuan_pgdata 卷完整恢复
-- 刚完成的动作：npx superpowers-zh --tool codex → 20 个技能安装到 .codex/skills
+- 正在做什么：系统正常运行
+- 刚完成的动作：修复 authService.ts 重复 import api → 白屏已解决，Playwright 验证通过
 - 下一步动作：重启 Codex 使技能生效
 - 关键上下文：
   - Gitee：https://gitee.com/chengleiggg/digital-emergency-plan-generator ✅

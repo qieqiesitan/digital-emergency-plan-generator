@@ -1,6 +1,9 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { LoginRequest, RegisterRequest, TokenResponse, User } from "@/types/auth";
+import type {
+  LoginRequest, RegisterRequest, TokenResponse, User,
+  UpdateProfileRequest, ChangePasswordRequest,
+} from "@/types/auth";
 
 export async function register(data: RegisterRequest): Promise<User> {
   const res = await api.post<ApiResponse<User>>("/auth/register", data);
@@ -24,11 +27,6 @@ export async function logout(refreshToken?: string): Promise<void> {
 }
 
 // ponytail: merged from userService.ts
-import type { User, UpdateProfileRequest, ChangePasswordRequest } from "@/types/auth";
-import api from "./api";
-import type { ApiResponse } from "@/types/common";
-import type { User, UpdateProfileRequest, ChangePasswordRequest } from "@/types/auth";
-
 export async function getProfile(): Promise<User> {
   const res = await api.get<ApiResponse<User>>("/users/me");
   return res.data.data;
