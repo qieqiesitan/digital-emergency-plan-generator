@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 _cache: dict = {}          # {category: [templates]}
 _loaded_at: float = 0      # epoch timestamp
 _cache_ttl: int = 300      # 5 分钟
-_loading: bool = False     # 防止并发重复加载
+
+# ponytail: asyncio.Event instead of spin-wait + bool flag
+_load_event = asyncio.Event()
+_load_event.set()  # 初始无加载进行中
 
 # ── 硬编码 fallback（中台不可用时使用） ──
 FALLBACK_SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格的应急预案编制专家，具有丰富的生产经营单位应急预案编制经验。你精通 GB/T 29639-2020《生产经营单位生产安全事故应急预案编制导则》，并严格遵循以下法律法规：《中华人民共和国安全生产法》《中华人民共和国突发事件应对法》《生产安全事故应急预案管理办法》《生产安全事故应急条例》。
@@ -40,28 +43,24 @@ FALLBACK_SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格�
 
 async def ensure_loaded(force: bool = False) -> None:
     """确保缓存已加载（异步，幂等）。force=True 强制刷新。"""
-    global _cache, _loaded_at, _loading
+    global _cache, _loaded_at
 
     if not force and _cache and (time.time() - _loaded_at) < _cache_ttl:
         return
 
-    if _loading:
-        # 等待已在进行的加载
-        for _ in range(50):
-            if not _loading:
-                return
-            await asyncio.sleep(0.1)
-        return
+    if not _load_event.is_set():
+        await _load_event.wait()
+        if not force and _cache:
+            return
 
-    _loading = True
+    _load_event.clear()
     try:
         from app import ywt_client
-        # 加载所有 emergency_ 前缀的提示词
         prompts = await ywt_client.fetch_prompts(category=None)
         _cache = {}
         for p in prompts:
             cat = p.get("category", "")
-            if cat:  # 加载所有有 category 的模板
+            if cat:
                 _cache.setdefault(cat, []).append(p)
         _loaded_at = time.time()
         logger.info(f"提示词缓存已加载: {sum(len(v) for v in _cache.values())} 个模板, {len(_cache)} 个分类")
@@ -69,21 +68,12 @@ async def ensure_loaded(force: bool = False) -> None:
         logger.warning(f"提示词缓存加载失败（将使用fallback）: {e}")
         _cache = {}
     finally:
-        _loading = False
-
+        _load_event.set()
 
 
 # ── 通用报告提示词查询（非应急预案） ──
 
 def get_report_system_prompt(category: str) -> str:
-    """获取报告类系统提示词（同步）。
-    
-    Args:
-        category: 如 'risk_assessment_system' / 'resource_investigation_system'
-    
-    Returns:
-        systemPrompt 字符串，缓存空则返回 "" 
-    """
     templates = _cache.get(category, [])
     for t in templates:
         sp = t.get("systemPrompt", "")
@@ -93,13 +83,6 @@ def get_report_system_prompt(category: str) -> str:
 
 
 def get_report_section_prompt(category: str, chapter_key: str) -> Optional[dict]:
-    """获取报告类章节提示词模板（同步）。
-    
-    templateCode 格式: {category}_{chapter_key}
-    如: risk_assessment_section_ch1_hazard_id
-    
-    返回 {"system_prompt": str, "user_prompt_template": str} 或 None
-    """
     templates = _cache.get(category, [])
     target_code = f"{category}_{chapter_key}"
     for t in templates:
@@ -112,44 +95,23 @@ def get_report_section_prompt(category: str, chapter_key: str) -> Optional[dict]
 
 
 def get_system_prompt(plan_type: str = "*") -> str:
-    """获取系统提示词（同步，从缓存读取）。
-    
-    匹配优先级：
-    1. emergency_system_{planType}_general -> 预案类型专属
-    2. emergency_system_default -> 全局兜底
-    3. FALLBACK_SYSTEM_PROMPT -> 硬编码兜底
-    """
     category = "emergency_system"
     templates = _cache.get(category, [])
-    # 一级：精确匹配预案类型
     target_code = f"emergency_system_{plan_type}_general"
     for t in templates:
         if t.get("templateCode", "") == target_code:
             return t.get("systemPrompt", "") or FALLBACK_SYSTEM_PROMPT
-    # 二级：全局默认兜底
     for t in templates:
         if t.get("templateCode", "") == "emergency_system_default":
             return t.get("systemPrompt", "") or FALLBACK_SYSTEM_PROMPT
-    # 有任意 system 模板则取第一个
     for t in templates:
         return t.get("systemPrompt", "") or FALLBACK_SYSTEM_PROMPT
-    # 三级：硬编码兜底
     return FALLBACK_SYSTEM_PROMPT
 
 
 def get_section_prompt(plan_type: str, section_key: str) -> Optional[dict]:
-    """获取章节提示词模板（同步，从缓存读取）。
-    
-    匹配优先级：
-    1. emergency_section_{planType}_{sectionKey}_general -> 精确匹配
-    2. emergency_section_{planType}_{sectionKey}_* -> 行业变体兜底
-    3. None -> 调用方使用代码 fallback
-    
-    返回 {"system_prompt": str, "user_prompt_template": str} 或 None。
-    """
     category = "emergency_section"
     templates = _cache.get(category, [])
-    # 一级：精确匹配 templateCode
     target_code = f"emergency_section_{plan_type}_{section_key}_general"
     for t in templates:
         if t.get("templateCode", "") == target_code:
@@ -157,7 +119,6 @@ def get_section_prompt(plan_type: str, section_key: str) -> Optional[dict]:
                 "system_prompt": t.get("systemPrompt", ""),
                 "user_prompt_template": t.get("userPromptTemplate", ""),
             }
-    # 二级：行业变体兜底
     prefix = f"emergency_section_{plan_type}_{section_key}_"
     for t in templates:
         if t.get("templateCode", "").startswith(prefix):
@@ -169,7 +130,6 @@ def get_section_prompt(plan_type: str, section_key: str) -> Optional[dict]:
 
 
 def get_mermaid_prompt() -> Optional[str]:
-    """获取 Mermaid 流程图提示词模板（同步）。"""
     templates = _cache.get("emergency_mermaid", [])
     if templates:
         return templates[0].get("user_prompt_template", "")

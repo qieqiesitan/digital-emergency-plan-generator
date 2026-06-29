@@ -1,4 +1,4 @@
-import type { SSEEvent, GenerateBatchRequest } from "@/types/generation";
+import type { SSEEvent, GenerateBatchRequest } from "@/types/plan";
 
 export function generateSectionStream(
   planId: string,

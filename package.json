@@ -1,0 +1,13 @@
+{
+  "name": "digital-emergency-plan-generator",
+  "version": "1.0.0",
+  "description": "数字化应急预案自动生成系统",
+  "private": true,
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "superpowers-zh": "^1.6.0"
+  }
+}

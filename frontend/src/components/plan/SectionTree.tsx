@@ -1,6 +1,6 @@
 import { Tree } from "antd";
 import type { PlanSection } from "@/types/plan";
-import type { SectionTemplate } from "@/types/template";
+import type { SectionTemplate } from "@/types/plan";
 import type { DataNode } from "antd/es/tree";
 
 interface SectionTreeProps {

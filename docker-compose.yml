@@ -7,9 +7,9 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: emergency_plan
     ports:
-      - "5438:5438"
+      - "5438:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - shuzihuayuan_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -27,14 +27,21 @@ services:
       SECRET_KEY: emergency-plan-docker-secret-key-2026
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      ENCRYPTION_KEY: abcdefghijklmnopqrstuvwxyz123456
+      ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       EXPORT_DIR: /app/exports
+      YWT_GATEWAY_URL: http://ywt-gateway:8080
+      YWT_API_KEY: 893e5e15d3b444dbbebb1dac44b720f2
+      YWT_SYS_CODE: emergency-plan
+      YWT_JWT_SECRET: yewuzhongtai-jwt-secret-key-2024-min-256-bits!!
     ports:
       - "8000:8000"
     volumes:
       - ./backend/exports:/app/exports
       - ./backend/uploads:/app/uploads
       - ./backend/app/templates:/app/app/templates
+    networks:
+      - default
+      - ywt-net
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,5 +70,11 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
 volumes:
-  pgdata:
+  shuzihuayuan_pgdata:
+    external: true
+
+networks:
+  ywt-net:
+    external: true

@@ -4,7 +4,7 @@ import { Form, Input, Select, InputNumber, Button, Card, message, Upload, Space,
 import { UploadOutlined, EnvironmentOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createEnterprise } from "@/services/enterpriseService";
-import { uploadFile } from "@/services/uploadService";
+import { uploadFile } from "@/services/enterpriseService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PRESET_INDUSTRIES } from "@/utils/constants";
 import GisMapPicker from "@/components/enterprise/GisMapPicker";

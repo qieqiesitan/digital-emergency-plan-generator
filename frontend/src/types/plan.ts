@@ -51,3 +51,100 @@ export interface EnterprisePlanSummary {
   onsite_count: number;
   last_updated: string | null;
 }
+
+// ponytail: merged from types/template.ts
+export interface SectionTemplate {
+  key: string;
+  title: string;
+  level: number;
+  sort_order: number;
+  ai_generatable: boolean;
+  user_editable: boolean;
+  required: boolean;
+  auto_fill: boolean;
+  auto_fill_source: string | null;
+  gb_requirement: string;
+  prompt_template: string | null;
+  data_dependencies: string[];
+  subsections: SectionTemplate[];
+}
+
+export interface PlanTemplate {
+  id: string;
+  plan_type: PlanType;
+  name: string;
+  version: string;
+  structure: SectionTemplate[];
+  is_active: boolean;
+}
+
+// ponytail: merged from types/version.ts
+export interface PlanVersion {
+  id: string;
+  version_number: number;
+  created_by: "auto" | "manual";
+  description: string | null;
+  created_at: string;
+}
+
+export interface PlanVersionDetail extends PlanVersion {
+  snapshot: Record<string, unknown>;
+}
+
+export interface SectionDiff {
+  section_key: string;
+  title: string;
+  change_type: "added" | "removed" | "modified" | "unchanged";
+  old_content: string | null;
+  new_content: string | null;
+}
+
+export interface VersionCompare {
+  version_a: number;
+  version_b: number;
+  diffs: SectionDiff[];
+}
+
+// ponytail: merged from types/export.ts
+export interface ExportTask {
+  task_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  progress: number;
+  download_url: string | null;
+  error_message: string | null;
+}
+
+export interface ExportPreview {
+  plan_id: string;
+  title: string;
+  html: string;
+}
+
+export interface ExportValidation {
+  valid: boolean;
+  issues: Array<{ section_key: string; section_title: string; issue: string }>;
+  warnings: string[];
+}
+
+// ponytail: merged from types/generation.ts
+export interface GenerateRequest {
+  section_key: string;
+  custom_instruction?: string | null;
+}
+
+export interface GenerateBatchRequest {
+  section_keys?: string[] | null;
+}
+
+export type SSEEventType = "chunk" | "done" | "error" | "progress" | "section_done" | "batch_done";
+
+export interface SSEEvent {
+  type: SSEEventType;
+  content?: string;
+  message?: string;
+  section_key?: string;
+  current?: number;
+  total?: number;
+  completed?: number;
+  failed?: number;
+}

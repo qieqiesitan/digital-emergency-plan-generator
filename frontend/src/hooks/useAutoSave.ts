@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateSection } from "@/services/sectionService";
+import { updateSection } from "@/services/planService";
 
 export function useAutoSave(planId: string, sectionKey: string) {
   const queryClient = useQueryClient();

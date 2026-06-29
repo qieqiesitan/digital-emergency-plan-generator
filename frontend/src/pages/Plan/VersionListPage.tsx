@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Table, Button, Modal, message } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listVersions, rollbackVersion } from "@/services/versionService";
+import { listVersions, rollbackVersion } from "@/services/planService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { formatDate } from "@/utils/formatters";
 

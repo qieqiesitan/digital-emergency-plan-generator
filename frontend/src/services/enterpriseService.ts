@@ -82,3 +82,20 @@ export async function generateSurroundingAI(
   );
   return res.data.data.surrounding;
 }
+
+// ponytail: merged from uploadService.ts
+import axios from "axios";
+
+export async function uploadFile(file: File): Promise<string> {
+  const token = localStorage.getItem("access_token");
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await axios.post<{ code: number; data: { url: string } }>(
+    "/api/v1/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  return res.data.data.url;
+}

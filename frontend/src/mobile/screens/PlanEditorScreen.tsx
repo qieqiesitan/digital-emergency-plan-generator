@@ -17,7 +17,7 @@ import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
 import type { ChapterNode } from "@/mobile/components/plan/ChapterTree";
 import { getPlan } from "@/services/planService";
-import { listSections, updateSection } from "@/services/sectionService";
+import { listSections, updateSection } from "@/services/planService";
 import { useAppStore } from "@/mobile/store/appStore";
 import { useDraftStore } from "@/mobile/store/draftStore";
 

@@ -13,7 +13,7 @@ import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import Button from "@/mobile/components/ui/Button";
 import Toast, { useToast } from "@/mobile/components/ui/Toast";
 import { getPlan } from "@/services/planService";
-import { listSections } from "@/services/sectionService";
+import { listSections } from "@/services/planService";
 import { getExportPreview, exportDocx, getExportTaskStatus } from "@/services/exportService";
 
 type ExportPhase = "idle" | "validating" | "exporting" | "done" | "failed";

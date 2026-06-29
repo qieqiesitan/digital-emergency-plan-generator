@@ -1,6 +1,6 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { ExportPreview, ExportTask, ExportValidation } from "@/types/export";
+import type { ExportPreview, ExportTask, ExportValidation } from "@/types/plan";
 
 export async function getExportPreview(planId: string): Promise<ExportPreview> {
   const res = await api.get<ApiResponse<ExportPreview>>(`/plans/${planId}/export/preview`);

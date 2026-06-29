@@ -413,7 +413,7 @@ def _fix_markdown_tables(md_text: str) -> str:
 
     return '\n'.join(result)
 
-async def _stream_llm_chunks(prompt: str, ai_config: AIConfig):
+async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*"):
 
     """Async generator: yields content chunks as they arrive from the LLM."""
 
@@ -441,7 +441,7 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig):
 
         "messages": [
 
-            {"role": "system", "content": _build_system_prompt(p.plan_type)},
+            {"role": "system", "content": _build_system_prompt(plan_type)},
 
             {"role": "user", "content": prompt},
 
@@ -491,13 +491,13 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig):
 
 
 
-async def _stream_llm(prompt: str, ai_config: AIConfig) -> str:
+async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*") -> str:
 
     """Collect full response (backward compat)."""
 
     result = ""
 
-    async for chunk in _stream_llm_chunks(prompt, ai_config):
+    async for chunk in _stream_llm_chunks(prompt, ai_config, plan_type):
 
         result += chunk
 
@@ -559,7 +559,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
     _active_generations[plan_id] = True
 
-
+    plan_type = p.plan_type
 
     # Use a queue to stream events from background task to SSE
 
@@ -619,7 +619,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         full = ""
 
-                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config):
+                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config, plan_type):
 
                             full += chunk_content
 
@@ -773,6 +773,8 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
     _active_generations[plan_id] = True
 
+    plan_type = p.plan_type
+
     # Collect section keys (these are plain strings, safe to pass to background)
 
     section_ids = [(s.section_key, s.title) for s in target_sections]
@@ -815,7 +817,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config, p.plan_type)
 
                         s.content = _md_to_html(full)
 
@@ -919,7 +921,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             full = ""
 
-            async for chunk_content in _stream_llm_chunks(prompt, ai_config):
+            async for chunk_content in _stream_llm_chunks(prompt, ai_config, p.plan_type):
 
                 full += chunk_content
 
@@ -1107,7 +1109,7 @@ def _md_to_html(text: str) -> str:
 
     return markdown.markdown(text, extensions=["tables", "fenced_code"])
 
-async def _stream_llm_chunks(prompt: str, ai_config: AIConfig):
+async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*"):
 
     """Async generator: yields content chunks as they arrive from the LLM."""
 
@@ -1135,7 +1137,7 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig):
 
         "messages": [
 
-            {"role": "system", "content": _build_system_prompt(p.plan_type)},
+            {"role": "system", "content": _build_system_prompt(plan_type)},
 
             {"role": "user", "content": prompt},
 
@@ -1185,13 +1187,13 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig):
 
 
 
-async def _stream_llm(prompt: str, ai_config: AIConfig) -> str:
+async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*") -> str:
 
     """Collect full response (backward compat)."""
 
     result = ""
 
-    async for chunk in _stream_llm_chunks(prompt, ai_config):
+    async for chunk in _stream_llm_chunks(prompt, ai_config, plan_type):
 
         result += chunk
 
@@ -1253,7 +1255,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
     _active_generations[plan_id] = True
 
-
+    plan_type = p.plan_type
 
     # Use a queue to stream events from background task to SSE
 
@@ -1313,7 +1315,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         full = ""
 
-                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config):
+                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config, plan_type):
 
                             full += chunk_content
 
@@ -1467,6 +1469,8 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
     _active_generations[plan_id] = True
 
+    plan_type = p.plan_type
+
     # Collect section keys (these are plain strings, safe to pass to background)
 
     section_ids = [(s.section_key, s.title) for s in target_sections]
@@ -1509,7 +1513,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config, p.plan_type)
 
                         s.content = _md_to_html(full)
 
@@ -1613,7 +1617,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             full = ""
 
-            async for chunk_content in _stream_llm_chunks(prompt, ai_config):
+            async for chunk_content in _stream_llm_chunks(prompt, ai_config, p.plan_type):
 
                 full += chunk_content
 

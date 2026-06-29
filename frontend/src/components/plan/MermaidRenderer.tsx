@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import mermaid from "mermaid";
 
 // Initialize mermaid once
@@ -33,7 +33,7 @@ function sanitizeMermaidText(text: string): string {
     "statediagram", "erdiagram", "gantt", "pie", "gitgraph",
     "mindmap", "timeline", "journey", "quadrantchart",
   ];
-  const lines = result.split("\n");
+  let lines = result.split("\n");
   let startIdx = -1;
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim().toLowerCase();
@@ -50,6 +50,35 @@ function sanitizeMermaidText(text: string): string {
   if (startIdx < 0 && (result.includes("-->") || result.includes(" -- "))) {
     result = "flowchart TD\n" + result;
   }
+
+  // Fix: Convert old syntax "A -- text --> B" to "A -->|text| B"
+  result = result.replace(/(\w+)\s+--\s+(.+?)\s+-->\s+(\w+)/g, "$1 -->|$2| $3");
+  result = result.replace(/(\w+)\s+--\s+(.+?)\s+->\s+(\w+)/g, "$1 ->|$2| $3");
+
+  // Fix: Join broken edge definitions (arrow on one line, label on next)
+  lines = result.split("\n");
+  const cleaned: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd();
+    const stripped = line.trim();
+    // Is this line a bare arrow?
+    const bareArrow = /^(\s*\w+\s*(?:-->|->)\s*)$/.test(line);
+    const partial = /^(.+?(?:-->|->)\|?)\s*$/.test(line) &&
+      !stripped.endsWith("]") && !stripped.endsWith("}") && !stripped.endsWith(")");
+    if ((bareArrow || partial) && i + 1 < lines.length) {
+      // Look ahead for label, skipping empty lines
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim()) j++;
+      if (j < lines.length && lines[j].trim().startsWith("|")) {
+        cleaned.push(line.trimEnd() + lines[j].trim());
+        i = j;
+        continue;
+      }
+    }
+    if (!stripped) continue;
+    cleaned.push(line);
+  }
+  result = cleaned.join("\n");
 
   return result;
 }

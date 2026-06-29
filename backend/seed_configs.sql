@@ -1,0 +1,5 @@
+INSERT INTO sys_config (config_key, config_value, config_type, description) VALUES ('export_dir', './exports', 'string', '应急预案导出文件目录') ON CONFLICT (config_key) DO NOTHING;
+INSERT INTO sys_config (config_key, config_value, config_type, description) VALUES ('prompt_cache_ttl', '300', 'int', '提示词缓存有效期（秒）') ON CONFLICT (config_key) DO NOTHING;
+INSERT INTO sys_config (config_key, config_value, config_type, description) VALUES ('surrounding_directions', '["N","NE","E","SE","S","SW","W","NW"]', 'json', '周边环境8个方向枚举') ON CONFLICT (config_key) DO NOTHING;
+INSERT INTO sys_config (config_key, config_value, config_type, description) VALUES ('risk_matrix_l_scale', '{"5": "在现场没有采取防范、监测、保护、控制措施，或危害的发生不能被发现", "4": "危害的发生不容易被发现，现场没有检测系统", "3": "没有保护措施，或未严格按操作程序执行", "2": "危害一旦发生能及时发现，并定期进行监测", "1": "有充分有效的防范、控制、监测、保护措施"}', 'json', 'L量表（事故可能性）5级描述') ON CONFLICT (config_key) DO NOTHING;
+INSERT INTO sys_config (config_key, config_value, config_type, description) VALUES ('risk_matrix_s_scale', '{"5": "多人死亡或重大财产损失", "4": "一人死亡或较大财产损失", "3": "多人重伤或一般财产损失", "2": "一人重伤或轻微财产损失", "1": "轻微伤害或无财产损失"}', 'json', 'S量表（事故严重性）5级描述') ON CONFLICT (config_key) DO NOTHING;

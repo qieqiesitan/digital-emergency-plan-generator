@@ -21,5 +21,5 @@ async def list_dict_types(
     current_user=Depends(get_current_user),
 ):
     """列出所有字典类型（从中台API代理）"""
-    result = await ywt_client._ai_get("/system/dict/type/all")
+    result = await ywt_client.fetch_all_dict_types()
     return ApiResponse(data=result.get("data", []) or [])

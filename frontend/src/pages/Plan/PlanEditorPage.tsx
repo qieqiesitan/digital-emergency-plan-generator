@@ -1,10 +1,10 @@
-﻿import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Input, Button, Space, Badge, message, Progress } from "antd";
 import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPlan, updatePlan } from "@/services/planService";
-import { listSections, updateSection } from "@/services/sectionService";
+import { listSections, updateSection } from "@/services/planService";
 import { generateBatchStream } from "@/services/generationService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
@@ -13,7 +13,7 @@ import RichTextEditor from "@/components/plan/RichTextEditor";
 import AIGenerateButton from "@/components/plan/AIGenerateButton";
 import type { PlanSection } from "@/types/plan";
 import type { SectionTemplate } from "@/types/template";
-import type { SSEEvent } from "@/types/generation";
+import type { SSEEvent } from "@/types/plan";
 
 function findTemplate(key: string, templates: SectionTemplate[]): SectionTemplate | null {
   for (const t of templates) {

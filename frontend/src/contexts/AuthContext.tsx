@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { User, LoginRequest, RegisterRequest } from "@/types/auth";
 import * as authService from "@/services/authService";
-import * as userService from "@/services/userService";
+import * as userService from "@/services/authService";
 import { isYwtMode, getToken, getUsername } from "@/utils/platform";
 
 interface AuthState {
