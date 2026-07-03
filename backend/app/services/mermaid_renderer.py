@@ -10,6 +10,7 @@ import os
 import re
 import html as html_mod
 import asyncio
+import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ _cache: dict[str, bytes] = {}
 # Shared browser state
 _browser = None
 _playwright = None
-_browser_lock = asyncio.Lock()
+_browser_lock = threading.Lock()
 
 # Local Mermaid.js path
 _MERMAID_JS_PATH = Path(__file__).parent / "mermaid.min.js"
@@ -83,7 +84,7 @@ async def _get_browser():
     """Get or create the shared browser instance."""
     global _browser, _playwright
 
-    async with _browser_lock:
+    with _browser_lock:
         if _browser is not None and _browser.is_connected():
             return _browser
 
@@ -96,7 +97,11 @@ async def _get_browser():
         if _playwright is None:
             _playwright = await async_playwright().start()
 
-        _browser = await _playwright.chromium.launch(headless=True)
+        _browser = await _playwright.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        )
+
         logger.info("Shared Chromium browser launched")
         return _browser
 
@@ -104,12 +109,19 @@ async def _get_browser():
 async def _close_browser():
     """Close the shared browser (call on app shutdown)."""
     global _browser, _playwright
-    if _browser:
-        await _browser.close()
-        _browser = None
-    if _playwright:
-        await _playwright.stop()
-        _playwright = None
+    # ponytail: event loop may be closing during shutdown, be resilient
+    try:
+        if _browser:
+            await _browser.close()
+    except Exception:
+        pass
+    _browser = None
+    try:
+        if _playwright:
+            await _playwright.stop()
+    except Exception:
+        pass
+    _playwright = None
 
 
 def _extract_mermaid_code(html_content: str) -> list[str]:
@@ -183,6 +195,9 @@ async def render_mermaid_png(code: str, retries: int = 3) -> bytes:
                 "Mermaid render attempt %d/%d failed: %s",
                 attempt, retries, str(e)[:150],
             )
+            # ponytail: reset stale browser + playwright on transport error
+            if "handler is closed" in str(e) or "closed=True" in str(e):
+                global _browser, _playwright; _browser = None; _playwright = None
             if attempt < retries:
                 await asyncio.sleep(1)
 
@@ -237,6 +252,9 @@ async def render_mermaid_svg(code: str, retries: int = 3) -> str:
                 "Mermaid SVG render attempt %d/%d failed: %s",
                 attempt, retries, str(e)[:150],
             )
+            # ponytail: reset stale browser + playwright on transport error
+            if "handler is closed" in str(e) or "closed=True" in str(e):
+                global _browser, _playwright; _browser = None; _playwright = None
             if attempt < retries:
                 await asyncio.sleep(1)
 
@@ -288,6 +306,29 @@ import re
 def _clean_mermaid_syntax(code: str) -> str:
     """Fix common AI-generated Mermaid syntax errors before rendering."""
     
+    # -1. Replace fullwidth punctuation (Chinese marks that break Mermaid parser)
+    code = code.replace('\uff08', '(').replace('\uff09', ')')
+    code = code.replace('\uff1a', ':')
+    code = code.replace('\uff3b', '[').replace('\uff3d', ']')
+    code = code.replace('\uff5b', '{').replace('\uff5d', '}')
+    code = code.replace('\uff1b', ';').replace('\uff0c', ',')
+    # Chinese fullwidth arrows
+    code = code.replace('\u2192', '-->')
+
+    # 0. Strip stray code fence tokens inside the block
+    code = code.replace("```mermaid", "").replace("```", "")
+
+    # 0b. Escape unquoted parentheses in node labels: A[foo(bar)] -> A["foo(bar)"]
+    code = re.sub(r'(\w+)\[([^"\]]*\([^"\]]*\)[^"\]]*)\]', r'\1["\2"]', code)
+    code = re.sub(r'(\w+)\{([^"}]*\([^"}]*\)[^"}]*)\}', r'\1{"\2"}', code)
+
+
+    # 0c. Quote pipe-labels that contain parentheses: -->|foo(bar)| -> -->|"foo(bar)"|
+    code = re.sub(r'(-->|\.-|==>)\|([^|"\n]*\([^|"\n]*\)[^|"\n]*)\|', r'\1|"\2"|', code)
+    code = re.sub(r'(-->|\.-|==>)\|([^|"\n]*\uff08[^|"\n]*\uff09[^|"\n]*)\|', r'\1|"\2"|', code)
+    code = re.sub(r'(->)\|([^|"\n]*\([^|"\n]*\)[^|"\n]*)\|', r'\1|"\2"|', code)
+    # 0d. Quote subgraph names with parentheses: subgraph foo(bar) -> subgraph "foo(bar)"
+    code = re.sub(r'\b(subgraph)\s+([^"\n]+(?:\(|\uff08)[^"\n]*(?:\)|\uff09)[^"\n]*)', r'\1 "\2"', code)
     # 1. Convert old syntax: A -- text --> B  ->  A -->|text| B
     #    And: A -- text -> B  ->  A ->|text| B
     code = re.sub(r'(\w+)\s+--\s+(.+?)\s+-->\s+(\w+)', r'\1 -->|\2| \3', code)

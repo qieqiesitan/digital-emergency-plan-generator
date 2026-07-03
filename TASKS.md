@@ -1,30 +1,20 @@
-# 当前任务追踪
-
-> 每次对话有进展后更新此文件。
-
 ## 🔴 当前状态快照（压缩恢复用）
-- 正在做什么：系统正常运行
-- 刚完成的动作：修复 authService.ts 重复 import api → 白屏已解决，Playwright 验证通过
-- 下一步动作：重启 Codex 使技能生效
+- 正在做什么：提示词全局优化完成，等待用户重新生成验证
+- 刚完成的动作：
+  - **系统提示词修复**：mergency_system_default 中「使用###标题」与「不要重复章节标题」自相矛盾 → 删除###标题指令，统一为「严禁输出章节标题和编号」
+  - **章节提示词修复**：47 条 mergency_section 提示词中「直接输出正文，不要重复章节标题」→ 强化为「【严禁输出章节标题】不要输出任何章节编号和章节标题」
+  - **图表提示词增强**：7 条 mergency_diagram + mergency_mermaid 提示词追加【Mermaid语法强制要求】4 条规则
+  - 提示词缓存已清除重载
+- 下一步：用户重新点击一键生成 → 观察章节编号是否清晰、流程图是否正常
 - 关键上下文：
-  - Gitee：https://gitee.com/chengleiggg/digital-emergency-plan-generator ✅
-  - GitHub：https://github.com/qieqiesitan/digital-emergency-plan-generator ✅
-  - superpowers-zh v1.6.0 已安装，npm 包 + 20 Codex skills
+  - 旧版系统提示词「使用###标题」直接指导 LLM 输出带编号的标题，与「不要重复标题」矛盾
+  - 图表语法规则已嵌入提示词，从源头减少 Mermaid 语法错误
+  - 后端清洗器（_clean_mermaid_syntax）作为兜底仍生效
 
 ## 进行中的任务
-
-## 已完成
-- ✅ 风险评估+应急资源调查提示词配置化
-- ✅ Git 仓库初始化
-- ✅ Gitee 同步
-- ✅ GitHub 同步
-- ✅ superpowers-zh v1.6.0 安装（20 skills → .codex/skills）
-
-## 阻塞点
-
-## 环境速查
-- 项目路径：C:\Users\55061\Documents\数字化预案自动生成 2
-- Gitee：https://gitee.com/chengleiggg/digital-emergency-plan-generator
-- GitHub：https://github.com/qieqiesitan/digital-emergency-plan-generator
-- 后端：http://localhost:8000 🐳 Docker 运行中 (旧数据已恢复)
-- 前端：http://localhost:5173 🐳 Docker 运行中
+- 🟢 修复一键生成卡死问题 ✅
+- 🟢 修复新建预案报错 ✅
+- 🟢 修复 DOCX 下载/渲染：前端超时 + Mermaid括号 + Markdown格式 + 静默失败 ✅
+- 🟢 修复侧边栏状态更新 ✅
+- 🟢 修复提示词管理显示 ✅
+- 🟢 提示词全局优化（章节编号 + 图表语法） ✅

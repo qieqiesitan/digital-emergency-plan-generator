@@ -103,6 +103,20 @@ def _strip_section_heading(html: str) -> str:
     return html
 
 
+def _build_section_numbers(sections: list) -> dict:
+    """为章节生成编号。level 0 → 1,2,3; level 1 → 1.1,1.2; level 2 → 1.1.1"""
+    counters = [0] * 6
+    numbers = {}
+    for sec in sections:
+        level = sec.level
+        counters[level] += 1
+        for i in range(level + 1, len(counters)):
+            counters[i] = 0
+        parts = [str(counters[i]) for i in range(level + 1) if counters[i] > 0]
+        numbers[id(sec)] = ".".join(parts) if len(parts) > 1 else parts[0]
+    return numbers
+
+
 # Route: Export Preview (unchanged)
 
 @router.get("/{plan_id}/export/preview")
@@ -134,19 +148,20 @@ async def get_export_preview(
         raise HTTPException(404, "Plan has no sections")
 
     html_parts = []
+    sec_numbers = _build_section_numbers(sections)
+
     for section in sections:
         if not section.content or not section.content.strip():
             continue
         content = section.content
         content = _strip_section_heading(content)
-        if not content.strip().startswith("<"):
-            content = _wrap_raw_mermaid(content)
+        content = _wrap_raw_mermaid(content)
 
         level = min(section.level + 1, 6)
-        html_parts.append(f"<h{level}>{section.title}</h{level}>")
+        num = sec_numbers[id(section)]
+        html_parts.append(f"<h{level}>{num} {section.title}</h{level}>")
 
-        if not content.strip().startswith("<"):
-            content = markdown.markdown(content, extensions=["tables", "fenced_code"])
+        content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
 
         content = fix_markdown_tables(content)
         html_parts.append(content)
@@ -215,12 +230,8 @@ async def export_plan_docx(
             continue
         content = s.content
         content = _strip_section_heading(content)
-        if not content.strip().startswith("<"):
-            content = _wrap_raw_mermaid(content)
-
-        if not content.strip().startswith("<"):
-            content = markdown.markdown(content, extensions=["tables", "fenced_code"])
-
+        content = _wrap_raw_mermaid(content)
+        content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
         content = fix_markdown_tables(content)
 
         sections_data.append({

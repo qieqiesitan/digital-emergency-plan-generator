@@ -54,6 +54,11 @@ function sanitizeMermaidText(text: string): string {
   // Fix: Convert old syntax "A -- text --> B" to "A -->|text| B"
   result = result.replace(/(\w+)\s+--\s+(.+?)\s+-->\s+(\w+)/g, "$1 -->|$2| $3");
   result = result.replace(/(\w+)\s+--\s+(.+?)\s+->\s+(\w+)/g, "$1 ->|$2| $3");
+  // Fix: Quote pipe labels with parentheses → Mermaid parser chokes on bare parens
+  result = result.replace(/(-->|-\.->|==>)\|([^|"\n]*?\([^|"\n]*?\)[^|"\n]*?)\|/g, "$1|\"$2\"|");
+  result = result.replace(/(->)\|([^|"\n]*?\([^|"\n]*?\)[^|"\n]*?)\|/g, "$1|\"$2\"|");
+  // Fix: Quote subgraph/end names with parentheses
+  result = result.replace(/\b(subgraph)\s+(.+)/g, '$1 "$2"');
 
   // Fix: Join broken edge definitions (arrow on one line, label on next)
   lines = result.split("\n");

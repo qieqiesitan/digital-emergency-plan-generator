@@ -8,9 +8,10 @@ interface SectionTreeProps {
   templateSections: SectionTemplate[];
   selectedKey: string | null;
   onSelect: (sectionKey: string) => void;
+  generatingKeys?: Set<string>;
 }
 
-function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[]): DataNode[] {
+function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[], generatingKeys?: Set<string>): DataNode[] {
   const sectionMap = new Map(sections.map((s) => [s.section_key, s]));
 
   function convert(nodes: SectionTemplate[], level: number): DataNode[] {
@@ -19,9 +20,13 @@ function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[]): 
       const hasContent = (section?.content?.trim()?.length ?? 0) > 0;
       const isRequired = tpl.required;
 
+      const isGenerating = generatingKeys?.has(tpl.key) ?? false;
+
       let iconStr = "";
       if (hasContent) {
         iconStr = "✓ ";
+      } else if (isGenerating) {
+        iconStr = "⏳ ";
       } else if (isRequired) {
         iconStr = "! ";
       }
@@ -35,7 +40,10 @@ function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[]): 
             {hasContent && (
               <span style={{ color: "#52c41a", marginRight: 4, fontWeight: "bold" }}>✓</span>
             )}
-            {!hasContent && isRequired && (
+            {!hasContent && isGenerating && (
+              <span style={{ color: "#faad14", marginRight: 4, fontWeight: "bold" }}>⏳</span>
+            )}
+            {!hasContent && !isGenerating && isRequired && (
               <span style={{ color: "#ff4d4f", marginRight: 4, fontWeight: "bold" }}>!</span>
             )}
             {tpl.title}
@@ -53,8 +61,8 @@ function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[]): 
   return convert(templates, 0);
 }
 
-export default function SectionTree({ sections, templateSections, selectedKey, onSelect }: SectionTreeProps) {
-  const treeData = buildTreeNodes(sections, templateSections);
+export default function SectionTree({ sections, templateSections, selectedKey, onSelect, generatingKeys }: SectionTreeProps) {
+  const treeData = buildTreeNodes(sections, templateSections, generatingKeys);
 
   return (
     <Tree

@@ -257,25 +257,6 @@ def get_mermaid_prompt() -> Optional[str]:
     return None
 
 
-def get_diagram_prompt(diagram_type: str) -> Optional[str]:
-    """Query emergency_diagram category for a diagram-type-specific prompt template.
-    Falls back through: exact type match → base type match → emergency_mermaid default."""
-    # Exact match (e.g. "flowchart TD", "graph LR", "sequenceDiagram")
-    templates = _cache.get("emergency_diagram", [])
-    exact_code = f"emergency_diagram_{diagram_type}"
-    for t in templates:
-        if t.get("templateCode", "") == exact_code or t.get("template_code", "") == exact_code:
-            return t.get("userPromptTemplate", "") or t.get("user_prompt_template", "") or None
-    # Base type match (e.g. "flowchart", "graph", "pie")
-    base_type = diagram_type.split()[0]
-    base_code = f"emergency_diagram_{base_type}"
-    for t in templates:
-        if t.get("templateCode", "") == base_code or t.get("template_code", "") == base_code:
-            return t.get("userPromptTemplate", "") or t.get("user_prompt_template", "") or None
-    # Fallback to emergency_mermaid (backward compat)
-    return get_mermaid_prompt()
-
-
 def render_template(template: str, variables: dict) -> str:
     """替换模板中的 {{变量名}} 为实际值。"""
     import re

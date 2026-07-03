@@ -130,16 +130,44 @@ def _get_mermaid_instruction(section_key: str | None, section_title: str) -> str
         f"5. 节点文字使用中文，简洁明了（每节点不超过15个字）\n"
     )
 
-def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*") -> str:
+def _collect_previous_context(sections: list, current_key: str) -> str:
+    """收集当前章节之前所有已生成章节的全文（去HTML），用于上下文注入。"""
+    if not sections:
+        return ""
+    current_order = next(
+        (x.sort_order for x in sections if x.section_key == current_key), 999
+    )
+    prev = [s for s in sections if s.section_key != current_key and s.sort_order < current_order]
+    prev.sort(key=lambda s: s.sort_order)
+    if not prev:
+        return ""
+    import re as _re
+    lines = ["【前面章节全文——请确保本章节与以下内容协调一致，避免前后矛盾或重复】"]
+    for s in prev:
+        if s.content:
+            text = _re.sub(r"<[^>]+>", "", s.content).strip()
+            lines.append(f"\n--- 「{s.title}」 ---")
+            lines.append(text)
+        else:
+            lines.append(f"- 「{s.title}」：(尚未生成)")
+    return "\n".join(lines) + "\n\n"
+
+def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*", accident_type: str | None = None, previous_context: str = "") -> str:
     """构建章节提示词，优先使用数据库模板，未命中则用代码拼接兜底。"""
     # 尝试从数据库获取模板
     if plan_type != "*" and section_key:
         tmpl = get_section_prompt(plan_type, section_key)
         if tmpl and tmpl.get("user_prompt_template"):
-            variables = {"enterprise_data": json.dumps(enterprise_data, ensure_ascii=False, indent=2)}
+            is_first = not previous_context
+            first_hint = "【重要】本章为预案第一章，请务必仔细阅读企业数据中的风险评估报告全文和应急资源调查报告全文，确保本章内容与报告完全一致。\n\n" if is_first else ""
+            acc_type = accident_type or ""
+            variables = {"enterprise_data": json.dumps(enterprise_data, ensure_ascii=False, indent=2), "previous_context": previous_context, "first_chapter_hint": first_hint, "accident_type": acc_type}
             prompt = render_template(tmpl["user_prompt_template"], variables)
             if tmpl.get("system_prompt"):
                 prompt = tmpl["system_prompt"] + "\n\n---\n\n" + prompt
+            # 隐式注入前文上下文（模板无需显式写 {{previous_context}}）
+            if previous_context:
+                prompt = previous_context + "\n" + prompt
             mermaid_inst = _get_mermaid_instruction(section_key, section_title)
             if mermaid_inst:
                 prompt += "\n\n" + mermaid_inst
@@ -149,6 +177,13 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
     num_hint = f"这是应急预案的第{section_number}个章节，请在正文中使用“{section_number}.”或“{section_number}.x”的编号格式。\n" if section_number is not None else ""
 
     prompt = f"请撰写应急预案章节《{section_title}》的内容。\n\n"
+    if previous_context:
+        prompt += previous_context
+    else:
+        # 第一章：无前文，需特别强调充分利用企业数据和报告全文
+        prompt += "【重要】本章为预案第一章，无前面章节可参考。请务必仔细阅读下方企业数据中的 risk_assessment_full（风险评估报告全文）和 resource_investigation_full（应急资源调查报告全文），确保本章内容与两份报告中的风险分析结论、资源调查结果完全一致，不遗漏关键信息。\n\n"
+    if accident_type:
+        prompt += f"【事故类型】本预案针对的事故类型为：{accident_type}。请围绕{accident_type}事故的特点、风险源、致灾机理、典型后果（如爆炸的冲击波/破片、火灾的烟气蔓延/高温辐射、中毒的毒物扩散途径等），撰写具有针对性的内容，避免与其他事故类型的预案雷同。\n\n"
 
     prompt += f"企业信息：\n{json.dumps(enterprise_data, ensure_ascii=False, indent=2)}\n\n"
 
@@ -170,7 +205,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
 
     return prompt
 
-def _collect_enterprise_data(enterprise: Enterprise, risk_sources: list, resources: list) -> dict:
+def _collect_enterprise_data(enterprise: Enterprise, risk_sources: list, resources: list, accident_type: str | None = None) -> dict:
 
     return {
 
@@ -209,6 +244,7 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_sources: list, resourc
         "hazardous_chemicals": enterprise.hazardous_chemicals,
 
         "special_equipment": enterprise.special_equipment,
+        "accident_type": accident_type,
 
         "risk_sources": [{"categories": r.categories, "name": r.name, "location": r.location, "description": r.description, "risk_level": r.risk_level, "control_measures": r.control_measures} for r in risk_sources],
 
@@ -527,13 +563,15 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources, p.accident_type) if ent else {}
 
     if ent:
 
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
 
+
+    await ensure_loaded()
 
     try:
 
@@ -614,8 +652,9 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     await event_queue.put(_sse("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
 
                     try:
-
-                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type)
+                        # 收集当前章节的前文上下文
+                        current_prev_context = _collect_previous_context([s for s in bg_sections], section_key)
+                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, previous_context=current_prev_context)
 
                         full = ""
 
@@ -628,7 +667,6 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                         s.content = _md_to_html(full); s.ai_generated = True
 
                         s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
-                        await bg_db.commit()
 
                         completed += 1
 
@@ -744,11 +782,13 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources, p.accident_type) if ent else {}
 
     if ent:
 
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
+
+    await ensure_loaded()
 
     try:
 
@@ -818,14 +858,13 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config, p.plan_type)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, previous_context=previous_context), ai_config, p.plan_type)
 
                         s.content = _md_to_html(full)
 
                         s.ai_generated = True
 
                         s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
-                        await bg_db.commit()
 
                         completed += 1
 
@@ -852,9 +891,8 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
                 await bg_db.commit()
 
         except Exception as e:
+
             logger.error(f"Background batch generation failed: {e}")
-        finally:
-            _active_generations.pop(plan_id, None)
 
     task = asyncio.create_task(run_background())
 
@@ -886,13 +924,21 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources, p.accident_type) if ent else {}
 
     if ent:
 
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
 
+
+    await ensure_loaded()
+
+    # 收集前文章节上下文
+    all_sections_for_ctx = (await db.execute(
+        select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
+    )).scalars().all()
+    previous_context = _collect_previous_context(all_sections_for_ctx, section_key)
 
     custom_instruction = None
 
@@ -908,7 +954,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
-    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type)
+    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, previous_context=previous_context)
 
     p.status = "generating"
 
@@ -1226,13 +1272,15 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources, p.accident_type) if ent else {}
 
     if ent:
 
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
 
+
+    await ensure_loaded()
 
     try:
 
@@ -1313,8 +1361,9 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     await event_queue.put(_sse("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
 
                     try:
-
-                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type)
+                        # 收集当前章节的前文上下文
+                        current_prev_context = _collect_previous_context([s for s in bg_sections], section_key)
+                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, previous_context=current_prev_context)
 
                         full = ""
 
@@ -1327,7 +1376,6 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                         s.content = _md_to_html(full); s.ai_generated = True
 
                         s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
-                        await bg_db.commit()
 
                         completed += 1
 
@@ -1443,11 +1491,13 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources, p.accident_type) if ent else {}
 
     if ent:
 
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
+
+    await ensure_loaded()
 
     try:
 
@@ -1517,14 +1567,13 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config, p.plan_type)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, previous_context=previous_context), ai_config, p.plan_type)
 
                         s.content = _md_to_html(full)
 
                         s.ai_generated = True
 
                         s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
-                        await bg_db.commit()
 
                         completed += 1
 
@@ -1551,9 +1600,8 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
                 await bg_db.commit()
 
         except Exception as e:
+
             logger.error(f"Background batch generation failed: {e}")
-        finally:
-            _active_generations.pop(plan_id, None)
 
     task = asyncio.create_task(run_background())
 
@@ -1585,13 +1633,21 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources, p.accident_type) if ent else {}
 
     if ent:
 
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
 
+
+    await ensure_loaded()
+
+    # 收集前文章节上下文
+    all_sections_for_ctx = (await db.execute(
+        select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
+    )).scalars().all()
+    previous_context = _collect_previous_context(all_sections_for_ctx, section_key)
 
     custom_instruction = None
 
@@ -1607,7 +1663,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
-    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type)
+    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, previous_context=previous_context)
 
     p.status = "generating"
 

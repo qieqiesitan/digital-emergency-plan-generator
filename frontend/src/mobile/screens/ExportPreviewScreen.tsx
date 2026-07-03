@@ -72,7 +72,10 @@ export default function ExportPreviewScreen() {
 
   // 导出处理
   const handleExport = useCallback(async () => {
-    if (!planId) return;
+    if (!planId) {
+      showToast?.({ type: "error", message: "预案ID缺失，请返回重试" });
+      return;
+    }
     setExportPhase("exporting");
     setExportProgress(0);
 
@@ -112,7 +115,8 @@ export default function ExportPreviewScreen() {
           }
         }, 2000);
       } else {
-        setExportPhase("done");
+        setExportPhase("failed");
+        showToast?.({ type: "error", message: "导出失败：服务器返回异常" });
       }
     } catch {
       setExportPhase("failed");

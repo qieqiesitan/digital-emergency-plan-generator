@@ -148,7 +148,7 @@ export default function PromptManagePage() {
     },
     {
       title: "状态", dataIndex: "status", key: "status", width: 80,
-      render: (s: string) => <Tag color={s === "0" ? "green" : "default"}>{s === "0" ? "启用" : "禁用"}</Tag>,
+      render: (s: string) => { const enabled = s === "0" || s === "1" || s === "active"; return <Tag color={enabled ? "green" : "default"}>{enabled ? "启用" : "禁用"}</Tag> },
     },
     {
       title: "适用章节", dataIndex: "templateCode", key: "section", width: 160,

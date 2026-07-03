@@ -1,4 +1,4 @@
-﻿"""
+"""
 应急预案 DOCX 模板引擎
 基于 紫楹台酒店应急预案.docx 参考格式，提供完整的 Word 文档生成能力。
 
@@ -526,20 +526,10 @@ def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1):
     if not html_content or not html_content.strip():
         return
 
-    # 如果内容是纯文本（非 HTML），直接按段落处理
+    # 如果内容是纯文本（非 HTML），先转 Markdown 再按 HTML 处理
     if not html_content.strip().startswith("<"):
-        for line in html_content.strip().split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            # 检测标题（纯文本中的 # 标题）
-            h_match = re.match(r'^(#{1,6})\s+(.+)', line)
-            if h_match:
-                level = min(len(h_match.group(1)) + base_level - 1, 6)
-                add_heading(doc, h_match.group(2).strip(), level)
-            else:
-                add_normal_paragraph(doc, line)
-        return
+        import markdown as _md2
+        html_content = _md2.markdown(html_content, extensions=["tables", "fenced_code", "md_in_html"])
 
     soup = BeautifulSoup(html_content, "html.parser")
 
@@ -740,6 +730,20 @@ def fix_markdown_tables(html: str) -> str:
 # 主入口：生成完整预案文档
 # ═══════════════════════════════════════════
 
+def _build_docx_section_numbers(sections: list) -> dict:
+    """为章节生成编号。level 0 → 1,2,3; level 1 → 1.1,1.2; level 2 → 1.1.1"""
+    counters = [0] * 6
+    numbers = {}
+    for i, sec in enumerate(sections):
+        level = sec.get("level", 0)
+        counters[level] += 1
+        for j in range(level + 1, len(counters)):
+            counters[j] = 0
+        parts = [str(counters[j]) for j in range(level + 1) if counters[j] > 0]
+        numbers[i] = ".".join(parts) if len(parts) > 1 else parts[0]
+    return numbers
+
+
 def generate_plan_docx(
     *,
     company_name: str,
@@ -799,7 +803,8 @@ def generate_plan_docx(
     add_body_title(doc, body_title)
 
     # 5) 逐章节写入
-    for section in sections:
+    sec_numbers = _build_docx_section_numbers(sections)
+    for idx, section in enumerate(sections):
         title = section.get("title", "")
         level = section.get("level", 1)
         content = section.get("content", "")
@@ -808,10 +813,12 @@ def generate_plan_docx(
         if not title:
             continue
 
-        # 写标题
+        # 写标题（含编号）
         section_level = level
         heading_level = min(level + 1, 6)
-        add_heading(doc, title, heading_level)
+        num = sec_numbers.get(idx, "")
+        numbered_title = f"{num} {title}" if num else title
+        add_heading(doc, numbered_title, heading_level)
 
         if not content or not content.strip():
             continue
@@ -819,10 +826,9 @@ def generate_plan_docx(
         # 预处理 Mermaid 代码
         content = _wrap_raw_mermaid(content)
 
-        # Markdown → HTML（如果不是 HTML）
-        if not content.strip().startswith("<"):
-            import markdown
-            content = markdown.markdown(content, extensions=["tables", "fenced_code"])
+        # Markdown → HTML（始终转换，md_in_html 处理 HTML 内嵌 Markdown）
+        import markdown
+        content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
 
         # 修复 Markdown 表格
         content = fix_markdown_tables(content)
@@ -837,16 +843,22 @@ def generate_plan_docx(
 
         # 插入 Mermaid 图片
         for code in codes:
+            png_bytes = None
             try:
                 h = _mermaid_hash(code)
+                # 优先用缓存 SVG，失败则退回实时渲染
                 if h in mermaid_svgs:
-                    from app.services.mermaid_renderer import render_svg_to_png
-                    import asyncio as _asyncio2, concurrent.futures as _cf2
-                    with _cf2.ThreadPoolExecutor() as _ex2:
-                        png_bytes = _ex2.submit(_asyncio2.run, render_svg_to_png(mermaid_svgs[h])).result(timeout=30)
-                elif mermaid_pngs and h in mermaid_pngs:
+                    try:
+                        from app.services.mermaid_renderer import render_svg_to_png
+                        import asyncio as _asyncio2, concurrent.futures as _cf2
+                        with _cf2.ThreadPoolExecutor() as _ex2:
+                            png_bytes = _ex2.submit(_asyncio2.run, render_svg_to_png(mermaid_svgs[h])).result(timeout=30)
+                    except Exception:
+                        logger.warning("Cached SVG render failed, falling back to live render")
+                        png_bytes = None
+                if png_bytes is None and mermaid_pngs and h in mermaid_pngs:
                     png_bytes = mermaid_pngs[h]
-                else:
+                if png_bytes is None:
                     from app.services.mermaid_renderer import render_mermaid_png
                     import asyncio, concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor() as executor:

@@ -39,6 +39,7 @@ export default function PlanEditorPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
+  const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
 
   const { data: plan, isLoading: planLoading } = useQuery({
     queryKey: ["plan", id],
@@ -88,20 +89,12 @@ export default function PlanEditorPage() {
     return () => clearTimeout(timer);
   }, [editingContent]);
 
-  // Detect and reset stale generating status on mount (never auto-generate)
+  // If plan is in generating state on mount, show progress bar (no auto-reset)
   useEffect(() => {
-    if (!plan?.status || !sections || sections.length === 0) return;
-    if (plan.status === "generating") {
-      const hasContent = sections.some((s: PlanSection) => s.content && s.content.trim().length > 0);
-      if (!hasContent) {
-        // Status is "generating" but no content was produced — truly stale, reset it
-        updatePlan(id!, { status: "draft" } as any).catch(() => {});
-        message.warning("检测到残留的生成状态，已自动重置");
-      }
-      // If content exists, generation completed but status was not updated.
-      // Do NOT auto-resume — user must manually trigger via button.
+    if (plan?.status === "generating" && !isGenerating) {
+      setIsGenerating(true);
     }
-  }, [plan?.status, sections]);
+  }, [plan?.status]);
 
   // Auto-trigger batch generation only on explicit ?auto_generate=1 (one-shot, session-guarded)
   useEffect(() => {
@@ -135,6 +128,7 @@ export default function PlanEditorPage() {
     setBatchProgress({ current: 0, total: sections.length, message: "准备开始..." });
     genContentRef.current = {};
     selectedKeyRef.current = null;
+    setGeneratingSections(new Set());
 
     const allKeys = sections.map((s: PlanSection) => s.section_key);
     let completedCount = 0;
@@ -147,6 +141,7 @@ export default function PlanEditorPage() {
           case "progress":
             if (event.section_key) {
               genContentRef.current[event.section_key] = genContentRef.current[event.section_key] || "";
+              setGeneratingSections(prev => new Set(prev).add(event.section_key!));
               // Auto-select the section being generated (first time only per section)
               if (genContentRef.current[event.section_key] === "") {
                 setSelectedKey(event.section_key);
@@ -174,12 +169,15 @@ export default function PlanEditorPage() {
           case "section_done":
             if (event.section_key) {
               completedCount++;
-              // Backend already saved content via _md_to_html; just track progress
+              setGeneratingSections(prev => { const next = new Set(prev); next.delete(event.section_key!); return next; });
+              // Refresh sidebar to show updated section status
+              queryClient.invalidateQueries({ queryKey: ["planSections", id] });
             }
             break;
 
           case "batch_done":
             setIsGenerating(false);
+            setGeneratingSections(new Set());
             setBatchProgress({ current: 0, total: 0, message: "" });
             message.success(`全部生成完成，共 ${completedCount} 个章节`);
             queryClient.invalidateQueries({ queryKey: ["planSections", id] });
@@ -188,12 +186,14 @@ export default function PlanEditorPage() {
 
           case "error":
             setIsGenerating(false);
+            setGeneratingSections(new Set());
             message.error(event.message || "生成出错");
             break;
         }
       },
       (error: string) => {
         setIsGenerating(false);
+        setGeneratingSections(new Set());
         setBatchProgress({ current: 0, total: 0, message: "" });
         message.error(error);
       },
@@ -304,6 +304,7 @@ export default function PlanEditorPage() {
               templateSections={templateSections}
               selectedKey={selectedKey}
               onSelect={setSelectedKey}
+              generatingKeys={generatingSections}
             />
           </div>
         )}
