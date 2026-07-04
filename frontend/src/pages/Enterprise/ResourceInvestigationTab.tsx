@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
 import { Button, Spin, Alert, Space, Typography, Empty, message, Progress } from "antd";
 import {
   ThunderboltOutlined,
@@ -27,7 +27,7 @@ interface Props {
 }
 
 // 与后端 CHAPTER_DEFINITIONS 保持一致的章节定义
-const CHAPTERS = [
+const FALLBACK_CHAPTERS = [
   { key: "ch1_purpose",      title: "一、调查目的与依据" },
   { key: "ch2_basic_info",   title: "二、企业基本情况与风险概况" },
   { key: "ch3_internal",     title: "三、内部应急资源调查" },
@@ -59,6 +59,12 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [chapterStatuses, setChapterStatuses] = useState<Record<string, ChapterStatus>>({});
+  const [CHAPTERS, setChapters] = useState(FALLBACK_CHAPTERS);
+  useEffect(() => {
+    import("@/services/resourceInvestigationService").then(({ getResourceInvestigationChapters }) => {
+      getResourceInvestigationChapters(enterpriseId).then(setChapters).catch(() => {});
+    });
+  }, [enterpriseId]);
   // Trigger re-render when chunk content updates for the selected chapter
   const [renderTick, setRenderTick] = useState(0);
 

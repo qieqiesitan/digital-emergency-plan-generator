@@ -16,14 +16,12 @@ from app.schemas.resource_investigation import (
 )
 from app.schemas.common import ApiResponse
 from app.services.resource_investigation_service import (
+    CHAPTER_DEFINITIONS as RI_CHAPTER_DEFINITIONS,
     build_resource_investigation_context,
-    build_resource_prompt,
     build_chapter_prompt,
     get_chapter_keys,
     get_chapter_title,
-    SYSTEM_PROMPT,
     _get_ri_system_prompt,
-    extract_summary_from_content,
 )
 from app.config import settings
 from app.routers.risk_assessment import _stream_llm_with_system, _stream_llm_with_messages_chunked
@@ -286,7 +284,6 @@ async def generate_resource_investigation(
 
     # Build context
     context = await build_resource_investigation_context(enterprise_id, db)
-    prompt = build_resource_prompt(context, request.custom_instruction)
 
     # Create or update report record
     report = (
@@ -367,6 +364,16 @@ async def generate_resource_investigation(
                     bg_report.status = "draft"
                     bg_report.content = full_content.strip()
                     bg_report.summary = {"chapters": chapters_json}
+                    try:
+                        import json as _json2, re as _re2
+                        last_ch = chapter_contents[-1] if chapter_contents else None
+                        if last_ch:
+                            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
+                            if m:
+                                struct = _json2.loads(m.group())
+                                bg_report.summary.update(struct)
+                    except Exception:
+                        pass
                     await bg_db.commit()
 
             import json as _json
@@ -391,6 +398,16 @@ async def generate_resource_investigation(
             yield _sse("error", message=str(e))
 
     return EventSourceResponse(event_generator())
+
+
+
+@router.get("/{enterprise_id}/resource-investigation/chapters")
+async def get_resource_investigation_chapters():
+    """Return chapter definitions for resource investigation report (used by frontend)."""
+    return ApiResponse(data=[
+        {"key": c["key"], "title": c["title"]}
+        for c in RI_CHAPTER_DEFINITIONS
+    ])
 
 
 @router.post("/{enterprise_id}/resource-investigation/merge")
@@ -451,6 +468,16 @@ async def merge_resource_investigation(
     report.content = merged
     report.status = "completed"
     report.summary = {"chapters": chapters}
+    try:
+        import json as _json2, re as _re2
+        last_ch = chapters[-1] if chapters else None
+        if last_ch:
+            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
+            if m:
+                struct = _json2.loads(m.group())
+                report.summary.update(struct)
+    except Exception:
+        pass
     report.generated_at = datetime.now(timezone.utc)
     await db.commit()
 

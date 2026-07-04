@@ -1,5 +1,6 @@
-import type { ResourceInvestigationReport, ResourceInvestigationPreview } from "@/types/resourceInvestigation";
+﻿import type { ResourceInvestigationReport, ResourceInvestigationPreview } from "@/types/resourceInvestigation";
 import type { SSEEvent } from "@/types/riskAssessment";
+import type { ChapterDef } from '@/services/riskAssessmentService';
 import api from "./api";
 
 export async function getResourceInvestigation(enterpriseId: string): Promise<ResourceInvestigationReport> {
@@ -98,5 +99,10 @@ export async function mergeResourceInvestigation(
     `/enterprises/${enterpriseId}/resource-investigation/merge`,
     { custom_instruction: JSON.stringify(chapters) }
   );
+  return res.data.data;
+}
+
+export async function getResourceInvestigationChapters(enterpriseId: string): Promise<ChapterDef[]> {
+  const res = await api.get<ApiResponse<ChapterDef[]>>(`/enterprises/${enterpriseId}/resource-investigation/chapters`);
   return res.data.data;
 }

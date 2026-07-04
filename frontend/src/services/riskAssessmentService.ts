@@ -1,4 +1,4 @@
-import type { RiskAssessmentReport, RiskAssessmentPreview, SSEEvent } from "@/types/riskAssessment";
+﻿import type { RiskAssessmentReport, RiskAssessmentPreview, SSEEvent } from "@/types/riskAssessment";
 import api from "./api";
 
 export async function getRiskAssessment(enterpriseId: string): Promise<RiskAssessmentReport> {
@@ -97,5 +97,15 @@ export async function mergeRiskAssessment(
     `/enterprises/${enterpriseId}/risk-assessment/merge`,
     { custom_instruction: JSON.stringify(chapters) }
   );
+  return res.data.data;
+}
+
+export interface ChapterDef {
+  key: string;
+  title: string;
+}
+
+export async function getRiskAssessmentChapters(enterpriseId: string): Promise<ChapterDef[]> {
+  const res = await api.get<ApiResponse<ChapterDef[]>>(`/enterprises/${enterpriseId}/risk-assessment/chapters`);
   return res.data.data;
 }

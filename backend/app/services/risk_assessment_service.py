@@ -147,106 +147,6 @@ def _get_ra_system_prompt() -> str:
     cached = get_report_system_prompt("risk_assessment_system")
     return cached if cached else SYSTEM_PROMPT
 
-
-
-def build_risk_prompt(context: dict, custom_instruction: str | None = None) -> str:
-    enterprise = context["enterprise"]
-    risk_sources = context["risk_sources"]
-
-    lines = [
-        "请根据以下企业信息和风险源数据，撰写一份完整的《事故风险评估报告》。",
-        "",
-        "【企业基本信息】",
-        f"企业名称：{enterprise.get('name', '')}",
-        f"统一社会信用代码：{enterprise.get('credit_code', '')}",
-        f"法定代表人：{enterprise.get('legal_representative', '')}",
-        f"成立日期：{enterprise.get('established_date', '')}",
-        f"经济类型：{enterprise.get('economic_type', '')}",
-        f"注册资本：{enterprise.get('registered_capital', '')}",
-        f"行业类型：{enterprise.get('industry', '')}",
-        f"地址：{enterprise.get('address', '')}",
-        f"联系电话：{enterprise.get('phone', '')}",
-        f"员工人数：{enterprise.get('employee_count', '')}",
-        f"占地面积：{enterprise.get('land_area', '')}平方米",
-        f"建筑面积：{enterprise.get('building_area', '')}平方米",
-        f"建筑概况：{enterprise.get('building_overview', '')}",
-        f"安全标准化等级：{enterprise.get('safety_standardization', '')}",
-        f"消防审批情况：{enterprise.get('fire_approval', '')}",
-        f"主要产品/业务：{enterprise.get('main_products', '')}",
-        f"危险化学品情况：{enterprise.get('hazardous_chemicals', '')}",
-        f"特种设备情况：{enterprise.get('special_equipment', '')}",
-        "",
-        "【组织架构与应急职责】",
-        f"安全负责人：{enterprise.get('safety_officer', '')}",
-        f"组织架构数据：{enterprise.get('org_structure', '')}",
-        "",
-        f"【风险源清单（共 {len(risk_sources)} 项）】",
-    ]
-
-    for i, rs in enumerate(risk_sources, 1):
-        lines.append(f"{i}）风险源名称：{rs.get('name', '')}")
-        lines.append(f"   风险类别：{rs.get('categories', '')}")
-        lines.append(f"   所在位置：{rs.get('location', '')}")
-        lines.append(f"   风险描述：{rs.get('description', '')}")
-        lines.append(f"   可能性：{rs.get('likelihood', '')}")
-        lines.append(f"   严重性：{rs.get('severity', '')}")
-        lines.append(f"   风险等级：{rs.get('risk_level', '')}")
-        lines.append(f"   现有管控措施：{rs.get('control_measures', '')}")
-        lines.append("")
-
-    lines.extend([
-        "",
-        "【报告结构要求——严格按以下格式输出，不得使用 Markdown 符号】",
-        "",
-        f"{enterprise.get('name', '企业')} 事故风险评估报告",
-        "",
-        "一、评估目的与依据",
-        "简述评估背景、目的，列出依据的法律法规和技术标准。",
-        "",
-        "二、企业基本情况",
-        "概述企业生产经营特点、厂区布局、周边环境、组织架构等基本信息。",
-        "",
-        "三、风险辨识",
-        "（一）危险有害因素辨识",
-        "按 GB/T 13861 分类，系统辨识企业存在的各类危险有害因素，说明分布位置和影响范围。",
-        "（二）主要事故类型分析",
-        "按 GB 6441 事故分类，列出企业可能发生的主要事故类型，分析每种类型的可能场景和触发条件。",
-        "",
-        "四、风险等级评估",
-        "（一）评估方法与标准",
-        "说明采用的评估方法（L\u00d7S 风险矩阵法）和风险等级划分标准。",
-        "（二）风险评估结果",
-        "对每项风险源给出评估结论，按风险等级从高到低排列，说明赋值依据。",
-        "（三）重大风险分析",
-        "对评定为重大风险的项目进行详细分析，说明可能造成的后果和影响范围。",
-        "",
-        "五、现有管控措施评价",
-        "逐项评价现有管控措施的有效性和充分性，指出存在的不足和薄弱环节。",
-        "",
-        "六、风险评估结论与建议",
-        "（一）综合评估结论",
-        "对企业整体风险水平给出定性判断。",
-        "（二）风险管控建议",
-        "针对评估中发现的问题，提出具体、可操作的改进建议，按优先级排列。",
-        "",
-        "【输出格式要求——必须遵守】",
-        "1）直接输出报告正文，不要加「以下是根据...」之类的前言",
-        "2）不要使用任何 Markdown 标记符号",
-        "3）章节标题使用「一、二、三\u2026」和「（一）（二）（三）\u2026」中文序号",
-        "4）段落之间有明显的空行分隔",
-        "5）列表项使用「1）2）3）」格式编号",
-        "6）数据缺失处用「（待补充）」标注",
-        "7）报告正文总字数控制在 3000-5000 字",
-    ])
-
-    if custom_instruction:
-        lines.append("")
-        lines.append("【用户补充要求】")
-        lines.append(custom_instruction)
-
-    return "\n".join(lines)
-
-
 # L/S value normalizers
 _LS_TEXT_MAP = {"\u9ad8": 4, "\u4e2d": 3, "\u4f4e": 2, "\u8f83\u9ad8": 4, "\u8f83\u4f4e": 2, "\u5f88\u9ad8": 5, "\u5f88\u4f4e": 1}
 
@@ -293,17 +193,17 @@ CHAPTER_DEFINITIONS = [
     {
         "key": "ch3_risk_eval",
         "title": "三、风险等级评估",
-        "instruction": "请根据前面已完成的风险辨识结果，进行L\u00d7S风险矩阵评估。\n\n（一）评估方法与标准——说明采用L\u00d7S风险矩阵法（5级量表，L:1-5, S:1-5, R=L\u00d7S）。\n\n请输出以下三个标准HTML表格：\n\n表1：事故发生的可能性（L）分级标准（等级1-5 | 标准描述）\nL=5: 在现场没有采取防范、监测、保护、控制措施，或危害的发生不能被发现，或在正常情况经常发生此类事故或事件\nL=4: 危害的发生不容易被发现，现场没有检测系统，或控制措施未有效执行或不恰当，或危害常发生在预期情况下发生\nL=3: 没有保护措施，或未严格按操作程序执行，或危害的发生容易被发现，或过去曾经发生类似事故或事件\nL=2: 危害一旦发生能及时发现，并定期进行监测，或现场有防范控制措施并能有效执行，或过去偶尔发生事故或事件\nL=1: 有充分有效的防范、控制、监测、保护措施，员工安全意识高，严格执行操作规程，极不可能发生事故\n\n表2：事故后果严重程度（S）分级标准（等级1-5 | 法律法规及其他要求 | 人员 | 财产损失/万元 | 停止运营 | 企业形象）\n包含5级完整描述，每级覆盖5个维度\n\n表3：风险等级判定及控制措施（风险度 | 等级 | 应采取的行动/控制措施 | 实施期限）\n20-25\u21921级重大\u2192立刻 | 15-16\u21922级较大\u2192立即或近期整改 | 9-12\u21923级一般\u21922年内治理 | <8\u21924级低\u2192有条件有经费时治理\n\n（二）L\u00d7S风险评估计算表——对前面辨识出的所有事故类型逐项计算，输出HTML表格：序号 | 事故类型 | L | S | R | 风险等级\n\n（三）重大风险分析——对R\u226520的项目详细分析后果和影响范围。\n\n【输出要求】所有表格使用HTML table格式。L/S值须结合企业实际合理赋值。字数2000-3500字。",
+        "instruction": "请根据前面已完成的风险辨识结果，进行L\u00d7S风险矩阵评估。\n\n（一）评估方法与标准——说明采用L\u00d7S风险矩阵法（5级量表，L:1-5, S:1-5, R=L\u00d7S）。\n\n请输出以下三个标准HTML表格：\n\n表1：事故发生的可能性（L）分级标准（等级1-5 | 标准描述）\nL=5: 在现场没有采取防范、监测、保护、控制措施，或危害的发生不能被发现，或在正常情况经常发生此类事故或事件\nL=4: 危害的发生不容易被发现，现场没有检测系统，或控制措施未有效执行或不恰当，或危害常发生在预期情况下发生\nL=3: 没有保护措施，或未严格按操作程序执行，或危害的发生容易被发现，或过去曾经发生类似事故或事件\nL=2: 危害一旦发生能及时发现，并定期进行监测，或现场有防范控制措施并能有效执行，或过去偶尔发生事故或事件\nL=1: 有充分有效的防范、控制、监测、保护措施，员工安全意识高，严格执行操作规程，极不可能发生事故\n\n表2：事故后果严重程度（S）分级标准（等级1-5 | 法律法规及其他要求 | 人员 | 财产损失/万元 | 停止运营 | 企业形象）\n包含5级完整描述，每级覆盖5个维度\n\n表3：风险等级判定及控制措施（风险度 | 等级 | 应采取的行动/控制措施 | 实施期限）\n20-25\u21921级重大\u2192立刻 | 15-16\u21922级较大\u2192立即或近期整改 | 9-12\u21923级一般\u21922年内治理 | <8\u21924级低\u2192有条件有经费时治理\n\n（二）L\u00d7S风险评估计算表——对前面辨识出的所有事故类型逐项计算，输出HTML表格：序号 | 事故类型 | L | S | R | 风险等级\n\n（三）重大风险分析——对R\u226520的项目详细分析后果和影响范围。\n\n【输出要求】所有表格使用HTML table格式。L/S值须结合企业实际合理赋值。字数2000-3500字。\n\n请在以上正文内容之后，额外输出一个 Mermaid flowchart 流程图，描述「L×S风险评估流程」。\n要求：\n1. 使用 flowchart TD（自上而下）布局\n2. 包含关键节点：确定事故类型→评估可能性(L)→评估严重性(S)→计算R=L×S→判定风险等级→制定管控措施\n3. 节点用方括号[]表示，决策节点用菱形{}表示\n4. 流程图放在单独的 ```mermaid 代码块中，放在章节正文末尾\n5. 节点文字使用中文，简洁明了（每节点不超过15个字）",
     },
     {
         "key": "ch4_measures",
         "title": "四、现有管控措施评价",
-        "instruction": "请根据风险源数据中记录的现有管控措施，逐项评价其有效性和充分性。\n\n对每项重大和较大风险源对应的管控措施进行评价，格式如下：\n1）风险源名称：XXX\n   现有措施：XXX\n   评价：XXX（指出优点和不足）\n   定性：有效/基本有效/需改进\n\n【输出要求】直接输出正文，评价应具体有针对性。至少覆盖所有重大和较大风险源。字数800-1500字。",
+        "instruction": "请根据风险源数据中记录的现有管控措施，逐项评价其有效性和充分性。\n\n对每项重大和较大风险源对应的管控措施进行评价，格式如下：\n1）风险源名称：XXX\n   现有措施：XXX\n   评价：XXX（指出优点和不足）\n   定性：有效/基本有效/需改进\n\n【输出要求】直接输出正文，评价应具体有针对性。至少覆盖所有重大和较大风险源。字数800-1500字。\n\n请在以上正文内容之后，额外输出一个 Mermaid flowchart 流程图，描述「L×S风险评估流程」。\n要求：\n1. 使用 flowchart TD（自上而下）布局\n2. 包含关键节点：确定事故类型→评估可能性(L)→评估严重性(S)→计算R=L×S→判定风险等级→制定管控措施\n3. 节点用方括号[]表示，决策节点用菱形{}表示\n4. 流程图放在单独的 ```mermaid 代码块中，放在章节正文末尾\n5. 节点文字使用中文，简洁明了（每节点不超过15个字）",
     },
     {
         "key": "ch5_conclusion",
         "title": "五、风险评估结论与建议",
-        "instruction": "请基于前面的风险辨识和评估结果，撰写评估结论和管控建议。\n\n（一）综合评估结论——对企业整体风险水平给出定性判断，包括整体风险等级、主要风险特征概括、风险管控紧迫性判断。\n\n（二）风险管控建议——按优先级提出具体可操作的改进建议：\n1）优先整改项（与重大风险直接相关）\n2）重点加强项（与较大风险相关）\n3）持续改进项（一般风险）\n4）日常管理项（低风险）\n\n每条建议含：针对什么风险、具体做什么、达到什么目标。字数800-1500字。",
+        "instruction": "请基于前面的风险辨识和评估结果，撰写评估结论和管控建议。\n\n（一）综合评估结论——对企业整体风险水平给出定性判断，包括整体风险等级、主要风险特征概括、风险管控紧迫性判断。\n\n（二）风险管控建议——按优先级提出具体可操作的改进建议：\n1）优先整改项（与重大风险直接相关）\n2）重点加强项（与较大风险相关）\n3）持续改进项（一般风险）\n4）日常管理项（低风险）\n\n每条建议含：针对什么风险、具体做什么、达到什么目标。字数800-1500字。\n\n请在「风险管控建议」之后，输出以下JSON摘要（不要markdown代码块，直接输出纯JSON）：\n{\"risk_source_count\":N,\"risk_level_distribution\":{\"重大\":N,\"较大\":N,\"一般\":N,\"低\":N},\"top_risks\":[{\"name\":\"\",\"category\":\"\",\"risk_level\":\"\",\"location\":\"\",\"key_control_measures\":\"\"}],\"risk_by_category\":{\"<类别名>\":N},\"key_findings\":[\"发现1\"],\"overall_assessment\":\"一句话综合评估结论\"}",
     }
 ]
 
@@ -394,43 +294,3 @@ def get_chapter_title(chapter_key):
             return c["title"]
     return chapter_key
 
-
-SUMMARY_EXTRACTION_PROMPT = """
-请从以下风险评估报告中提取结构化摘要，仅返回 JSON（不要 Markdown 代码块）：
-
-{
-  "risk_source_count": <数字>,
-  "risk_level_distribution": {"重大": <N>, "较大": <N>, "一般": <N>, "低": <N>},
-  "top_risks": [
-    {"name": "", "category": "", "risk_level": "", "likelihood": "", "severity": "", "location": "", "key_control_measures": ""}
-  ],
-  "risk_by_category": {"<类别名>": <N>},
-  "key_findings": ["发现1", "发现2"],
-  "overall_assessment": "一句话综合评估结论"
-}
-
-报告内容：
-"""
-
-
-async def extract_summary_from_content(content: str, stream_llm_fn) -> dict:
-    """Call LLM to extract structured summary from the full report content."""
-    try:
-        prompt = SUMMARY_EXTRACTION_PROMPT + content[:8000]
-        raw = await stream_llm_fn(prompt)
-        raw = raw.strip()
-        if raw.startswith("`"):
-            raw = raw.split("\n", 1)[-1]
-            if raw.endswith("`"):
-                raw = raw[:-3]
-        return json.loads(raw)
-    except Exception as e:
-        logger.warning(f"Summary extraction failed: {e}")
-        return {
-            "risk_source_count": 0,
-            "risk_level_distribution": {},
-            "top_risks": [],
-            "risk_by_category": {},
-            "key_findings": [],
-            "overall_assessment": "",
-        }

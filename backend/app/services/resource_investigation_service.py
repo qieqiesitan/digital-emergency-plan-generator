@@ -27,7 +27,7 @@ async def build_resource_investigation_context(enterprise_id: str, db: AsyncSess
     external = [r for r in resources if r.is_external]
 
     # Try to get risk assessment conclusion
-    risk_conclusion = "尚未完成风险评估"
+    risk_conclusion = None
     top_risks = []
     risk_result = await db.execute(
         select(RiskAssessmentReport).where(
@@ -161,164 +161,6 @@ SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格的应急�
 7. 直接输出报告正文，不要加任何前言、后记或说明性文字
 8. 报告应充分体现企业已录入的应急物资、风险源、周边环境等数据，不得遗漏重要信息"""
 
-def build_resource_prompt(context: dict, custom_instruction: str | None = None) -> str:
-    enterprise = context["enterprise"]
-    internal = context.get("internal_resources", [])
-    external = context.get("external_resources", [])
-    risk_conclusion = context.get("risk_conclusion", "尚未完成风险评估")
-    top_risks = context.get("top_risks", [])
-
-    lines = [
-        "请根据以下企业信息、应急资源数据和风险评估结论，撰写一份完整的《应急资源调查报告》。",
-        "",
-        "【企业基本信息】",
-        f"企业名称：{enterprise.get('name', '')}",
-        f"统一社会信用代码：{enterprise.get('credit_code', '')}",
-        f"法定代表人：{enterprise.get('legal_representative', '')}",
-        f"成立日期：{enterprise.get('established_date', '')}",
-        f"经济类型：{enterprise.get('economic_type', '')}",
-        f"注册资本：{enterprise.get('registered_capital', '')}",
-        f"行业类型：{enterprise.get('industry', '')}",
-        f"地址：{enterprise.get('address', '')}",
-        f"联系电话：{enterprise.get('phone', '')}",
-        f"员工人数：{enterprise.get('employee_count', '')}",
-        f"占地面积：{enterprise.get('land_area', '')}平方米",
-        f"建筑面积：{enterprise.get('building_area', '')}平方米",
-        f"建筑概况：{enterprise.get('building_overview', '')}",
-        f"安全标准化等级：{enterprise.get('safety_standardization', '')}",
-        f"消防审批情况：{enterprise.get('fire_approval', '')}",
-        f"主要产品/业务：{enterprise.get('main_products', '')}",
-        f"危险化学品情况：{enterprise.get('hazardous_chemicals', '')}",
-        f"特种设备情况：{enterprise.get('special_equipment', '')}",
-        "",
-        "【组织架构与应急职责】",
-        f"安全负责人：{enterprise.get('safety_officer', '')}",
-        f"组织架构数据：{enterprise.get('org_structure', '')}",
-        "",
-        "【风险评估结论】",
-        risk_conclusion,
-    ]
-
-    if top_risks:
-        lines.append("")
-        lines.append("主要风险：")
-        for tr in top_risks:
-            lines.append(f"{tr.get('name', '')}（{tr.get('risk_level', '')}）——{tr.get('location', '')}")
-
-    lines.append("")
-    lines.append(f"【内部应急资源清单（共 {len(internal)} 项）】")
-    idx = 1
-    for r in internal:
-        lines.append(f"{idx}）[{r.get('category', '')}] {r.get('name', '')} "
-                      f"（{r.get('specification', '')}，{r.get('quantity', 0)}{r.get('unit', '个')}）"
-                      f"存放位置：{r.get('location', '')}，"
-                      f"责任人：{r.get('responsible_person', '')}（{r.get('contact_phone', '')}）")
-        idx += 1
-
-    lines.append("")
-    lines.append(f"【外部救援资源清单（共 {len(external)} 项）】")
-    idx = 1
-    for r in external:
-        lines.append(f"{idx}）[{r.get('category', '')}] {r.get('name', '')} "
-                      f"地址：{r.get('address', '')}，"
-                      f"距离：约{r.get('distance_km', '')}公里，"
-                      f"联系电话：{r.get('contact_phone', '')}，"
-                      f"联系人：{r.get('responsible_person', '')}")
-        idx += 1
-
-    lines.extend([
-        "",
-        "【报告结构要求——严格按以下格式输出，不得使用 Markdown 符号】",
-        "",
-        f"{enterprise.get('name', '企业')} 应急资源调查报告",
-        "",
-        "一、调查目的与依据",
-        "简述调查背景、目的和法律法规依据。",
-        "",
-        "二、企业基本情况与风险概况",
-        "概述企业基本信息，引用风险评估结论中的主要风险类型和等级，说明企业面临的应急管理形势。",
-        "",
-        "三、内部应急资源调查",
-        "按类别逐一清点现有应急资源：消防设施、急救物资、防护装备、通讯设备、照明设备、破拆工具、侦检设备、堵漏器材等。",
-        "每类资源列出名称、规格、数量、存放位置、责任人。",
-        "",
-        "四、外部救援资源调查",
-        "详细说明周边消防队、医院、公安机关、安监部门、环保部门的名称、距离、联系方式、协议签订情况。",
-        "",
-        "五、应急资源需求与能力评估",
-        "对照企业主要风险场景，逐项评估现有应急资源的充足性和适用性。",
-        "识别资源缺口时，必须具体说明：缺什么资源、为什么缺、建议补充什么、预估补充数量。",
-        "",
-        "六、调查结论与建议",
-        "1）综合评估结论：对应急资源整体状况给出定性判断",
-        "2）资源补充计划：列出需要补充的资源清单及优先级",
-        "3）管理改进建议：对应急物资管理制度、培训演练等方面的建议",
-        "",
-        "【输出格式要求——必须遵守】",
-        "1）直接输出报告正文，不要加「以下是根据...」之类的前言",
-        "2）不要使用任何 Markdown 标记符号（#、*、-、_、| 等）",
-        "3）章节标题使用「一、二、三...」中文序号，不加粗不加大",
-        "4）段落之间有明显的空行分隔",
-        '5）列表项使用「1）2）3）」格式编号',
-        "6）数据缺失处用「（待补充）」标注",
-        "7）报告正文总字数控制在 3000-5000 字",
-    ])
-
-    if custom_instruction:
-        lines.append("")
-        lines.append("【用户补充要求】")
-        lines.append(custom_instruction)
-
-    return "\n".join(lines)
-
-
-SUMMARY_EXTRACTION_PROMPT = """
-请从以下应急资源调查报告中提取结构化摘要，仅返回 JSON（不要 Markdown 代码块）：
-
-{
-  "internal_resource_count": <数字>,
-  "external_resource_count": <数字>,
-  "internal_by_category": {"<类别>": <N>},
-  "external_by_category": {"<类别>": <N>},
-  "resource_gaps": [
-    {"category": "", "needed": "", "reason": "", "severity": ""}
-  ],
-  "key_findings": ["发现1"],
-  "overall_assessment": "一句话综合评估结论"
-}
-
-报告内容：
-"""
-
-
-async def extract_summary_from_content(content: str, stream_llm_fn) -> dict:
-    try:
-        prompt = SUMMARY_EXTRACTION_PROMPT + content[:8000]
-        raw = await stream_llm_fn(prompt)
-        raw = raw.strip()
-        if raw.startswith("`"):
-            raw = raw.split("\n", 1)[-1]
-            if raw.endswith("`"):
-                raw = raw[:-3]
-        return json.loads(raw)
-    except Exception as e:
-        logger.warning(f"Resource summary extraction failed: {e}")
-        return {
-            "internal_resource_count": 0,
-            "external_resource_count": 0,
-            "internal_by_category": {},
-            "external_by_category": {},
-            "resource_gaps": [],
-            "key_findings": [],
-            "overall_assessment": "",
-        }
-
-
-# ============================================================
-# 逐章批量生成引擎
-# ============================================================
-
-
 def _get_ri_system_prompt() -> str:
     """获取应急资源调查系统提示词，优先从数据库取。"""
     cached = get_report_system_prompt("resource_investigation_system")
@@ -387,7 +229,7 @@ CHAPTER_DEFINITIONS = [
             "2）对照现有内部资源，判断是否充足\n"
             "3）对照外部可依托资源，判断响应时间\n"
             "4）识别资源缺口——具体说明缺什么、为什么缺、建议补充什么、预估数量\n\n"
-            "【输出要求】缺口分析必须具体、有针对性。字数 600-900 字。禁止使用 Markdown 符号。"
+            "【输出要求】缺口分析必须具体、有针对性。字数 600-900 字。禁止使用 Markdown 符号。\n\n请在以上正文内容之后，额外输出一个 Mermaid flowchart 流程图，描述「应急资源调查与评估流程」。\n要求：\n1. 使用 flowchart TD（自上而下）布局\n2. 包含关键节点：确定调查范围→内部资源清点→外部资源调查→风险场景需求分析→资源缺口识别→补充建议→结论\n3. 节点用方括号[]表示，决策节点用菱形{}表示\n4. 流程图放在单独的 ```mermaid 代码块中，放在章节正文末尾\n5. 节点文字使用中文，简洁明了（每节点不超过15个字）"
         ),
     },
     {
@@ -399,7 +241,7 @@ CHAPTER_DEFINITIONS = [
             "（一）综合评估结论——对应急资源整体状况给出定性判断\n"
             "（二）资源补充计划——优先整改项/重点加强项/持续改进项\n"
             "（三）管理改进建议——制度、培训演练、协议管理\n\n"
-            "【输出要求】建议须具体可操作。字数 500-800 字。禁止使用 Markdown 符号。"
+            "【输出要求】建议须具体可操作。字数 500-800 字。禁止使用 Markdown 符号。\n\n请在「管理改进建议」之后，输出以下JSON摘要（不要markdown代码块，直接输出纯JSON）：\n{\"internal_resource_count\":N,\"external_resource_count\":N,\"internal_by_category\":{\"<类别>\":N},\"external_by_category\":{\"<类别>\":N},\"resource_gaps\":[{\"category\":\"\",\"needed\":\"\",\"reason\":\"\",\"severity\":\"\"}],\"key_findings\":[\"发现1\"],\"overall_assessment\":\"一句话综合评估结论\"}"
         ),
     },
 ]
@@ -409,7 +251,7 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
     enterprise = context["enterprise"]
     internal = context.get("internal_resources", [])
     external = context.get("external_resources", [])
-    risk_conclusion = context.get("risk_conclusion", "尚未完成风险评估")
+    risk_conclusion = context.get("risk_conclusion")
     top_risks = context.get("top_risks", [])
 
     chapter_def = next((c for c in CHAPTER_DEFINITIONS if c["key"] == chapter_key), None)
@@ -434,8 +276,11 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
         "建筑概况：" + str(enterprise.get("building_overview", "") or "（待补充）"),
         "",
         "【风险评估结论】",
-        risk_conclusion,
     ]
+    if risk_conclusion is not None:
+        lines_out.append(risk_conclusion)
+    else:
+        lines_out.append("（尚未完成风险评估，本章请基于企业基本信息和已录入的风险源数据进行评估）")
 
     if top_risks:
         lines_out.append("")
@@ -510,3 +355,4 @@ def get_chapter_title(chapter_key):
         if c["key"] == chapter_key:
             return c["title"]
     return chapter_key
+

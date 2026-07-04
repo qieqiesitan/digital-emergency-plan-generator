@@ -25,8 +25,8 @@ interface Props {
   enterpriseId: string;
 }
 
-// 与后端 CHAPTER_DEFINITIONS 保持一致的章节定义
-const CHAPTERS = [
+// 章节定义：优先从后端 API 获取，兜底使用硬编码
+const FALLBACK_CHAPTERS = [
   { key: "ch1_hazard_id",      title: "一、危险有害因素辨识分析" },
   { key: "ch2_summary",        title: "二、危险有害因素辨识汇总" },
   { key: "ch3_risk_eval",      title: "三、风险等级评估" },
@@ -57,6 +57,13 @@ export default function RiskAssessmentTab({ enterpriseId }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [chapterStatuses, setChapterStatuses] = useState<Record<string, ChapterStatus>>({});
+  // Fetch chapter definitions from backend, fallback to hardcoded
+  const [CHAPTERS, setChapters] = useState(FALLBACK_CHAPTERS);
+  useEffect(() => {
+    import("@/services/riskAssessmentService").then(({ getRiskAssessmentChapters }) => {
+      getRiskAssessmentChapters(enterpriseId).then(setChapters).catch(() => {});
+    });
+  }, [enterpriseId]);
   // Trigger re-render when chunk content updates for the selected chapter
   const [renderTick, setRenderTick] = useState(0);
 

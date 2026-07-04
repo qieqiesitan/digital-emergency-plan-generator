@@ -19,14 +19,12 @@ from app.schemas.risk_assessment import (
 from app.schemas.common import ApiResponse
 from app.routers.generation import _decrypt_api_key, _stream_llm
 from app.services.risk_assessment_service import (
+    CHAPTER_DEFINITIONS as RA_CHAPTER_DEFINITIONS,
     build_risk_assessment_context,
-    build_risk_prompt,
     build_chapter_prompt,
     get_chapter_keys,
     get_chapter_title,
-    SYSTEM_PROMPT,
     _get_ra_system_prompt,
-    extract_summary_from_content,
 )
 from app.config import settings
 
@@ -388,7 +386,6 @@ async def generate_risk_assessment(
         raise HTTPException(400, "已有正在生成的报告，请等待完成")
 
     context = await build_risk_assessment_context(enterprise_id, db)
-    prompt = build_risk_prompt(context, request.custom_instruction)
 
     report = (await db.execute(
         select(RiskAssessmentReport).where(RiskAssessmentReport.enterprise_id == enterprise_id)
@@ -458,6 +455,16 @@ async def generate_risk_assessment(
                     bg_report.status = "draft"
                     bg_report.content = full_content.strip()
                     bg_report.summary = {"chapters": chapters_json}
+                    try:
+                        import json as _json2, re as _re2
+                        last_ch = chapter_contents[-1] if chapter_contents else None
+                        if last_ch:
+                            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
+                            if m:
+                                struct = _json2.loads(m.group())
+                                bg_report.summary.update(struct)
+                    except Exception:
+                        pass
                     await bg_db.commit()
 
             import json as _json
@@ -478,6 +485,16 @@ async def generate_risk_assessment(
                     await bg_db.commit()
             yield _sse("error", message=str(e))
     return EventSourceResponse(event_generator())
+
+
+@router.get("/{enterprise_id}/risk-assessment/chapters")
+async def get_risk_assessment_chapters():
+    """Return chapter definitions for risk assessment report (used by frontend)."""
+    return ApiResponse(data=[
+        {"key": c["key"], "title": c["title"]}
+        for c in RA_CHAPTER_DEFINITIONS
+    ])
+
 
 @router.post("/{enterprise_id}/risk-assessment/merge")
 async def merge_risk_assessment(
@@ -538,6 +555,16 @@ async def merge_risk_assessment(
     report.content = merged
     report.status = "completed"
     report.summary = {"chapters": chapters}
+    try:
+        import json as _json2, re as _re2
+        last_ch = chapters[-1] if chapters else None
+        if last_ch:
+            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
+            if m:
+                struct = _json2.loads(m.group())
+                report.summary.update(struct)
+    except Exception:
+        pass
     report.generated_at = datetime.now(timezone.utc)
     await db.commit()
 
