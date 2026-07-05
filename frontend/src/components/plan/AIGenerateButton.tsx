@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button, Alert, Modal, Form, Input, Tag, Typography } from "antd";
 import { RobotOutlined, LoadingOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { generateSectionStream, stopGeneration, regenerateSelectionStream } from "@/services/generationService";
@@ -59,6 +59,13 @@ export default function AIGenerateButton({
     form.resetFields();
   }, [checkConfig, form]);
 
+  // ponytail: auto-open modal when mounted in selection mode (triggered by RichTextEditor toolbar click)
+  useEffect(() => {
+    if (mode === "selection") {
+      handleGenerate();
+    }
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleConfirm = useCallback(async () => {
     try {
       const values = await form.validateFields();
@@ -76,10 +83,9 @@ export default function AIGenerateButton({
           (event) => {
             if (event.type === "chunk" && event.content) {
               fullTextRef.current += event.content;
-              onContentChunk(event.content);
             } else if (event.type === "done") {
               setStatus("done");
-              onGenerateComplete(event.content || fullTextRef.current);
+              onGenerateComplete(fullTextRef.current || event.content || "");
               setTimeout(() => setStatus("idle"), 1500);
             } else if (event.type === "error") {
               setStatus("error");

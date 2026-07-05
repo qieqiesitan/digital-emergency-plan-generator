@@ -148,11 +148,9 @@ export default function RichTextEditor({
             lastSelectionTo.current,
             Math.min(editor.state.doc.content.size, lastSelectionTo.current + 200)
           )}
-          onContentChunk={(text) => {
-            editor.chain().setTextSelection({
-              from: lastSelectionFrom.current,
-              to: lastSelectionTo.current,
-            }).deleteSelection().insertContent(text).run();
+          onContentChunk={() => {
+            // ponytail: streaming replacement in-place is fragile with TipTap ranges;
+            // only apply on complete to avoid chunk-overwrite bugs.
           }}
           onGenerateComplete={(text) => {
             editor.chain().setTextSelection({
