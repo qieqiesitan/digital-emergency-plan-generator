@@ -6,10 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.database import engine, Base
-from app.routers import auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, resources_ext, surrounding_ai, hazardous_chemicals, dict, prompts, config, menus
+from app.routers import auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, resources_ext, surrounding_ai, hazardous_chemicals, dict, prompts, config, menus, external
 from app.dependencies import get_current_user
 from app.services.mermaid_renderer import _close_browser
 from app.middleware import YwtAuthMiddleware
+from app.middleware.hmac_auth import HmacAuthMiddleware
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -32,6 +33,8 @@ app = FastAPI(title="Digital Emergency Plan Generator", version="1.0.0", lifespa
 
 # 中台认证中间件（需在 CORS 之前注册）
 app.add_middleware(YwtAuthMiddleware)
+# HMAC 签名验证（/api/external/* 端点）
+app.add_middleware(HmacAuthMiddleware)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -75,6 +78,8 @@ app.include_router(dict.router, prefix="/api/v1")
 app.include_router(prompts.router, prefix="/api/v1")
 app.include_router(config.router, prefix="/api/v1")
 app.include_router(menus.router, prefix="/api/v1")
+# 外部系统接入 API（PROTEGO 商城）
+app.include_router(external.router, prefix="/api")
 
 @app.get("/api/health")
 async def health():

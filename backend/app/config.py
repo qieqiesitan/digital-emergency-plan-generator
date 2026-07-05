@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     YWT_JWT_SECRET: str = "yewuzhongtai-jwt-secret-key-2024-min-256-bits!!"
     YWT_AUTH_WHITELIST: str = "/api/v1/auth/register,/api/v1/auth/login,/api/health"
 
+    # 外部系统接入（PROTEGO 商城）
+    EXTERNAL_API_HMAC_SECRET: str = ""
+    PROTEGO_CALLBACK_URL: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 settings = Settings()
