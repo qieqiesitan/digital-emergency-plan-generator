@@ -3,10 +3,10 @@ import type { SSEEvent, GenerateBatchRequest } from "@/types/plan";
 export function generateSectionStream(
   planId: string,
   sectionKey: string,
-  customInstruction?: string,
   onEvent: (event: SSEEvent) => void,
   onError: (error: string) => void,
-  onComplete: () => void
+  onComplete: () => void,
+  customInstruction?: string
 ): AbortController {
   const controller = new AbortController();
   const token = localStorage.getItem("access_token");
@@ -154,10 +154,10 @@ export function regenerateSelectionStream(
   selectedText: string,
   contextBefore: string | null,
   contextAfter: string | null,
-  customInstruction: string | null,
   onEvent: (event: SSEEvent) => void,
   onError: (error: string) => void,
-  onComplete: () => void
+  onComplete: () => void,
+  customInstruction: string | null = null
 ): AbortController {
   const controller = new AbortController();
   const token = localStorage.getItem("access_token");

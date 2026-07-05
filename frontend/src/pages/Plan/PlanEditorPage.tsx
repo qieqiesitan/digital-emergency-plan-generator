@@ -11,8 +11,7 @@ import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
 import SectionTree from "@/components/plan/SectionTree";
 import RichTextEditor from "@/components/plan/RichTextEditor";
 import AIGenerateButton from "@/components/plan/AIGenerateButton";
-import type { PlanSection } from "@/types/plan";
-import type { SectionTemplate } from "@/types/template";
+import type { PlanSection, SectionTemplate } from "@/types/plan";
 import type { SSEEvent } from "@/types/plan";
 
 function findTemplate(key: string, templates: SectionTemplate[]): SectionTemplate | null {

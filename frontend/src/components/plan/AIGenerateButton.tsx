@@ -79,7 +79,6 @@ export default function AIGenerateButton({
         controllerRef.current = regenerateSelectionStream(
           planId, sectionKey, selectedText,
           contextBefore ?? null, contextAfter ?? null,
-          instruction || null,
           (event) => {
             if (event.type === "chunk" && event.content) {
               fullTextRef.current += event.content;
@@ -93,11 +92,12 @@ export default function AIGenerateButton({
             }
           },
           (error) => { setStatus("error"); setErrorMsg(error); },
-          () => {}
+          () => {},
+          instruction || null
         );
       } else {
         controllerRef.current = generateSectionStream(
-          planId, sectionKey, instruction || undefined,
+          planId, sectionKey,
           (event) => {
             if (event.type === "chunk" && event.content) {
               fullTextRef.current += event.content;
@@ -112,7 +112,8 @@ export default function AIGenerateButton({
             }
           },
           (error) => { setStatus("error"); setErrorMsg(error); },
-          () => {}
+          () => {},
+          instruction || undefined
         );
       }
     } catch {
