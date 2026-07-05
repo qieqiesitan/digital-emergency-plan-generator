@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MoreHorizontal, Sparkles, Download,
   GitBranch, Loader2, ArrowLeft, Check,
-  AlertTriangle,
+  AlertTriangle, Save,
 } from "lucide-react";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
@@ -16,7 +16,7 @@ import ChapterTree from "@/mobile/components/plan/ChapterTree";
 import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
 import type { ChapterNode } from "@/mobile/components/plan/ChapterTree";
-import { getPlan } from "@/services/planService";
+import { getPlan, createVersion } from "@/services/planService";
 import { listSections, updateSection } from "@/services/planService";
 import { useAppStore } from "@/mobile/store/appStore";
 import { useDraftStore } from "@/mobile/store/draftStore";
@@ -409,6 +409,14 @@ export default function PlanEditorScreen() {
                 onClick={() => navigate(`/m/plans/${planId}/preview`)}
               >
                 <Download size={22} />
+              </button>
+              <div className="w-px h-6 bg-neutral-200" />
+              <button
+                className="w-14 h-14 flex items-center justify-center text-primary-600"
+                onClick={() => saveVersionMut.mutate()}
+                disabled={saveVersionMut.isPending}
+              >
+                {saveVersionMut.isPending ? <Loader2 size={22} className="animate-spin" /> : <Save size={22} />}
               </button>
               <div className="w-px h-6 bg-neutral-200" />
               <button

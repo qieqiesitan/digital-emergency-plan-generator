@@ -12,7 +12,7 @@ from app.database import get_db, async_session
 
 from app.models.user import User
 
-from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, AIConfig, RiskSource, EmergencyResource
+from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, AIConfig, RiskSource, EmergencyResource, PlanVersion
 
 from app.models.risk_assessment import RiskAssessmentReport
 
@@ -41,7 +41,7 @@ import markdown
 import re
 
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
-from app.services.prompt_cache import ensure_loaded, get_system_prompt, get_section_prompt, get_mermaid_prompt, render_template
+from app.services.prompt_cache import ensure_loaded, get_system_prompt, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,18 @@ FLOWCHART_SECTION_MAP: dict[str, str] = {
     "sec_3_2": "现场应急处置流程",
 
 }
+# SECTION_DIAGRAM_TYPE_MAP: 每个章节对应的 Mermaid 图表类型
+# flowchart TD / graph TD / graph LR / pie / sequenceDiagram / mindmap
+SECTION_DIAGRAM_TYPE_MAP: dict[str, str] = {
+    "sec_4":   "flowchart TD",
+    "sec_5":   "flowchart TD",
+    "sec_5_2": "flowchart TD",
+    "sec_5_3": "flowchart TD",
+    "sec_3":   "flowchart TD",
+    "sec_3_1": "sequenceDiagram",
+    "sec_3_2": "flowchart TD",
+}
+
 
 
 
@@ -116,9 +128,10 @@ def _get_mermaid_instruction(section_key: str | None, section_title: str) -> str
     flow_label = FLOWCHART_SECTION_MAP.get(section_key)
     if not flow_label:
         return None
-    template = get_mermaid_prompt()
+    diagram_type = SECTION_DIAGRAM_TYPE_MAP.get(section_key, "flowchart TD")
+    template = get_diagram_prompt(diagram_type)
     if template:
-        return render_template(template, {"flow_label": flow_label, "section_title": section_title})
+        return render_template(template, {"flow_label": flow_label, "section_title": section_title, "diagram_type": diagram_type})
     return (
         "\n\n---\n"
         f"请在以上正文内容之后，额外输出一个 Mermaid flowchart 流程图，描述「{flow_label}」。\n"
@@ -130,13 +143,13 @@ def _get_mermaid_instruction(section_key: str | None, section_title: str) -> str
         f"5. 节点文字使用中文，简洁明了（每节点不超过15个字）\n"
     )
 
-def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*") -> str:
+def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*", accident_type: str | None = None) -> str:
     """构建章节提示词，优先使用数据库模板，未命中则用代码拼接兜底。"""
     # 尝试从数据库获取模板
     if plan_type != "*" and section_key:
         tmpl = get_section_prompt(plan_type, section_key)
         if tmpl and tmpl.get("user_prompt_template"):
-            variables = {"enterprise_data": json.dumps(enterprise_data, ensure_ascii=False, indent=2)}
+            variables = {"enterprise_data": json.dumps(enterprise_data, ensure_ascii=False, indent=2), "accident_type": accident_type or ""}
             prompt = render_template(tmpl["user_prompt_template"], variables)
             if tmpl.get("system_prompt"):
                 prompt = tmpl["system_prompt"] + "\n\n---\n\n" + prompt
@@ -149,6 +162,8 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
     num_hint = f"这是应急预案的第{section_number}个章节，请在正文中使用“{section_number}.”或“{section_number}.x”的编号格式。\n" if section_number is not None else ""
 
     prompt = f"请撰写应急预案章节《{section_title}》的内容。\n\n"
+    if accident_type:
+        prompt += f"【事故类型：{accident_type}】请围绕{accident_type}事故的特点、风险源、致灾机理、典型后果和针对性处置措施撰写以下内容，避免与其他事故类型的预案雷同。\n\n"
 
     prompt += f"企业信息：\n{json.dumps(enterprise_data, ensure_ascii=False, indent=2)}\n\n"
 
@@ -285,14 +300,35 @@ async def _pre_render_mermaid_svgs(md_text: str) -> dict:
             result[h] = svg
 
             logger.info("Pre-rendered Mermaid SVG for hash %s", h)
-
         except Exception as e:
-
             logger.warning("Failed to pre-render Mermaid SVG: %s", e)
-
     return result
 
 
+def _embed_mermaid_svgs(html_content: str, svgs: dict[str, str]) -> str:
+    """Replace <code class="language-mermaid"> blocks with pre-rendered inline SVGs.
+    Eliminates the frontend re-rendering path entirely.
+    """
+    if not svgs:
+        return html_content
+    
+    import html as _html
+    import hashlib as _hashlib
+    import re as _re
+    
+    pattern = r'<pre><code class="language-mermaid">(.*?)</code></pre>'
+    
+    def _replace(m):
+        code = _html.unescape(m.group(1).strip())
+        h = _hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
+        svg = svgs.get(h)
+        if svg:
+            return f'<div class="mermaid-rendered" data-mermaid-hash="{h}">{svg}</div>'
+        # No pre-rendered SVG - mark for frontend fallback render
+        escaped = _html.escape(code)
+        return f'<pre><code class="language-mermaid" data-mermaid-unrendered>{escaped}</code></pre>'
+    
+    return _re.sub(pattern, _replace, html_content, flags=_re.DOTALL)
 
 
 
@@ -615,7 +651,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                     try:
 
-                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type)
+                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
 
                         full = ""
 
@@ -656,6 +692,15 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         p2.status = "draft"
 
+                # ponytail: auto-create version snapshot after generation
+                try:
+                    ver_snapshot = {"title": p2.title, "sections": [{"section_key": s.section_key, "title": s.title, "content": s.content, "ai_generated": s.ai_generated} for s in updated]}
+                    new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
+                    bg_db.add(new_ver)
+                    p2.current_version = p2.current_version + 1
+                    logger.info(f"Auto-created version {p2.current_version} for plan {plan_id}")
+                except Exception as ver_e:
+                    logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
 
                 await event_queue.put(_sse("batch_done", message="批量生成完成", completed=completed, failed=failed))
@@ -818,7 +863,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config, p.plan_type)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type), ai_config, p.plan_type)
 
                         s.content = _md_to_html(full)
 
@@ -849,6 +894,15 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                         p2.status = "draft"
 
+                # ponytail: auto-create version snapshot after generation
+                try:
+                    ver_snapshot = {"title": p2.title, "sections": [{"section_key": s.section_key, "title": s.title, "content": s.content, "ai_generated": s.ai_generated} for s in updated]}
+                    new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
+                    bg_db.add(new_ver)
+                    p2.current_version = p2.current_version + 1
+                    logger.info(f"Auto-created version {p2.current_version} for plan {plan_id}")
+                except Exception as ver_e:
+                    logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
 
         except Exception as e:
@@ -908,7 +962,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
-    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type)
+    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
 
     p.status = "generating"
 
@@ -1314,7 +1368,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                     try:
 
-                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type)
+                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
 
                         full = ""
 
@@ -1355,6 +1409,15 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         p2.status = "draft"
 
+                # ponytail: auto-create version snapshot after generation
+                try:
+                    ver_snapshot = {"title": p2.title, "sections": [{"section_key": s.section_key, "title": s.title, "content": s.content, "ai_generated": s.ai_generated} for s in updated]}
+                    new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
+                    bg_db.add(new_ver)
+                    p2.current_version = p2.current_version + 1
+                    logger.info(f"Auto-created version {p2.current_version} for plan {plan_id}")
+                except Exception as ver_e:
+                    logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
 
                 await event_queue.put(_sse("batch_done", message="批量生成完成", completed=completed, failed=failed))
@@ -1517,7 +1580,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type), ai_config, p.plan_type)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type), ai_config, p.plan_type)
 
                         s.content = _md_to_html(full)
 
@@ -1548,6 +1611,15 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                         p2.status = "draft"
 
+                # ponytail: auto-create version snapshot after generation
+                try:
+                    ver_snapshot = {"title": p2.title, "sections": [{"section_key": s.section_key, "title": s.title, "content": s.content, "ai_generated": s.ai_generated} for s in updated]}
+                    new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
+                    bg_db.add(new_ver)
+                    p2.current_version = p2.current_version + 1
+                    logger.info(f"Auto-created version {p2.current_version} for plan {plan_id}")
+                except Exception as ver_e:
+                    logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
 
         except Exception as e:
@@ -1607,7 +1679,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
-    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type)
+    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
 
     p.status = "generating"
 
@@ -1660,6 +1732,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
     return EventSourceResponse(event_generator())
+
 
 
 

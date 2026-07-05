@@ -126,7 +126,7 @@ async def _close_browser():
 
 def _extract_mermaid_code(html_content: str) -> list[str]:
     """Extract all Mermaid code blocks from HTML content."""
-    pattern = r'<code class="language-mermaid">(.*?)</code>'
+    pattern = r'<code class="language-mermaid"[^>]*>(.*?)</code>'
     matches = re.findall(pattern, html_content, re.DOTALL)
     return [html_mod.unescape(m.strip()) for m in matches if m.strip()]
 
@@ -389,7 +389,7 @@ def _placeholder_png(message: str = "render failed") -> bytes:
 
 def replace_mermaid_with_placeholders(html_content: str) -> tuple[str, list[str]]:
     """Replace Mermaid code blocks in HTML with nothing."""
-    pattern = r'(?:<pre>)?<code class="language-mermaid">.*?</code>(?:</pre>)?'
+    pattern = r'(?:<pre>)?<code class="language-mermaid"[^>]*>.*?</code>(?:</pre>)?'
     codes = _extract_mermaid_code(html_content)
     cleaned = re.sub(pattern, "", html_content, flags=re.DOTALL)
     return cleaned, codes

@@ -52,6 +52,7 @@
     "framer-motion": "^12.40.0",
     "globals": "^17.6.0",
     "idb-keyval": "^6.2.5",
+    "rollup": "^4.62.2",
     "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",

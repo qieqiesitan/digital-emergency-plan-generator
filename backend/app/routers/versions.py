@@ -79,3 +79,4 @@ async def rollback_version(plan_id: str, version_id: str, current_user=Depends(g
         if s: s.content = s_data.get("content")
     await db.commit()
     return {"code": 0, "message": "已回滚"}
+

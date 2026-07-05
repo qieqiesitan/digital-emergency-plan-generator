@@ -8,14 +8,20 @@ export async function getExportPreview(planId: string): Promise<ExportPreview> {
 }
 
 export async function exportDocx(planId: string): Promise<Blob | ExportTask> {
-  const res = await api.post(`/plans/${planId}/export/docx`, {}, { responseType: "blob" });
-  // 如果是 Blob，直接返回
-  if (res.headers["content-type"]?.includes("application/vnd.openxmlformats")) {
+  const res = await api.post(`/plans/${planId}/export/docx`, {}, { responseType: "blob", timeout: 120000 });
+  const ct = res.headers["content-type"] || "";
+  if (ct.includes("application/vnd.openxmlformats") || ct.includes("application/octet-stream")) {
     return res.data as Blob;
   }
-  // 否则是 JSON 的异步任务
+  // Backend returned error JSON inside blob
   const text = await (res.data as Blob).text();
-  return JSON.parse(text).data as ExportTask;
+  try {
+    const parsed = JSON.parse(text);
+    throw new Error(parsed.detail || parsed.message || ("Server error: " + text.slice(0, 200)));
+  } catch (e: unknown) {
+    if (e instanceof Error && !e.message.startsWith("Server error:")) throw e;
+    throw new Error("Server error: " + text.slice(0, 200));
+  }
 }
 
 export async function validateExport(planId: string): Promise<ExportValidation> {

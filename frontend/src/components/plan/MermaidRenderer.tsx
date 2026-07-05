@@ -21,7 +21,6 @@ function sanitizeMermaidText(text: string): string {
   let result = text;
 
   // Replace fullwidth punctuation that confuse the Mermaid parser
-  // Fullwidth parentheses, colon, brackets, braces
   result = result.replace(/\uff08/g, "(").replace(/\uff09/g, ")");
   result = result.replace(/\uff1a/g, ":");
   result = result.replace(/\uff3b/g, "[").replace(/\uff3d/g, "]");
@@ -54,7 +53,7 @@ function sanitizeMermaidText(text: string): string {
   // Fix: Convert old syntax "A -- text --> B" to "A -->|text| B"
   result = result.replace(/(\w+)\s+--\s+(.+?)\s+-->\s+(\w+)/g, "$1 -->|$2| $3");
   result = result.replace(/(\w+)\s+--\s+(.+?)\s+->\s+(\w+)/g, "$1 ->|$2| $3");
-  // Fix: Quote pipe labels with parentheses → Mermaid parser chokes on bare parens
+  // Fix: Quote pipe labels with parentheses
   result = result.replace(/(-->|-\.->|==>)\|([^|"\n]*?\([^|"\n]*?\)[^|"\n]*?)\|/g, "$1|\"$2\"|");
   result = result.replace(/(->)\|([^|"\n]*?\([^|"\n]*?\)[^|"\n]*?)\|/g, "$1|\"$2\"|");
   // Fix: Quote subgraph/end names with parentheses
@@ -66,12 +65,10 @@ function sanitizeMermaidText(text: string): string {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trimEnd();
     const stripped = line.trim();
-    // Is this line a bare arrow?
     const bareArrow = /^(\s*\w+\s*(?:-->|->)\s*)$/.test(line);
     const partial = /^(.+?(?:-->|->)\|?)\s*$/.test(line) &&
       !stripped.endsWith("]") && !stripped.endsWith("}") && !stripped.endsWith(")");
     if ((bareArrow || partial) && i + 1 < lines.length) {
-      // Look ahead for label, skipping empty lines
       let j = i + 1;
       while (j < lines.length && !lines[j].trim()) j++;
       if (j < lines.length && lines[j].trim().startsWith("|")) {
@@ -99,87 +96,75 @@ interface MermaidRendererProps {
  */
 export default function MermaidRenderer({ html }: MermaidRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const svgCache = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    // Render ALL mermaid code blocks + display pre-rendered SVGs in old-format divs
+    const codeBlocks = containerRef.current.querySelectorAll(
+      "code.language-mermaid"
+    );
+
+    // Display pre-rendered SVGs from old <div class="mermaid-rendered"> blocks
+    containerRef.current.querySelectorAll("div.mermaid-rendered").forEach((div) => {
+      const svg = div.querySelector("svg");
+      if (svg) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "mermaid-diagram";
+        wrapper.style.cssText = "margin:16px 0; padding:16px; background:#fafafa; border:1px solid #e8e8e8; border-radius:6px; overflow-x:auto;";
+        const label = document.createElement("div");
+        label.style.cssText = "font-size:12px; color:#999; margin-bottom:8px; font-weight:500;";
+        label.textContent = "流程图";
+        wrapper.appendChild(label);
+        const svgContainer = document.createElement("div");
+        svgContainer.style.cssText = "text-align:center;";
+        svgContainer.innerHTML = svg.outerHTML;
+        wrapper.appendChild(svgContainer);
+        div.replaceWith(wrapper);
+      }
+    });
+
+    if (codeBlocks.length === 0) return;
+
     initMermaid();
-
-    // Find all <code class="language-mermaid"> elements
-    const codeBlocks = containerRef.current.querySelectorAll("code.language-mermaid");
-
     codeBlocks.forEach(async (codeBlock) => {
       const text = codeBlock.textContent || "";
       const key = sanitizeMermaidText(text).trim();
 
-      // Check cache
-      let svg: string;
+      let svg = "";
       let success = true;
-      if (svgCache.current.has(key)) {
-        svg = svgCache.current.get(key)!;
-      } else {
-        try {
-          const { svg: rendered } = await mermaid.render(
-            `mermaid-${Math.random().toString(36).slice(2, 9)}`,
-            key
-          );
-          svg = rendered;
-          svgCache.current.set(key, svg);
-        } catch {
-          success = false;
-          svg = "";
-        }
+      try {
+        const { svg: rendered } = await mermaid.render(
+          `mermaid-${Math.random().toString(36).slice(2, 9)}`,
+          key
+        );
+        svg = rendered;
+      } catch {
+        success = false;
       }
 
-      // Replace the code block parent with the rendered SVG
       const pre = codeBlock.parentElement;
-      if (pre && pre.tagName === "PRE") {
-        const wrapper = document.createElement("div");
-        wrapper.className = "mermaid-diagram";
+      if (!pre || pre.tagName !== "PRE") return;
 
-        if (success) {
-          wrapper.style.cssText =
-            "margin:16px 0; padding:16px; background:#fafafa; border:1px solid #e8e8e8; border-radius:6px; overflow-x:auto;";
-        } else {
-          wrapper.style.cssText =
-            "margin:16px 0; padding:16px; background:#fff2f0; border:1px solid #ffccc7; border-radius:6px; overflow-x:auto;";
-        }
+      const wrapper = document.createElement("div");
+      wrapper.className = "mermaid-diagram";
+      wrapper.style.cssText = success
+        ? "margin:16px 0; padding:16px; background:#fafafa; border:1px solid #e8e8e8; border-radius:6px; overflow-x:auto;"
+        : "margin:16px 0; padding:16px; background:#fff2f0; border:1px solid #ffccc7; border-radius:6px; overflow-x:auto;";
 
-        // Add a label
-        const label = document.createElement("div");
-        if (success) {
-          label.style.cssText =
-            "font-size:12px; color:#999; margin-bottom:8px; font-weight:500;";
-          label.textContent = "流程图";
-        } else {
-          label.style.cssText =
-            "font-size:12px; color:#ff4d4f; margin-bottom:8px; font-weight:500;";
-          label.textContent = "流程图渲染失败（语法错误）";
-        }
-        wrapper.appendChild(label);
+      const label = document.createElement("div");
+      label.style.cssText = success
+        ? "font-size:12px; color:#999; margin-bottom:8px; font-weight:500;"
+        : "font-size:12px; color:#ff4d4f; margin-bottom:8px; font-weight:500;";
+      label.textContent = success ? "流程图" : "流程图渲染失败（语法错误）";
+      wrapper.appendChild(label);
 
-        // Add the SVG or error content
-        const svgContainer = document.createElement("div");
-        svgContainer.innerHTML = svg;
-        svgContainer.style.cssText = "text-align:center;";
-        wrapper.appendChild(svgContainer);
+      const svgContainer = document.createElement("div");
+      svgContainer.innerHTML = svg;
+      svgContainer.style.cssText = "text-align:center;";
+      wrapper.appendChild(svgContainer);
 
-        // Add collapsible source code
-        const details = document.createElement("details");
-        details.style.cssText = "margin-top:8px;";
-        const summary = document.createElement("summary");
-        summary.style.cssText = "font-size:11px; color:#bbb; cursor:pointer;";
-        summary.textContent = "查看源码";
-        details.appendChild(summary);
-        const codeDisplay = document.createElement("pre");
-        codeDisplay.style.cssText =
-          "margin-top:4px; padding:8px; background:#f5f5f5; border-radius:4px; font-size:11px; overflow-x:auto;";
-        codeDisplay.textContent = text;
-        details.appendChild(codeDisplay);
-        wrapper.appendChild(details);
-
-        pre.replaceWith(wrapper);
-      }
+      pre.replaceWith(wrapper);
     });
   }, [html]);
 

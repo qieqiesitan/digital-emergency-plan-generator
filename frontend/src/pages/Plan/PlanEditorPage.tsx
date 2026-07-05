@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Input, Button, Space, Badge, message, Progress } from "antd";
-import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined } from "@ant-design/icons";
+import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPlan, updatePlan } from "@/services/planService";
+import { getPlan, updatePlan, createVersion } from "@/services/planService";
 import { listSections, updateSection } from "@/services/planService";
 import { generateBatchStream } from "@/services/generationService";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -63,6 +63,12 @@ export default function PlanEditorPage() {
     },
     onError: () => { setSaveStatus("error"); message.error("保存失败"); },
   });
+  const saveVersionMut = useMutation({
+    mutationFn: () => createVersion(id!, "手动保存版本"),
+    onSuccess: () => { message.success("版本已保存"); queryClient.invalidateQueries({ queryKey: ["versions", id] }); },
+    onError: () => message.error("保存版本失败"),
+  });
+
 
   useEffect(() => {
     if (selectedKey && sections) {
@@ -272,6 +278,9 @@ export default function PlanEditorPage() {
               </Button>
             <Button icon={<HistoryOutlined />} onClick={() => navigate(`/plans/${id}/versions`)}>
               版本历史
+            </Button>
+            <Button icon={<SaveOutlined />} onClick={() => saveVersionMut.mutate()} loading={saveVersionMut.isPending}>
+              保存版本
             </Button>
             <Button icon={<ExportOutlined />} type="primary" onClick={() => navigate(`/plans/${id}/preview`)}>
               导出

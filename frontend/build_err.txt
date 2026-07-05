@@ -1,0 +1,1 @@
+[vite] PWA disabled: Node.js v24 detected, workbox-build incompatible

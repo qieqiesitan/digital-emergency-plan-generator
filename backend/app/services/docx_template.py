@@ -18,6 +18,7 @@
 import io
 import re
 import logging
+import traceback
 from datetime import datetime
 from typing import Optional, Callable
 
@@ -517,7 +518,12 @@ def build_table(doc: Document, headers: list[str], rows: list[list[str]],
 # HTML/Markdown → DOCX 转换（增强版）
 # ═══════════════════════════════════════════
 
-def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1):
+def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1, _depth: int = 0):
+    # ponytail: prevent infinite recursion from nested divs
+    if _depth > 10:
+        p = doc.add_paragraph()
+        p.add_run(html_content[:200] + "..." if len(html_content) > 200 else html_content)
+        return
     """将 HTML 内容转换为 docx 段落，保留富文本格式。
 
     支持：h1-h6, p, table, ul/ol, blockquote, hr, pre, div
@@ -620,7 +626,7 @@ def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1):
 
         elif tag == "div":
             # 递归处理
-            html_to_docx_content(doc, str(element), base_level)
+            html_to_docx_content(doc, str(element), base_level, _depth + 1)
 
         else:
             text = element.get_text().strip()
@@ -769,6 +775,8 @@ def generate_plan_docx(
         enterprise_info: 企业附加信息
         mermaid_pngs: Mermaid 流程图 PNG 字节缓存 {hash: bytes}
     """
+    import builtins
+    builtins.print("!!! generate_plan_docx CALLED !!!", flush=True)
     doc = Document()
 
     # 1) 注册所有样式
@@ -823,8 +831,9 @@ def generate_plan_docx(
         if not content or not content.strip():
             continue
 
-        # 预处理 Mermaid 代码
-        content = _wrap_raw_mermaid(content)
+        # 预处理 Mermaid 代码 — 仅当内容不含已被包裹的 Mermaid 时才包装
+        if '<code class="language-mermaid"' not in content and '```mermaid' not in content:
+            content = _wrap_raw_mermaid(content)
 
         # Markdown → HTML（始终转换，md_in_html 处理 HTML 内嵌 Markdown）
         import markdown
@@ -838,42 +847,104 @@ def generate_plan_docx(
         codes = _extract_mermaid_code(content)
         cleaned, _ = replace_mermaid_with_placeholders(content)
 
+        # 收集所有需要渲染的 Mermaid 图表（去重）
+        logger.info('generate_plan_docx: section=%s, codes=%d, svgs_in_cache=%d',
+                     title, len(codes), len(mermaid_svgs))
+        # 来源1：<code class="language-mermaid"> （旧格式，直接从 Markdown 转换来的）
+        # 来源2：<div class="mermaid-rendered" data-mermaid-hash="..."> （新格式，被 _embed_mermaid_svgs 替换后）
+        # 来源3：mermaid_svgs 缓存（内容中无水印代码但缓存有 SVG）
+        rendered_hashes = set()
+        mermaid_items = []  # (hash, code_or_none, svg_or_none)
+        import re as _re2
+
+        # 来源1: <code class="language-mermaid"> → 仅作为去重标记，不独立生成项
+        # 这些代码块的 SVG 由来源2(mermaid-rendered div 内联)或来源3(mermaid_svgs 缓存)覆盖
+        for code in codes:
+            h = _mermaid_hash(code)
+            rendered_hashes.add(h)
+
+        # 来源2: <div class="mermaid-rendered" data-mermaid-hash="..."><svg>...</svg></div>
+        # 提取并移除这些块
+        _mermaid_div_pattern = r'<div class="mermaid-rendered"[^>]*data-mermaid-hash="([^"]+)"[^>]*>(<svg[^>]*>.*?</svg>)</div>'
+        for _h, _svg in _re2.findall(_mermaid_div_pattern, cleaned, _re2.DOTALL):
+            if _h not in rendered_hashes:
+                mermaid_items.append((_h, None, _svg))
+                rendered_hashes.add(_h)
+        # 从内容中移除所有 mermaid-rendered div
+        cleaned = _re2.sub(r'<div class="mermaid-rendered"[^>]*>.*?</div>', '', cleaned, flags=_re2.DOTALL)
+
+        # 来源3: mermaid_svgs 中尚未覆盖的条目
+        for h, svg in mermaid_svgs.items():
+            if h not in rendered_hashes:
+                mermaid_items.append((h, None, svg))
+                rendered_hashes.add(h)
+
+        logger.info('generate_plan_docx: total mermaid_items to render=%d', len(mermaid_items))
+
         # 转换为 DOCX 内容
         html_to_docx_content(doc, cleaned, base_level=heading_level)
 
-        # 插入 Mermaid 图片
-        for code in codes:
+                # 插入 Mermaid 图片（sync Playwright，线程内直接调用）
+        import base64 as _b64, os as _os
+        import html as _html
+        from playwright.sync_api import sync_playwright
+
+        _mermaid_js_path = _os.path.join(_os.path.dirname(__file__), "mermaid.min.js")
+        _mermaid_js_content = ""
+        if _os.path.exists(_mermaid_js_path):
+            with open(_mermaid_js_path, "r", encoding="utf-8") as _mf:
+                _mermaid_js_content = _mf.read()
+
+        _browser = None
+        try:
+            _pw = sync_playwright().start()
+            _browser = _pw.chromium.launch(headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"])
+        except Exception as _pwe:
+            logger.warning("Playwright init failed: %s", _pwe)
+
+        for h, code, svg_raw in mermaid_items:
             png_bytes = None
             try:
-                h = _mermaid_hash(code)
-                # 优先用缓存 SVG，失败则退回实时渲染
-                if h in mermaid_svgs:
+                if svg_raw and _browser:
+                    _page = _browser.new_page(viewport={"width": 900, "height": 600})
                     try:
-                        from app.services.mermaid_renderer import render_svg_to_png
-                        import asyncio as _asyncio2, concurrent.futures as _cf2
-                        with _cf2.ThreadPoolExecutor() as _ex2:
-                            png_bytes = _ex2.submit(_asyncio2.run, render_svg_to_png(mermaid_svgs[h])).result(timeout=30)
-                    except Exception:
-                        logger.warning("Cached SVG render failed, falling back to live render")
-                        png_bytes = None
-                if png_bytes is None and mermaid_pngs and h in mermaid_pngs:
-                    png_bytes = mermaid_pngs[h]
-                if png_bytes is None:
-                    from app.services.mermaid_renderer import render_mermaid_png
-                    import asyncio, concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        png_bytes = executor.submit(asyncio.run, render_mermaid_png(code)).result(timeout=30)
+                        _page.set_content("<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>" + svg_raw + "</body></html>", wait_until="domcontentloaded", timeout=10000)
+                        _page.wait_for_selector("svg", timeout=5000)
+                        _page.wait_for_timeout(200)
+                        _el = _page.query_selector("svg")
+                        if _el:
+                            png_bytes = _el.screenshot(type="png")
+                    finally:
+                        _page.close()
+                    if png_bytes:
+                        logger.info("Mermaid SVG->PNG rendered %s (%d bytes)", h, len(png_bytes))
 
-                if png_bytes:
-                    img_stream = io.BytesIO(png_bytes)
-                    doc.add_picture(img_stream, width=Inches(5.5))
-                    if doc.paragraphs:
-                        doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            except Exception as e:
-                logger.error(f"Mermaid render failed: {e}")
-                p = doc.add_paragraph()
-                r = p.add_run("[流程图渲染失败]")
-                # r.font.color.rgb removed — all text black
+                if png_bytes is None and code and _browser and _mermaid_js_content:
+                    _page = _browser.new_page(viewport={"width": 900, "height": 600})
+                    try:
+                        _html_str = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div class="mermaid">' + _html.escape(code) + '</div><div id="status"></div><script>' + _mermaid_js_content + '</script><script>mermaid.initialize({startOnLoad:false,theme:"default",securityLevel:"loose"});mermaid.run().then(function(){var svg=document.querySelector(".mermaid svg");if(svg)document.getElementById("status").innerHTML=svg.outerHTML;});</script></body></html>'
+                        _page.set_content(_html_str, wait_until="domcontentloaded", timeout=8000)
+                        _page.wait_for_selector("#status svg", timeout=8000)
+                        _page.wait_for_timeout(300)
+                        _el = _page.query_selector("#status svg")
+                        if _el:
+                            png_bytes = _el.screenshot(type="png")
+                    finally:
+                        _page.close()
+                    if png_bytes:
+                        logger.info("Mermaid code->PNG rendered %s (%d bytes)", h, len(png_bytes))
+            except Exception as fe:
+                logger.warning("Mermaid render %s failed: %s", h, fe)
+
+            if png_bytes:
+                img_stream = io.BytesIO(png_bytes)
+                doc.add_picture(img_stream, width=Cm(14.6))
+                if doc.paragraphs:
+                    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        if _browser:
+            _browser.close()
+            _pw.stop()
 
         # 仅大章节(level==1)之间分页，小节(level>=2)连续，末尾不换页
         if section_level == 1:
@@ -883,9 +954,9 @@ def generate_plan_docx(
 
 
 def _mermaid_hash(code: str) -> str:
-    """Mermaid 代码哈希。"""
+    """Mermaid 代码哈希 - 与 mermaid_renderer 保持一致，使用 SHA256。"""
     import hashlib
-    return hashlib.md5(code.strip().encode()).hexdigest()
+    return hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
 
 
 # ── 从 export.py 借用的辅助函数 ──

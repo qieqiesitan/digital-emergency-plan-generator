@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Spin, Button, Space, message } from "antd";
 import { DownloadOutlined, PrinterOutlined, ArrowLeftOutlined } from "@ant-design/icons";
@@ -20,7 +20,7 @@ export default function ExportPreviewPage() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      if (!id) { message.error("预案ID缺失"); setDownloading(false); return; }
+      if (!id) { message.error("预案ID缺失"); return; }
       const result = await exportDocx(id);
       if (result instanceof Blob) {
         const url = URL.createObjectURL(result);
@@ -32,7 +32,7 @@ export default function ExportPreviewPage() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         message.success("下载成功");
-      } else if ((result as ExportTask).task_id) {
+      } else if (result && (result as ExportTask).task_id) {
         const task = result as ExportTask;
         if (task.download_url) {
           window.open(task.download_url, "_blank");
@@ -43,8 +43,10 @@ export default function ExportPreviewPage() {
       } else {
         message.error("导出失败：服务器返回异常");
       }
-    } catch {
-      message.error("导出失败");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "导出失败";
+      console.error("DOCX export error:", e);
+      message.error(msg);
     } finally {
       setDownloading(false);
     }

@@ -1,4 +1,4 @@
-﻿import os, re, markdown, io, asyncio, hashlib, logging, traceback
+import os, re, markdown, io, asyncio, hashlib, logging, traceback
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -65,6 +65,10 @@ PREVIEW_CSS = """<style>
   hr.plan-section-separator {
     border: none; border-top: 1px solid #e8e8e8; margin: 24px 0;
   }
+  .mermaid-diagram { max-width: 100%%; }
+  .mermaid-diagram svg { max-width: 100%%; height: auto; }
+  .mermaid-rendered { max-width: 100%%; }
+  .mermaid-rendered svg { max-width: 100%%; height: auto; }
 </style>"""
 
 
@@ -155,15 +159,35 @@ async def get_export_preview(
             continue
         content = section.content
         content = _strip_section_heading(content)
-        content = _wrap_raw_mermaid(content)
+        # 仅当内容不含已被包裹的 Mermaid 时才包装原始代码
+        if '<code class="language-mermaid"' not in content and '```mermaid' not in content:
+            content = _wrap_raw_mermaid(content)
 
         level = min(section.level + 1, 6)
         num = sec_numbers[id(section)]
         html_parts.append(f"<h{level}>{num} {section.title}</h{level}>")
 
-        content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
+        # 仅在内容不是 HTML 时才做 Markdown 转换（DB 中已存 HTML）
+        if not content.strip().startswith('<'):
+            content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
 
         content = fix_markdown_tables(content)
+
+        # 服务端嵌入 Mermaid SVG（预览直接显示，不依赖前端 MermaidRenderer）
+        mermaid_svgs = section.mermaid_svgs or {}
+        if mermaid_svgs:
+            import re as _re, hashlib as _hl, html as _h
+            def _embed_preview_svgs(m):
+                code = _h.unescape(m.group(1).strip())
+                h = _hl.sha256(code.encode('utf-8')).hexdigest()[:16]
+                svg = mermaid_svgs.get(h)
+                if svg:
+                    _m = _re.search(r'<svg[^>]*>.*?</svg>', svg, _re.DOTALL)
+                    svg_clean = _m.group(0) if _m else svg
+                    return '<div class="mermaid-diagram" style="margin:16px 0;padding:16px;background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;overflow-x:auto;"><div style="font-size:12px;color:#999;margin-bottom:8px;font-weight:500;">流程图</div><div style="text-align:center;">' + svg_clean + '</div></div>'
+                return m.group(0)
+            content = _re.sub(r'<code class="language-mermaid"[^>]*>(.*?)</code>', _embed_preview_svgs, content, flags=_re.DOTALL)
+
         html_parts.append(content)
         html_parts.append('<hr class="plan-section-separator">')
 
@@ -223,6 +247,9 @@ async def export_plan_docx(
     if not sections:
         raise HTTPException(404, "Plan has no sections")
 
+    with open("export_trace.log", "a", encoding="utf-8") as _t:
+        import datetime as _dt
+        _t.write(f"EXPORT START {_dt.datetime.now()}\n")
     # 构建章节数据
     sections_data = []
     for s in sections:
@@ -230,40 +257,48 @@ async def export_plan_docx(
             continue
         content = s.content
         content = _strip_section_heading(content)
-        content = _wrap_raw_mermaid(content)
-        content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
-        content = fix_markdown_tables(content)
 
+        _ms = s.mermaid_svgs or {}
         sections_data.append({
             "title": s.title,
             "level": s.level,
             "content": content,
-            "mermaid_svgs": s.mermaid_svgs or {},
+            "mermaid_svgs": _ms,
         })
 
     # 生成文档
-    now = datetime.now()
-    doc = generate_plan_docx(
-        company_name=enterprise.name,
-        plan_title=plan.title,
-        plan_type=plan.plan_type,
-        plan_number=getattr(plan, 'plan_number', '') or f"XXZYT-YA-001",
-        version_number=getattr(plan, 'version_number', '') or f"A-{now.year}-{now.month:02d}",
-        sections=sections_data,
-    )
+    try:
+        now = datetime.now()
+        import asyncio as _asyncio_dbg
+        # ponytail: 在线程中运行 generate_plan_docx，避免 Playwright sync API 与 asyncio 冲突
+        doc = await _asyncio_dbg.to_thread(
+            generate_plan_docx,
+            company_name=enterprise.name,
+            plan_title=plan.title,
+            plan_type=plan.plan_type,
+            plan_number=getattr(plan, 'plan_number', '') or f"XXZYT-YA-001",
+            version_number=getattr(plan, 'version_number', '') or f"A-{now.year}-{now.month:02d}",
+            sections=sections_data,
+        )
 
-    # 保存
-    os.makedirs(settings.EXPORT_DIR, exist_ok=True)
-    safe_title = re.sub(r'[\\/*?:"<>|]', "_", plan.title)
-    filename = f"{safe_title}.docx"
-    path = os.path.join(settings.EXPORT_DIR, filename)
-    doc.save(path)
+        with open("export_trace.log", "a", encoding="utf-8") as _t:
+            import datetime as _dt
+            _t.write(f"EXPORT DOCX DONE {_dt.datetime.now()}\n")
+        # 保存
+        os.makedirs(settings.EXPORT_DIR, exist_ok=True)
+        safe_title = re.sub(r'[\/*?:"<>|]', "_", plan.title)
+        filename = f"{safe_title}.docx"
+        filepath = os.path.join(settings.EXPORT_DIR, filename)
+        doc.save(filepath)
 
-    return FileResponse(
-        path,
-        filename=filename,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
+        return FileResponse(
+            filepath,
+            filename=filename,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    except Exception as e:
+        logger.error(f"DOCX generation failed for plan {plan_id}: {traceback.format_exc()}")
+        raise HTTPException(500, f"DOCX 生成失败: {str(e)}")
 
 
 # Route: Validate Export (unchanged)
@@ -321,3 +356,4 @@ async def validate_plan_export(
         "issues": issues,
         "warnings": warnings,
     })
+
