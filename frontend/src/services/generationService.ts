@@ -147,3 +147,67 @@ export async function stopGeneration(planId: string): Promise<void> {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+export function regenerateSelectionStream(
+  planId: string,
+  sectionKey: string,
+  selectedText: string,
+  contextBefore: string | null,
+  contextAfter: string | null,
+  customInstruction: string | null,
+  onEvent: (event: SSEEvent) => void,
+  onError: (error: string) => void,
+  onComplete: () => void
+): AbortController {
+  const controller = new AbortController();
+  const token = localStorage.getItem("access_token");
+
+  fetch(`/api/v1/plans/${planId}/sections/${sectionKey}/regenerate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      selected_text: selectedText,
+      surrounding_context_before: contextBefore,
+      surrounding_context_after: contextAfter,
+      custom_instruction: customInstruction,
+    }),
+    signal: controller.signal,
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ message: "请求失败" }));
+        onError(err.message || err.detail || "请求失败");
+        return;
+      }
+      const reader = response.body?.getReader();
+      if (!reader) { onError("无法读取响应流"); return; }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) { onComplete(); break; }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const jsonStr = line.replace(/^(?:data: )+/, "");
+              const event: SSEEvent = JSON.parse(jsonStr);
+              onEvent(event);
+            } catch { /* skip */ }
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      if (err.name !== "AbortError") {
+        onError(err.message || "网络错误");
+      }
+    });
+
+  return controller;
+}

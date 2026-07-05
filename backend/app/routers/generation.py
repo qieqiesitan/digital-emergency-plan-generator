@@ -41,7 +41,8 @@ import markdown
 import re
 
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
-from app.services.prompt_cache import ensure_loaded, get_system_prompt, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
+from app.services.prompt_cache import ensure_loaded, get_system_prompt, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
+from app.schemas.plan import RegenerateRequest
 
 logger = logging.getLogger(__name__)
 
@@ -1736,3 +1737,81 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
+
+@router.post("/{plan_id}/sections/{section_key}/regenerate")
+async def regenerate_selection(
+    plan_id: str, section_key: str, body: RegenerateRequest,
+    request: Request, current_user=Depends(get_current_user), db=Depends(get_db)
+):
+    p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
+    if not p: raise HTTPException(404, "预案不存在")
+
+    s = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id, PlanSection.section_key == section_key))).scalar_one_or_none()
+    if not s: raise HTTPException(404, "章节不存在")
+
+    ai_config = (await db.execute(select(AIConfig).where(AIConfig.user_id == current_user.id))).scalar_one_or_none()
+    if not ai_config: raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+
+    # 收集企业数据
+    ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
+    risk_sources = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id == p.enterprise_id))).scalars().all()
+    resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    if ent:
+        ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
+
+    # 收集全文上下文
+    all_sections = (await db.execute(
+        select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
+    )).scalars().all()
+
+    full_context_parts = []
+    for sec in all_sections:
+        if sec.content and sec.content.strip():
+            full_context_parts.append(f"## {sec.title}\n{sec.content}")
+    full_context = "\n\n".join(full_context_parts)
+
+    # 构建用户 prompt
+    user_prompt = f"""以下是应急预案全文作为参考上下文：
+
+{full_context}
+
+---
+
+请对以下【选中段落】进行修改或重写。要求：
+1. 保持与全文风格一致
+2. 仅修改选中段落的内容，不要增加其他章节
+3. 修改要求：{body.custom_instruction or "优化表达，补充细节，使内容更加完善"}
+
+【上文上下文】
+{body.surrounding_context_before or "（无）"}
+
+【选中段落——需要修改的部分】
+{body.selected_text}
+
+【下文上下文】
+{body.surrounding_context_after or "（无）"}
+
+请直接输出修改后的段落文本，不要输出"修改后："等前缀，不要用引号包裹。"""
+
+    p.status = "generating"
+    await db.commit()
+
+    async def event_generator():
+        try:
+            yield _sse("progress", message=f"正在重生成「{s.title}」选中段落...")
+
+            async for chunk_content in _stream_llm_chunks(user_prompt, ai_config, p.plan_type):
+                yield _sse("chunk", content=chunk_content)
+
+            p.status = "draft"
+            await db.commit()
+
+            yield _sse("done", message="重生成完成")
+
+        except Exception as e:
+            p.status = "draft"
+            await db.commit()
+            yield _sse("error", message=str(e))
+
+    return EventSourceResponse(event_generator())

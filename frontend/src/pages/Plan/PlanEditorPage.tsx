@@ -333,12 +333,17 @@ export default function PlanEditorPage() {
                   <AIGenerateButton
                     planId={id!}
                     sectionKey={selectedKey}
+                    sectionTitle={currentSection.title}
                     onContentChunk={handleAIContentChunk}
                     onGenerateComplete={handleAIGenerateComplete}
                   />
                 </Space>
               </div>
               <RichTextEditor
+                planId={id!}
+                sectionKey={selectedKey}
+                sectionTitle={currentSection.title}
+                aiGenerated={currentSection.ai_generated}
                 content={editingContent}
                 onChange={setEditingContent}
                 readOnly={isGenerating}

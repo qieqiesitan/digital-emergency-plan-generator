@@ -1,19 +1,20 @@
 ## 🔴 当前状态快照（压缩恢复用）
-- 正在做什么：图谱更新完成，等待用户探索
+- 正在做什么：AI 生成增强功能迭代完成，等待验证
 - 刚完成的动作：
-  - graphify . --update --api-timeout 1200 --max-concurrency 1：增量提取 39 文件，语义 9 文件，成功
-  - graphify . --cluster-only：聚类 403 社区
-  - 图谱：7317 节点 / 16294 边 / 403 社区
-  - graphify-out/graph.json 已更新
-- 下一步：用户可探索图谱（query / path / explain）
+  - 设计文档：docs/superpowers/specs/2026-07-05-ai-generation-enhancement-design.md
+  - 后端：backend/app/routers/generation.py — 新增 regenerate_selection SSE 端点
+  - 后端：backend/app/schemas/plan.py — 新增 RegenerateRequest schema
+  - 前端：frontend/src/components/plan/AIGenerateButton.tsx — 重构为 Modal+快捷指令+双模式
+  - 前端：frontend/src/components/plan/RichTextEditor.tsx — 新增选区监听+AI重写浮动按钮+AI标记
+  - 前端：frontend/src/services/generationService.ts — 新增 regenerateSelectionStream
+  - 前端：frontend/src/utils/quickPrompts.ts — 新增快捷指令模板（6预设+localStorage）
+  - 前端：frontend/src/styles/global.css — 新增 ai-generated-section / ai-regenerated-highlight 样式
+  - 前端：frontend/src/pages/Plan/PlanEditorPage.tsx — 传递新 props
+- 下一步：前端 TypeScript 编译检查 / 后端启动测试
 - 关键上下文：
-  - DeepSeek API 默认超时不够，需 --api-timeout 1200
-  - 2 个源文件已删除，图谱自动清理
-  - 增量更新耗时 ~4.5 分钟，成本 ~$0.015
+  - 所有新 props 均为可选，向后兼容
+  - 选区重生成仅桌面端（TipTap），移动端 textarea 降级隐藏
+  - 0 新依赖
 
 ## 进行中的任务
-- 🟢 版本历史功能修复 ✅
-- 🟢 DOCX 下载静默失败修复 ✅
-- 🟢 PROTEGO 商城接入——预案系统侧 ✅
-- 🟢 前端重建 ✅
-- 🟢 DOCX 流程图缺失修复 ✅
+- 🟢 AI 生成增强（自定义提示词+局部重生成+快捷指令） ✅

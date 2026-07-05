@@ -29,3 +29,9 @@ class EnterprisePlanSummary(BaseModel):
     special_count: int = 0
     onsite_count: int = 0
     last_updated: DatetimeStr | None = None
+
+class RegenerateRequest(BaseModel):
+    selected_text: str
+    surrounding_context_before: str | None = None
+    surrounding_context_after: str | None = None
+    custom_instruction: str | None = None

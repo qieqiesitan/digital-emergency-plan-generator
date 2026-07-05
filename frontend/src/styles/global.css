@@ -37,3 +37,20 @@ body {
   border: 1px solid #d9d9d9;
   padding: 4px 8px;
 }
+
+/* AI 生成内容标记 */
+.ai-generated-section {
+  border-left: 3px solid rgba(24, 144, 255, 0.4) !important;
+  background: rgba(24, 144, 255, 0.02) !important;
+  transition: border-color 0.3s, background 0.3s;
+}
+
+/* AI 局部重生成闪烁效果 */
+@keyframes ai-regenerate-flash {
+  0% { background-color: rgba(82, 196, 26, 0.15); }
+  100% { background-color: transparent; }
+}
+
+.ai-regenerated-highlight {
+  animation: ai-regenerate-flash 2s ease-out;
+}
