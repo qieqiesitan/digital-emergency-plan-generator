@@ -9,7 +9,7 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { Button, Tooltip } from "antd";
-import { RobotOutlined } from "@ant-design/icons";
+import { RobotOutlined, LoadingOutlined } from "@ant-design/icons";
 import {
   BoldOutlined, ItalicOutlined, UnderlineOutlined, StrikethroughOutlined,
   OrderedListOutlined, UnorderedListOutlined, TableOutlined,
@@ -40,6 +40,7 @@ export default function RichTextEditor({
   const [selectionText, setSelectionText] = useState("");
   const [showRewriteBtn, setShowRewriteBtn] = useState(false);
   const [aiRewriteModalOpen, setAiRewriteModalOpen] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -121,9 +122,15 @@ export default function RichTextEditor({
       {showRewriteBtn && !readOnly && (
         <div style={{ padding: "4px 8px", background: "#e6f7ff", borderBottom: "1px solid #91d5ff", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, color: "#666" }}>已选中 {selectionText.length} 个字符</span>
-          <Button size="small" type="primary" ghost icon={<RobotOutlined />} onClick={() => setAiRewriteModalOpen(true)}>
-            AI 重写选中内容
-          </Button>
+          {isRegenerating ? (
+            <span style={{ fontSize: 12, color: "#1677ff" }}>
+              <LoadingOutlined style={{ marginRight: 4 }} />AI 重写中...
+            </span>
+          ) : (
+            <Button size="small" type="primary" ghost icon={<RobotOutlined />} onClick={() => setAiRewriteModalOpen(true)}>
+              AI 重写选中内容
+            </Button>
+          )}
         </div>
       )}
 
@@ -149,8 +156,7 @@ export default function RichTextEditor({
             Math.min(editor.state.doc.content.size, lastSelectionTo.current + 200)
           )}
           onContentChunk={() => {
-            // ponytail: streaming replacement in-place is fragile with TipTap ranges;
-            // only apply on complete to avoid chunk-overwrite bugs.
+            setIsRegenerating(true);
           }}
           onGenerateComplete={(text) => {
             editor.chain().setTextSelection({
@@ -159,6 +165,7 @@ export default function RichTextEditor({
             }).deleteSelection().insertContent(text).run();
             setAiRewriteModalOpen(false);
             setShowRewriteBtn(false);
+            setIsRegenerating(false);
           }}
         />
       )}

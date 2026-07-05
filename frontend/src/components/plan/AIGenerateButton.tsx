@@ -130,6 +130,8 @@ export default function AIGenerateButton({
   const quickPrompts = getQuickPrompts();
 
   if (status === "loading") {
+    // ponytail: in selection mode, feedback is handled by RichTextEditor toolbar; render nothing here
+    if (mode === "selection") return null;
     return <Button icon={<LoadingOutlined />} onClick={handleStop} disabled={disabled}>生成中... 停止</Button>;
   }
 

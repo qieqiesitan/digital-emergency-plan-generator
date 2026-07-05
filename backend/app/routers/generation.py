@@ -41,7 +41,8 @@ import markdown
 import re
 
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
-from app.services.prompt_cache import ensure_loaded, get_system_prompt, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
+from app.services.prompt_cache import ensure_loaded, get_system_prompt, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
+
 from app.schemas.plan import RegenerateRequest
 
 logger = logging.getLogger(__name__)
@@ -1794,9 +1795,7 @@ async def regenerate_selection(
 
 请直接输出修改后的段落文本，不要输出"修改后："等前缀，不要用引号包裹。"""
 
-    p.status = "generating"
-    await db.commit()
-
+    
     async def event_generator():
         try:
             yield _sse("progress", message=f"正在重生成「{s.title}」选中段落...")
