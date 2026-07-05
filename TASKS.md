@@ -1,5 +1,6 @@
 ## 🔴 当前状态快照（压缩恢复用）
-- 正在做什么：PROTEGO 商城接入——预案系统侧代码已完成
+- 正在做什么：PROTEGO 商城接入——已备份到 GitHub
+- 备份到 GitHub：codex/protego-integration → PR #1 (draft)
 - 刚完成的动作：
   - `backend/app/config.py`：新增 EXTERNAL_API_HMAC_SECRET, PROTEGO_CALLBACK_URL
   - `backend/app/middleware/hmac_auth.py`：新建 HMAC-SHA256 签名验证中间件，保护 /api/external/*
@@ -10,7 +11,7 @@
     - GET /api/external/plans/{taskId}/status — 查询生成进度
     - GET /api/external/plans/{taskId}/files/{fileId} — 下载 DOCX 文件
   - `backend/app/main.py`：注册 HmacAuthMiddleware + external 路由器
-- 下一步：设置环境变量 EXTERNAL_API_HMAC_SECRET 后启动测试；PROTEGO 侧由用户自行修改
+- 下一步：PR #1 待审核合并；设置 EXTERNAL_API_HMAC_SECRET 后启动测试
 - 关键上下文：
   - /api/external/* 端点不依赖现有用户认证，走独立 HMAC 签名
   - 外部用户通过 ywt_user_id 字段映射到本地 User 表
