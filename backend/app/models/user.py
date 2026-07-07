@@ -17,6 +17,5 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # 中台用户映射字段
-    ywt_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, unique=True, default=None)
-    ywt_username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
+    # 外部系统用户映射字段（DB列名保持 ywt_user_id 兼容）
+    external_user_id: Mapped[Optional[int]] = mapped_column("ywt_user_id", BigInteger, nullable=True, unique=True, default=None)

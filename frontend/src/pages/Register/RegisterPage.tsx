@@ -32,7 +32,7 @@ export default function RegisterPage() {
 
   return (
     <Card title="注册" style={{ width: "100%" }}>
-      {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} closable onClose={() => setError(null)} />}
+      {error && <Alert type="error" title={error} style={{ marginBottom: 16 }} closable onClose={() => setError(null)} />}
       <Form name="register" onFinish={onFinish} layout="vertical" size="large">
         <Form.Item name="name" rules={[{ required: true, message: "请输入姓名" }]}>
           <Input prefix={<UserOutlined />} placeholder="姓名" />

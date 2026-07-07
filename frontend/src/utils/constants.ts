@@ -39,5 +39,4 @@ export const PLAN_STATUS_LABELS: Record<string, string> = {
   completed: "已完成",
 };
 
-// ⚠️ 以下常量已迁移到中台字典管理，仅保留 fallback
-// 前端组件应优先使用 useDict() hook 从 /api/v1/system/dicts/{type} 获取
+// 以下为本地常量 fallback

@@ -63,8 +63,9 @@ export default function GisMapPicker({ value, onChange, visible, onClose }: GisM
           style={{ height: "100%", width: "100%" }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.amap.com/">高德地图</a>'
+            url="https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}"
+            subdomains={["1","2","3","4"]}
           />
           <MapClickHandler onClick={(lat, lng) => setPosition({ lat, lng })} />
           {position && <Marker position={[position.lat, position.lng]} />}

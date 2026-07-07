@@ -62,6 +62,12 @@ async def build_resource_investigation_context(enterprise_id: str, db: AsyncSess
             "main_products": enterprise.main_products,
             "hazardous_chemicals": enterprise.hazardous_chemicals,
             "special_equipment": enterprise.special_equipment,
+            "business_scope": enterprise.business_scope,
+            "surrounding_info": enterprise.surrounding_info,
+            "fire_protection_summary": enterprise.fire_protection_summary,
+            "special_equipment_detail": enterprise.special_equipment_detail,
+            "main_equipment_list": enterprise.main_equipment_list,
+            "natural_conditions": enterprise.natural_conditions,
         },
         "internal_resources": [
             {
@@ -274,6 +280,12 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
         "地址：" + str(enterprise.get("address", "")),
         "员工人数：" + str(enterprise.get("employee_count", "")),
         "建筑概况：" + str(enterprise.get("building_overview", "") or "（待补充）"),
+        "经营范围：" + str(enterprise.get("business_scope", "") or "（待补充）"),
+        "周边环境：" + str(enterprise.get("surrounding_info", "") or "（待补充）"),
+        "消防设施概况：" + str(enterprise.get("fire_protection_summary", "") or "（待补充）"),
+        "特种设备详情：" + str(enterprise.get("special_equipment_detail", "") or "（待补充）"),
+        "主要设备清单：" + str(enterprise.get("main_equipment_list", "") or "（待补充）"),
+        "自然条件：" + str(enterprise.get("natural_conditions", "") or "（待补充）"),
         "",
         "【风险评估结论】",
     ]
@@ -332,7 +344,7 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
     lines_out.append(chapter_instruction)
     lines_out.append("")
     lines_out.append("【格式要求——必须遵守】")
-    lines_out.append("1）直接输出本章正文，不要加任何前言")
+    lines_out.append("1）直接输出本章正文，不要输出章节标题（系统自动添加），不要加任何前言")
     lines_out.append("2）禁止使用 Markdown 符号（# * - _ | 等）")
     lines_out.append("3）列表项使用「1）2）3）」格式编号")
     lines_out.append("4）段落之间空行分隔")

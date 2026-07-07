@@ -6,10 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.database import engine, Base
-from app.routers import auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, resources_ext, surrounding_ai, hazardous_chemicals, dict, prompts, config, menus, external
+from app.routers import auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external
 from app.dependencies import get_current_user
 from app.services.mermaid_renderer import _close_browser
-from app.middleware import YwtAuthMiddleware
 from app.middleware.hmac_auth import HmacAuthMiddleware
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
@@ -31,8 +30,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Digital Emergency Plan Generator", version="1.0.0", lifespan=lifespan)
 
-# 中台认证中间件（需在 CORS 之前注册）
-app.add_middleware(YwtAuthMiddleware)
 # HMAC 签名验证（/api/external/* 端点）
 app.add_middleware(HmacAuthMiddleware)
 
@@ -74,10 +71,10 @@ app.include_router(resources_ext.router, prefix="/api/v1")
 app.include_router(surrounding_ai.router, prefix="/api/v1")
 app.include_router(hazardous_chemicals.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
-app.include_router(dict.router, prefix="/api/v1")
 app.include_router(prompts.router, prefix="/api/v1")
 app.include_router(config.router, prefix="/api/v1")
-app.include_router(menus.router, prefix="/api/v1")
+app.include_router(roles.router, prefix="/api/v1")
+app.include_router(admin_users.router, prefix="/api/v1")
 # 外部系统接入 API（PROTEGO 商城）
 app.include_router(external.router, prefix="/api")
 

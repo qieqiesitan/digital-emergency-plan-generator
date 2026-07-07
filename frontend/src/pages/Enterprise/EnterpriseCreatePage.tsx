@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Form, Input, Select, InputNumber, Button, Card, message, Upload, Space, DatePicker, Collapse } from "antd";
 import { UploadOutlined, EnvironmentOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createEnterprise } from "@/services/enterpriseService";
+import { createEnterprise, autofillEnterprise } from "@/services/enterpriseService";
 import { uploadFile } from "@/services/enterpriseService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PRESET_INDUSTRIES } from "@/utils/constants";
@@ -22,6 +22,9 @@ export default function EnterpriseCreatePage() {
   const [floorPlanUrl, setFloorPlanUrl] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
 
+  const [autofillLoading, setAutofillLoading] = useState(false);
+  const [autofillCooldown, setAutofillCooldown] = useState(false);
+
   const mutation = useMutation({
     mutationFn: createEnterprise,
     onSuccess: (data) => {
@@ -37,6 +40,52 @@ export default function EnterpriseCreatePage() {
     catch { message.error("上传失败"); }
   };
 
+  const handleAutofill = async () => {
+    const name = form.getFieldValue("name");
+    if (!name || name.trim().length < 2) {
+      message.warning("请先输入完整企业名称");
+      return;
+    }
+    setAutofillLoading(true);
+    setAutofillCooldown(true);
+    try {
+      const result = await autofillEnterprise(name.trim());
+      if (result.error) {
+        const msgs: Record<string, string> = {
+          rate_limited: "操作过于频繁，请3秒后再试",
+          credits_exhausted: "今日免费额度已用完，请手动填写企业信息",
+          not_found: "未找到该企业信息，请检查企业名称是否正确",
+          network_error: "查询服务暂时不可用，请手动填写企业信息",
+          not_configured: "未配置企查查 API，请联系管理员",
+        };
+        message.warning(msgs[result.error] || "查询失败，请手动填写");
+        return;
+      }
+      const fields = result.fields || {};
+      const formValues: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(fields)) {
+        if (value != null && value !== "") {
+          if (key === "established_date") {
+            formValues[key] = dayjs(value as string);
+          } else {
+            formValues[key] = value;
+          }
+        }
+      }
+      if (Object.keys(formValues).length > 0) {
+        form.setFieldsValue(formValues);
+        message.success(`已自动填充 ${Object.keys(formValues).length} 个字段，请逐项核对后提交`);
+      } else {
+        message.info("未获取到可填充的字段，请手动填写");
+      }
+    } catch {
+      message.error("查询失败，请手动填写企业信息");
+    } finally {
+      setAutofillLoading(false);
+      setTimeout(() => setAutofillCooldown(false), 5000);
+    }
+  };
+
   const collapseItems = [
     {
       key: "basic",
@@ -44,7 +93,12 @@ export default function EnterpriseCreatePage() {
       children: (
         <>
           <Form.Item name="name" label="企业名称" rules={[{ required: true, message: "请输入企业名称" }]}>
-            <Input placeholder="请输入企业名称" />
+            <div style={{ display: "flex", gap: 8 }}>
+              <Input placeholder="请输入企业全称" style={{ flex: 1 }} />
+              <Button type="primary" loading={autofillLoading} disabled={autofillCooldown} onClick={handleAutofill}>
+                {autofillLoading ? "搜索中..." : "AI 自动填充"}
+              </Button>
+            </div>
           </Form.Item>
           <Form.Item name="credit_code" label="统一社会信用代码">
             <Input placeholder="18位统一社会信用代码" maxLength={18} />
@@ -110,18 +164,14 @@ export default function EnterpriseCreatePage() {
           <Form.Item name="safety_officer_phone" label="安全负责人电话">
             <Input placeholder="安全负责人联系电话" />
           </Form.Item>
-          <Form.Item name="safety_staff_count" label="安全管理人员数量">
-            <InputNumber min={0} placeholder="专职/兼职安全管理人员数" style={{ width: "100%" }} />
+          <Form.Item name="safety_staff_count" label="安全管理人员数">
+            <InputNumber min={0} placeholder="安全管理人员数量" style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item name="safety_standardization" label="安全标准化等级">
-            <Select placeholder="选择标准化等级" options={STANDARDIZATION_LEVELS.map(l => ({ value: l, label: l }))} />
+            <Select placeholder="选择标准化等级" options={STANDARDIZATION_LEVELS.map(s => ({ value: s, label: s }))} />
           </Form.Item>
-          <Form.Item name="fire_approval" label="消防验收情况">
-            <Select placeholder="选择消防验收状态" options={[
-              { value: "已验收", label: "已验收" },
-              { value: "未验收", label: "未验收" },
-              { value: "不适用", label: "不适用" },
-            ]} />
+          <Form.Item name="fire_approval" label="消防验收文号">
+            <Input placeholder="消防验收批准文号" />
           </Form.Item>
           <Form.Item name="fire_approval_date" label="消防验收日期" getValueFromEvent={(d: dayjs.Dayjs | null) => d?.format("YYYY-MM-DD")}>
             <DatePicker style={{ width: "100%" }} placeholder="选择消防验收日期" />
@@ -168,11 +218,13 @@ export default function EnterpriseCreatePage() {
   return (
     <div style={{ maxWidth: 800 }}>
       <PageHeader title="新建企业" onBack={() => navigate("/enterprises")} />
+      <div style={{ background: "#fff3cd", padding: "8px 16px", marginBottom: 16, borderRadius: 6, fontSize: 13 }}>
+        💡 输入企业全称后，点击右侧「AI 自动填充」按钮，系统将自动查询企查查工商数据并填入对应字段。填写完成后请逐项核对。
+      </div>
       <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ economic_type: "民营" }}>
         <Collapse defaultActiveKey={["basic", "contact"]} items={collapseItems} style={{ marginBottom: 16 }} />
-
         <Card title="GIS 定位与平面图" size="small" style={{ marginBottom: 16 }}>
-          <Space direction="vertical" style={{ width: "100%" }}>
+          <Space orientation="vertical" style={{ width: "100%" }}>
             <Form.Item label="厂区平面图" style={{ marginBottom: 8 }}>
               <input ref={uploadRef} type="file" accept="image/*" style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
@@ -199,13 +251,11 @@ export default function EnterpriseCreatePage() {
             <Form.Item name="gis_lng" hidden><Input /></Form.Item>
           </Space>
         </Card>
-
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={mutation.isPending} style={{ marginRight: 8 }}>保存</Button>
           <Button onClick={() => navigate("/enterprises")}>取消</Button>
         </Form.Item>
       </Form>
-
       <GisMapPicker visible={gisModalOpen} value={null}
         onChange={(pos) => { if (pos) { form.setFieldsValue({ gis_lat: pos.lat, gis_lng: pos.lng }); } else { form.setFieldsValue({ gis_lat: null, gis_lng: null }); } }}
         onClose={() => setGisModalOpen(false)} />

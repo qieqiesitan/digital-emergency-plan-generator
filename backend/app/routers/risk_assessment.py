@@ -88,10 +88,69 @@ def _html_table_to_docx(doc, html_table: str):
     doc.add_paragraph("")  # spacing after table
 
 
+def _clean_for_docx(content: str) -> str:
+    """Strip markdown artifacts that _render_content_to_docx doesn't handle."""
+    import re as _re
+    # 1. Remove fenced code blocks
+    content = _re.sub(r'```[\w]*\n[\s\S]*?```', '', content)
+    # 2. Remove bare mermaid blocks (no code fences: "mermaid\nflowchart...")
+    content = _re.sub(r'\nmermaid\n(?:flowchart|graph|sequenceDiagram|pie|mindmap|classDiagram|stateDiagram|erDiagram|gantt|journey|gitgraph)[\s\S]*?(?=\n\n[^A-Za-z\-\[]>]|\n(?:json|```)\n|\Z)', '', content)
+    # 3. Remove bare "json\n{...}\n```" blocks (opening ``` missing, closing present)
+    content = _re.sub(r'\njson\n\{[\s\S]*?\n```', '', content)
+    # 4. Strip trailing ``` backticks before JSON detection
+    content = _re.sub(r'\n```\s*$', '', content)
+    # 5. Remove trailing JSON summary block (handles nested braces)
+    def _strip_trailing_json(s: str) -> str:
+        """Find and remove a trailing JSON object with balanced braces."""
+        stripped = s.rstrip()
+        if not stripped.endswith('}'):
+            return s
+        # Count braces backwards
+        depth = 0
+        for i in range(len(stripped) - 1, -1, -1):
+            ch = stripped[i]
+            if ch == '}':
+                depth += 1
+            elif ch == '{':
+                depth -= 1
+                if depth == 0:
+                    prefix = stripped[:i].rstrip()
+                    if prefix:
+                        return prefix + '\n'
+                    return prefix
+        return s
+    content = _strip_trailing_json(content)
+    # 3. Strip **bold** markers
+    content = content.replace('**', '')
+    # 4. Convert * list markers to - (already handled)
+    content = _re.sub(r'^(\s*)\* ', r'\1- ', content, flags=_re.MULTILINE)
+    # 5. Fix #text -> # text (missing space after #)
+    content = _re.sub(r'^(#{1,6})([^\s#])', r'\1 \2', content, flags=_re.MULTILINE)
+    # 6. Remove duplicate lines immediately following a heading
+    lines_out = []
+    prev_line = None
+    for line in content.split('\n'):
+        stripped = line.strip()
+        # If current line is a duplicate of the previous line's content (after heading prefix)
+        if prev_line and stripped and stripped == prev_line:
+            continue
+        lines_out.append(line)
+        # Extract plain text from heading for next-line dedup
+        m = _re.match(r'^#{1,6}\s+(.+)', stripped)
+        if m:
+            prev_line = m.group(1).strip()
+        elif stripped:
+            prev_line = stripped
+        else:
+            prev_line = None
+    content = '\n'.join(lines_out)
+    return content
+
 def _render_content_to_docx(doc, content: str):
     """Render content that may contain interleaved text and HTML tables into docx."""
     from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    content = _clean_for_docx(content)
     # Split content by HTML table blocks
     parts = re.split(r"(<table[\s\S]*?</table>)", content)
     for part in parts:
@@ -257,7 +316,7 @@ async def preview_risk_assessment(
     if not report:
         raise HTTPException(404, "未找到已完成的风险评估报告")
 
-    html = _md_to_html(report.content)
+    html = _md_to_html(_clean_for_docx(report.content))
     return ApiResponse(data=RiskAssessmentPreviewResponse(
         report_id=report.id, title=report.title, html=html
     ))
@@ -552,6 +611,7 @@ async def merge_risk_assessment(
     merged = report_title + "\n\n" + "\n\n".join(merged_parts)
 
     report.title = report_title
+    merged = _clean_for_docx(merged)
     report.content = merged
     report.status = "completed"
     report.summary = {"chapters": chapters}

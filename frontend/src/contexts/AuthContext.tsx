@@ -2,12 +2,13 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import type { User, LoginRequest, RegisterRequest } from "@/types/auth";
 import * as authService from "@/services/authService";
 import * as userService from "@/services/authService";
-import { isYwtMode, getToken, getUsername } from "@/utils/platform";
+import { fetchMyMenus } from "@/services/roleService";
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  menuPermissions: string[];
 }
 
 interface AuthContextValue extends AuthState {
@@ -25,87 +26,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     isAuthenticated: false,
     isLoading: true,
+    menuPermissions: [],
   });
 
-  // 初始化：中台模式用注入 token 调 /users/me；独立模式用 localStorage token
-  useEffect(() => {
-    if (isYwtMode()) {
-      // 中台 qiankun 模式：用注入的 token 获取用户信息
-      const token = getToken();
-      if (token) {
-        userService.getProfile()
-          .then((user) => {
-            setState({ user, isAuthenticated: true, isLoading: false });
-          })
-          .catch(() => {
-            // token 无效，标记未认证（中台会重新注入）
-            setState({ user: null, isAuthenticated: false, isLoading: false });
-          });
-      } else {
-        setState({ user: null, isAuthenticated: false, isLoading: false });
-      }
-    } else {
-      // 独立模式：检查 localStorage 中是否有 token
-      const token = localStorage.getItem("access_token");
-      if (token) {
-        userService.getProfile()
-          .then((user) => {
-            setState({ user, isAuthenticated: true, isLoading: false });
-          })
-          .catch(() => {
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("refresh_token");
-            setState({ user: null, isAuthenticated: false, isLoading: false });
-          });
-      } else {
-        setState({ user: null, isAuthenticated: false, isLoading: false });
-      }
+  const loadMenuPermissions = useCallback(async () => {
+    try {
+      const menus = await fetchMyMenus();
+      setState((prev) => ({ ...prev, menuPermissions: menus }));
+    } catch {
+      // ponytail: menu permissions fail silently, show nothing
     }
   }, []);
 
-  // 监听 API 拦截器发出的 auth:logout 事件
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      userService.getProfile()
+        .then((user) => {
+          setState((prev) => ({ ...prev, user, isAuthenticated: true, isLoading: false }));
+          return loadMenuPermissions();
+        })
+        .catch(() => {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          setState((prev) => ({ ...prev, user: null, isAuthenticated: false, isLoading: false }));
+        });
+    } else {
+      setState((prev) => ({ ...prev, isLoading: false }));
+    }
+  }, [loadMenuPermissions]);
+
   useEffect(() => {
     const handler = () => {
-      setState({ user: null, isAuthenticated: false, isLoading: false });
-      if (!isYwtMode()) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-      }
+      setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [] });
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
     };
     window.addEventListener("auth:logout", handler);
     return () => window.removeEventListener("auth:logout", handler);
   }, []);
 
   const login = useCallback(async (data: LoginRequest) => {
-    if (isYwtMode()) return; // 中台模式：用户由中台管理
     const tokenResp = await authService.login(data);
     localStorage.setItem("access_token", tokenResp.access_token);
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
-    setState({ user, isAuthenticated: true, isLoading: false });
+    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [] });
+    const menus = await fetchMyMenus().catch(() => []);
+    setState((prev) => ({ ...prev, menuPermissions: menus }));
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
-    if (isYwtMode()) return; // 中台模式：用户由中台管理
     await authService.register(data);
     const tokenResp = await authService.login({ email: data.email, password: data.password });
     localStorage.setItem("access_token", tokenResp.access_token);
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
-    setState({ user, isAuthenticated: true, isLoading: false });
+    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [] });
+    const menus = await fetchMyMenus().catch(() => []);
+    setState((prev) => ({ ...prev, menuPermissions: menus }));
   }, []);
 
   const logout = useCallback(() => {
-    if (isYwtMode()) {
-      // 中台模式：只清本地状态，登出由中台处理
-      setState({ user: null, isAuthenticated: false, isLoading: false });
-      return;
-    }
     const refreshToken = localStorage.getItem("refresh_token");
     authService.logout(refreshToken ?? undefined).catch(() => {});
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
-    setState({ user: null, isAuthenticated: false, isLoading: false });
+    setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [] });
   }, []);
 
   const updateProfile = useCallback(async (name: string) => {

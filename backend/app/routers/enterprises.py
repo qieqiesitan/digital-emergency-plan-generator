@@ -1,15 +1,41 @@
-﻿from datetime import datetime
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.database import get_db
 from app.models.user import User
 from app.models.enterprise import Enterprise
-from app.schemas.enterprise import EnterpriseCreate, EnterpriseUpdate, EnterpriseResponse
+from app.schemas.enterprise import EnterpriseCreate, EnterpriseUpdate, EnterpriseResponse, AutofillRequest, AutofillResponse
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
 from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/enterprises", tags=["Enterprises"])
+
+# ── Autofill ──
+
+REASON_MESSAGES = {
+    "rate_limited": "操作过于频繁，请稍后再试",
+    "credits_exhausted": "今日免费额度已用完，请手动填写企业信息",
+    "not_found": "未找到该企业信息，请检查企业名称是否正确",
+    "network_error": "查询服务暂时不可用，请手动填写企业信息",
+    "not_configured": "未配置企查查 API Key，请联系管理员",
+}
+
+@router.post("/autofill", response_model=ApiResponse[AutofillResponse])
+async def autofill_enterprise(
+    data: AutofillRequest,
+    current_user: User = Depends(get_current_user),
+):
+    from app.services.enterprise_autofill import autofill as do_autofill
+    result = await do_autofill(current_user.id, data.name)
+    if result["ok"]:
+        return ApiResponse(data=AutofillResponse(name=result["name"], fields=result["fields"]))
+    reason = result.get("reason", "network_error")
+    return ApiResponse(
+        code=1,
+        message=REASON_MESSAGES.get(reason, "查询失败"),
+        data=AutofillResponse(error=reason),
+    )
 
 def _build_response(e: Enterprise) -> EnterpriseResponse:
     def _fmt_date(d):
@@ -140,3 +166,4 @@ async def delete_enterprise(enterprise_id: str, current_user: User = Depends(get
     if not e: raise HTTPException(status_code=404, detail="企业不存在")
     await db.delete(e); await db.commit()
     return {"code": 0, "message": "已删除"}
+

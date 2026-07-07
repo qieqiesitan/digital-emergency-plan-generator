@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Layout, Menu, Button, Dropdown, Avatar, theme } from "antd";
 import {
@@ -11,128 +11,94 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   KeyOutlined,
-  BookOutlined,
-  MenuOutlined,
+  TeamOutlined,
+  SafetyCertificateOutlined,
   EditOutlined,
-  ApiOutlined,
-  RobotOutlined,
+  
+  
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { EnterpriseSwitcher } from "@/components/enterprise/EnterpriseSwitcher";
 
 const { Header, Sider, Content } = Layout;
 
+// ponytail: menu path -> permission code mapping
+const MENU_MAP: Record<string, string> = {
+  "/dashboard": "menu:dashboard",
+  "/enterprises": "menu:enterprises",
+  "/plans": "menu:plans",
+  "/settings/users": "menu:users",
+  "/settings/roles": "menu:roles",
+  "/settings/system": "menu:system_config",
+  "/settings/prompts": "menu:prompts",
+  "/settings/profile": "menu:profile",
+  "/settings/ai-config": "menu:ai_config",
+};
+
 export function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, menuPermissions } = useAuth();
   const { token: themeToken } = theme.useToken();
 
+  const hasMenu = (path: string) => menuPermissions.includes(MENU_MAP[path] ?? "");
+
+  // ponytail: derive groups from menu permissions
+  const showSystemGroup = hasMenu("/settings/users") || hasMenu("/settings/roles") || hasMenu("/settings/system");
+  const showAIGroup = hasMenu("/settings/prompts");
+
   const menuItems = [
-    {
-      key: "/dashboard",
-      icon: <DashboardOutlined />,
-      label: "工作台",
-    },
-    {
-      key: "/enterprises",
-      icon: <BankOutlined />,
-      label: "企业管理",
-    },
-    {
-      key: "/plans",
-      icon: <FileTextOutlined />,
-      label: "预案列表",
-    },
-    {
-      type: "divider" as const,
-    },
-    {
-      key: "system-group",
-      label: "系统管理",
-      children: [
-        {
-          key: "/system/dicts",
-          icon: <BookOutlined />,
-          label: "字典管理",
-        },
-        {
-          key: "/system/menus",
-          icon: <MenuOutlined />,
-          label: "菜单管理",
-        },
-        {
-          key: "/settings/system",
-          icon: <SettingOutlined />,
-          label: "系统配置",
-        },
-      ],
-    },
-    {
-      key: "ai-group",
-      label: "AI 管理",
-      children: [
-        {
-          key: "/settings/prompts",
-          icon: <EditOutlined />,
-          label: "提示词管理",
-        },
-        {
-          key: "/ai/provider",
-          icon: <ApiOutlined />,
-          label: "供应商管理",
-        },
-        {
-          key: "/ai/model",
-          icon: <RobotOutlined />,
-          label: "模型管理",
-        },
-      ],
-    },
-    {
-      type: "divider" as const,
-    },
+    ...(hasMenu("/dashboard") ? [{ key: "/dashboard", icon: <DashboardOutlined />, label: "工作台" }] : []),
+    ...(hasMenu("/enterprises") ? [{ key: "/enterprises", icon: <BankOutlined />, label: "企业管理" }] : []),
+    ...(hasMenu("/plans") ? [{ key: "/plans", icon: <FileTextOutlined />, label: "预案列表" }] : []),
+    { type: "divider" as const },
+    ...(showSystemGroup
+      ? [{
+          key: "system-group",
+          label: "系统管理",
+          children: [
+            ...(hasMenu("/settings/users") ? [{ key: "/settings/users", icon: <TeamOutlined />, label: "用户管理" }] : []),
+            ...(hasMenu("/settings/roles") ? [{ key: "/settings/roles", icon: <SafetyCertificateOutlined />, label: "角色管理" }] : []),
+            ...(hasMenu("/settings/system") ? [{ key: "/settings/system", icon: <SettingOutlined />, label: "系统配置" }] : []),
+          ],
+        }]
+      : []),
+    ...(showAIGroup
+      ? [{
+          key: "ai-group",
+          label: "AI 管理",
+          children: [
+            ...(hasMenu("/settings/prompts") ? [{ key: "/settings/prompts", icon: <EditOutlined />, label: "提示词管理" }] : []),
+          ],
+        }]
+      : []),
+    { type: "divider" as const },
     {
       key: "settings",
       icon: <SettingOutlined />,
       label: "设置",
       children: [
-        {
-          key: "/settings/profile",
-          icon: <UserOutlined />,
-          label: "个人资料",
-        },
-        {
-          key: "/settings/ai-config",
-          icon: <KeyOutlined />,
-          label: "AI 配置",
-        },
+        ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
+        ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <KeyOutlined />, label: "AI 配置" }] : []),
       ],
     },
   ];
 
   const userMenuItems = [
-    {
-      key: "profile",
-      icon: <UserOutlined />,
-      label: "个人资料",
-      onClick: () => navigate("/settings/profile"),
-    },
-    {
-      key: "ai-config",
-      icon: <KeyOutlined />,
-      label: "AI 配置",
-      onClick: () => navigate("/settings/ai-config"),
-    },
+    ...(hasMenu("/settings/profile") ? [{ key: "profile", icon: <UserOutlined />, label: "个人资料", onClick: () => navigate("/settings/profile") }] : []),
+    ...(hasMenu("/settings/ai-config") ? [{ key: "ai-config", icon: <KeyOutlined />, label: "AI 配置", onClick: () => navigate("/settings/ai-config") }] : []),
     { type: "divider" as const },
-    {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: "退出登录",
-      onClick: logout,
-    },
+    { key: "logout", icon: <LogoutOutlined />, label: "退出登录", onClick: logout },
   ];
+
+  const defaultOpenKeys = useMemo(() => {
+    const keys: string[] = [];
+    if (showSystemGroup) keys.push("system-group");
+    if (showAIGroup) keys.push("ai-group");
+    keys.push("settings");
+    return keys;
+  }, [showSystemGroup, showAIGroup]);
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -161,14 +127,10 @@ export function MainLayout() {
         <Menu
           mode="inline"
           selectedKeys={[location.pathname]}
-          defaultOpenKeys={["settings", "system-group", "ai-group"]}
+          defaultOpenKeys={defaultOpenKeys}
           items={menuItems}
           onClick={({ key }) => {
             const externalUrls = {
-              "/system/dicts": "http://localhost/system/dict",
-              "/system/menus": "http://localhost/system/menu",
-              "/ai/provider": "http://localhost/ai/provider",
-              "/ai/model": "http://localhost/ai/model",
             };
             if (key in externalUrls) {
               window.open(externalUrls[key as keyof typeof externalUrls], "_blank");

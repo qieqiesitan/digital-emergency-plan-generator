@@ -352,7 +352,7 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
           )}
         </div>
 
-        {error && <Alert type="error" message={error} style={{ marginBottom: 12 }} closable />}
+        {error && <Alert type="error" title={error} style={{ marginBottom: 12 }} closable />}
 
         {/* Main: sidebar + content */}
         <div style={{ display: "flex", gap: 16, height: "60vh" }}>

@@ -1,4 +1,4 @@
-"""提示词缓存模块 — YWT优先，本地DB兜底，双模运行"""
+"""提示词缓存模块 — 本地DB加载"""
 
 import logging
 import time
@@ -16,7 +16,7 @@ _cache_ttl: int = 300      # 5 分钟
 _load_event = asyncio.Event()
 _load_event.set()  # 初始无加载进行中
 
-# ── 硬编码 fallback（中台不可用时使用） ──
+# ── 硬编码 fallback ──
 FALLBACK_SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格的应急预案编制专家，具有丰富的生产经营单位应急预案编制经验。你精通 GB/T 29639-2020《生产经营单位生产安全事故应急预案编制导则》，并严格遵循以下法律法规：《中华人民共和国安全生产法》《中华人民共和国突发事件应对法》《生产安全事故应急预案管理办法》《生产安全事故应急条例》。
 
 【写作风格——必须严格遵守】
@@ -42,7 +42,7 @@ FALLBACK_SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格�
 
 
 async def ensure_loaded(force: bool = False) -> None:
-    """确保缓存已加载。YWT优先→本地DB兜底。force=True强制刷新。"""
+    """确保缓存已加载。force=True强制刷新。"""
     global _cache, _loaded_at
 
     if not force and _cache and (time.time() - _loaded_at) < _cache_ttl:
@@ -55,103 +55,11 @@ async def ensure_loaded(force: bool = False) -> None:
 
     _load_event.clear()
     try:
-        ywt_success = False
-        try:
-            from app import ywt_client
-            prompts = await ywt_client.fetch_prompts(category=None)
-            if prompts:
-                _cache = {}
-                for p in prompts:
-                    cat = p.get("category", "")
-                    if cat:
-                        _cache.setdefault(cat, []).append(p)
-                _loaded_at = time.time()
-                logger.info(f"提示词缓存已加载(YWT): {sum(len(v) for v in _cache.values())} 个模板, {len(_cache)} 个分类")
-                ywt_success = True
-                await _sync_ywt_to_local(prompts)
-        except Exception as e:
-            logger.warning(f"YWT提示词加载失败，回退本地DB: {e}")
-
-        if not ywt_success:
-            await _load_from_local_db()
-            logger.info(f"提示词缓存已加载(本地DB): {sum(len(v) for v in _cache.values())} 个模板, {len(_cache)} 个分类")
-        else:
-            # YWT成功但本地修改优先：合并本地DB数据覆盖YWT缓存
-            await _merge_local_overrides()
+        await _load_from_local_db()
+        logger.info(f"提示词缓存已加载(本地DB): {sum(len(v) for v in _cache.values())} 个模板, {len(_cache)} 个分类")
     finally:
         _load_event.set()
 
-
-async def _sync_ywt_to_local(prompts: list[dict]) -> None:
-    """将YWT提示词同步到本地DB（upsert by template_code）"""
-    try:
-        from app.database import async_session
-        from app.models.prompt import PromptTemplate
-        from sqlalchemy import select
-        async with async_session() as db:
-            for p in prompts:
-                code = p.get("templateCode", "") or p.get("template_code", "")
-                if not code:
-                    continue
-                existing = (await db.execute(
-                    select(PromptTemplate).where(PromptTemplate.template_code == code)
-                )).scalar_one_or_none()
-                if existing:
-                    # 本地已有模板，只更新名称和状态，不覆盖内容（保护本地修改）
-                    existing.template_name = p.get("templateName", "") or p.get("template_name", existing.template_name)
-                    existing.status = p.get("status", existing.status or "active")
-                else:
-                    db.add(PromptTemplate(
-                        template_code=code,
-                        template_name=p.get("templateName", "") or p.get("template_name", code),
-                        category=p.get("category", ""),
-                        system_prompt=p.get("systemPrompt", "") or p.get("system_prompt", ""),
-                        user_prompt_template=p.get("userPromptTemplate", "") or p.get("user_prompt_template", ""),
-                    ))
-            await db.commit()
-            logger.info(f"YWT→本地DB同步: {len(prompts)} 条")
-    except Exception as e:
-        logger.warning(f"YWT→本地DB同步失败: {e}")
-
-
-async def _merge_local_overrides() -> None:
-    """YWT加载后，用本地DB中已存在的模板覆盖缓存（保护本地修改）。"""
-    try:
-        from app.database import async_session
-        from app.models.prompt import PromptTemplate
-        from sqlalchemy import select
-        async with async_session() as db:
-            rows = (await db.execute(
-                select(PromptTemplate).where(PromptTemplate.status.in_(["active", "0"]))
-            )).scalars().all()
-            for row in rows:
-                cat = row.category or ""
-                if not cat:
-                    continue
-                local_item = {
-                    "id": row.id,
-                    "templateCode": row.template_code,
-                    "template_code": row.template_code,
-                    "templateName": row.template_name,
-                    "template_name": row.template_name,
-                    "category": row.category,
-                    "systemPrompt": row.system_prompt or "",
-                    "system_prompt": row.system_prompt or "",
-                    "userPromptTemplate": row.user_prompt_template or "",
-                    "user_prompt_template": row.user_prompt_template or "",
-                }
-                # Override YWT cache entry with local version
-                cat_templates = _cache.setdefault(cat, [])
-                replaced = False
-                for i, t in enumerate(cat_templates):
-                    if t.get("templateCode", "") == row.template_code:
-                        cat_templates[i] = local_item
-                        replaced = True
-                        break
-                if not replaced:
-                    cat_templates.append(local_item)
-    except Exception as e:
-        logger.warning(f"本地修改合并失败: {e}")
 
 async def _load_from_local_db() -> None:
     """从本地DB加载提示词到内存缓存"""

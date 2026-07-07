@@ -35,9 +35,9 @@ _external_tasks: dict[str, dict] = {}
 async def _ensure_user_and_enterprise(
     db: AsyncSession, external_user_id: str, enterprise_data: dict
 ) -> tuple[User, Enterprise, bool]:
-    ywt_id = int(external_user_id) if external_user_id.isdigit() else None
+    ext_id = int(external_user_id) if external_user_id.isdigit() else None
     result = await db.execute(
-        select(User).where(User.ywt_user_id == ywt_id) if ywt_id
+        select(User).where(User.external_user_id == ext_id) if ext_id
         else select(User).where(User.email == f"ext_{external_user_id}@external.local")
     )
     user = result.scalar_one_or_none()
@@ -47,8 +47,7 @@ async def _ensure_user_and_enterprise(
             password_hash="",
             name=enterprise_data.get("contact_name", "外部用户"),
             role="user",
-            ywt_user_id=ywt_id,
-            ywt_username=external_user_id,
+            external_user_id=ext_id,
         )
         db.add(user)
         await db.flush()

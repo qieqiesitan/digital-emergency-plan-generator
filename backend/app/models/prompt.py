@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from app.database import Base
 
 class PromptTemplate(Base):
-    """本地提示词模板 — 独立运行 + YWT同步双模"""
+    """本地提示词模板"""
     __tablename__ = "prompt_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

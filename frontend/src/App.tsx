@@ -6,7 +6,6 @@ import zhCN from "antd/locale/zh_CN";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EnterpriseProvider } from "@/contexts/EnterpriseContext";
 import { createRouter } from "@/routes";
-import { isYwtMode } from "@/utils/platform";
 import "@/styles/global.css";
 
 const queryClient = new QueryClient({
@@ -20,7 +19,7 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
-  const router = useMemo(() => createRouter(isYwtMode()), []);
+  const router = useMemo(() => createRouter(), []);
 
   return (
     <QueryClientProvider client={queryClient}>

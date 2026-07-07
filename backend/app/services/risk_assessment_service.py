@@ -272,7 +272,7 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
     lines_out.append(chapter_instruction)
     lines_out.append("")
     lines_out.append("【格式要求——必须遵守】")
-    lines_out.append("1）直接输出本章正文，不要加任何前言")
+    lines_out.append("1）直接输出本章正文，不要输出章节标题（系统自动添加），不要加任何前言")
     lines_out.append("2）表格使用HTML table标签，border=1 cellpadding=4 cellspacing=0")
     lines_out.append("3）列表项使用1）2）3）格式编号")
     lines_out.append("4）段落之间空行分隔")

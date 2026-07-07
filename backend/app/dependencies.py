@@ -15,11 +15,7 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
     request: Request = None,
 ) -> User:
-    # 中台模式：用户已由 YwtAuthMiddleware 注入
-    if request is not None and hasattr(request.state, "user") and request.state.user is not None:
-        return request.state.user
-
-    # 独立模式：原有 Bearer token 认证
+    # 原有 Bearer token 认证
     # Support token from query parameter for file downloads (window.open cannot set headers)
     token_str = None
     if credentials is not None:
@@ -42,3 +38,18 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+async def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.role not in ("admin", "super_admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+    return current_user
+
+
+async def require_super_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.role != "super_admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要超级管理员权限")
+    return current_user

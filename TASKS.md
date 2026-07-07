@@ -1,20 +1,16 @@
 ## 🔴 当前状态快照（压缩恢复用）
-- 正在做什么：AI 生成增强功能迭代完成，等待验证
+- 正在做什么：法规知识图谱 GraphRAG 方案文档已输出 ✅
 - 刚完成的动作：
-  - 设计文档：docs/superpowers/specs/2026-07-05-ai-generation-enhancement-design.md
-  - 后端：backend/app/routers/generation.py — 新增 regenerate_selection SSE 端点
-  - 后端：backend/app/schemas/plan.py — 新增 RegenerateRequest schema
-  - 前端：frontend/src/components/plan/AIGenerateButton.tsx — 重构为 Modal+快捷指令+双模式
-  - 前端：frontend/src/components/plan/RichTextEditor.tsx — 新增选区监听+AI重写浮动按钮+AI标记
-  - 前端：frontend/src/services/generationService.ts — 新增 regenerateSelectionStream
-  - 前端：frontend/src/utils/quickPrompts.ts — 新增快捷指令模板（6预设+localStorage）
-  - 前端：frontend/src/styles/global.css — 新增 ai-generated-section / ai-regenerated-highlight 样式
-  - 前端：frontend/src/pages/Plan/PlanEditorPage.tsx — 传递新 props
-- 下一步：前端 TypeScript 编译检查 / 后端启动测试
+  - prd/PRD-13.md：完整方案文档已保存（25KB，11个章节）
+- 下一步：等待用户评审方案，确认后进入 Day 1 实施
 - 关键上下文：
-  - 所有新 props 均为可选，向后兼容
-  - 选区重生成仅桌面端（TipTap），移动端 textarea 降级隐藏
-  - 0 新依赖
+  - 方案：GraphRAG = NetworkX图谱 + ChromaDB向量 + Prompt注入 + 前端傻瓜化管理页
+  - 侵入度：18个新增文件 + 4个文件微改（共约9行）
+  - 降级：法规模块异常 → 自动回退原有逻辑，不影响预案生成
+  - 维护：粘贴全文 → AI解析 → 点确认入库，零技术门槛
 
 ## 进行中的任务
-- 🟢 AI 生成增强（自定义提示词+局部重生成+快捷指令） ✅
+- 🟢 系统设置功能（角色管理+用户管理）✅
+- 🟢 AI 生成增强 ✅
+- 🟢 高德地图周边环境搜索 ✅
+- 🟡 法规知识图谱 GraphRAG 方案评审中

@@ -82,7 +82,7 @@ export default function OrgStructureEditor({ enterpriseId, orgStructure, visible
           <h4>{group.group_name}</h4>
           <Table
             dataSource={group.members}
-            rowKey={(_, i) => String(i)}
+            rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
             pagination={false}
             size="small"
             columns={[

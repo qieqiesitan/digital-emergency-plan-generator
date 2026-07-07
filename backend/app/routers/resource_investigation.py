@@ -24,7 +24,7 @@ from app.services.resource_investigation_service import (
     _get_ri_system_prompt,
 )
 from app.config import settings
-from app.routers.risk_assessment import _stream_llm_with_system, _stream_llm_with_messages_chunked
+from app.routers.risk_assessment import _stream_llm_with_system, _stream_llm_with_messages_chunked, _clean_for_docx
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Resource Investigation"])
@@ -133,7 +133,7 @@ async def preview_resource_investigation(
     if not report:
         raise HTTPException(404, "未找到报告")
 
-    html = _md_to_html(report.content)
+    html = _md_to_html(_clean_for_docx(report.content))
     return ApiResponse(
         data=ResourceInvestigationPreviewResponse(
             report_id=report.id,
@@ -200,7 +200,8 @@ async def export_resource_investigation(
                 para.add_run(line)
     doc.add_page_break()
 
-    for line in report.content.split("\n"):
+    cleaned = _clean_for_docx(report.content)
+    for line in cleaned.split("\n"):
         line = line.strip()
         if not line:
             doc.add_paragraph("")
@@ -465,6 +466,7 @@ async def merge_resource_investigation(
     merged = report_title + "\n\n" + "\n\n".join(merged_parts)
 
     report.title = report_title
+    merged = _clean_for_docx(merged)
     report.content = merged
     report.status = "completed"
     report.summary = {"chapters": chapters}

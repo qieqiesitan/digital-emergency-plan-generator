@@ -139,3 +139,13 @@ class EnterpriseResponse(BaseModel):
     updated_at: DatetimeStr
 
     model_config = {"from_attributes": True}
+
+# ── Autofill ──
+
+class AutofillRequest(BaseModel):
+    name: str
+
+class AutofillResponse(BaseModel):
+    name: str | None = None
+    fields: dict = {}
+    error: str | None = None  # "rate_limited" | "credits_exhausted" | "not_found" | "network_error"

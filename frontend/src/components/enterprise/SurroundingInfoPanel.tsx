@@ -1,9 +1,10 @@
 ﻿import { useState } from "react";
-import { Table, Button, Select, Input, InputNumber, Modal, Space, message, Card } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { Table, Button, Select, Input, InputNumber, Modal, Space, message, Card, Slider, Checkbox, Row, Col, Divider } from "antd";
+import { PlusOutlined, EditOutlined, DeleteOutlined, ThunderboltOutlined, SearchOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateSurrounding } from "@/services/enterpriseService";
+import { updateSurrounding, searchAmapSurrounding } from "@/services/enterpriseService";
 import SurroundingAIGenerateModal from "./SurroundingAIGenerateModal";
+import AmapSearchResultModal from "./AmapSearchResultModal";
 import type { SurroundingInfo, NearbyUnit, SensitiveTarget } from "@/types/enterprise";
 
 interface Props {
@@ -23,6 +24,16 @@ const emptyTarget: SensitiveTarget = { name: "", direction: "N", distance_m: 0, 
 export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, onRefresh }: Props) {
   const queryClient = useQueryClient();
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [amapConfigOpen, setAmapConfigOpen] = useState(false);
+  const [amapSearching, setAmapSearching] = useState(false);
+  const [amapResultOpen, setAmapResultOpen] = useState(false);
+  const [amapResult, setAmapResult] = useState<SurroundingInfo | null>(null);
+  const [amapSearchedAddress, setAmapSearchedAddress] = useState("");
+  const [amapRadius, setAmapRadius] = useState(5000);
+  const [amapSelectedTypes, setAmapSelectedTypes] = useState<string[]>([
+    "消防站", "派出所", "综合医院", "加油站", "化工厂",
+    "学校", "商场|超市", "住宅区|小区", "公园|广场",
+  ]);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<EditRecord>({ mode: "nearby", index: null });
   const [editForm, setEditForm] = useState<NearbyUnit | SensitiveTarget>({ ...emptyNearby });
@@ -148,6 +159,48 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
     },
   ];
 
+  // ponytail: POI keywords synced with backend AMAP_POI_KEYWORDS
+  const AMAP_POI_OPTIONS = [
+    { code: "消防站", label: "消防站", group: "nearby" },
+    { code: "派出所", label: "派出所", group: "nearby" },
+    { code: "综合医院", label: "综合医院", group: "nearby" },
+    { code: "加油站", label: "加油站/加气站", group: "nearby" },
+    { code: "化工厂", label: "化工厂", group: "nearby" },
+    { code: "学校", label: "学校", group: "sensitive" },
+    { code: "商场|超市", label: "商场/超市", group: "sensitive" },
+    { code: "住宅区|小区", label: "住宅区", group: "sensitive" },
+    { code: "公园|广场", label: "公园/广场", group: "sensitive" },
+  ];
+
+  const handleOpenAmapConfig = () => {
+    setAmapConfigOpen(true);
+  };
+
+  const handleAmapSearchExecute = async () => {
+    setAmapConfigOpen(false);
+    setAmapSearching(true);
+    try {
+      const result = await searchAmapSurrounding(enterpriseId, {
+        radius: amapRadius,
+        types: amapSelectedTypes.join(","),
+      });
+      setAmapResult(result.surrounding);
+      setAmapSearchedAddress(result.searched_address);
+      setAmapResultOpen(true);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || "搜索失败";
+      message.error(detail);
+    } finally {
+      setAmapSearching(false);
+    }
+  };
+
+  const handleAmapImport = async (merged: SurroundingInfo) => {
+    await mutateSurrounding.mutateAsync(merged);
+    setAmapResultOpen(false);
+    setAmapResult(null);
+  };
+
   return (
     <div>
       <Space style={{ marginBottom: 16 }} wrap>
@@ -160,12 +213,20 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
         <Button icon={<ThunderboltOutlined />} onClick={() => setAiModalOpen(true)}>
           AI 智能生成
         </Button>
+        <Button
+          icon={<SearchOutlined />}
+          loading={amapSearching}
+          onClick={handleOpenAmapConfig}
+          style={{ color: "#1677ff", borderColor: "#1677ff" }}
+        >
+          高德地图搜索
+        </Button>
       </Space>
 
       <Card title="周边单位" size="small" style={{ marginBottom: 16 }}>
         <Table
           dataSource={nearbyUnits}
-          rowKey={(_, i) => String(i)}
+          rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
           columns={nearbyColumns}
           pagination={false}
           size="small"
@@ -176,7 +237,7 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
       <Card title="敏感目标" size="small" style={{ marginBottom: 16 }}>
         <Table
           dataSource={sensitiveTargets}
-          rowKey={(_, i) => String(i)}
+          rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
           columns={targetColumns}
           pagination={false}
           size="small"
@@ -275,6 +336,91 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
           onRefresh();
         }}
       />
+
+      {/* Amap Search Config Modal */}
+      <Modal
+        title="高德地图搜索配置"
+        open={amapConfigOpen}
+        onCancel={() => setAmapConfigOpen(false)}
+        onOk={handleAmapSearchExecute}
+        okText="开始搜索"
+        width={560}
+      >
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>搜索半径</div>
+          <Row gutter={16} align="middle">
+            <Col flex="auto">
+              <Slider
+                min={500}
+                max={10000}
+                step={500}
+                value={amapRadius}
+                onChange={setAmapRadius}
+                marks={{ 500: "500m", 5000: "5km", 10000: "10km" }}
+              />
+            </Col>
+            <Col>
+              <InputNumber
+                min={500}
+                max={10000}
+                step={500}
+                value={amapRadius}
+                onChange={(v) => setAmapRadius(v || 5000)}
+                suffix="m"
+                style={{ width: 120 }}
+              />
+            </Col>
+          </Row>
+        </div>
+
+        <Divider style={{ margin: "12px 0" }} />
+
+        <div style={{ marginBottom: 8, fontWeight: 500 }}>搜索类型（周边单位）</div>
+        <Checkbox.Group
+          value={amapSelectedTypes}
+          onChange={(vals) => setAmapSelectedTypes(vals as string[])}
+          style={{ marginBottom: 12 }}
+        >
+          <Row gutter={[8, 8]}>
+            {AMAP_POI_OPTIONS.filter((o) => o.group === "nearby").map((o) => (
+              <Col span={12} key={o.code}>
+                <Checkbox value={o.code}>{o.label}</Checkbox>
+              </Col>
+            ))}
+          </Row>
+        </Checkbox.Group>
+
+        <div style={{ marginBottom: 8, fontWeight: 500 }}>搜索类型（敏感目标）</div>
+        <Checkbox.Group
+          value={amapSelectedTypes}
+          onChange={(vals) => setAmapSelectedTypes(vals as string[])}
+        >
+          <Row gutter={[8, 8]}>
+            {AMAP_POI_OPTIONS.filter((o) => o.group === "sensitive").map((o) => (
+              <Col span={12} key={o.code}>
+                <Checkbox value={o.code}>{o.label}</Checkbox>
+              </Col>
+            ))}
+          </Row>
+        </Checkbox.Group>
+
+        <Divider style={{ margin: "12px 0" }} />
+        <p style={{ color: "#999", fontSize: 12, margin: 0 }}>
+          提示：搜索结果将合并到已有数据中，可在预览页面编辑后再导入。
+        </p>
+      </Modal>
+
+      {/* Amap Search Result Preview Modal */}
+      {amapResult && (
+        <AmapSearchResultModal
+          visible={amapResultOpen}
+          amapResult={amapResult}
+          existingSurrounding={surroundingInfo}
+          searchedAddress={amapSearchedAddress}
+          onCancel={() => { setAmapResultOpen(false); setAmapResult(null); }}
+          onImport={handleAmapImport}
+        />
+      )}
     </div>
   );
 }

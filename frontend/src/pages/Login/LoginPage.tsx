@@ -31,7 +31,7 @@ export default function LoginPage() {
 
   return (
     <Card title="登录" style={{ width: "100%" }}>
-      {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} closable onClose={() => setError(null)} />}
+      {error && <Alert type="error" title={error} style={{ marginBottom: 16 }} closable onClose={() => setError(null)} />}
       <Form
         name="login"
         onFinish={onFinish}

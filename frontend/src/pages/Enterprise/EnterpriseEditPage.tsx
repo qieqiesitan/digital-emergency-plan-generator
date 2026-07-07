@@ -143,7 +143,7 @@ export default function EnterpriseEditPage() {
         <Collapse defaultActiveKey={["basic", "contact"]} items={collapseItems} style={{ marginBottom: 16 }} />
 
         <Card title="GIS 定位与平面图" size="small" style={{ marginBottom: 16 }}>
-          <Space direction="vertical" style={{ width: "100%" }}>
+          <Space orientation="vertical" style={{ width: "100%" }}>
             <Form.Item label="厂区平面图" style={{ marginBottom: 8 }}>
               <input ref={uploadRef} type="file" accept="image/*" style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />

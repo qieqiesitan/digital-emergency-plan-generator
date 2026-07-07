@@ -63,7 +63,7 @@ export default function PlanCreatePage() {
       {currentStep === 0 && (
         <div>
           <Title level={5}>选择预案类型</Title>
-          <Space direction="vertical" style={{ width: "100%" }}>
+          <Space orientation="vertical" style={{ width: "100%" }}>
             {(["comprehensive", "special", "onsite"] as PlanType[]).map((type) => (
               <Card
                 key={type}

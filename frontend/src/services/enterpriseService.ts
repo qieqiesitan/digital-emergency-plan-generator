@@ -99,3 +99,48 @@ export async function uploadFile(file: File): Promise<string> {
     });
   return res.data.data.url;
 }
+// ── AI Autofill ──
+
+export interface AutofillResult {
+  name?: string;
+  fields: Record<string, string | number | null>;
+  error?: string;
+}
+
+export async function autofillEnterprise(companyName: string): Promise<AutofillResult> {
+  const res = await api.post<ApiResponse<AutofillResult>>("/enterprises/autofill", { name: companyName });
+  return res.data.data;
+}
+
+// ── Amap POI search ──
+
+export interface AmapPoiTypeItem {
+  code: string;
+  label: string;
+  target_type: "nearby" | "sensitive";
+}
+
+export interface AmapSearchParams {
+  radius?: number;
+  types?: string;  // comma-separated codes
+}
+
+export interface AmapSearchResult {
+  surrounding: SurroundingInfo;
+  searched_address: string;
+  has_gis: boolean;
+  available_types: AmapPoiTypeItem[];
+}
+
+export async function searchAmapSurrounding(
+  enterpriseId: string,
+  params?: AmapSearchParams,
+): Promise<AmapSearchResult> {
+  const res = await api.post<ApiResponse<AmapSearchResult>>(
+    `/enterprises/${enterpriseId}/surrounding/amap-search`,
+    params || {},
+    { timeout: 30000 },
+  );
+  return res.data.data;
+}
+

@@ -29,10 +29,9 @@ services:
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
       ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       EXPORT_DIR: /app/exports
-      YWT_GATEWAY_URL: http://ywt-gateway:8080
-      YWT_API_KEY: 893e5e15d3b444dbbebb1dac44b720f2
-      YWT_SYS_CODE: emergency-plan
-      YWT_JWT_SECRET: yewuzhongtai-jwt-secret-key-2024-min-256-bits!!
+      QCC_API_KEY: Bearer M6cf4mymxeKxHtSlXSXr7EfrA5IwHahRZXSNqVfqxtgv2slL
+      QCC_ENDPOINT: https://agent.qcc.com/mcp/company/stream
+      QCC_API_KEY_FALLBACK: Bearer MKa5gXuIusMXXoCPPCAzW4uM34ZmVc1BldVraKDkhSmqeNKF
     ports:
       - "8000:8000"
     volumes:
@@ -41,9 +40,6 @@ services:
       - ./backend/uploads:/app/uploads
       - ./backend/app/templates:/app/app/templates
       - ./frontend/dist:/frontend/dist
-    networks:
-      - default
-      - ywt-net
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +75,4 @@ volumes:
   shuzihuayuan_pgdata:
     external: true
 
-networks:
-  ywt-net:
-    external: true
+

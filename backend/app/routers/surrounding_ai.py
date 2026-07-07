@@ -1,5 +1,6 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException
+import math
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -19,6 +20,108 @@ router = APIRouter(prefix="/enterprises", tags=["Surrounding AI"])
 
 # TODO: 方向列表可从 sys_config 加载，当前保持硬编码作为 fallback
 DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+
+# ── Amap POI search ──
+
+AMAP_KEY = "78556e6e7d683bbda1b7d25e24cb412a"
+
+# ponytail: using keywords (text search) instead of type codes for broader coverage
+AMAP_POI_KEYWORDS = [
+    ("消防站", "消防站", "nearby"),
+    ("派出所", "派出所", "nearby"),
+    ("综合医院", "综合医院", "nearby"),
+    ("加油站", "加油站/加气站", "nearby"),
+    ("化工厂", "化工厂", "nearby"),
+    ("学校", "学校", "sensitive"),
+    ("商场|超市", "商场/超市", "sensitive"),
+    ("住宅区|小区", "住宅区", "sensitive"),
+    ("公园|广场", "公园/广场", "sensitive"),
+]
+
+
+def _bearing(lat1: float, lng1: float, lat2: float, lng2: float) -> str:
+    d_lng = math.radians(lng2 - lng1)
+    lat1_r, lat2_r = math.radians(lat1), math.radians(lat2)
+    x = math.sin(d_lng) * math.cos(lat2_r)
+    y = math.cos(lat1_r) * math.sin(lat2_r) - math.sin(lat1_r) * math.cos(lat2_r) * math.cos(d_lng)
+    bearing_deg = (math.degrees(math.atan2(x, y)) + 360) % 360
+    idx = round(bearing_deg / 45) % 8
+    return DIRECTIONS[idx]
+
+
+def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> int:
+    R = 6371000
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    a = math.sin(d_lat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lng / 2) ** 2
+    return int(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+
+
+async def _geocode_amap(address: str) -> tuple[float, float] | None:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get("https://restapi.amap.com/v3/geocode/geo", params={
+                "key": AMAP_KEY, "address": address, "output": "JSON",
+            })
+            data = resp.json()
+            if data.get("status") == "1" and data.get("geocodes"):
+                loc = data["geocodes"][0]["location"]
+                lng_str, lat_str = loc.split(",")
+                return float(lng_str), float(lat_str)
+    except Exception:
+        pass
+    return None
+
+
+async def _regeocode_amap(lng: float, lat: float) -> str:
+    """Reverse geocode via Amap, returns traffic summary."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get("https://restapi.amap.com/v3/geocode/regeo", params={
+                "key": AMAP_KEY, "location": f"{lng},{lat}",
+                "radius": 1000, "extensions": "base", "output": "JSON",
+            })
+            data = resp.json()
+            if data.get("status") != "1":
+                return ""
+            regeo = data.get("regeocode", {})
+            addr = regeo.get("addressComponent", {})
+            roads_info = regeo.get("roads", [])
+            parts = []
+            if roads_info:
+                road_names = [r.get("name", "") for r in roads_info[:5] if r.get("name")]
+                if road_names:
+                    parts.append("周边主要道路：" + "、".join(road_names))
+            district = addr.get("district", "")
+            township = addr.get("township", "")
+            if district or township:
+                parts.append("位于" + district + township)
+            street = addr.get("streetNumber", {}).get("street", "")
+            if street:
+                parts.append("临近" + street)
+            if not parts:
+                return regeo.get("formatted_address", "")
+            return "。".join(parts) + "。消防车可通行。"
+    except Exception:
+        return ""
+
+
+async def _amap_poi_search(lng: float, lat: float, keywords: str, radius: int = 5000) -> dict:
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get("https://restapi.amap.com/v3/place/around", params={
+            "key": AMAP_KEY, "location": f"{lng},{lat}", "radius": radius,
+            "keywords": keywords, "offset": 10, "output": "JSON",
+        })
+        return resp.json()
+
+
+def _risk_for_category(category: str) -> str:
+    return {
+        "消防站": "火灾", "派出所": "治安事件", "综合医院": "医疗救援",
+        "加油站/加气站": "火灾爆炸", "化工厂": "化学泄漏",
+    }.get(category, "其他")
+
+
 
 
 def _decrypt_api_key(hex_str: str) -> str:
@@ -45,18 +148,23 @@ async def _call_llm_nonstream(messages: list[dict], ai_config: AIConfig) -> str:
         "top_p": ai_config.top_p,
         "stream": False,
     }
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
-            f"{base}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
-        if resp.status_code != 200:
-            if resp.status_code == 401:
-                raise HTTPException(500, "AI API Key 无效或已过期，请在系统设置中重新配置 AI 模型")
-            raise HTTPException(500, f"AI 调用失败: HTTP {resp.status_code}")
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                f"{base}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code != 200:
+                if resp.status_code == 401:
+                    raise HTTPException(500, "AI API Key 无效或已过期，请在系统设置中重新配置 AI 模型")
+                raise HTTPException(500, f"AI 调用失败: HTTP {resp.status_code}")
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"AI 服务连接失败: {str(e)}")
 
 
 async def _get_enterprise_data(enterprise_id: str, user_id: str, db: AsyncSession) -> dict:
@@ -286,4 +394,118 @@ async def generate_surrounding_ai(
         raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
     except Exception as e:
         raise HTTPException(500, f"AI 调用失败: {str(e)}")
+class AmapSearchRequest(BaseModel):
+    radius: int = 5000
+    types: str | None = None  # comma-separated poi type codes, None = all
+
+
+class AmapSearchResponse(BaseModel):
+    surrounding: SurroundingInfo
+    searched_address: str
+    has_gis: bool
+    available_types: list[dict]  # return available poi types for UI
+
+
+# ponytail: expose POI type list as endpoint metadata
+def _get_available_types() -> list[dict]:
+    return [
+        {"code": keyword, "label": label, "target_type": target}
+        for keyword, label, target in AMAP_POI_KEYWORDS
+    ]
+
+
+@router.post("/{enterprise_id}/surrounding/amap-search", response_model=ApiResponse[AmapSearchResponse])
+async def amap_search_surrounding(
+    enterprise_id: str,
+    body: AmapSearchRequest = AmapSearchRequest(),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    result = await db.execute(
+        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
+    )
+    ent = result.scalar_one_or_none()
+    if not ent:
+        raise HTTPException(404, "企业不存在")
+
+    has_gis = ent.gis_lat is not None and ent.gis_lng is not None
+    lng, lat = None, None
+    searched_address = ent.address or ent.name or ""
+
+    if has_gis:
+        lng, lat = ent.gis_lng, ent.gis_lat
+    elif ent.address:
+        geo = await _geocode_amap(ent.address)
+        if geo:
+            lng, lat = geo
+
+    if lng is None or lat is None:
+        raise HTTPException(400, "企业缺少坐标信息。请在地图上标注厂区位置，或填写完整地址后再试。")
+
+    # Filter POI keywords if specified
+    requested_types = None
+    if body.types:
+        requested_types = set(t.strip() for t in body.types.split(",") if t.strip())
+    keywords_to_search = [
+        (kw, label, target) for kw, label, target in AMAP_POI_KEYWORDS
+        if requested_types is None or kw in requested_types
+    ]
+
+    nearby_units: list[dict] = []
+    sensitive_targets: list[dict] = []
+
+    for keywords, category, target_type in keywords_to_search:
+        try:
+            data = await _amap_poi_search(lng, lat, keywords, body.radius)
+            if data.get("status") != "1":
+                continue
+            pois = data.get("pois", [])
+            for poi in pois:
+                loc = poi.get("location", "")
+                if not loc:
+                    continue
+                try:
+                    p_lng_str, p_lat_str = loc.split(",")
+                    p_lng, p_lat = float(p_lng_str), float(p_lat_str)
+                except ValueError:
+                    continue
+
+                dist = _haversine(lat, lng, p_lat, p_lng)
+                direction = _bearing(lat, lng, p_lat, p_lng)
+
+                entry = {
+                    "name": poi.get("name", ""),
+                    "direction": direction,
+                    "distance_m": dist,
+                }
+
+                if target_type == "nearby":
+                    entry["main_risk"] = _risk_for_category(category)
+                    nearby_units.append(entry)
+                else:
+                    entry["type"] = category
+                    sensitive_targets.append(entry)
+        except Exception:
+            continue
+
+    seen = set()
+    nearby_units = [u for u in nearby_units if not (u["name"] in seen or seen.add(u["name"]))]
+    seen.clear()
+    sensitive_targets = [t for t in sensitive_targets if not (t["name"] in seen or seen.add(t["name"]))]
+
+    # Generate traffic info from reverse geocode
+    traffic_info = await _regeocode_amap(lng, lat)
+
+    surrounding = SurroundingInfo(
+        nearby_units=[NearbyUnit(**u) for u in nearby_units],
+        sensitive_targets=[SensitiveTarget(**t) for t in sensitive_targets],
+        traffic_info=traffic_info,
+    )
+
+    return ApiResponse(data=AmapSearchResponse(
+        surrounding=surrounding,
+        searched_address=searched_address,
+        has_gis=has_gis,
+        available_types=_get_available_types(),
+    ))
 

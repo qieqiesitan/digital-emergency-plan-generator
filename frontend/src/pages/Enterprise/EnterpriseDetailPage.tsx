@@ -130,7 +130,7 @@ export default function EnterpriseDetailPage() {
             children: (
               <Table
                 dataSource={g.members}
-                rowKey={(_, i) => String(i)}
+                rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
                 pagination={false}
                 columns={[
                   { title: "角色", dataIndex: "role", render: (v: string) => ROLE_LABELS[v] || v },

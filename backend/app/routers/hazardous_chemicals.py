@@ -47,18 +47,23 @@ async def _call_llm_nonstream(messages: list[dict], ai_config: AIConfig) -> str:
         "top_p": ai_config.top_p,
         "stream": False,
     }
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
-            f"{base}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
-        if resp.status_code != 200:
-            if resp.status_code == 401:
-                raise HTTPException(500, "AI API Key ?????????????????? AI ??")
-            raise HTTPException(500, f"AI ????: HTTP {resp.status_code}")
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                f"{base}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code != 200:
+                if resp.status_code == 401:
+                    raise HTTPException(500, "AI API Key ?????????????????? AI ??")
+                raise HTTPException(500, f"AI ????: HTTP {resp.status_code}")
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"AI 服务连接失败: {str(e)}")
 
 
 async def _get_enterprise(enterprise_id: str, user_id: str, db: AsyncSession) -> Enterprise:
