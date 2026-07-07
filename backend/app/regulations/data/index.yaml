@@ -1,0 +1,43 @@
+comprehensive:
+  core:
+  - law_safety_production_2021
+  - law_emergency_response_2007
+  - policy_plan_management_2019
+  - policy_emergency_regulation_2019
+  - std_gbt29639_2020
+  optional:
+  - law_fire_protection_2021
+  - law_work_safety_2018
+onsite:
+  core:
+  - law_safety_production_2021
+  - policy_plan_management_2019
+  - std_gbt29639_2020
+  optional: []
+resource_investigation:
+  core:
+  - law_safety_production_2021
+  - policy_plan_management_2019
+  - policy_emergency_regulation_2019
+  - gb30077_2023
+  optional:
+  - gbt38565_2020
+risk_assessment:
+  core:
+  - law_safety_production_2021
+  - std_gbt13861_2022
+  - gb18218_2018
+  - gb6441_1986
+  - std_aqt8001_2007
+  optional:
+  - gb50140_2005
+special:
+  core:
+  - law_safety_production_2021
+  - law_emergency_response_2007
+  - policy_plan_management_2019
+  - std_gbt29639_2020
+  - std_aqt9007_2019
+  optional:
+  - law_fire_protection_2021
+  - gb30871_2022

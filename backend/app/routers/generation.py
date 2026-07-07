@@ -42,6 +42,7 @@ import re
 
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.prompt_cache import ensure_loaded, get_system_prompt, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
+from app.regulations.injector import inject_regulations
 
 from app.schemas.plan import RegenerateRequest
 
@@ -184,6 +185,14 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
         prompt += mermaid_inst + "\n"
 
     prompt += "请直接输出章节正文内容，不要重复章节标题作为正文第一行。"
+
+    prompt = inject_regulations(
+        plan_type=plan_type,
+        section_key=section_key,
+        section_title=section_title,
+        prompt=prompt,
+        enterprise_data=enterprise_data,
+    )
 
     return prompt
 

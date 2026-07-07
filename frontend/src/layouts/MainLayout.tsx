@@ -33,6 +33,7 @@ const MENU_MAP: Record<string, string> = {
   "/settings/prompts": "menu:prompts",
   "/settings/profile": "menu:profile",
   "/settings/ai-config": "menu:ai_config",
+  "/settings/regulations": "menu:regulations",
 };
 
 export function MainLayout() {
@@ -81,6 +82,7 @@ export function MainLayout() {
       children: [
         ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
         ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <KeyOutlined />, label: "AI 配置" }] : []),
+        { key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" },
       ],
     },
   ];

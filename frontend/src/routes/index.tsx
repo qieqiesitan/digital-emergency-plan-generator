@@ -21,6 +21,7 @@ import PromptManagePage from "@/pages/Settings/PromptManagePage";
 import UserManagePage from "@/pages/Settings/UserManagePage";
 import RoleManagePage from "@/pages/Settings/RoleManagePage";
 import SystemConfigPage from "@/pages/Settings/SystemConfigPage";
+import RegulationManagePage from "@/pages/Settings/RegulationManagePage";
 import RiskAssessmentPreview from "@/pages/Enterprise/RiskAssessmentPreview";
 import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigationPreview";
 
@@ -51,6 +52,7 @@ const contentRoutes = [
   { path: "/settings/roles", element: <RoleManagePage /> },
   { path: "/settings/system", element: <SystemConfigPage /> },
   { path: "/settings/prompts", element: <PromptManagePage /> },
+  { path: "/settings/regulations", element: <RegulationManagePage /> },
 ];
 
 export function createRouter() {
