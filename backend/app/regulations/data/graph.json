@@ -1,6 +1,1010 @@
 {
   "directed": true,
   "multigraph": false,
-  "nodes": [],
-  "edges": []
+  "graph": {},
+  "nodes": [
+    {
+      "label": "GB",
+      "full_name": "GB 18218-2018 危险化学品重大危险源辨识",
+      "node_type": "standard",
+      "code": "GB",
+      "version": "",
+      "effective_date": "2019-03-01",
+      "issuing_body": "国家市场监督管理总局、国家标准化管理委员会",
+      "status": "effective",
+      "topics": [
+        "危险化学品",
+        "重大危险源",
+        "风险评估"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-08T10:21:43Z",
+      "ai_topics": [
+        "危险化学品",
+        "重大危险源",
+        "风险评估"
+      ],
+      "id": "gb18218_2018"
+    },
+    {
+      "label": "GB",
+      "full_name": "GB 30077-2023 危险化学品单位应急救援物资配备要求",
+      "node_type": "standard",
+      "code": "GB",
+      "version": "",
+      "effective_date": "2023-12-01",
+      "issuing_body": "国家市场监督管理总局、国家标准化管理委员会",
+      "status": "effective",
+      "topics": [
+        "应急资源",
+        "应急救援物资"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "应急资源",
+        "应急救援物资"
+      ],
+      "id": "gb30077_2023"
+    },
+    {
+      "label": "GB",
+      "full_name": "GB 30871-2022 危险化学品企业特殊作业安全规范",
+      "node_type": "standard",
+      "code": "GB",
+      "version": "",
+      "effective_date": "2022-10-01",
+      "issuing_body": "国家市场监督管理总局、国家标准化管理委员会",
+      "status": "effective",
+      "topics": [
+        "危险化学品",
+        "特殊作业"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "危险化学品",
+        "特殊作业"
+      ],
+      "id": "gb30871_2022"
+    },
+    {
+      "label": "GB",
+      "full_name": "GB 50140-2005 建筑灭火器配置设计规范",
+      "node_type": "standard",
+      "code": "GB",
+      "version": "",
+      "effective_date": "2005-10-01",
+      "issuing_body": "建设部",
+      "status": "effective",
+      "topics": [
+        "消防安全",
+        "灭火器"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "消防安全",
+        "灭火器"
+      ],
+      "id": "gb50140_2005"
+    },
+    {
+      "label": "GB",
+      "full_name": "GB 6441-1986 企业职工伤亡事故分类",
+      "node_type": "standard",
+      "code": "GB",
+      "version": "",
+      "effective_date": "1987-02-01",
+      "issuing_body": "国家标准局",
+      "status": "effective",
+      "topics": [
+        "事故分类",
+        "风险评估"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "事故分类",
+        "风险评估"
+      ],
+      "id": "gb6441_1986"
+    },
+    {
+      "label": "GB/T",
+      "full_name": "GB/T 38565-2020 应急物资分类及编码",
+      "node_type": "standard",
+      "code": "GB/T",
+      "version": "",
+      "effective_date": "2020-10-01",
+      "issuing_body": "国家市场监督管理总局、国家标准化管理委员会",
+      "status": "effective",
+      "topics": [
+        "应急资源",
+        "应急物资"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "应急资源",
+        "应急物资"
+      ],
+      "id": "gbt38565_2020"
+    },
+    {
+      "label": "中华人民共和国突发事件应对法",
+      "full_name": "中华人民共和国突发事件应对法",
+      "node_type": "law",
+      "code": "中华人民共和国突发事件应对法",
+      "version": "",
+      "effective_date": "2007-11-01",
+      "issuing_body": "全国人民代表大会常务委员会",
+      "status": "effective",
+      "topics": [
+        "应急管理",
+        "应急预案"
+      ],
+      "article_count": 4,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "应急管理",
+        "应急预案"
+      ],
+      "id": "law_emergency_response_2007"
+    },
+    {
+      "label": "中华人民共和国消防法",
+      "full_name": "中华人民共和国消防法 (2021修正)",
+      "node_type": "law",
+      "code": "中华人民共和国消防法",
+      "version": "",
+      "effective_date": "2021-04-29",
+      "issuing_body": "全国人民代表大会常务委员会",
+      "status": "effective",
+      "topics": [
+        "消防安全",
+        "应急预案"
+      ],
+      "article_count": 2,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "消防安全",
+        "应急预案"
+      ],
+      "id": "law_fire_protection_2021"
+    },
+    {
+      "label": "中华人民共和国安全生产法",
+      "full_name": "中华人民共和国安全生产法 (2021修正)",
+      "node_type": "law",
+      "code": "中华人民共和国安全生产法",
+      "version": "",
+      "effective_date": "2021-09-01",
+      "issuing_body": "全国人民代表大会常务委员会",
+      "status": "effective",
+      "topics": [
+        "安全生产",
+        "应急预案",
+        "风险评估",
+        "安全培训"
+      ],
+      "article_count": 7,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "安全生产",
+        "应急预案",
+        "风险评估",
+        "安全培训"
+      ],
+      "id": "law_safety_production_2021"
+    },
+    {
+      "label": "生产安全事故应急条例",
+      "full_name": "生产安全事故应急条例",
+      "node_type": "policy",
+      "code": "生产安全事故应急条例",
+      "version": "",
+      "effective_date": "2019-04-01",
+      "issuing_body": "国务院",
+      "status": "effective",
+      "topics": [
+        "应急预案",
+        "应急演练",
+        "应急救援"
+      ],
+      "article_count": 3,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "应急预案",
+        "应急演练",
+        "应急救援"
+      ],
+      "id": "policy_emergency_regulation_2019"
+    },
+    {
+      "label": "生产安全事故应急预案管理办法 (2019修订)",
+      "full_name": "生产安全事故应急预案管理办法 (2019修订)",
+      "node_type": "policy",
+      "code": "生产安全事故应急预案管理办法 (2019修订)",
+      "version": "",
+      "effective_date": "2019-09-01",
+      "issuing_body": "应急管理部",
+      "status": "effective",
+      "topics": [
+        "应急预案编制",
+        "备案",
+        "演练"
+      ],
+      "article_count": 4,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "应急预案编制",
+        "备案",
+        "演练"
+      ],
+      "id": "policy_plan_management_2019"
+    },
+    {
+      "label": "AQ/T",
+      "full_name": "AQ/T 8001-2007 安全评价通则",
+      "node_type": "standard",
+      "code": "AQ/T",
+      "version": "",
+      "effective_date": "2007-04-01",
+      "issuing_body": "国家安全监管总局",
+      "status": "abolished",
+      "topics": [
+        "安全评价",
+        "风险评估"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "abolished_by": "std_gbt29639_2020",
+      "ai_topics": [
+        "安全评价",
+        "风险评估"
+      ],
+      "id": "std_aqt8001_2007"
+    },
+    {
+      "label": "AQ/T",
+      "full_name": "AQ/T 9007-2019 生产安全事故应急演练评估规范",
+      "node_type": "standard",
+      "code": "AQ/T",
+      "version": "",
+      "effective_date": "2020-02-01",
+      "issuing_body": "应急管理部",
+      "status": "abolished",
+      "topics": [
+        "应急演练",
+        "评估"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "abolished_by": "std_gbt29639_2020",
+      "ai_topics": [
+        "应急演练",
+        "评估"
+      ],
+      "id": "std_aqt9007_2019"
+    },
+    {
+      "label": "GB/T",
+      "full_name": "GB/T 13861-2022 生产过程危险和有害因素分类与代码",
+      "node_type": "standard",
+      "code": "GB/T",
+      "version": "",
+      "effective_date": "2022-10-01",
+      "issuing_body": "国家市场监督管理总局、国家标准化管理委员会",
+      "status": "effective",
+      "topics": [
+        "风险评估",
+        "危险辨识"
+      ],
+      "article_count": 1,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "风险评估",
+        "危险辨识"
+      ],
+      "id": "std_gbt13861_2022"
+    },
+    {
+      "label": "GB/T",
+      "full_name": "GB/T 29639-2020 生产经营单位生产安全事故应急预案编制导则",
+      "node_type": "standard",
+      "code": "GB/T",
+      "version": "",
+      "effective_date": "2020-09-29",
+      "issuing_body": "国家市场监督管理总局、国家标准化管理委员会",
+      "status": "effective",
+      "topics": [
+        "应急预案编制",
+        "风险评估",
+        "应急资源调查"
+      ],
+      "article_count": 8,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "ai_topics": [
+        "应急预案编制",
+        "风险评估",
+        "应急资源调查"
+      ],
+      "id": "std_gbt29639_2020"
+    },
+    {
+      "label": "危险化学品",
+      "full_name": "危险化学品",
+      "node_type": "topic",
+      "code": "危险化学品",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_危险化学品"
+    },
+    {
+      "label": "重大危险源",
+      "full_name": "重大危险源",
+      "node_type": "topic",
+      "code": "重大危险源",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_重大危险源"
+    },
+    {
+      "label": "风险评估",
+      "full_name": "风险评估",
+      "node_type": "topic",
+      "code": "风险评估",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_风险评估"
+    },
+    {
+      "label": "应急资源",
+      "full_name": "应急资源",
+      "node_type": "topic",
+      "code": "应急资源",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急资源"
+    },
+    {
+      "label": "应急救援物资",
+      "full_name": "应急救援物资",
+      "node_type": "topic",
+      "code": "应急救援物资",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急救援物资"
+    },
+    {
+      "label": "特殊作业",
+      "full_name": "特殊作业",
+      "node_type": "topic",
+      "code": "特殊作业",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_特殊作业"
+    },
+    {
+      "label": "消防安全",
+      "full_name": "消防安全",
+      "node_type": "topic",
+      "code": "消防安全",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_消防安全"
+    },
+    {
+      "label": "灭火器",
+      "full_name": "灭火器",
+      "node_type": "topic",
+      "code": "灭火器",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_灭火器"
+    },
+    {
+      "label": "事故分类",
+      "full_name": "事故分类",
+      "node_type": "topic",
+      "code": "事故分类",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_事故分类"
+    },
+    {
+      "label": "应急物资",
+      "full_name": "应急物资",
+      "node_type": "topic",
+      "code": "应急物资",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急物资"
+    },
+    {
+      "label": "应急管理",
+      "full_name": "应急管理",
+      "node_type": "topic",
+      "code": "应急管理",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急管理"
+    },
+    {
+      "label": "应急预案",
+      "full_name": "应急预案",
+      "node_type": "topic",
+      "code": "应急预案",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急预案"
+    },
+    {
+      "label": "安全生产",
+      "full_name": "安全生产",
+      "node_type": "topic",
+      "code": "安全生产",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_安全生产"
+    },
+    {
+      "label": "安全培训",
+      "full_name": "安全培训",
+      "node_type": "topic",
+      "code": "安全培训",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_安全培训"
+    },
+    {
+      "label": "应急演练",
+      "full_name": "应急演练",
+      "node_type": "topic",
+      "code": "应急演练",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急演练"
+    },
+    {
+      "label": "应急救援",
+      "full_name": "应急救援",
+      "node_type": "topic",
+      "code": "应急救援",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急救援"
+    },
+    {
+      "label": "应急预案编制",
+      "full_name": "应急预案编制",
+      "node_type": "topic",
+      "code": "应急预案编制",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急预案编制"
+    },
+    {
+      "label": "备案",
+      "full_name": "备案",
+      "node_type": "topic",
+      "code": "备案",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_备案"
+    },
+    {
+      "label": "演练",
+      "full_name": "演练",
+      "node_type": "topic",
+      "code": "演练",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_演练"
+    },
+    {
+      "label": "安全评价",
+      "full_name": "安全评价",
+      "node_type": "topic",
+      "code": "安全评价",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_安全评价"
+    },
+    {
+      "label": "评估",
+      "full_name": "评估",
+      "node_type": "topic",
+      "code": "评估",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_评估"
+    },
+    {
+      "label": "危险辨识",
+      "full_name": "危险辨识",
+      "node_type": "topic",
+      "code": "危险辨识",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_危险辨识"
+    },
+    {
+      "label": "应急资源调查",
+      "full_name": "应急资源调查",
+      "node_type": "topic",
+      "code": "应急资源调查",
+      "version": "",
+      "effective_date": "",
+      "issuing_body": "",
+      "status": "effective",
+      "topics": [],
+      "article_count": 0,
+      "source": "bootstrapped",
+      "created_at": "2026-07-07T13:05:59Z",
+      "updated_at": "2026-07-07T13:05:59Z",
+      "id": "topic_应急资源调查"
+    },
+    {
+      "label": "未提供",
+      "full_name": "中华人民共和国安全生产法",
+      "node_type": "law",
+      "code": "未提供",
+      "version": "",
+      "effective_date": "2002年11月1日",
+      "issuing_body": "全国人民代表大会常务委员会",
+      "status": "effective",
+      "topics": [
+        "重大危险源",
+        "事故分类",
+        "应急管理",
+        "应急救援",
+        "安全培训"
+      ],
+      "ai_topics": [
+        "重大危险源",
+        "事故分类",
+        "应急管理",
+        "应急救援",
+        "安全培训"
+      ],
+      "article_count": 119,
+      "source": "ai_parsed",
+      "created_at": "2026-07-13T09:27:27Z",
+      "updated_at": "2026-07-13T09:27:27Z",
+      "id": "reg____"
+    }
+  ],
+  "edges": [
+    {
+      "relation": "适用",
+      "source": "gb18218_2018",
+      "target": "topic_危险化学品"
+    },
+    {
+      "relation": "适用",
+      "source": "gb18218_2018",
+      "target": "topic_重大危险源"
+    },
+    {
+      "relation": "适用",
+      "source": "gb18218_2018",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "gb30077_2023",
+      "target": "topic_应急资源"
+    },
+    {
+      "relation": "适用",
+      "source": "gb30077_2023",
+      "target": "topic_应急救援物资"
+    },
+    {
+      "relation": "适用",
+      "source": "gb30871_2022",
+      "target": "topic_危险化学品"
+    },
+    {
+      "relation": "适用",
+      "source": "gb30871_2022",
+      "target": "topic_特殊作业"
+    },
+    {
+      "relation": "适用",
+      "source": "gb50140_2005",
+      "target": "topic_消防安全"
+    },
+    {
+      "relation": "适用",
+      "source": "gb50140_2005",
+      "target": "topic_灭火器"
+    },
+    {
+      "relation": "适用",
+      "source": "gb6441_1986",
+      "target": "topic_事故分类"
+    },
+    {
+      "relation": "适用",
+      "source": "gb6441_1986",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "gbt38565_2020",
+      "target": "topic_应急资源"
+    },
+    {
+      "relation": "适用",
+      "source": "gbt38565_2020",
+      "target": "topic_应急物资"
+    },
+    {
+      "relation": "适用",
+      "source": "law_emergency_response_2007",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "law_emergency_response_2007",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "law_fire_protection_2021",
+      "target": "topic_消防安全"
+    },
+    {
+      "relation": "适用",
+      "source": "law_fire_protection_2021",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "law_safety_production_2021",
+      "target": "topic_安全生产"
+    },
+    {
+      "relation": "适用",
+      "source": "law_safety_production_2021",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "law_safety_production_2021",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "law_safety_production_2021",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "下位法",
+      "source": "policy_emergency_regulation_2019",
+      "target": "law_safety_production_2021"
+    },
+    {
+      "relation": "下位法",
+      "source": "policy_emergency_regulation_2019",
+      "target": "law_emergency_response_2007"
+    },
+    {
+      "relation": "适用",
+      "source": "policy_emergency_regulation_2019",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "policy_emergency_regulation_2019",
+      "target": "topic_应急演练"
+    },
+    {
+      "relation": "适用",
+      "source": "policy_emergency_regulation_2019",
+      "target": "topic_应急救援"
+    },
+    {
+      "relation": "下位法",
+      "source": "policy_plan_management_2019",
+      "target": "law_safety_production_2021"
+    },
+    {
+      "relation": "下位法",
+      "source": "policy_plan_management_2019",
+      "target": "law_emergency_response_2007"
+    },
+    {
+      "relation": "适用",
+      "source": "policy_plan_management_2019",
+      "target": "topic_应急预案编制"
+    },
+    {
+      "relation": "适用",
+      "source": "policy_plan_management_2019",
+      "target": "topic_备案"
+    },
+    {
+      "relation": "适用",
+      "source": "policy_plan_management_2019",
+      "target": "topic_演练"
+    },
+    {
+      "relation": "适用",
+      "source": "std_aqt8001_2007",
+      "target": "topic_安全评价"
+    },
+    {
+      "relation": "适用",
+      "source": "std_aqt8001_2007",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "std_aqt9007_2019",
+      "target": "topic_应急演练"
+    },
+    {
+      "relation": "适用",
+      "source": "std_aqt9007_2019",
+      "target": "topic_评估"
+    },
+    {
+      "relation": "适用",
+      "source": "std_gbt13861_2022",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "std_gbt13861_2022",
+      "target": "topic_危险辨识"
+    },
+    {
+      "relation": "替代",
+      "source": "std_gbt29639_2020",
+      "target": "std_aqt8001_2007"
+    },
+    {
+      "relation": "替代",
+      "source": "std_gbt29639_2020",
+      "target": "std_aqt9007_2019"
+    },
+    {
+      "relation": "下位法",
+      "source": "std_gbt29639_2020",
+      "target": "law_safety_production_2021"
+    },
+    {
+      "relation": "下位法",
+      "source": "std_gbt29639_2020",
+      "target": "law_emergency_response_2007"
+    },
+    {
+      "relation": "适用",
+      "source": "std_gbt29639_2020",
+      "target": "topic_应急预案编制"
+    },
+    {
+      "relation": "适用",
+      "source": "std_gbt29639_2020",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "std_gbt29639_2020",
+      "target": "topic_应急资源调查"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_重大危险源"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_事故分类"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_应急救援"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_安全培训"
+    }
+  ]
 }

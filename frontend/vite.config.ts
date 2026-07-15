@@ -36,6 +36,7 @@ async function getPlugins() {
         ],
       },
       workbox: {
+      enabled: false, // ponytail: disable SW in dev to avoid stale cache
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         runtimeCaching: [
           {

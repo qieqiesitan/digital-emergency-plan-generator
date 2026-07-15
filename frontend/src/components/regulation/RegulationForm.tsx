@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { Modal, Input, Button, Upload, message, Descriptions, Collapse, Spin, Space, Tag } from "antd";
+import { useState, useEffect } from "react";
+import { Modal, Input, Button, Upload, message, Descriptions, Collapse, Spin, Space, Tag, Alert, AutoComplete } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { parseRegulation, createRegulation } from "@/services/regulationService";
-import type { RegulationParseResult } from "@/types/regulation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { parseRegulation, createRegulation, checkDuplicate, fetchRegulations } from "@/services/regulationService";
+import type { RegulationParseResult, DuplicateCheckResponse } from "@/types/regulation";
 
 const { Dragger } = Upload;
 const { TextArea } = Input;
@@ -13,17 +13,38 @@ interface Props {
   onClose: () => void;
 }
 
+const EMPTY_FIELD_STYLE: React.CSSProperties = { background: "#fffbe6", border: "1px solid #fadb14" };
+
+function isBlank(v: string | string[] | undefined | null): boolean {
+  if (v == null) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  return String(v).trim() === "";
+}
+
 export function RegulationForm({ open, onClose }: Props) {
   const queryClient = useQueryClient();
   const [step, setStep] = useState<"input" | "parsing" | "preview">("input");
   const [rawText, setRawText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<RegulationParseResult | null>(null);
+  const [dupResult, setDupResult] = useState<DuplicateCheckResponse | null>(null);
+  const [dupLoading, setDupLoading] = useState(false);
+
+  // Fetch all regulation codes for AutoComplete
+  const { data: allRegs } = useQuery({
+    queryKey: ["regulations", "", "all", "all", 1],
+    queryFn: () => fetchRegulations({ page_size: 100 }),
+    enabled: open,
+  });
+  const codeOptions = (allRegs?.items || [])
+    .map(r => r.code)
+    .filter((c, i, arr) => c && arr.indexOf(c) === i)
+    .map(c => ({ value: c }));
 
   const parseMut = useMutation({
     mutationFn: () => parseRegulation(rawText || undefined, file || undefined),
     onSuccess: (data) => { setParsed(data); setStep("preview"); },
-    onError: () => message.error("解析失败，请重试"),
+    onError: (err: any) => message.error(err?.response?.data?.detail || err?.message || "解析失败，请重试"),
   });
 
   const createMut = useMutation({
@@ -41,7 +62,7 @@ export function RegulationForm({ open, onClose }: Props) {
         articles: parsed.articles,
         node_type: parsed.node_type || "standard",
         version: parsed.version || "",
-      }, file || undefined);
+      }, file || undefined, hasDuplicate);
     },
     onSuccess: (data) => {
       message.success(data.message || "入库成功");
@@ -49,21 +70,48 @@ export function RegulationForm({ open, onClose }: Props) {
       reset();
       onClose();
     },
-    onError: () => message.error("入库失败"),
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail || err?.message || "入库失败";
+      message.error(detail);
+    },
   });
 
+  // Auto check duplicate when entering preview
+  useEffect(() => {
+    if (step === "preview" && parsed) {
+      setDupLoading(true);
+      setDupResult(null);
+      checkDuplicate(parsed.code, parsed.full_name, rawText)
+        .then(setDupResult)
+        .catch(() => setDupResult(null))
+        .finally(() => setDupLoading(false));
+    } else {
+      setDupResult(null);
+    }
+  }, [step, parsed]);
+
   function reset() {
-    setStep("input"); setRawText(""); setFile(null); setParsed(null);
+    setStep("input"); setRawText(""); setFile(null); setParsed(null); setDupResult(null);
   }
 
   function handleClose() { reset(); onClose(); }
+
+  const hasDuplicate = dupResult?.duplicate && dupResult.matches.length > 0;
 
   return (
     <Modal title="新增法规" open={open} onCancel={handleClose} width={700}
       footer={step === "preview" ? [
         <Button key="back" onClick={() => setStep("input")}>返回修改</Button>,
         <Button key="cancel" onClick={handleClose}>取消</Button>,
-        <Button key="ok" type="primary" loading={createMut.isPending} onClick={() => createMut.mutate()}>确认入库</Button>,
+        <Button
+          key="ok"
+          type={hasDuplicate ? "default" : "primary"}
+          danger={hasDuplicate}
+          loading={createMut.isPending}
+          onClick={() => createMut.mutate()}
+        >
+          {hasDuplicate ? "仍要入库（已存在相似法规）" : "确认入库"}
+        </Button>,
       ] : step === "parsing" ? null : [
         <Button key="cancel" onClick={handleClose}>取消</Button>,
         <Button key="parse" type="primary" loading={parseMut.isPending}
@@ -95,16 +143,71 @@ export function RegulationForm({ open, onClose }: Props) {
 
       {step === "preview" && parsed && (
         <div>
+          {/* Duplicate check result */}
+          {dupLoading && (
+            <Alert type="info" title="正在检查重复法规..." style={{ marginBottom: 12 }} />
+          )}
+          {!dupLoading && dupResult && !hasDuplicate && (
+            <Alert type="success" title="✓ 未发现重复法规" style={{ marginBottom: 12 }} />
+          )}
+          {!dupLoading && hasDuplicate && (
+            <Alert
+              type="error"
+              title="存在疑似重复法规"
+              description={
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {dupResult.matches.map((d, i) => (
+                    <li key={i}>
+                      <strong>{d.code}</strong> — {d.full_name}
+                      <Tag color="orange" style={{ marginLeft: 8 }}>相似度 {Math.round(d.similarity * 100)}%</Tag>
+                    </li>
+                  ))}
+                </ul>
+              }
+              style={{ marginBottom: 12 }}
+            />
+          )}
+
           <Descriptions column={2} size="small" bordered>
-            <Descriptions.Item label="编号">{parsed.code}</Descriptions.Item>
-            <Descriptions.Item label="施行日期">{parsed.effective_date || "未提供"}</Descriptions.Item>
-            <Descriptions.Item label="全称" span={2}>{parsed.full_name}</Descriptions.Item>
-            <Descriptions.Item label="发布机关">{parsed.issuing_body || "未提供"}</Descriptions.Item>
+            <Descriptions.Item label="编号">
+              <span style={isBlank(parsed.code) ? EMPTY_FIELD_STYLE : undefined}>
+                <AutoComplete
+                  options={codeOptions}
+                  value={parsed.code || ""}
+                  style={{ width: "100%" }}
+                  placeholder="请填写编号"
+                  onChange={(v) => setParsed(p => p ? { ...p, code: v } : null)}
+                  variant={isBlank(parsed.code) ? undefined : "borderless"}
+                />
+              </span>
+              {isBlank(parsed.code) && <Tag color="gold" style={{ marginLeft: 4 }}>待填写</Tag>}
+            </Descriptions.Item>
+            <Descriptions.Item label="施行日期">
+              <span style={isBlank(parsed.effective_date) ? EMPTY_FIELD_STYLE : undefined}>
+                {parsed.effective_date || "未提供"}
+              </span>
+              {isBlank(parsed.effective_date) && <Tag color="gold" style={{ marginLeft: 4 }}>待填写</Tag>}
+            </Descriptions.Item>
+            <Descriptions.Item label="全称" span={2}>
+              <span style={isBlank(parsed.full_name) ? EMPTY_FIELD_STYLE : undefined}>
+                {parsed.full_name || "未提供"}
+              </span>
+              {isBlank(parsed.full_name) && <Tag color="gold" style={{ marginLeft: 4 }}>待填写</Tag>}
+            </Descriptions.Item>
+            <Descriptions.Item label="发布机关">
+              <span style={isBlank(parsed.issuing_body) ? EMPTY_FIELD_STYLE : undefined}>
+                {parsed.issuing_body || "未提供"}
+              </span>
+              {isBlank(parsed.issuing_body) && <Tag color="gold" style={{ marginLeft: 4 }}>待填写</Tag>}
+            </Descriptions.Item>
             <Descriptions.Item label="替代">
               {parsed.replaces.length > 0 ? parsed.replaces.map(r => <Tag key={r}>{r}</Tag>) : "无"}
             </Descriptions.Item>
             <Descriptions.Item label="上位法依据" span={2}>
-              {parsed.based_on.length > 0 ? parsed.based_on.join("、") : "未提供"}
+              <span style={isBlank(parsed.based_on) ? EMPTY_FIELD_STYLE : undefined}>
+                {parsed.based_on.length > 0 ? parsed.based_on.join("、") : "未提供"}
+              </span>
+              {isBlank(parsed.based_on) && <Tag color="gold" style={{ marginLeft: 4 }}>待填写</Tag>}
             </Descriptions.Item>
             <Descriptions.Item label="主题标签" span={2}>
               {parsed.topics.length > 0 ? parsed.topics.map(t => <Tag key={t} color="blue">{t}</Tag>) : "无"}

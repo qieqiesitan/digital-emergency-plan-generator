@@ -3,8 +3,7 @@ import { getApiBaseUrl, getToken } from "@/utils/platform";
 
 const api = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 30000,
-  headers: { "Content-Type": "application/json" },
+  timeout: 600000,
 });
 
 // 动态 baseURL

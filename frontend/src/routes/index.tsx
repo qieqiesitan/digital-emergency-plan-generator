@@ -24,8 +24,8 @@ import SystemConfigPage from "@/pages/Settings/SystemConfigPage";
 import RegulationManagePage from "@/pages/Settings/RegulationManagePage";
 import RiskAssessmentPreview from "@/pages/Enterprise/RiskAssessmentPreview";
 import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigationPreview";
+import ChatPage from "@/pages/Chat";
 
-// 桌面端 SPA 内收到 /m/* 路径时，强制整页重载
 function MobileRedirect() {
   window.location.replace(window.location.pathname + window.location.search);
   return null;
@@ -34,6 +34,7 @@ function MobileRedirect() {
 const contentRoutes = [
   { index: true, element: <Navigate to="/dashboard" replace /> },
   { path: "/dashboard", element: <DashboardPage /> },
+  { path: "/chat", element: <ChatPage /> },
   { path: "/enterprises", element: <EnterpriseListPage /> },
   { path: "/enterprises/new", element: <EnterpriseCreatePage /> },
   { path: "/enterprises/:id", element: <EnterpriseDetailPage /> },

@@ -1,0 +1,80 @@
+# 章节 → 法规主题映射
+# section_key 正则匹配 → 关联的图谱 topic 标签
+# 非编制依据章节通过 topic 检索注入对应法规条文
+
+patterns:
+  - key: "sec_1|编制依据"
+    topics: [应急预案编制, 应急预案]
+    inject: false  # 编制依据走原有 plan_type 检索，不用 topic
+
+  - key: "sec_风险|sec_2|风险评估|风险分析"
+    topics: [风险评估, 危险辨识, 事故分类, 危险化学品, 重大危险源]
+
+  - key: "sec_资源|sec_应急资源|资源调查"
+    topics: [应急资源, 应急救援物资, 应急物资, 应急资源调查]
+
+  - key: "sec_响应|sec_处置|应急响应|应急处置|sec_5"
+    topics: [应急救援, 应急响应, 危险化学品, 特殊作业]
+
+  - key: "sec_预防|sec_预警|预防预警|sec_4"
+    topics: [风险评估, 安全培训, 应急管理, 危险化学品]
+
+  - key: "sec_演练"
+    topics: [应急演练, 演练]
+
+  - key: "sec_后期|sec_恢复|后期处置|恢复重建"
+    topics: [应急管理, 特殊作业]
+
+  - key: "sec_保障|保障措施|sec_6"
+    topics: [应急资源, 安全培训, 应急救援物资]
+
+  - key: "sec_组织|组织机构|sec_3"
+    topics: [应急管理, 安全培训, 安全生产]
+
+  - key: "sec_消防|消防安全"
+    topics: [消防安全, 灭火器]
+
+  - key: "sec_危化|危险化学品"
+    topics: [危险化学品, 特殊作业, 重大危险源]
+
+  - key: "sec_培训|安全培训"
+    topics: [安全培训]
+
+  - key: "sec_特种|特种设备"
+    topics: [特种设备]
+
+  - key: "sec_备案"
+    topics: [备案]  # ── 风险评估报告章节 ──
+  - key: "ch1_hazard_id|危险有害因素辨识"
+    topics: [危险辨识, 事故分类, 危险化学品, 重大危险源]
+
+  - key: "ch2_summary|辨识汇总"
+    topics: [风险评估, 危险辨识, 事故分类]
+
+  - key: "ch3_risk_eval|风险等级评估"
+    topics: [风险评估, 重大危险源, 危险化学品]
+
+  - key: "ch4_measures|管控措施|现有管控"
+    topics: [安全生产, 消防, 应急管理, 特殊作业]
+
+  - key: "ch5_conclusion|评估结论"
+    topics: [安全生产, 风险评估, 应急管理]
+
+  # ── 应急资源调查报告章节 ──
+  - key: "ch1_purpose|调查目的"
+    topics: [应急资源调查, 应急资源, 应急预案]
+
+  - key: "ch2_basic_info|企业基本情况"
+    topics: [安全生产, 风险评估, 应急管理]
+
+  - key: "ch3_internal|内部应急资源"
+    topics: [应急资源, 应急救援物资, 应急物资]
+
+  - key: "ch4_external|外部救援资源"
+    topics: [应急资源, 应急救援物资, 消防]
+
+  - key: "ch5_gap_analysis|需求与能力评估"
+    topics: [应急资源, 应急救援物资, 应急资源调查]
+
+  - key: "ch6_conclusion|调查结论"
+    topics: [应急资源调查, 应急预案, 应急管理]

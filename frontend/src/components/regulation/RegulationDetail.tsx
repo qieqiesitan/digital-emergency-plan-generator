@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Descriptions, Tag, Timeline, Table, Button, Modal } from "antd";
+import { Descriptions, Tag, Timeline, Table, Button, Modal, Space } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { fetchRegulation, fetchRegulationHistory, getSourceDownloadUrl } from "@/services/regulationService";
+import { fetchRegulation, fetchRegulationHistory, getSourceDownloadUrl, updateTopics } from "@/services/regulationService";
 import type { RegulationNode } from "@/types/regulation";
 
 interface Props {
@@ -41,7 +41,39 @@ export function RegulationDetail({ id, onClose }: Props) {
             <Descriptions.Item label="版本">{reg.version || "-"}</Descriptions.Item>
             <Descriptions.Item label="发布机关">{reg.issuing_body || "-"}</Descriptions.Item>
             <Descriptions.Item label="施行日期">{reg.effective_date || "-"}</Descriptions.Item>
-            <Descriptions.Item label="主题标签" span={2}>{reg.topics?.map(t => <Tag key={t} color="blue">{t}</Tag>)}</Descriptions.Item>
+            <Descriptions.Item label="主题标签" span={2}>
+              <Space wrap size={[4, 4]}>
+                {reg.topics?.map((t: string) => (
+                  <Tag
+                    key={t}
+                    color="blue"
+                    closable
+                    onClose={() => {
+                      const newTopics = (reg.topics || []).filter(x => x !== t);
+                      updateTopics(id, newTopics).then(() => {
+                        reg.topics = newTopics;
+                      }).catch(() => {});
+                    }}
+                  >{t}</Tag>
+                ))}
+                {reg.ai_topics?.filter((t: string) => !reg.topics?.includes(t)).length > 0 && (
+                  <span style={{ fontSize: 12, color: '#8c8c8c', marginLeft: 8 }}>| AI建议:</span>
+                )}
+                {reg.ai_topics?.filter((t: string) => !reg.topics?.includes(t)).map((t: string) => (
+                  <Tag
+                    key={'ai_'+t}
+                    color="geekblue"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      const newTopics = [...(reg.topics || []), t];
+                      updateTopics(id, newTopics).then(() => {
+                        reg.topics = newTopics;
+                      }).catch(() => {});
+                    }}
+                  >{t} 采纳</Tag>
+                ))}
+              </Space>
+            </Descriptions.Item>
           </Descriptions>
 
           {reg.articles && reg.articles.length > 0 && (

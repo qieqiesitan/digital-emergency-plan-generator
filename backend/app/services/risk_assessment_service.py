@@ -1,3 +1,4 @@
+from app.regulations.injector import inject_regulations
 import json
 import logging
 from uuid import UUID
@@ -281,7 +282,18 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
         lines_out.append("")
         lines_out.append("【用户补充要求】")
         lines_out.append(custom_instruction)
-    return "\n".join(lines_out)
+    prompt = "\n".join(lines_out)
+    try:
+        prompt = inject_regulations(
+            plan_type="risk_assessment",
+            section_key=chapter_key,
+            section_title=chapter_title,
+            prompt=prompt,
+            enterprise_data=context.get("enterprise", {}),
+        )
+    except Exception:
+        pass
+    return prompt
 
 
 def get_chapter_keys():

@@ -190,7 +190,10 @@ class RegulationGraph:
         for nid, data in self._g.nodes(data=True):
             node = dict(data)
             node["id"] = nid
-            if node_type and node.get("node_type") != node_type:
+            # 默认隐藏 topic（除非明确筛选"主题"类型）
+            if node.get("node_type") == "topic" and (not node_type or node_type == "all"):
+                continue
+            if node_type and node_type != "all" and node.get("node_type") != node_type:
                 continue
             if status and status != "all" and node.get("status") != status:
                 continue
@@ -211,7 +214,7 @@ class RegulationGraph:
 
     def stats(self) -> dict:
         """统计信息。"""
-        nodes = list(self._g.nodes(data=True))
+        nodes = [(nid, d) for nid, d in self._g.nodes(data=True) if d.get("node_type") != "topic"]
         total = len(nodes)
         effective = sum(1 for _, d in nodes if d.get("status") != "abolished")
         abolished = total - effective

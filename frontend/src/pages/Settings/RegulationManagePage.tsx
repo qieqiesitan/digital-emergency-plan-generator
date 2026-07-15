@@ -79,8 +79,7 @@ export default function RegulationManagePage() {
           children: (
             <div style={{ maxWidth: 700 }}>
               {historyData?.items && historyData.items.length > 0 ? (
-                <Timeline items={historyData.items.map(e => ({
-                  children: (
+                <Timeline items={historyData.items.map(e => ({content: (
                     <div>
                       <div><strong>{actionLabels[e.action] || e.action}</strong> — {e.operator}</div>
                       <div style={{ color: "#999", fontSize: 12 }}>{e.timestamp} | {e.regulation_id}</div>

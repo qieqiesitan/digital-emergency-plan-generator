@@ -3,6 +3,7 @@ import type {
   RegulationNode, RegulationListParams, RegulationListResponse,
   RegulationParseResult, RegulationCreateRequest, RegulationStats,
   RegulationGraphData, HistoryEvent, SourceFile,
+  DuplicateCheckResponse, ImpactResponse, BatchAbolishResponse,
 } from "@/types/regulation";
 
 export async function fetchRegulations(params: RegulationListParams = {}): Promise<RegulationListResponse> {
@@ -16,21 +17,25 @@ export async function fetchRegulation(id: string): Promise<RegulationNode> {
 }
 
 export async function parseRegulation(rawText?: string, file?: File): Promise<RegulationParseResult> {
-  const fd = new FormData();
-  if (rawText) fd.append("raw_text", rawText);
-  if (file) fd.append("file", file);
-  const res = await api.post("/regulations/parse", fd);
+  if (file) {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (rawText) fd.append("raw_text", rawText);
+    const res = await api.post("/regulations/parse", fd);
+    return res.data.data;
+  }
+  const res = await api.post("/regulations/parse", { content: rawText || "" });
   return res.data.data;
 }
 
-export async function createRegulation(data: RegulationCreateRequest, file?: File): Promise<{ id: string; message: string }> {
+export async function createRegulation(data: RegulationCreateRequest, file?: File, force = false): Promise<{ id: string; message: string }> {
   const fd = new FormData();
   fd.append("data", JSON.stringify(data));
   if (file) fd.append("file", file);
+  if (force) fd.append("force", "true");
   const res = await api.post("/regulations", fd);
   return res.data.data;
 }
-
 export async function updateRegulation(id: string, data: RegulationCreateRequest, file?: File): Promise<void> {
   const fd = new FormData();
   fd.append("data", JSON.stringify(data));
@@ -80,3 +85,23 @@ export function getSourceDownloadUrl(id: string, filename?: string): string {
   const params = filename ? `?filename=${encodeURIComponent(filename)}` : "";
   return `/api/v1/regulations/${id}/source${params}`;
 }
+
+export async function updateTopics(id: string, topics: string[]): Promise<void> {
+  await api.put(`/regulations/${id}/topics`, { topics });
+}
+
+export async function checkDuplicate(code: string, full_name: string, raw_text?: string): Promise<DuplicateCheckResponse> {
+  const res = await api.post("/regulations/check-duplicate", { code, full_name, raw_text });
+  return res.data.data;
+
+}
+export async function fetchImpact(id: string): Promise<ImpactResponse> {
+  const res = await api.get(`/regulations/${id}/impact`);
+  return res.data.data;
+}
+
+export async function batchAbolish(ids: string[]): Promise<BatchAbolishResponse> {
+  const res = await api.post("/regulations/batch/abolish", { ids });
+  return res.data.data;
+}
+

@@ -14,17 +14,18 @@ import {
   TeamOutlined,
   SafetyCertificateOutlined,
   EditOutlined,
-  
-  
+  RobotOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChatDrawer } from "@/contexts/ChatDrawerContext";
 import { EnterpriseSwitcher } from "@/components/enterprise/EnterpriseSwitcher";
+import FloatingChat from "@/components/common/FloatingChat";
 
 const { Header, Sider, Content } = Layout;
 
-// ponytail: menu path -> permission code mapping
 const MENU_MAP: Record<string, string> = {
   "/dashboard": "menu:dashboard",
+  "/chat": "menu:chat",
   "/enterprises": "menu:enterprises",
   "/plans": "menu:plans",
   "/settings/users": "menu:users",
@@ -41,16 +42,17 @@ export function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, menuPermissions } = useAuth();
+  const { setOpen } = useChatDrawer();
   const { token: themeToken } = theme.useToken();
 
   const hasMenu = (path: string) => menuPermissions.includes(MENU_MAP[path] ?? "");
 
-  // ponytail: derive groups from menu permissions
   const showSystemGroup = hasMenu("/settings/users") || hasMenu("/settings/roles") || hasMenu("/settings/system");
   const showAIGroup = hasMenu("/settings/prompts");
 
   const menuItems = [
     ...(hasMenu("/dashboard") ? [{ key: "/dashboard", icon: <DashboardOutlined />, label: "工作台" }] : []),
+    { key: "/chat", icon: <RobotOutlined />, label: "AI 助手" },
     ...(hasMenu("/enterprises") ? [{ key: "/enterprises", icon: <BankOutlined />, label: "企业管理" }] : []),
     ...(hasMenu("/plans") ? [{ key: "/plans", icon: <FileTextOutlined />, label: "预案列表" }] : []),
     { type: "divider" as const },
@@ -132,13 +134,11 @@ export function MainLayout() {
           defaultOpenKeys={defaultOpenKeys}
           items={menuItems}
           onClick={({ key }) => {
-            const externalUrls = {
-            };
-            if (key in externalUrls) {
-              window.open(externalUrls[key as keyof typeof externalUrls], "_blank");
-            } else {
-              navigate(key);
+            if (key === "/chat") {
+              setOpen(true);
+              return;
             }
+            navigate(key);
           }}
           style={{ borderInlineEnd: "none" }}
         />
@@ -182,6 +182,7 @@ export function MainLayout() {
           <Outlet />
         </Content>
       </Layout>
+      <FloatingChat />
     </Layout>
   );
 }

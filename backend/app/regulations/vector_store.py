@@ -1,10 +1,7 @@
-"""ChromaDB 向量存储 — 嵌入式向量数据库，语义检索法规条文。"""
+"""ChromaDB 向量存储 ― 嵌入式向量数据库，语义检索法规条文。"""
 
 import logging
 import os
-
-import chromadb
-from chromadb.config import Settings as ChromaSettings
 
 logger = logging.getLogger(__name__)
 
@@ -12,15 +9,26 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 CHROMA_DIR = os.path.join(DATA_DIR, "chroma_db")
 COLLECTION_NAME = "regulation_articles"
 
+_chromadb = None
+
+def _ensure_chromadb():
+    """延迟导入 chromadb，避免未安装时整个模块崩溃。"""
+    global _chromadb
+    if _chromadb is None:
+        import chromadb
+        _chromadb = chromadb
+    return _chromadb
+
 
 class RegulationVectorStore:
     """ChromaDB 包装器，管理法规条文向量。"""
 
     def __init__(self):
+        cb = _ensure_chromadb()
         os.makedirs(CHROMA_DIR, exist_ok=True)
-        self._client = chromadb.PersistentClient(
+        self._client = cb.PersistentClient(
             path=CHROMA_DIR,
-            settings=ChromaSettings(anonymized_telemetry=False),
+            settings=cb.config.Settings(anonymized_telemetry=False),
         )
         self._collection = None
 
@@ -41,12 +49,6 @@ class RegulationVectorStore:
 
     def add_regulation(self, regulation_id: str, articles: list[dict],
                        embedding_fn=None) -> int:
-        """
-        添加一条法规的所有条文向量。
-        articles: [{"number": "第X条", "text": "...", "metadata": {...}}, ...]
-        embedding_fn: 可选，自定义 embedding 函数。不传则用 ChromaDB 内置。
-        返回添加的条数。
-        """
         self.ensure_collection()
         if not articles:
             return 0
@@ -73,11 +75,6 @@ class RegulationVectorStore:
 
     def search(self, query: str, top_k: int = 5,
                filter_ids: list[str] = None) -> list[dict]:
-        """
-        语义检索。
-        filter_ids: 可选，限定在特定法规内检索。
-        返回: [{"text": "...", "metadata": {...}, "distance": 0.12}, ...]
-        """
         self.ensure_collection()
         if self._collection.count() == 0:
             return []
@@ -105,7 +102,6 @@ class RegulationVectorStore:
     # ── 管理 ──
 
     def delete_regulation(self, regulation_id: str) -> int:
-        """删除某法规的所有向量。"""
         self.ensure_collection()
         existing = self._collection.get(
             where={"regulation_id": regulation_id})
@@ -114,20 +110,15 @@ class RegulationVectorStore:
         return len(existing["ids"]) if existing else 0
 
     def collection_count(self) -> int:
-        """当前向量总数。"""
         self.ensure_collection()
         return self._collection.count()
 
     def rebuild_all(self, embedding_fn, texts_dir: str = None) -> dict:
-        """
-        全量重建索引：遍历 texts/*.md → 分块 → embedding → 写入。
-        """
         import re
 
         if texts_dir is None:
             texts_dir = os.path.join(DATA_DIR, "texts")
 
-        # 清空重建
         try:
             self._client.delete_collection(COLLECTION_NAME)
         except Exception:
@@ -146,14 +137,12 @@ class RegulationVectorStore:
             with open(fpath, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # 分块：按 ## 标题分割
             articles = []
             blocks = re.split(r"\n(?=##\s)", content)
             for block in blocks:
                 block = block.strip()
                 if not block:
                     continue
-                # 取第一行作为条号
                 lines = block.split("\n")
                 title = lines[0].lstrip("#").strip() if lines else ""
                 text = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""

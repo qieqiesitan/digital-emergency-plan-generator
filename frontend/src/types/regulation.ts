@@ -12,6 +12,7 @@ export interface RegulationNode {
   topics: string[];
   article_count: number;
   indexed: boolean;
+  ai_topics?: string[];
   is_core?: boolean;
   created_at: string;
   updated_at: string;
@@ -108,3 +109,53 @@ export interface HistoryEvent {
   operator: string;
   detail: Record<string, unknown>;
 }
+
+export interface UpdateTopicsRequest {
+  topics: string[];
+}
+export interface DuplicateCheckRequest {
+  code: string;
+  full_name: string;
+}
+
+export interface DuplicateMatch {
+  id: string;
+  code: string;
+  full_name: string;
+  similarity: number;
+}
+
+export interface DuplicateCheckResponse {
+  duplicates: DuplicateMatch[];
+  is_duplicate: boolean;
+}
+
+export interface ImpactResult {
+  id: string;
+  name: string;
+  affected_count: number;
+  plan_names: string[];
+}
+
+export interface ImpactResponse {
+  affected_plan_count: number;
+  plans: ImpactResult[];
+}
+
+export interface BatchAbolishRequest {
+  ids: string[];
+}
+
+export interface BatchAbolishResult {
+  id: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface BatchAbolishResponse {
+  results: BatchAbolishResult[];
+  total: number;
+  success_count: number;
+  fail_count: number;
+}
+

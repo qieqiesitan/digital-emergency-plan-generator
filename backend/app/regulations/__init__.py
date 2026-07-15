@@ -1,12 +1,5 @@
 """
 法规知识图谱模块 — 独立 Python package，与核心业务松耦合。
-
-模块职责：
-- graph.py: 法规知识图谱管理 (NetworkX)
-- vector_store.py: ChromaDB 向量存储与语义检索
-- retriever.py: 图谱 + 向量两级混合检索编排
-- injector.py: Prompt 法规条文注入器
-- sync.py: AI解析 + 源文件存档 + 变更日志
 """
 
 import logging
@@ -19,20 +12,27 @@ _lock = threading.Lock()
 
 
 def get_retriever():
-    """延迟初始化全局单例 Retriever"""
+    """延迟初始化全局单例 Retriever。向量存储可选。"""
     global _retriever
     if _retriever is None:
         with _lock:
             if _retriever is None:
                 from app.regulations.graph import RegulationGraph
-                from app.regulations.vector_store import RegulationVectorStore
                 from app.regulations.retriever import RegulationRetriever
 
                 graph = RegulationGraph()
                 graph.load()
-                vector_store = RegulationVectorStore()
+
+                # 向量存储可选
+                vector_store = None
+                try:
+                    from app.regulations.vector_store import RegulationVectorStore
+                    vector_store = RegulationVectorStore()
+                except ImportError as e:
+                    logger.warning("向量存储不可用(chromadb未安装): %s，将仅使用图谱检索", e)
+
                 _retriever = RegulationRetriever(graph, vector_store)
-                logger.info("法规检索器已初始化")
+                logger.info("法规检索器已初始化 (向量:%s)", "可用" if vector_store else "不可用")
     return _retriever
 
 

@@ -5,6 +5,7 @@ import { ConfigProvider, App as AntApp } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EnterpriseProvider } from "@/contexts/EnterpriseContext";
+import { ChatDrawerProvider } from "@/contexts/ChatDrawerContext";
 import { createRouter } from "@/routes";
 import "@/styles/global.css";
 
@@ -27,7 +28,9 @@ export default function App() {
         <AntApp>
           <AuthProvider>
             <EnterpriseProvider>
-              <RouterProvider router={router} />
+              <ChatDrawerProvider>
+                <RouterProvider router={router} />
+              </ChatDrawerProvider>
             </EnterpriseProvider>
           </AuthProvider>
         </AntApp>
