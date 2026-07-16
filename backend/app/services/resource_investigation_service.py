@@ -99,7 +99,12 @@ async def build_resource_investigation_context(enterprise_id: str, db: AsyncSess
     }
 
 
-SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格的应急管理专家，具有丰富的生产经营单位应急资源调查与评估经验。你精通以下标准和法律法规：
+SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格的应急管理专家
+你必须严格依据【法规写作纲要】中列出的法规条文及其要求来撰写本章节。
+法规条文规定了本节的必备内容要素、结构要求和合规标准。
+在行文中自然提及法规名称，但不得在章节末尾附加引用清单或核查列表。
+正文应读起来像一份完整的专业文档，不是一篇引注论文。
+，具有丰富的生产经营单位应急资源调查与评估经验。你精通以下标准和法律法规：
 
 【技术标准】
 - 《应急物资分类及编码》（GB/T 38565）
@@ -358,13 +363,20 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
 
     prompt = "\n".join(lines_out)
     try:
-        prompt = inject_regulations(
-            plan_type="resource_investigation",
+        reg_ctx = RegulationContextBuilder().get_chapter_context(
             section_key=chapter_key,
             section_title=chapter_title,
-            prompt=prompt,
+            plan_type="resource_investigation",
             enterprise_data=context.get("enterprise", {}),
         )
+        if reg_ctx:
+            prompt += "\n\n" + """
+
+【写作要求】
+- 正文须体现上述法规条款的具体要求，不得偏离或曲解
+- 在行文中自然提及法规名称，但不得在章节末尾附加引用清单
+- 正文应读起来像完整的专业文档，不是引注论文
+""" + reg_ctx
     except Exception:
         pass
     return prompt

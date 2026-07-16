@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Modal, Input, Button, Upload, message, Descriptions, Collapse, Spin, Space, Tag, Alert, AutoComplete } from "antd";
-import { InboxOutlined } from "@ant-design/icons";
+import { Modal, Input, Button, Upload, Select, Form, message, Descriptions, Collapse, Spin, Space, Tag, Alert, AutoComplete } from "antd";
+import { InboxOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { parseRegulation, createRegulation, checkDuplicate, fetchRegulations } from "@/services/regulationService";
+import { parseRegulation, createRegulation, updateRegulation, checkDuplicate, fetchRegulations } from "@/services/regulationService";
 import type { RegulationParseResult, DuplicateCheckResponse } from "@/types/regulation";
 
 const { Dragger } = Upload;
@@ -11,6 +11,8 @@ const { TextArea } = Input;
 interface Props {
   open: boolean;
   onClose: () => void;
+  regulation?: RegulationNode | null;
+  onSaved?: () => void;
 }
 
 const EMPTY_FIELD_STYLE: React.CSSProperties = { background: "#fffbe6", border: "1px solid #fadb14" };
@@ -21,7 +23,8 @@ function isBlank(v: string | string[] | undefined | null): boolean {
   return String(v).trim() === "";
 }
 
-export function RegulationForm({ open, onClose }: Props) {
+export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
+  const isEdit = !!regulation;
   const queryClient = useQueryClient();
   const [step, setStep] = useState<"input" | "parsing" | "preview">("input");
   const [rawText, setRawText] = useState("");
@@ -29,6 +32,32 @@ export function RegulationForm({ open, onClose }: Props) {
   const [parsed, setParsed] = useState<RegulationParseResult | null>(null);
   const [dupResult, setDupResult] = useState<DuplicateCheckResponse | null>(null);
   const [dupLoading, setDupLoading] = useState(false);
+  const [editFile, setEditFile] = useState<File | null>(null);
+
+  // Edit mode form fields
+  const [editCode, setEditCode] = useState("");
+  const [editFullName, setEditFullName] = useState("");
+  const [editNodeType, setEditNodeType] = useState("standard");
+  const [editStatus, setEditStatus] = useState("current");
+  const [editVersion, setEditVersion] = useState("");
+  const [editIssuingBody, setEditIssuingBody] = useState("");
+  const [editEffectiveDate, setEditEffectiveDate] = useState("");
+  const [editTopics, setEditTopics] = useState("");
+
+  // Initialize edit fields from regulation prop
+  useEffect(() => {
+    if (regulation && open) {
+      setEditCode(regulation.code || "");
+      setEditFullName(regulation.full_name || "");
+      setEditNodeType(regulation.node_type || "standard");
+      setEditStatus(regulation.status || "current");
+      setEditVersion(regulation.version || "");
+      setEditIssuingBody(regulation.issuing_body || "");
+      setEditEffectiveDate(regulation.effective_date || "");
+      setEditTopics((regulation.topics || []).join(", "));
+      setEditFile(null);
+    }
+  }, [regulation, open]);
 
   // Fetch all regulation codes for AutoComplete
   const { data: allRegs } = useQuery({
@@ -45,6 +74,27 @@ export function RegulationForm({ open, onClose }: Props) {
     mutationFn: () => parseRegulation(rawText || undefined, file || undefined),
     onSuccess: (data) => { setParsed(data); setStep("preview"); },
     onError: (err: any) => message.error(err?.response?.data?.detail || err?.message || "解析失败，请重试"),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: () => {
+      if (!regulation) throw new Error("no regulation");
+      return updateRegulation(regulation.id, {
+        code: editCode,
+        full_name: editFullName,
+        status: editStatus,
+        version: editVersion,
+        issuing_body: editIssuingBody,
+        effective_date: editEffectiveDate,
+        topics: editTopics.split(",").map(t => t.trim()).filter(Boolean),
+      }, editFile || undefined);
+    },
+    onSuccess: () => {
+      message.success("法规已更新");
+      queryClient.invalidateQueries({ queryKey: ["regulations"] });
+      handleClose();
+    },
+    onError: (err: any) => message.error(err?.response?.data?.detail || err?.message || "更新失败"),
   });
 
   const createMut = useMutation({
@@ -94,12 +144,78 @@ export function RegulationForm({ open, onClose }: Props) {
     setStep("input"); setRawText(""); setFile(null); setParsed(null); setDupResult(null);
   }
 
-  function handleClose() { reset(); onClose(); }
+  function handleClose() {
+    reset(); onClose();
+    if (onSaved) onSaved();
+  }
+
+  function handleEditSave() {
+    updateMut.mutate();
+  }
 
   const hasDuplicate = dupResult?.duplicate && dupResult.matches.length > 0;
 
+  if (isEdit) {
+    return (
+      <Modal title="编辑法规" open={open} onCancel={handleClose} width={700}
+        footer={[
+          <Button key="cancel" onClick={handleClose}>取消</Button>,
+          <Button key="save" type="primary" loading={updateMut.isPending}
+            disabled={!editCode.trim() && !editFullName.trim()}
+            onClick={handleEditSave}>保存</Button>,
+        ]}
+      >
+        <Descriptions column={2} size="small" bordered>
+          <Descriptions.Item label="编号">
+            <Input size="small" variant="borderless" value={editCode}
+              onChange={e => setEditCode(e.target.value)} placeholder="如 GB/T 29639-2020" />
+          </Descriptions.Item>
+          <Descriptions.Item label="状态">
+            <Select size="small" variant="borderless" value={editStatus} onChange={v => setEditStatus(v)}
+              style={{ width: "100%" }}
+              options={[{ label: "现行", value: "current" }, { label: "已废止", value: "abolished" }]} />
+          </Descriptions.Item>
+          <Descriptions.Item label="全称" span={2}>
+            <Input size="small" variant="borderless" value={editFullName}
+              onChange={e => setEditFullName(e.target.value)} placeholder="法规完整名称" />
+          </Descriptions.Item>
+          <Descriptions.Item label="类型">
+            <Select size="small" variant="borderless" value={editNodeType} onChange={v => setEditNodeType(v)}
+              style={{ width: "100%" }}
+              options={[{ label: "法律", value: "law" }, { label: "标准", value: "standard" }, { label: "政策", value: "policy" }]} />
+          </Descriptions.Item>
+          <Descriptions.Item label="版本">
+            <Input size="small" variant="borderless" value={editVersion}
+              onChange={e => setEditVersion(e.target.value)} placeholder="如 2021年修正" />
+          </Descriptions.Item>
+          <Descriptions.Item label="发布机关">
+            <Input size="small" variant="borderless" value={editIssuingBody}
+              onChange={e => setEditIssuingBody(e.target.value)} placeholder="发布机关" />
+          </Descriptions.Item>
+          <Descriptions.Item label="施行日期">
+            <Input size="small" variant="borderless" value={editEffectiveDate}
+              onChange={e => setEditEffectiveDate(e.target.value)} placeholder="如 2021-09-01" />
+          </Descriptions.Item>
+          <Descriptions.Item label="主题标签" span={2}>
+            <Input size="small" variant="borderless" value={editTopics}
+              onChange={e => setEditTopics(e.target.value)} placeholder="逗号分隔，如 应急管理, 预案编制, 风险评估" />
+          </Descriptions.Item>
+        </Descriptions>
+
+        <div style={{ marginTop: 16 }}>
+          <Upload maxCount={1} accept=".md,.txt,.pdf,.docx,.doc"
+            beforeUpload={f => { setEditFile(f); return false; }}
+            onRemove={() => setEditFile(null)}
+            fileList={editFile ? [{ uid: "-1", name: editFile.name, status: "done" } as any] : []}>
+            <Button icon={<UploadOutlined />} size="small">更新法规文件（可选）</Button>
+          </Upload>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
-    <Modal title="新增法规" open={open} onCancel={handleClose} width={700}
+    <Modal title={isEdit ? "编辑法规" : "新增法规"} open={open} onCancel={handleClose} width={700}
       footer={step === "preview" ? [
         <Button key="back" onClick={() => setStep("input")}>返回修改</Button>,
         <Button key="cancel" onClick={handleClose}>取消</Button>,

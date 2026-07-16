@@ -88,6 +88,7 @@ class RegulationGraph:
                 effective.append(node)
 
         return {"effective": effective, "abolished": abolished}
+        return {"effective": effective, "abolished": abolished, "core_ids": core_ids}
 
     def query_by_topic(self, topic: str, limit: int = 10) -> list[dict]:
         """按主题标签查询法规。"""

@@ -61,7 +61,7 @@ class RegulationRetriever:
 
         effective = []
         for reg in plan_result.get("effective", []):
-            articles = self._load_articles(reg["id"])
+            articles = self._load_articles(reg)
             if articles:
                 article_count = 0
                 trimmed = []
@@ -121,7 +121,7 @@ class RegulationRetriever:
                 # 跳过已废止
                 if reg.get("status") == "abolished":
                     continue
-                articles = self._load_articles(rid)
+                articles = self._load_articles(reg)
                 if articles:
                     reg_copy = dict(reg)
                     reg_copy["articles"] = articles[:max_articles]
@@ -129,19 +129,60 @@ class RegulationRetriever:
 
         return {"effective": effective, "abolished": [], "matched_topics": topics}
 
-    def _load_articles(self, regulation_id: str) -> list[dict]:
-        """从 texts/*.md 读取法规条文。"""
-        fname = f"{regulation_id}.md"
+    # 文件索引缓存
+    _file_index = None
+
+    def _build_file_index(self) -> dict:
+        if self._file_index is not None:
+            return self._file_index
+        idx = {}
+        if not os.path.isdir(TEXTS_DIR):
+            self._file_index = idx
+            return idx
+        for fn in os.listdir(TEXTS_DIR):
+            if not fn.endswith(".md"):
+                continue
+            fpath = os.path.join(TEXTS_DIR, fn)
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    first = f.readline().lstrip("#").strip()
+                idx[fn] = first
+            except Exception:
+                idx[fn] = ""
+        self._file_index = idx
+        return idx
+
+    def _load_articles(self, reg: dict) -> list[dict]:
+        """从 texts/*.md 读取法规条文。通过法规元数据智能匹配文件。"""
+        rid = reg.get("id", "")
+        fname = f"{rid}.md"
         fpath = os.path.join(TEXTS_DIR, fname)
+
         if not os.path.exists(fpath):
-            if not os.path.isdir(TEXTS_DIR):
-                return []
-            for fn in os.listdir(TEXTS_DIR):
-                if fn.startswith(regulation_id) or regulation_id in fn:
-                    fpath = os.path.join(TEXTS_DIR, fn)
-                    break
-            else:
-                return []
+            # 策略1: 用 label/full_name/title 匹配文件标题
+            idx = self._build_file_index()
+            label = (reg.get("label") or "").lower()
+            full_name = (reg.get("full_name") or reg.get("title") or "").lower()
+            best = None
+            for fn, title in idx.items():
+                fn_lower = fn.lower()
+                if label and label in fn_lower:
+                    best = fn; break
+                if label and label in title.lower():
+                    best = fn; break
+                if full_name and any(kw in fn_lower for kw in full_name.split("《")[0].split() if len(kw) > 2):
+                    best = fn; break
+                if full_name and full_name[:8] in title.lower():
+                    best = fn; break
+            if best:
+                fpath = os.path.join(TEXTS_DIR, best)
+            elif idx:
+                # 策略2: 尝试所有文件
+                for fn in idx:
+                    test_path = os.path.join(TEXTS_DIR, fn)
+                    if os.path.exists(test_path):
+                        fpath = test_path
+                        break
 
         with open(fpath, "r", encoding="utf-8") as f:
             content = f.read()

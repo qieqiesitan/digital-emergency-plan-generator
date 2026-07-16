@@ -7,10 +7,11 @@ import {
   PlusOutlined, SearchOutlined, StopOutlined, BookOutlined,
   CheckCircleOutlined, CloseCircleOutlined, FileTextOutlined,
   AuditOutlined, SafetyCertificateOutlined, FlagOutlined,
-  EyeOutlined, ClearOutlined, DeleteOutlined,
+  EditOutlined, EyeOutlined, ClearOutlined, DeleteOutlined,
 } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchRegulations, fetchStats, deleteRegulation, batchAbolish } from "@/services/regulationService";
+import { fetchRegulations, fetchStats, deleteRegulation, updateRegulation, batchAbolish } from "@/services/regulationService";
+import { RegulationForm } from "./RegulationForm";
 import type { RegulationNode } from "@/types/regulation";
 
 const { Text } = Typography;
@@ -34,6 +35,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export function RegulationList({ onAdd, onView, onAbolish }: Props) {
+  const [editingRegulation, setEditingRegulation] = useState<RegulationNode | null>(null);
   const queryClient = useQueryClient();
   const [kw, setKw] = useState("");
   const [st, setSt] = useState<string>("all");
@@ -199,6 +201,8 @@ export function RegulationList({ onAdd, onView, onAbolish }: Props) {
                   {r.status !== "abolished" && (
                     <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => onAbolish(r)}>废止</Button>
                   )}
+                  <Button type="link" size="small" icon={<EditOutlined />}
+                    onClick={() => setEditingRegulation(r)}>编辑</Button>
                   <Button type="link" size="small" danger icon={<DeleteOutlined />}
                     onClick={() => {
                       Modal.confirm({
@@ -225,6 +229,18 @@ export function RegulationList({ onAdd, onView, onAbolish }: Props) {
           size="middle"
         />
       </Card>
+
+      {editingRegulation && (
+        <RegulationForm
+          open={!!editingRegulation}
+          onClose={() => setEditingRegulation(null)}
+          regulation={editingRegulation}
+          onSaved={() => {
+            setEditingRegulation(null);
+            queryClient.invalidateQueries({ queryKey: ["regulations"] });
+          }}
+        />
+      )}
     </div>
   );
 }
