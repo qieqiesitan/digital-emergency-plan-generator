@@ -661,31 +661,29 @@
     },
     {
       "label": "未提供",
-      "full_name": "国家突发事件总体应急预案",
-      "node_type": "policy",
+      "full_name": "民用机场管理条例",
+      "node_type": "law",
       "code": "未提供",
       "version": "",
-      "effective_date": "未提供",
-      "issuing_body": "中共中央 国务院",
+      "effective_date": "2009年7月1日",
+      "issuing_body": "中华人民共和国国务院",
       "status": "effective",
       "topics": [
         "应急管理",
         "应急预案",
-        "应急响应",
-        "风险评估",
-        "应急演练"
+        "应急演练",
+        "安全培训"
       ],
       "ai_topics": [
         "应急管理",
         "应急预案",
-        "应急响应",
-        "风险评估",
-        "应急演练"
+        "应急演练",
+        "安全培训"
       ],
-      "article_count": 38,
+      "article_count": 87,
       "source": "ai_parsed",
-      "created_at": "2026-07-16T07:26:26Z",
-      "updated_at": "2026-07-16T07:26:26Z",
+      "created_at": "2026-07-16T08:51:08Z",
+      "updated_at": "2026-07-16T08:51:08Z",
       "id": "reg____"
     },
     {
@@ -1251,6 +1249,287 @@
       "created_at": "2026-07-16T07:40:39Z",
       "updated_at": "2026-07-16T07:40:39Z",
       "id": "reg______124_"
+    },
+    {
+      "label": "安监总局令第60号",
+      "full_name": "化学品物理危险性鉴定与分类管理办法",
+      "node_type": "law",
+      "code": "安监总局令第60号",
+      "version": "",
+      "effective_date": "2013年9月1日",
+      "issuing_body": "国家安全生产监督管理总局",
+      "status": "effective",
+      "topics": [
+        "危险化学品",
+        "风险评估",
+        "危险辨识"
+      ],
+      "ai_topics": [
+        "危险化学品",
+        "风险评估",
+        "危险辨识"
+      ],
+      "article_count": 23,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T07:53:24Z",
+      "updated_at": "2026-07-16T07:53:24Z",
+      "id": "reg_______60_"
+    },
+    {
+      "label": "公安部令第121号",
+      "full_name": "火灾事故调查规定",
+      "node_type": "policy",
+      "code": "公安部令第121号",
+      "version": "",
+      "effective_date": "2012年11月1日",
+      "issuing_body": "公安部",
+      "status": "effective",
+      "topics": [
+        "消防安全",
+        "事故分类"
+      ],
+      "ai_topics": [
+        "消防安全",
+        "事故分类"
+      ],
+      "article_count": 48,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T07:55:29Z",
+      "updated_at": "2026-07-16T07:55:29Z",
+      "id": "reg______121_"
+    },
+    {
+      "label": "国务院令第393号",
+      "full_name": "建设工程安全生产管理条例",
+      "node_type": "law",
+      "code": "国务院令第393号",
+      "version": "",
+      "effective_date": "2004年2月1日",
+      "issuing_body": "中华人民共和国国务院",
+      "status": "effective",
+      "topics": [
+        "应急管理",
+        "应急预案",
+        "特种设备",
+        "安全培训",
+        "消防安全"
+      ],
+      "ai_topics": [
+        "应急管理",
+        "应急预案",
+        "特种设备",
+        "安全培训",
+        "消防安全"
+      ],
+      "article_count": 71,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:00:15Z",
+      "updated_at": "2026-07-16T08:00:15Z",
+      "id": "reg______393_"
+    },
+    {
+      "label": "住房和城乡建设部令第58号",
+      "full_name": "建设工程消防设计审查验收管理暂行规定",
+      "node_type": "law",
+      "code": "住房和城乡建设部令第58号",
+      "version": "",
+      "effective_date": "2023年10月30日",
+      "issuing_body": "中华人民共和国住房和城乡建设部",
+      "status": "effective",
+      "topics": [
+        "消防安全",
+        "备案",
+        "评估"
+      ],
+      "ai_topics": [
+        "消防安全",
+        "备案",
+        "评估"
+      ],
+      "article_count": 46,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:02:55Z",
+      "updated_at": "2026-07-16T08:02:55Z",
+      "id": "reg___________58_"
+    },
+    {
+      "label": "国务院令第279号",
+      "full_name": "建设工程质量管理条例",
+      "node_type": "law",
+      "code": "国务院令第279号",
+      "version": "",
+      "effective_date": "2000年1月30日",
+      "issuing_body": "中华人民共和国国务院",
+      "status": "effective",
+      "topics": [
+        "安全培训",
+        "备案"
+      ],
+      "ai_topics": [
+        "安全培训",
+        "备案"
+      ],
+      "article_count": 82,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:06:34Z",
+      "updated_at": "2026-07-16T08:06:34Z",
+      "id": "reg______279_"
+    },
+    {
+      "label": "建设部令第166号",
+      "full_name": "建筑起重机械安全监督管理规定",
+      "node_type": "law",
+      "code": "建设部令第166号",
+      "version": "",
+      "effective_date": "2008年6月1日",
+      "issuing_body": "中华人民共和国建设部",
+      "status": "effective",
+      "topics": [
+        "特种设备",
+        "备案",
+        "应急管理",
+        "应急预案",
+        "安全培训"
+      ],
+      "ai_topics": [
+        "特种设备",
+        "备案",
+        "应急管理",
+        "应急预案",
+        "安全培训"
+      ],
+      "article_count": 35,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:08:29Z",
+      "updated_at": "2026-07-16T08:08:29Z",
+      "id": "reg______166_"
+    },
+    {
+      "label": "建设部令第128号",
+      "full_name": "建筑施工企业安全生产许可证管理规定",
+      "node_type": "law",
+      "code": "建设部令第128号",
+      "version": "",
+      "effective_date": "2004年7月5日",
+      "issuing_body": "中华人民共和国建设部",
+      "status": "effective",
+      "topics": [
+        "安全培训",
+        "应急管理",
+        "职业健康",
+        "风险评估"
+      ],
+      "ai_topics": [
+        "安全培训",
+        "应急管理",
+        "职业健康",
+        "风险评估"
+      ],
+      "article_count": 30,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:09:59Z",
+      "updated_at": "2026-07-16T08:09:59Z",
+      "id": "reg______128_"
+    },
+    {
+      "label": "国家安全生产监督管理总局令第34号",
+      "full_name": "金属非金属地下矿山企业领导带班下井及监督检查暂行规定",
+      "node_type": "law",
+      "code": "国家安全生产监督管理总局令第34号",
+      "version": "",
+      "effective_date": "2010年11月15日",
+      "issuing_body": "国家安全生产监督管理总局",
+      "status": "effective",
+      "topics": [
+        "应急管理",
+        "安全培训"
+      ],
+      "ai_topics": [
+        "应急管理",
+        "安全培训"
+      ],
+      "article_count": 26,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:13:06Z",
+      "updated_at": "2026-07-16T08:13:06Z",
+      "id": "reg_______________34_"
+    },
+    {
+      "label": "应急管理部令第16号",
+      "full_name": "矿山救援规程",
+      "node_type": "law",
+      "code": "应急管理部令第16号",
+      "version": "",
+      "effective_date": "2024年7月1日",
+      "issuing_body": "应急管理部",
+      "status": "effective",
+      "topics": [
+        "应急救援",
+        "应急管理",
+        "应急预案",
+        "应急演练"
+      ],
+      "ai_topics": [
+        "应急救援",
+        "应急管理",
+        "应急预案",
+        "应急演练"
+      ],
+      "article_count": 172,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:36:18Z",
+      "updated_at": "2026-07-16T08:36:18Z",
+      "id": "reg________16_"
+    },
+    {
+      "label": "国家安全生产监督管理总局令（第92号）",
+      "full_name": "煤矿安全培训规定",
+      "node_type": "law",
+      "code": "国家安全生产监督管理总局令（第92号）",
+      "version": "",
+      "effective_date": "2018年3月1日",
+      "issuing_body": "国家安全生产监督管理总局",
+      "status": "effective",
+      "topics": [
+        "安全培训"
+      ],
+      "ai_topics": [
+        "安全培训"
+      ],
+      "article_count": 50,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:37:37Z",
+      "updated_at": "2026-07-16T08:37:37Z",
+      "id": "reg________________92__"
+    },
+    {
+      "label": "国务院令第466号",
+      "full_name": "民用爆炸物品安全管理条例",
+      "node_type": "law",
+      "code": "国务院令第466号",
+      "version": "",
+      "effective_date": "2006年9月1日",
+      "issuing_body": "中华人民共和国国务院",
+      "status": "effective",
+      "topics": [
+        "危险化学品",
+        "重大危险源",
+        "应急管理",
+        "安全培训",
+        "备案"
+      ],
+      "ai_topics": [
+        "危险化学品",
+        "重大危险源",
+        "应急管理",
+        "安全培训",
+        "备案"
+      ],
+      "article_count": 55,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T08:50:06Z",
+      "updated_at": "2026-07-16T08:50:06Z",
+      "id": "reg______466_"
     }
   ],
   "edges": [
@@ -1933,6 +2212,216 @@
       "relation": "适用",
       "source": "reg______124_",
       "target": "topic_应急演练"
+    },
+    {
+      "relation": "适用",
+      "source": "reg_______60_",
+      "target": "topic_危险化学品"
+    },
+    {
+      "relation": "适用",
+      "source": "reg_______60_",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "reg_______60_",
+      "target": "topic_危险辨识"
+    },
+    {
+      "relation": "下位法",
+      "source": "reg______121_",
+      "target": "law_fire_protection_2021"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______121_",
+      "target": "topic_消防安全"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______121_",
+      "target": "topic_事故分类"
+    },
+    {
+      "relation": "下位法",
+      "source": "reg______393_",
+      "target": "law_safety_production_2021"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______393_",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______393_",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______393_",
+      "target": "topic_特种设备"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______393_",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______393_",
+      "target": "topic_消防安全"
+    },
+    {
+      "relation": "下位法",
+      "source": "reg___________58_",
+      "target": "law_fire_protection_2021"
+    },
+    {
+      "relation": "适用",
+      "source": "reg___________58_",
+      "target": "topic_消防安全"
+    },
+    {
+      "relation": "适用",
+      "source": "reg___________58_",
+      "target": "topic_备案"
+    },
+    {
+      "relation": "适用",
+      "source": "reg___________58_",
+      "target": "topic_评估"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______279_",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______279_",
+      "target": "topic_备案"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______166_",
+      "target": "topic_特种设备"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______166_",
+      "target": "topic_备案"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______166_",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______166_",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______166_",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______128_",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______128_",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______128_",
+      "target": "topic_职业健康"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______128_",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "适用",
+      "source": "reg_______________34_",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "reg_______________34_",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "下位法",
+      "source": "reg________16_",
+      "target": "law_safety_production_2021"
+    },
+    {
+      "relation": "下位法",
+      "source": "reg________16_",
+      "target": "policy_emergency_regulation_2019"
+    },
+    {
+      "relation": "适用",
+      "source": "reg________16_",
+      "target": "topic_应急救援"
+    },
+    {
+      "relation": "适用",
+      "source": "reg________16_",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "reg________16_",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "reg________16_",
+      "target": "topic_应急演练"
+    },
+    {
+      "relation": "下位法",
+      "source": "reg________________92__",
+      "target": "law_safety_production_2021"
+    },
+    {
+      "relation": "适用",
+      "source": "reg________________92__",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______466_",
+      "target": "topic_危险化学品"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______466_",
+      "target": "topic_重大危险源"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______466_",
+      "target": "topic_应急管理"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______466_",
+      "target": "topic_安全培训"
+    },
+    {
+      "relation": "适用",
+      "source": "reg______466_",
+      "target": "topic_备案"
     }
   ]
 }

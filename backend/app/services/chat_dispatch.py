@@ -466,15 +466,115 @@ async def _search_regulations(db, user, args):
     vs = get_vector_store()
     if vs:
         try:
-            results = vs.similarity_search(query, k=5)
-            return {"results": [{"content": doc.page_content[:500], "metadata": doc.metadata} for doc in results]}
+            results = vs.search(query, top_k=5)
+            return {"results": [{"content": item["text"][:500], "metadata": item["metadata"]} for item in results], "source": "vector_search"}
         except Exception:
             pass
     # fallback: keyword search via graph
     graph = get_graph()
     result = graph.list_nodes(keyword=query, page_size=5)
     return {"results": [{"id": n.get("id"), "full_name": n.get("full_name", n.get("title", "")), "node_type": n.get("node_type"), "status": n.get("status")} for n in result.get("items", [])], "source": "graph_fallback"}
+# -- 法规条文检索(聊天助手引用用) --
 
+async def _search_regulation_articles(db, user, args):
+    """法规条文检索 -- 图谱关键词搜索 + 文件加载原文。供聊天助手回答法规问题时使用。
+
+    流程: graph.list_nodes(keyword=query) -> 加载 texts/*.md 条文 -> 关键词子串匹配。
+    """
+    query = args.get("query", "")
+    if not query:
+        return {"error": "请提供 query"}
+
+    top_k = _parse_int(args.get("top_k", 8)) or 8
+    top_k = max(3, min(top_k, 15))
+
+    from app.regulations import get_graph
+    import re as _re
+
+    graph = get_graph()
+    keyword_result = graph.list_nodes(keyword=query, page_size=top_k)
+    nodes = keyword_result.get("items", [])
+
+    if not nodes:
+        return {"articles": [], "count": 0, "message": "法规库中暂未找到与您问题直接相关的法规。"}
+
+    texts_dir = os.path.join(os.path.dirname(__file__), "..", "regulations", "data", "texts")
+    keywords = [kw.strip() for kw in query.split() if len(kw.strip()) >= 2]
+
+    articles = []
+    seen_ids = set()
+
+    for node in nodes:
+        nid = node.get("id", "")
+        if nid in seen_ids:
+            continue
+        seen_ids.add(nid)
+
+        if node.get("status") == "abolished":
+            continue
+
+        full_name = node.get("full_name", node.get("title", ""))
+        reg_code = node.get("code", "")
+
+        fpath = os.path.join(texts_dir, f"{nid}.md")
+        if not os.path.exists(fpath):
+            continue
+
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                file_content = f.read()
+        except Exception:
+            continue
+
+        blocks = _re.split(r"\n(?=##\s)", file_content)
+        for block in blocks:
+            block = block.strip()
+            if not block:
+                continue
+            lines = block.split("\n")
+            article_number = lines[0].lstrip("#").strip() if lines else ""
+            article_text = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
+
+            if not article_text or len(article_text) < 10:
+                continue
+
+            score = 0
+            query_lower = query.lower()
+            text_lower = article_text.lower()
+            for kw in keywords:
+                count = text_lower.count(kw.lower())
+                if count > 0:
+                    score += count * 10
+            if query_lower in text_lower:
+                score += 50
+
+            if score > 0:
+                articles.append({
+                    "article_text": article_text[:500],
+                    "article_number": article_number,
+                    "regulation_id": nid,
+                    "regulation_full_name": full_name,
+                    "regulation_code": reg_code,
+                    "regulation_status": node.get("status", "effective"),
+                    "relevance_score": score,
+                })
+
+    articles.sort(key=lambda a: a["relevance_score"], reverse=True)
+    articles = articles[:top_k]
+
+    if not articles:
+        return {
+            "articles": [],
+            "count": 0,
+            "message": "法规库中暂未找到与该问题直接相关的条文。以下是与关键词匹配的法规列表供参考：",
+            "matched_regulations": [
+                {"id": n.get("id"), "full_name": n.get("full_name", n.get("title", "")),
+                 "code": n.get("code", "")}
+                for n in nodes[:5]
+            ],
+        }
+
+    return {"articles": articles, "count": len(articles)}
 
 # ── AI 配置 ──
 
@@ -641,6 +741,7 @@ _FUNCTIONS = {
     "get_regulation_stats": _get_regulation_stats,
     "list_regulations": _list_regulations,
     "search_regulations": _search_regulations,
+    "search_regulation_articles": _search_regulation_articles,
     "get_ai_config": _get_ai_config,
     "export_plan_docx": _export_plan_docx,
     "generate_report": _generate_report,

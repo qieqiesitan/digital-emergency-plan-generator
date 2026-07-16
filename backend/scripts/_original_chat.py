@@ -49,28 +49,10 @@ CHAT_TOOLS = [
     {"type": "function", "function": {"name": "export_plan_docx", "description": "导出预案为Word文档(.docx)", "parameters": {"type": "object", "properties": {"plan_id": {"type": "string", "description": "预案ID(必填)"}}, "required": ["plan_id"]}}},
     {"type": "function", "function": {"name": "get_ai_config", "description": "查看当前AI配置信息（供应商、模型名称等）", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "generate_plan_content", "description": "为指定预案在后台逐章自动生成正文内容（AI生成），完成后用户可在预案编辑页查看各章节内容", "parameters": {"type": "object", "properties": {"plan_id": {"type": "string", "description": "预案ID(必填)"}}, "required": ["plan_id"]}}},
-    {"type": "function", "function": {"name": "search_regulation_articles", "description": "语义检索法规条文原文。当用户询问安全生产、应急管理、消防、职业健康、特种设备、危化品等法律法规问题时，必须调用此工具查找相关法律条文的具体内容和出处。返回条文原文、所属法规全称、文号、条款号。注意：此工具返回的是具体条文，不是法规列表。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "用户问题的关键词或完整句子，用于匹配法规条文"}, "top_k": {"type": "integer", "description": "返回条数，默认8，范围3-15"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "generate_report", "description": "生成图文并茂的分析报告（Markdown格式，含Mermaid图表）。支持主题：系统概览、企业分析、预案进度、风险分布等。", "parameters": {"type": "object", "properties": {"topic": {"type": "string", "description": "报告主题，如系统概览、企业分析"}, "report_type": {"type": "string", "description": "报告类型: summary(概览)/analysis(分析)"}}, "required": ["topic"]}}},
 ]
 
-CHAT_SYSTEM_PROMPT = """你是数字化应急预案自动生成系统的AI助手。核心能力：查询创建修改删除企业和预案、智能添加企业（autofill_enterprise自动查工商数据校准全称）、管理风险源和应急资源、查看评估报告和调查报告、搜索法规库、导出Word、生成图文报告。重要规则：用户要求任何分析报告、概览、总结时，必须调用 generate_report 工具（主题如系统概览、企业分析、法规库报告、风险分布等），禁止直接用函数返回的数据自行拼凑报告。用户说「添加XX公司」优先用autofill_enterprise。删除前先确认。回复简洁专业用中文。每次操作后汇报verified验证状态。
-
-【法规引用规则 — 必须严格遵守】
-当用户询问安全生产、应急管理、消防、职业健康、特种设备、危险化学品、事故调查、隐患排查、安全培训、应急预案编制等法律法规相关问题时，必须执行以下步骤：
-
-1. 立即调用 search_regulation_articles 工具检索相关法规条文。query 参数应为用户问题的完整句子或关键词，不要自行提炼。
-
-2. 回答必须基于工具返回的实际条文内容，不得编造法规名称或条款号。如果工具返回了条文，应在回答中体现条文要求。如果工具返回为空（articles=[]），明确告知用户："法规库中暂未找到与您问题直接相关的条文，以下建议基于一般性原则——"然后可以基于常识给出指导，但不要编造具体法规名称和条款号。
-
-3. 回答末尾必须以「📋 引用法规」为标题，列出所引用的法规。每一条引用格式为：
-   - 《法规全称》（文号）第X条
-   示例：
-   - 《中华人民共和国安全生产法》（2021修正）第二十一条
-   - 《生产安全事故应急预案管理办法》（应急管理部令第2号）第八条
-
-4. 引用列表只包含实际在回答中用到的法规，不要为了凑数列出无关法规。如果工具返回的条文中没有明确的"第X条"编号，则只写法规名称和文号，不写条款号。
-
-5. 如果用户问的问题与法律法规无关（如系统操作、数据统计），不需要调用此工具，也不需要添加引用列表。"""
+CHAT_SYSTEM_PROMPT = "你是数字化应急预案自动生成系统的AI助手。核心能力：查询创建修改删除企业和预案、智能添加企业（autofill_enterprise自动查工商数据校准全称）、管理风险源和应急资源、查看评估报告和调查报告、搜索法规库、导出Word、生成图文报告。重要规则：用户要求任何分析报告、概览、总结时，必须调用 generate_report 工具（主题如系统概览、企业分析、法规库报告、风险分布等），禁止直接用函数返回的数据自行拼凑报告。用户说「添加XX公司」优先用autofill_enterprise。删除前先确认。回复简洁专业用中文。每次操作后汇报verified验证状态。"
 
 
 def _build_tool_messages(history: list, user_message: str) -> list:
