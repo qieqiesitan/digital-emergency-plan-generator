@@ -56,6 +56,8 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
         return extract_text_from_pdf(file_bytes)
     elif fn.endswith(".docx") or fn.endswith(".doc"):
         return extract_text_from_docx(file_bytes)
+    elif fn.endswith(".md") or fn.endswith(".markdown") or fn.endswith(".txt"):
+        return file_bytes.decode("utf-8")
     else:
         raise ValueError(f"不支持的文件格式: {filename}")
 

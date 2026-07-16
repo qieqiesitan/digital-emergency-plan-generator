@@ -527,21 +527,35 @@ async def _generate_report(db, user, args):
         "enterprises": enterprises.get("enterprises", [])[:5],
     }, ensure_ascii=False, indent=2)
 
-    prompt = f"""请根据以下系统数据，生成一份「{topic}」的图文分析报告。
+    prompt = f"""请根据以下系统数据，生成一份「{topic}」的专业分析报告。
 
-要求：
-1. 使用 Markdown 格式，包含标题、段落、列表、表格
-2. 在每个分析段落后，插入一个 Mermaid 图表（```mermaid ... ```）
-   - 数据概览用 pie 饼图
-   - 流程分析用 flowchart TD
-   - 分类对比用 bar 类图表或表格
-3. 语言：简体中文，专业、简洁
-4. 结尾给出总结和建议
+【报告要求】
+- 根据数据实际情况和特征，选择最合适的组织方式，不必强制按固定章节模板
+- 在恰当的位置使用 Mermaid 图表辅助表达。仅使用以下 Mermaid 支持的图表类型：
+  · 占比/比例 → pie（示例：pie title "标题" "A": 30 "B": 70）
+  · 层级/关联关系 → graph TD（示例：graph TD; A-->B; A-->C）
+  · 流程/步骤 → flowchart TD（示例：flowchart TD; A[开始]-->B[处理]-->C[结束]）
+  · 切勿使用 bar、xychart、或自造的图表语法——这些 Mermaid 不支持
+- 多维度数据对比请优先使用 Markdown 表格，效果比图表更好
+- 不必每段都放图表，仅在图表能增强理解时使用
+- 语言：简体中文，专业、简洁
+- 结尾给出基于数据的具体、可操作的总结和建议
+- 不要在报告中出现「根据数据」「数据显示」「数据不足」等元描述，直接呈现分析内容
 
 【系统数据】
 {data_context}
 
 请直接输出报告内容："""
+    system_prompt = f"""你是一位应急管理与安全生产领域的专业分析师，擅长从数据中提取洞察并撰写结构清晰的分析报告。
+
+本次报告主题：{topic}
+行业背景：生产经营单位应急预案管理、安全生产法规合规、风险管控与应急资源调度。
+
+写作原则：
+- 读者是企业管理者和安全负责人
+- 数据驱动，不做无依据的推测
+- 图表服务于分析，不滥用
+- 数据少时定性分析优先，不必强行凑图表"""
 
     # 返回 prompt 和元信息，由 chat 端点调 LLM 生成
     return {
@@ -549,6 +563,7 @@ async def _generate_report(db, user, args):
         "topic": topic,
         "report_type": report_type,
         "prompt": prompt,
+        "system_prompt": system_prompt,
         "data_summary": {
             "enterprises": dash.get("enterprise_count", 0),
             "plans": dash.get("plan_count", 0),

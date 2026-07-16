@@ -732,32 +732,63 @@
     },
     {
       "label": "未提供",
-      "full_name": "中华人民共和国安全生产法",
-      "node_type": "law",
+      "full_name": "国家突发事件总体应急预案",
+      "node_type": "policy",
       "code": "未提供",
       "version": "",
-      "effective_date": "2002年11月1日",
-      "issuing_body": "全国人民代表大会常务委员会",
+      "effective_date": "未明确",
+      "issuing_body": "中共中央、国务院",
       "status": "effective",
       "topics": [
-        "重大危险源",
-        "事故分类",
+        "应急预案",
         "应急管理",
-        "应急救援",
-        "安全培训"
+        "应急演练",
+        "应急响应",
+        "风险评估"
       ],
       "ai_topics": [
-        "重大危险源",
-        "事故分类",
+        "应急预案",
         "应急管理",
-        "应急救援",
-        "安全培训"
+        "应急演练",
+        "应急响应",
+        "风险评估"
       ],
-      "article_count": 119,
+      "article_count": 38,
       "source": "ai_parsed",
-      "created_at": "2026-07-13T09:27:27Z",
-      "updated_at": "2026-07-13T09:27:27Z",
+      "created_at": "2026-07-16T02:41:42Z",
+      "updated_at": "2026-07-16T02:41:42Z",
       "id": "reg____"
+    },
+    {
+      "label": "应急响应",
+      "node_type": "topic",
+      "created_at": "2026-07-16T02:41:42Z",
+      "updated_at": "2026-07-16T02:41:42Z",
+      "status": "effective",
+      "id": "topic_应急响应"
+    },
+    {
+      "label": "应急管理部令第20号",
+      "full_name": "安全评价检测检验机构管理办法",
+      "node_type": "law",
+      "code": "应急管理部令第20号",
+      "version": "",
+      "effective_date": "2026年7月1日",
+      "issuing_body": "中华人民共和国应急管理部",
+      "status": "effective",
+      "topics": [
+        "安全评价",
+        "应急管理"
+      ],
+      "ai_topics": [
+        "安全评价",
+        "应急管理"
+      ],
+      "article_count": 37,
+      "source": "ai_parsed",
+      "created_at": "2026-07-16T02:45:30Z",
+      "updated_at": "2026-07-16T02:45:30Z",
+      "id": "reg________20_"
     }
   ],
   "edges": [
@@ -1005,6 +1036,41 @@
       "relation": "适用",
       "source": "reg____",
       "target": "topic_安全培训"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_应急预案"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_应急演练"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_应急响应"
+    },
+    {
+      "relation": "适用",
+      "source": "reg____",
+      "target": "topic_风险评估"
+    },
+    {
+      "relation": "下位法",
+      "source": "reg________20_",
+      "target": "law_safety_production_2021"
+    },
+    {
+      "relation": "适用",
+      "source": "reg________20_",
+      "target": "topic_安全评价"
+    },
+    {
+      "relation": "适用",
+      "source": "reg________20_",
+      "target": "topic_应急管理"
     }
   ]
 }
