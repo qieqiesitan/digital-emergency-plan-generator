@@ -35,25 +35,25 @@ function simulate(nodes: SimNode[], edges: { source: string; target: string }[],
   for (let i = 0; i < keys.length; i++) {
     const g = groups[keys[i]];
     const angle = (2 * Math.PI * i) / keys.length;
-    const cx = W / 2 + Math.cos(angle) * 180;
-    const cy = H / 2 + Math.sin(angle) * 130;
+    const cx = W / 2 + Math.cos(angle) * 280;
+    const cy = H / 2 + Math.sin(angle) * 200;
     for (let j = 0; j < g.length; j++) {
       const a = (2 * Math.PI * j) / g.length;
-      const r = 25 + g.length * 3;
+      const r = 60 + g.length * 8;
       g[j].x = cx + Math.cos(a) * r;
       g[j].y = cy + Math.sin(a) * r;
       g[j].vx = 0; g[j].vy = 0;
     }
   }
   // Force simulation
-  for (let iter = 0; iter < 90; iter++) {
-    const alpha = 1 - iter / 90;
+  for (let iter = 0; iter < 150; iter++) {
+    const alpha = 1 - iter / 150;
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const dx = nodes[j].x - nodes[i].x;
         const dy = nodes[j].y - nodes[i].y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const force = alpha * 6 * (nodes[i].radius + nodes[j].radius + 20) / dist;
+        const force = alpha * 8 * (nodes[i].radius + nodes[j].radius + 80) / dist;
         nodes[i].vx -= (dx / dist) * force;
         nodes[i].vy -= (dy / dist) * force;
         nodes[j].vx += (dx / dist) * force;
@@ -67,7 +67,7 @@ function simulate(nodes: SimNode[], edges: { source: string; target: string }[],
       const dx = t.x - s.x;
       const dy = t.y - s.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const ideal = s.radius + t.radius + 70;
+      const ideal = s.radius + t.radius + 160;
       const force = alpha * 0.25 * (dist - ideal) / dist;
       s.vx += dx * force;
       s.vy += dy * force;
@@ -75,10 +75,10 @@ function simulate(nodes: SimNode[], edges: { source: string; target: string }[],
       t.vy -= dy * force;
     }
     for (const n of nodes) {
-      n.vx += (W / 2 - n.x) * 0.002 * alpha;
-      n.vy += (H / 2 - n.y) * 0.002 * alpha;
-      n.vx *= 0.82;
-      n.vy *= 0.82;
+      n.vx += (W / 2 - n.x) * 0.0005 * alpha;
+      n.vy += (H / 2 - n.y) * 0.0005 * alpha;
+      n.vx *= 0.88;
+      n.vy *= 0.88;
       n.x += n.vx;
       n.y += n.vy;
       n.x = Math.max(n.radius, Math.min(W - n.radius, n.x));

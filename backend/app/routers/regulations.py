@@ -266,9 +266,10 @@ async def create_regulation(
     if not code:
         raise HTTPException(400, "法规编号不能为空")
 
+    graph = get_graph()
+
     # 查重（force=true 时跳过）
     if not force:
-        graph = get_graph()
         full_name = parsed.get("full_name", "")
         dup = _check_duplicate(graph, code, full_name)
         if dup["duplicate"]:
@@ -276,8 +277,21 @@ async def create_regulation(
 
     # 生成 regulation_id
     import re as _re
+    import hashlib as _hl
     safe = _re.sub(r"[^a-zA-Z0-9_]", "_", code.lower())
-    reg_id = f"reg_{safe}"
+    if safe.strip("_"):
+        reg_id = f"reg_{safe.strip('_')}"
+    else:
+        # 纯中文或空编号 → 用 full_name 哈希保证唯一
+        fn = parsed.get("full_name", "")
+        h = _hl.md5((code + fn).encode()).hexdigest()[:8]
+        reg_id = f"reg_{h}"
+    # 兜底防覆盖：如 ID 已存在则追加唯一后缀
+    base_rid = reg_id
+    suffix = 1
+    while graph.get_node(reg_id):
+        reg_id = f"{base_rid}_{suffix}"
+        suffix += 1
 
     file_bytes = None
     filename = None
@@ -559,3 +573,4 @@ async def source_versions(
 ):
     files = get_source_files(regulation_id)
     return {"code": 0, "data": files}
+
