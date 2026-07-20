@@ -41,6 +41,7 @@ import markdown
 import re
 
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
+from app.services.sse_utils import sse_event
 from app.services.prompt_cache import ensure_loaded, get_system_prompt, REGULATION_WRITING_RULE, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
 from app.regulations.context_builder import RegulationContextBuilder
 
@@ -112,9 +113,8 @@ def _decrypt_api_key(hex_str: str) -> str:
 
 
 
-def _sse(event_type: str, **kwargs) -> str:
+    # _sse → sse_event (移入 services/sse_utils.py)
 
-    obj = {"type": event_type, **kwargs}
 
     return json.dumps(obj, ensure_ascii=False)
 
@@ -642,7 +642,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
         try:
 
-            await event_queue.put(_sse("progress", message=f"开始批量生成 {len(section_tuples)} 个章节...", current=0, total=len(section_tuples)))
+            await event_queue.put(sse_event("progress", message=f"开始批量生成 {len(section_tuples)} 个章节...", current=0, total=len(section_tuples)))
 
             async with async_session() as bg_db:
 
@@ -660,7 +660,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                     if not _active_generations.get(plan_id):
 
-                        await event_queue.put(_sse("error", message="生成已取消"))
+                        await event_queue.put(sse_event("error", message="生成已取消"))
 
                         return
 
@@ -670,7 +670,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         continue
 
-                    await event_queue.put(_sse("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
+                    await event_queue.put(sse_event("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
 
                     try:
 
@@ -682,7 +682,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                             full += chunk_content
 
-                            await event_queue.put(_sse("chunk", content=chunk_content, section_key=section_key))
+                            await event_queue.put(sse_event("chunk", content=chunk_content, section_key=section_key))
 
                         s.content = _md_to_html(full); s.ai_generated = True
 
@@ -691,13 +691,13 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         completed += 1
 
-                        await event_queue.put(_sse("section_done", section_key=section_key, message=f"「{section_title}」生成完成", completed=completed, failed=failed))
+                        await event_queue.put(sse_event("section_done", section_key=section_key, message=f"「{section_title}」生成完成", completed=completed, failed=failed))
 
                     except Exception as e:
 
                         failed += 1
 
-                        await event_queue.put(_sse("error", message=f"「{section_title}」生成失败: {e}", section_key=section_key))
+                        await event_queue.put(sse_event("error", message=f"「{section_title}」生成失败: {e}", section_key=section_key))
 
 
 
@@ -726,13 +726,13 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
 
-                await event_queue.put(_sse("batch_done", message="批量生成完成", completed=completed, failed=failed))
+                await event_queue.put(sse_event("batch_done", message="批量生成完成", completed=completed, failed=failed))
 
         except Exception as e:
 
             try:
 
-                await event_queue.put(_sse("error", message=str(e)))
+                await event_queue.put(sse_event("error", message=str(e)))
 
             except Exception:
 
@@ -997,7 +997,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
         try:
 
-            yield _sse("progress", message=f"正在生成「{s.title}」...")
+            yield sse_event("progress", message=f"正在生成「{s.title}」...")
 
             full = ""
 
@@ -1005,7 +1005,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
                 full += chunk_content
 
-                yield _sse("chunk", content=chunk_content)
+                yield sse_event("chunk", content=chunk_content)
 
             s.content = _md_to_html(full)
 
@@ -1025,7 +1025,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             await db.commit()
 
-            yield _sse("done", message="生成完成")
+            yield sse_event("done", message="生成完成")
 
         except Exception as e:
 
@@ -1033,7 +1033,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             await db.commit()
 
-            yield _sse("error", message=str(e))
+            yield sse_event("error", message=str(e))
 
 
 
@@ -1359,7 +1359,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
         try:
 
-            await event_queue.put(_sse("progress", message=f"开始批量生成 {len(section_tuples)} 个章节...", current=0, total=len(section_tuples)))
+            await event_queue.put(sse_event("progress", message=f"开始批量生成 {len(section_tuples)} 个章节...", current=0, total=len(section_tuples)))
 
             async with async_session() as bg_db:
 
@@ -1377,7 +1377,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                     if not _active_generations.get(plan_id):
 
-                        await event_queue.put(_sse("error", message="生成已取消"))
+                        await event_queue.put(sse_event("error", message="生成已取消"))
 
                         return
 
@@ -1387,7 +1387,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         continue
 
-                    await event_queue.put(_sse("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
+                    await event_queue.put(sse_event("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
 
                     try:
 
@@ -1399,7 +1399,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                             full += chunk_content
 
-                            await event_queue.put(_sse("chunk", content=chunk_content, section_key=section_key))
+                            await event_queue.put(sse_event("chunk", content=chunk_content, section_key=section_key))
 
                         s.content = _md_to_html(full); s.ai_generated = True
 
@@ -1408,13 +1408,13 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                         completed += 1
 
-                        await event_queue.put(_sse("section_done", section_key=section_key, message=f"「{section_title}」生成完成", completed=completed, failed=failed))
+                        await event_queue.put(sse_event("section_done", section_key=section_key, message=f"「{section_title}」生成完成", completed=completed, failed=failed))
 
                     except Exception as e:
 
                         failed += 1
 
-                        await event_queue.put(_sse("error", message=f"「{section_title}」生成失败: {e}", section_key=section_key))
+                        await event_queue.put(sse_event("error", message=f"「{section_title}」生成失败: {e}", section_key=section_key))
 
 
 
@@ -1443,13 +1443,13 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
 
-                await event_queue.put(_sse("batch_done", message="批量生成完成", completed=completed, failed=failed))
+                await event_queue.put(sse_event("batch_done", message="批量生成完成", completed=completed, failed=failed))
 
         except Exception as e:
 
             try:
 
-                await event_queue.put(_sse("error", message=str(e)))
+                await event_queue.put(sse_event("error", message=str(e)))
 
             except Exception:
 
@@ -1714,7 +1714,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
         try:
 
-            yield _sse("progress", message=f"正在生成「{s.title}」...")
+            yield sse_event("progress", message=f"正在生成「{s.title}」...")
 
             full = ""
 
@@ -1722,7 +1722,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
                 full += chunk_content
 
-                yield _sse("chunk", content=chunk_content)
+                yield sse_event("chunk", content=chunk_content)
 
             s.content = _md_to_html(full)
 
@@ -1742,7 +1742,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             await db.commit()
 
-            yield _sse("done", message="生成完成")
+            yield sse_event("done", message="生成完成")
 
         except Exception as e:
 
@@ -1750,7 +1750,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             await db.commit()
 
-            yield _sse("error", message=str(e))
+            yield sse_event("error", message=str(e))
 
 
 
@@ -1819,19 +1819,19 @@ async def regenerate_selection(
     
     async def event_generator():
         try:
-            yield _sse("progress", message=f"正在重生成「{s.title}」选中段落...")
+            yield sse_event("progress", message=f"正在重生成「{s.title}」选中段落...")
 
             async for chunk_content in _stream_llm_chunks(user_prompt, ai_config, p.plan_type):
-                yield _sse("chunk", content=chunk_content)
+                yield sse_event("chunk", content=chunk_content)
 
             p.status = "draft"
             await db.commit()
 
-            yield _sse("done", message="重生成完成")
+            yield sse_event("done", message="重生成完成")
 
         except Exception as e:
             p.status = "draft"
             await db.commit()
-            yield _sse("error", message=str(e))
+            yield sse_event("error", message=str(e))
 
     return EventSourceResponse(event_generator())

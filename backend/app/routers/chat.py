@@ -13,6 +13,7 @@ from app.dependencies import get_current_user
 from app.routers.generation import _decrypt_api_key
 from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
 from app.services.chat_dispatch import dispatch
+from app.services.sse_utils import sse_line
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -173,8 +174,7 @@ async def _md_to_html(md_text: str) -> str:
     return md_lib.markdown(html, extensions=["tables", "fenced_code"], output_format="html5")
 
 
-def _sse(data: dict) -> str:
-    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+# _sse → sse_line (移入 services/sse_utils.py)
 
 
 async def _save_messages(user_id: str, conv_id: str, user_msg: str, assistant_msg: str):
@@ -275,9 +275,9 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         text_content = msg.get("content", "")
         async def text_gen():
             if text_content:
-                yield _sse({"type": "chunk", "content": text_content})
-            yield _sse({"type": "conv_id", "content": conv_id})
-            yield _sse({"type": "done"})
+                yield sse_line({"type": "chunk", "content": text_content})
+            yield sse_line({"type": "conv_id", "content": conv_id})
+            yield sse_line({"type": "done"})
             # 保存消息
             import asyncio
             asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, text_content))
@@ -301,28 +301,28 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                     fn_args = json.loads(func.get("arguments", "{}"))
                 except json.JSONDecodeError:
                     fn_args = {}
-                yield _sse({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
+                yield sse_line({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
                 result_str = await dispatch(db, current_user, fn_name, fn_args)
                 result_obj = json.loads(result_str)
 
                 # 报告生成特殊处理
                 if result_obj.get("type") == "report_prompt":
-                    yield _sse({"type": "progress", "message": result_obj.get("message", "正在生成报告...")})
+                    yield sse_line({"type": "progress", "message": result_obj.get("message", "正在生成报告...")})
                     try:
                         full_text = await _collect_llm([{"role": "user", "content": result_obj["prompt"]}], ai_config)
                         html = await _md_to_html(full_text)
                         final_text = full_text
-                        yield _sse({"type": "chunk", "content": html, "html": True})
+                        yield sse_line({"type": "chunk", "content": html, "html": True})
                     except Exception as e:
                         final_text = str(e)
-                        yield _sse({"type": "error", "message": str(e)})
-                    yield _sse({"type": "conv_id", "content": conv_id})
-                    yield _sse({"type": "done"})
+                        yield sse_line({"type": "error", "message": str(e)})
+                    yield sse_line({"type": "conv_id", "content": conv_id})
+                    yield sse_line({"type": "done"})
                     import asyncio
                     asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                     return
 
-                yield _sse({"type": "function_result", "name": fn_name, "result": result_str})
+                yield sse_line({"type": "function_result", "name": fn_name, "result": result_str})
                 results.append({"tc_id": tc_id, "name": fn_name, "result": result_str})
 
             # 构建上下文
@@ -341,9 +341,9 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 next_resp = await _call_llm(current_msgs, ai_config)
             except Exception as e:
                 final_text = str(e)
-                yield _sse({"type": "error", "message": str(e)})
-                yield _sse({"type": "conv_id", "content": conv_id})
-                yield _sse({"type": "done"})
+                yield sse_line({"type": "error", "message": str(e)})
+                yield sse_line({"type": "conv_id", "content": conv_id})
+                yield sse_line({"type": "done"})
                 import asyncio
                 asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                 return
@@ -358,12 +358,12 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 try:
                     async for chunk in _call_llm_stream(final_msgs, ai_config):
                         final_text += chunk
-                        yield _sse({"type": "chunk", "content": chunk})
+                        yield sse_line({"type": "chunk", "content": chunk})
                 except Exception as e:
                     final_text = str(e)
-                    yield _sse({"type": "error", "message": str(e)})
-                yield _sse({"type": "conv_id", "content": conv_id})
-                yield _sse({"type": "done"})
+                    yield sse_line({"type": "error", "message": str(e)})
+                yield sse_line({"type": "conv_id", "content": conv_id})
+                yield sse_line({"type": "done"})
                 import asyncio
                 asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                 return
@@ -371,9 +371,9 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
             pending_tool_calls = next_tool_calls
 
         # 超过最大轮数
-        yield _sse({"type": "error", "message": "操作轮数超过上限，请简化您的问题重试"})
-        yield _sse({"type": "conv_id", "content": conv_id})
-        yield _sse({"type": "done"})
+        yield sse_line({"type": "error", "message": "操作轮数超过上限，请简化您的问题重试"})
+        yield sse_line({"type": "conv_id", "content": conv_id})
+        yield sse_line({"type": "done"})
         import asyncio
         asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限"))
 
