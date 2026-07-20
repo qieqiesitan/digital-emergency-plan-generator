@@ -111,6 +111,9 @@ async def _generic_create(db, user, args, cfg):
             kwargs[f] = args[f]
     if "id" not in kwargs:
         kwargs["id"] = str(uuid4())
+    user_field = cfg.get("user_id_field", "")
+    if user_field:
+        kwargs[user_field] = user.id
     entity = model(**kwargs)
     db.add(entity)
     await db.commit()
@@ -122,7 +125,11 @@ async def _generic_update(db, user, args, cfg):
     entity_id = args.get(cfg["id_arg_name"], "")
     if not entity_id:
         return {"error": f"请提供 {cfg['id_arg_name']}", "verified": False}
-    entity = (await db.execute(select(model).where(model.id == entity_id))).scalar_one_or_none()
+    query = select(model).where(model.id == entity_id)
+    user_field = cfg.get("user_id_field", "")
+    if user_field:
+        query = query.where(getattr(model, user_field) == user.id)
+    entity = (await db.execute(query)).scalar_one_or_none()
     if not entity:
         return {"error": f"{cfg['name_cn']}不存在", "verified": False}
     for f in cfg.get("update_fields", []):
@@ -137,7 +144,11 @@ async def _generic_delete(db, user, args, cfg):
     entity_id = args.get(cfg["id_arg_name"], "")
     if not entity_id:
         return {"error": f"请提供 {cfg['id_arg_name']}", "verified": False}
-    entity = (await db.execute(select(model).where(model.id == entity_id))).scalar_one_or_none()
+    query = select(model).where(model.id == entity_id)
+    user_field = cfg.get("user_id_field", "")
+    if user_field:
+        query = query.where(getattr(model, user_field) == user.id)
+    entity = (await db.execute(query)).scalar_one_or_none()
     if not entity:
         return {"error": f"{cfg['name_cn']}不存在", "verified": False}
     name = getattr(entity, "name", "")
@@ -174,7 +185,37 @@ _RES_CFG.update({
     "create_fields": ["enterprise_id", "name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
     "update_fields": ["name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
     "order_by": "id",
+}
+
+_ENT_CFG = {
+    "model": Enterprise,
+    "name_cn": "企业",
+    "id_arg_name": "enterprise_id",
+    "return_plural": "enterprise",
+    "display_fields": [],
+    "required_fields": ["name"],
+    "create_fields": ["name", "industry", "address", "employee_count", "phone", "business_scope", "credit_code", "legal_representative"],
+    "update_fields": ["name", "industry", "address", "employee_count", "phone", "business_scope", "credit_code", "legal_representative"],
+    "order_by": "name",
+    "user_id_field": "user_id",
+    "enterprise_check": False,
+}
+
+_PLAN_CFG = dict(_RS_CFG)
+_PLAN_CFG.update({
+    "model": PlanProject,
+    "name_cn": "预案",
+    "id_arg_name": "plan_id",
+    "return_plural": "plans",
+    "display_fields": [],
+    "required_fields": [],
+    "create_fields": [],
+    "update_fields": [],
+    "order_by": "updated_at",
+    "user_id_field": "user_id",
+    "enterprise_check": False,
 })
+)
 
 
 
@@ -268,49 +309,24 @@ async def _autofill_enterprise(db, user, args):
 
 
 async def _create_enterprise(db, user, args):
-    name = args.get("name", "")
-    if not name:
-        return {"error": "企业名称不能为空", "verified": False}
-    ent = Enterprise(
-        id=str(uuid4()), user_id=user.id, name=name,
-        industry=args.get("industry", ""), address=args.get("address", ""),
-        employee_count=args.get("employee_count"),
-        credit_code=args.get("credit_code"), legal_representative=args.get("legal_representative"),
-        phone=args.get("phone"), business_scope=args.get("business_scope"),
-    )
-    db.add(ent)
-    await db.commit()
-    await db.refresh(ent)
-    verify_ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent.id))).scalar_one_or_none()
-    verified = verify_ent is not None
-    return {"id": ent.id, "name": ent.name, "message": "企业创建成功", "verified": verified}
+    try:
+        return await _generic_create(db, user, args, _ENT_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _update_enterprise(db, user, args):
-    ent_id = args.get("enterprise_id", "")
-    if not ent_id:
-        return {"error": "请提供 enterprise_id"}
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()
-    if not ent:
-        return {"error": "企业不存在"}
-    for field in ["name", "industry", "address", "employee_count", "phone", "business_scope", "credit_code", "legal_representative"]:
-        if field in args and args[field] is not None:
-            setattr(ent, field, args[field])
-    await db.commit()
-    return {"id": ent.id, "name": ent.name, "message": "企业更新成功", "verified": True}
+    try:
+        return await _generic_update(db, user, args, _ENT_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _delete_enterprise(db, user, args):
-    ent_id = args.get("enterprise_id", "")
-    if not ent_id:
-        return {"error": "请提供 enterprise_id"}
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()
-    if not ent:
-        return {"error": "企业不存在"}
-    ent_name = ent.name
-    await db.delete(ent)
-    await db.commit()
-    return {"message": f"企业「{ent_name}」已删除", "verified": True}
+    try:
+        return await _generic_delete(db, user, args, _ENT_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 # ── 风险源 ──
@@ -440,16 +456,10 @@ async def _create_plan(db, user, args):
 
 
 async def _delete_plan(db, user, args):
-    plan_id = args.get("plan_id", "")
-    if not plan_id:
-        return {"error": "请提供 plan_id"}
-    p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == user.id))).scalar_one_or_none()
-    if not p:
-        return {"error": "预案不存在"}
-    title = p.title
-    await db.delete(p)
-    await db.commit()
-    return {"message": f"预案「{title}」已删除", "verified": True}
+    try:
+        return await _generic_delete(db, user, args, _PLAN_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 # ── 模板 ──
