@@ -40,7 +40,7 @@ import markdown
 
 import re
 
-from app.services.llm_client import decrypt_api_key
+from app.services.llm_client import decrypt_api_key, llm_chat_completion, llm_collect_all
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import sse_event
 from app.services.prompt_cache import ensure_loaded, get_system_prompt, REGULATION_WRITING_RULE, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
@@ -461,98 +461,26 @@ def _fix_markdown_tables(md_text: str) -> str:
     return '\n'.join(result)
 
 async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*"):
-
-    """Async generator: yields content chunks as they arrive from the LLM."""
-
     try:
-
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
-
-    except Exception:
-
-        raise HTTPException(500, "AI 配置密钥解密失败")
-
-    base = ai_config.base_url or {
-
-        "openai": "https://api.openai.com/v1",
-
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-
-        "deepseek": "https://api.deepseek.com/v1",
-
-    }.get(ai_config.provider, "")
-
-    payload = {
-
-        "model": ai_config.model_name,
-
-        "messages": [
-
+        messages = [
             {"role": "system", "content": _build_system_prompt(plan_type)},
-
             {"role": "user", "content": prompt},
-
-        ],
-
-        "temperature": ai_config.temperature, "max_tokens": ai_config.max_tokens,
-
-        "top_p": ai_config.top_p, "stream": True,
-
-    }
-
-    async with httpx.AsyncClient(timeout=120) as client:
-
-        async with client.stream("POST", f"{base}/chat/completions", json=payload, headers={"Authorization": f"Bearer {api_key}"}) as resp:
-
-            if resp.status_code != 200:
-
-                err = await resp.aread()
-
-                raise Exception(f"AI 调用失败: {resp.status_code} {err[:300]}")
-
-            async for line in resp.aiter_lines():
-
-                if line.startswith("data: "):
-
-                    data = line[6:]
-
-                    if data == "[DONE]":
-
-                        return
-
-                    try:
-
-                        chunk = json.loads(data)
-
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-
-                        content_chunk = delta.get("content", "")
-
-                        if content_chunk:
-
-                            yield content_chunk
-
-                    except json.JSONDecodeError:
-
-                        pass
-
+        ]
+        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
+        async for chunk in gen:
+            yield chunk
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*") -> str:
-
-    """Collect full response (backward compat)."""
-
-    result = ""
-
-    async for chunk in _stream_llm_chunks(prompt, ai_config, plan_type):
-
-        result += chunk
-
-    return result
-
-
-
-
+    messages = [
+        {"role": "system", "content": _build_system_prompt(plan_type)},
+        {"role": "user", "content": prompt},
+    ]
+    return await llm_collect_all(messages, ai_config, timeout=120)
 
 @router.post("/{plan_id}/generate/batch")
 
@@ -1178,98 +1106,26 @@ def _md_to_html(text: str) -> str:
     return markdown.markdown(text, extensions=["tables", "fenced_code"])
 
 async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*"):
-
-    """Async generator: yields content chunks as they arrive from the LLM."""
-
     try:
-
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
-
-    except Exception:
-
-        raise HTTPException(500, "AI 配置密钥解密失败")
-
-    base = ai_config.base_url or {
-
-        "openai": "https://api.openai.com/v1",
-
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-
-        "deepseek": "https://api.deepseek.com/v1",
-
-    }.get(ai_config.provider, "")
-
-    payload = {
-
-        "model": ai_config.model_name,
-
-        "messages": [
-
+        messages = [
             {"role": "system", "content": _build_system_prompt(plan_type)},
-
             {"role": "user", "content": prompt},
-
-        ],
-
-        "temperature": ai_config.temperature, "max_tokens": ai_config.max_tokens,
-
-        "top_p": ai_config.top_p, "stream": True,
-
-    }
-
-    async with httpx.AsyncClient(timeout=120) as client:
-
-        async with client.stream("POST", f"{base}/chat/completions", json=payload, headers={"Authorization": f"Bearer {api_key}"}) as resp:
-
-            if resp.status_code != 200:
-
-                err = await resp.aread()
-
-                raise Exception(f"AI 调用失败: {resp.status_code} {err[:300]}")
-
-            async for line in resp.aiter_lines():
-
-                if line.startswith("data: "):
-
-                    data = line[6:]
-
-                    if data == "[DONE]":
-
-                        return
-
-                    try:
-
-                        chunk = json.loads(data)
-
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-
-                        content_chunk = delta.get("content", "")
-
-                        if content_chunk:
-
-                            yield content_chunk
-
-                    except json.JSONDecodeError:
-
-                        pass
-
+        ]
+        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
+        async for chunk in gen:
+            yield chunk
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*") -> str:
-
-    """Collect full response (backward compat)."""
-
-    result = ""
-
-    async for chunk in _stream_llm_chunks(prompt, ai_config, plan_type):
-
-        result += chunk
-
-    return result
-
-
-
-
+    messages = [
+        {"role": "system", "content": _build_system_prompt(plan_type)},
+        {"role": "user", "content": prompt},
+    ]
+    return await llm_collect_all(messages, ai_config, timeout=120)
 
 @router.post("/{plan_id}/generate/batch")
 
