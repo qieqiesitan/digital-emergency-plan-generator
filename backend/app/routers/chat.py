@@ -278,7 +278,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
             yield sse_line({"type": "conv_id", "content": conv_id})
             yield sse_line({"type": "done"})
             # 保存消息
-                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, text_content))
+            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, text_content))
         return StreamingResponse(text_gen(), media_type="text/event-stream")
 
     # 多轮工具调用循环（最多5轮）
@@ -316,7 +316,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                         yield sse_line({"type": "error", "message": str(e)})
                     yield sse_line({"type": "conv_id", "content": conv_id})
                     yield sse_line({"type": "done"})
-                                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                     return
 
                 yield sse_line({"type": "function_result", "name": fn_name, "result": result_str})
@@ -341,7 +341,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 yield sse_line({"type": "error", "message": str(e)})
                 yield sse_line({"type": "conv_id", "content": conv_id})
                 yield sse_line({"type": "done"})
-                            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                 return
 
             choice = next_resp.get("choices", [{}])[0]
@@ -360,7 +360,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                     yield sse_line({"type": "error", "message": str(e)})
                 yield sse_line({"type": "conv_id", "content": conv_id})
                 yield sse_line({"type": "done"})
-                            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                 return
 
             pending_tool_calls = next_tool_calls
@@ -369,6 +369,6 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         yield sse_line({"type": "error", "message": "操作轮数超过上限，请简化您的问题重试"})
         yield sse_line({"type": "conv_id", "content": conv_id})
         yield sse_line({"type": "done"})
-            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限"))
+        asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限"))
 
     return StreamingResponse(agent_loop(), media_type="text/event-stream")
