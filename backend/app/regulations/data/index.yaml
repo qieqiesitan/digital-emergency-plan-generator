@@ -39,6 +39,7 @@ risk_assessment:
   - reg_355
   - reg_d1583486
   - reg_f5d9fb50
+  - reg_779889ff
 special:
   core:
   - law_fire_protection_2021

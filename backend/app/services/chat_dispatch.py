@@ -54,6 +54,124 @@ async def dispatch(db: AsyncSession, user: User, fn_name: str, args: dict) -> st
 
 
 # ── 仪表盘 ──
+# -- Generic CRUD infrastructure --
+class _ErrorDict(Exception):
+    def __init__(self, data):
+        self.data = data if isinstance(data, dict) else {"error": data, "verified": False}
+
+
+async def _verify_enterprise_ownership(db, user, enterprise_id):
+    ent = (await db.execute(
+        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == user.id)
+    )).scalar_one_or_none()
+    if not ent:
+        raise _ErrorDict({"error": "企业不存在或无权访问", "verified": False})
+    return True
+
+
+# Generic CRUD helpers (list, create, update, delete)
+# Each takes a config dict with: model, name_cn, id_arg_name, return_plural, display_fields,
+# required_fields, create_fields, update_fields, order_by
+# All entity-specific configuration is moved to ENTITY_REGISTRY below.
+
+
+async def _generic_list(db, user, args, cfg):
+    model = cfg["model"]
+    query = select(model)
+    ent_id = args.get("enterprise_id", "")
+    if not ent_id:
+        return {"error": "请提供 enterprise_id", "verified": False}
+    if cfg.get("enterprise_check", True):
+        await _verify_enterprise_ownership(db, user, ent_id)
+    query = query.where(model.enterprise_id == ent_id)
+    order_col = getattr(model, cfg.get("order_by", "id"), model.id)
+    query = query.order_by(order_col)
+    rows = (await db.execute(query.limit(50))).scalars().all()
+    fields = cfg["display_fields"]
+    return {cfg["return_plural"]: [{f: getattr(r, f) for f in fields} for r in rows]}
+
+
+async def _generic_create(db, user, args, cfg):
+    model = cfg["model"]
+    for f in cfg.get("required_fields", []):
+        if not args.get(f):
+            return {"error": f"请提供 {f}", "verified": False}
+    ent_id = args.get("enterprise_id", "")
+    if cfg.get("enterprise_check", True) and ent_id:
+        await _verify_enterprise_ownership(db, user, ent_id)
+    kwargs = {}
+    for f in cfg["create_fields"]:
+        if f in args:
+            kwargs[f] = args[f]
+    if "id" not in kwargs:
+        kwargs["id"] = str(uuid4())
+    entity = model(**kwargs)
+    db.add(entity)
+    await db.commit()
+    return {"id": entity.id, "name": getattr(entity, "name", ""), "message": f"{cfg['name_cn']}创建成功", "verified": True}
+
+
+async def _generic_update(db, user, args, cfg):
+    model = cfg["model"]
+    entity_id = args.get(cfg["id_arg_name"], "")
+    if not entity_id:
+        return {"error": f"请提供 {cfg['id_arg_name']}", "verified": False}
+    entity = (await db.execute(select(model).where(model.id == entity_id))).scalar_one_or_none()
+    if not entity:
+        return {"error": f"{cfg['name_cn']}不存在", "verified": False}
+    for f in cfg.get("update_fields", []):
+        if f in args and args[f] is not None:
+            setattr(entity, f, args[f])
+    await db.commit()
+    return {"id": entity.id, "name": getattr(entity, "name", ""), "message": f"{cfg['name_cn']}更新成功", "verified": True}
+
+
+async def _generic_delete(db, user, args, cfg):
+    model = cfg["model"]
+    entity_id = args.get(cfg["id_arg_name"], "")
+    if not entity_id:
+        return {"error": f"请提供 {cfg['id_arg_name']}", "verified": False}
+    entity = (await db.execute(select(model).where(model.id == entity_id))).scalar_one_or_none()
+    if not entity:
+        return {"error": f"{cfg['name_cn']}不存在", "verified": False}
+    name = getattr(entity, "name", "")
+    await db.delete(entity)
+    await db.commit()
+    return {"message": f"{cfg['name_cn']}「{name}」已删除", "verified": True}
+
+
+# Entity registry - config for each model
+_RS_CFG = {
+    "model": None, "name_cn": None, "id_arg_name": None, "return_plural": None,
+    "display_fields": None, "required_fields": None, "create_fields": None,
+    "update_fields": None, "order_by": None, "enterprise_check": True,
+}
+_RES_CFG = dict(_RS_CFG)
+_RS_CFG.update({
+    "model": RiskSource,
+    "name_cn": "风险源",
+    "id_arg_name": "risk_source_id",
+    "return_plural": "risk_sources",
+    "display_fields": ["id", "name", "categories", "risk_level", "location", "description", "control_measures"],
+    "required_fields": ["enterprise_id", "name"],
+    "create_fields": ["enterprise_id", "name", "categories", "location", "description", "risk_level", "control_measures", "likelihood", "severity"],
+    "update_fields": ["name", "categories", "location", "description", "risk_level", "control_measures", "likelihood", "severity"],
+    "order_by": "sort_order",
+})
+_RES_CFG.update({
+    "model": EmergencyResource,
+    "name_cn": "应急资源",
+    "id_arg_name": "resource_id",
+    "return_plural": "resources",
+    "display_fields": ["id", "name", "category", "quantity", "unit", "location", "responsible_person", "contact_phone"],
+    "required_fields": ["enterprise_id", "name"],
+    "create_fields": ["enterprise_id", "name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
+    "update_fields": ["name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
+    "order_by": "id",
+})
+
+
+
 
 async def _get_dashboard(db, user, args):
     ent_count = (await db.execute(select(func.count(Enterprise.id)).where(Enterprise.user_id == user.id))).scalar() or 0
@@ -193,107 +311,69 @@ async def _delete_enterprise(db, user, args):
 # ── 风险源 ──
 
 async def _list_risk_sources(db, user, args):
-    ent_id = args.get("enterprise_id", "")
-    if not ent_id:
-        return {"error": "请提供 enterprise_id"}
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()
-    if not ent:
-        return {"error": "企业不存在"}
-    rows = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id == ent_id).order_by(RiskSource.sort_order))).scalars().all()
-    return {"risk_sources": [{"id": r.id, "name": r.name, "categories": r.categories, "risk_level": r.risk_level, "location": r.location, "description": r.description, "control_measures": r.control_measures} for r in rows]}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_list(db, user, args, _RS_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _create_risk_source(db, user, args):
-    ent_id = args.get("enterprise_id", "")
-    name = args.get("name", "")
-    if not ent_id or not name:
-        return {"error": "请提供 enterprise_id 和 name"}
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()
-    if not ent:
-        return {"error": "企业不存在"}
-    rs = RiskSource(id=str(uuid4()), enterprise_id=ent_id, name=name, categories=args.get("categories", ""), location=args.get("location"), description=args.get("description"), risk_level=args.get("risk_level"), control_measures=args.get("control_measures"), likelihood=args.get("likelihood", 3), severity=args.get("severity", 3))
-    db.add(rs)
-    await db.commit()
-    return {"id": rs.id, "name": rs.name, "message": "风险源创建成功", "verified": True}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_create(db, user, args, _RS_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _update_risk_source(db, user, args):
-    rs_id = args.get("risk_source_id", "")
-    if not rs_id:
-        return {"error": "请提供 risk_source_id"}
-    rs = (await db.execute(select(RiskSource).where(RiskSource.id == rs_id))).scalar_one_or_none()
-    if not rs:
-        return {"error": "风险源不存在"}
-    for field in ["name", "categories", "location", "description", "risk_level", "control_measures", "likelihood", "severity"]:
-        if field in args and args[field] is not None:
-            setattr(rs, field, args[field])
-    await db.commit()
-    return {"id": rs.id, "name": rs.name, "message": "风险源更新成功", "verified": True}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_update(db, user, args, _RS_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _delete_risk_source(db, user, args):
-    rs_id = args.get("risk_source_id", "")
-    if not rs_id:
-        return {"error": "请提供 risk_source_id"}
-    rs = (await db.execute(select(RiskSource).where(RiskSource.id == rs_id))).scalar_one_or_none()
-    if not rs:
-        return {"error": "风险源不存在"}
-    await db.delete(rs)
-    await db.commit()
-    return {"message": f"风险源「{rs.name}」已删除", "verified": True}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_delete(db, user, args, _RS_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 # ── 应急资源 ──
 
 async def _list_resources(db, user, args):
-    ent_id = args.get("enterprise_id", "")
-    if not ent_id:
-        return {"error": "请提供 enterprise_id"}
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()
-    if not ent:
-        return {"error": "企业不存在"}
-    rows = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == ent_id))).scalars().all()
-    return {"resources": [{"id": r.id, "name": r.name, "category": r.category, "quantity": r.quantity, "unit": r.unit, "location": r.location, "responsible_person": r.responsible_person, "contact_phone": r.contact_phone} for r in rows]}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_list(db, user, args, _RES_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _create_resource(db, user, args):
-    ent_id = args.get("enterprise_id", "")
-    name = args.get("name", "")
-    if not ent_id or not name:
-        return {"error": "请提供 enterprise_id 和 name"}
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()
-    if not ent:
-        return {"error": "企业不存在"}
-    res = EmergencyResource(id=str(uuid4()), enterprise_id=ent_id, name=name, category=args.get("category", ""), specification=args.get("specification"), quantity=args.get("quantity", 0), unit=args.get("unit"), location=args.get("location"), responsible_person=args.get("responsible_person"), contact_phone=args.get("contact_phone"))
-    db.add(res)
-    await db.commit()
-    return {"id": res.id, "name": res.name, "message": "应急资源创建成功", "verified": True}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_create(db, user, args, _RES_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _update_resource(db, user, args):
-    res_id = args.get("resource_id", "")
-    if not res_id:
-        return {"error": "请提供 resource_id"}
-    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == res_id))).scalar_one_or_none()
-    if not r:
-        return {"error": "应急资源不存在"}
-    for field in ["name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"]:
-        if field in args and args[field] is not None:
-            setattr(r, field, args[field])
-    await db.commit()
-    return {"id": r.id, "name": r.name, "message": "应急资源更新成功", "verified": True}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_update(db, user, args, _RES_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 async def _delete_resource(db, user, args):
-    res_id = args.get("resource_id", "")
-    if not res_id:
-        return {"error": "请提供 resource_id"}
-    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == res_id))).scalar_one_or_none()
-    if not r:
-        return {"error": "应急资源不存在"}
-    await db.delete(r)
-    await db.commit()
-    return {"message": f"应急资源「{r.name}」已删除", "verified": True}
+    """Delegate to generic CRUD."""
+    try:
+        return await _generic_delete(db, user, args, _RES_CFG)
+    except _ErrorDict as e:
+        return e.data
 
 
 # ── 预案 ──
