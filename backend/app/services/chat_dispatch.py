@@ -185,7 +185,7 @@ _RES_CFG.update({
     "create_fields": ["enterprise_id", "name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
     "update_fields": ["name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
     "order_by": "id",
-}
+})
 
 _ENT_CFG = {
     "model": Enterprise,
@@ -215,7 +215,7 @@ _PLAN_CFG.update({
     "user_id_field": "user_id",
     "enterprise_check": False,
 })
-)
+
 
 
 
