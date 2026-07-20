@@ -145,43 +145,22 @@ def get_history(regulation_id: str = None, action: str = None,
 
 # ── AI 解析 ──
 
-PARSE_PROMPT = """你是一位安全生产法规数据库录入助手。请从以下法规/标准全文文本中提取结构化信息。
+PARSE_META_PROMPT = """你是一位安全生产法规数据库录入助手。请从以下法规/标准全文文本中提取元数据。
 
-输入文本：
+输入文本（仅展示开头部分）：
 {raw_text}
 
-请仔细提取以下字段。注意：编号、日期、替代关系、上位法依据是必须精确提取的核心字段！
+请仔细提取以下字段：
 
-1. 法规编号（核心字段）：从文本开头或标题附近查找，常见格式有：
-   - 国家标准：GB/T 29639-2020、GB 18218-2018 等
-   - 主席令：主席令第88号、中华人民共和国主席令第XX号
-   - 部门规章：应急管理部令第X号、安监总局令第XX号
-   - 行业标准：AQ/T 9002-2006 等
-   如果文本中确实没有编号，则写"未提供"，但务必仔细查找！
-
+1. 法规编号：从文本开头或标题附近查找（如 GB/T 29639-2020、主席令第88号等）
 2. 法规全称：文本开头或标题行的完整名称
-
 3. 发布机关：发布日期前的发文机关全称
-
-4. 发布日期：常见格式如"2020年3月6日发布"、"二〇二〇年三月六日"
-
-5. 施行日期（核心字段）：常见格式"自2020年10月1日起施行"、"2021年6月1日实施"
-
-6. 替代关系（核心字段）：查找"替代"、"代替"、"废止"等关键词，列出被替代的法规编号
-   例：["GB/T 29639-2013", "AQ/T 9002-2006"]
-
-7. 上位法依据（核心字段）：通常在"依据"、"根据"后列出，如"根据《中华人民共和国安全生产法》"等
-
-8. 适用主题标签：必须从以下标准列表中选择1-5个最匹配的：
-   风险评估、危险辨识、危险化学品、重大危险源、事故分类、
-   应急管理、应急预案、应急预案编制、应急演练、应急响应、
-   应急救援、应急救援物资、应急资源、应急资源调查、
-   消防安全、灭火器、特殊作业、安全培训、安全评价、
-   职业健康、特种设备、备案、演练、评估
-
+4. 发布日期
+5. 施行日期
+6. 替代关系：查找替代、代替、废止等关键词
+7. 上位法依据：通常在依据、根据后列出
+8. 适用主题标签：从标准列表中选择1-5个
 9. 法规类型：law（法律）、standard（标准）、policy（政策）
-
-10. 条文清单：按条款编号逐条提取，每条标注"第X条"编号和完整原文，不要合并或省略
 
 只返回纯JSON，不要任何解释文字：
 {
@@ -193,9 +172,44 @@ PARSE_PROMPT = """你是一位安全生产法规数据库录入助手。请从�
   "replaces": ["GB/T 29639-2013"],
   "based_on": ["中华人民共和国安全生产法", "生产安全事故应急预案管理办法"],
   "node_type": "standard",
-  "topics": ["应急预案编制", "应急管理", "应急演练"],
-  "articles": [{"number": "第一条", "text": "..."}, {"number": "第二条", "text": "..."}]
+  "topics": ["应急预案编制", "应急管理", "应急演练"]
 }"""
+
+
+
+# ── 条文程序化提取（替代 LLM 提取，解决长文本截断问题）──
+
+
+def _extract_articles_from_text(text: str) -> list[dict]:
+    """从法规原文中提取所有条文，逐条编号。"""
+    import re as _re
+    articles = []
+    # 匹配第X条模式
+    pattern = _re.compile(
+        r"(?:^|\n)[\s　]*(?:#+[\s　]*)?第[\s　]*"
+        r"(?:[零一二三四五六七八九十百千\d]+)"
+        r"[\s　]*条",
+        _re.MULTILINE
+    )
+    matches = list(pattern.finditer(text))
+    if not matches:
+        # 兜底：按数字编号分割
+        pattern2 = _re.compile(r"(?:^|\n)[\s　]*(?:#+[\s　]*)?(\d+)[.、）]\s*", _re.MULTILINE)
+        matches = list(pattern2.finditer(text))
+    if not matches:
+        return [{"number": "全文", "text": text.strip()[:5000]}]
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        block = text[start:end].strip()
+        if not block:
+            continue
+        lines_b = block.split("\n", 1)
+        number = _re.sub(r"^[#\s　]*", "", lines_b[0]).strip()
+        body = lines_b[1].strip() if len(lines_b) > 1 else ""
+        if body and len(body) > 5:
+            articles.append({"number": number, "text": body[:5000]})
+    return articles
 
 
 async def ai_parse(raw_text: str, ai_config) -> dict:
@@ -214,7 +228,9 @@ async def ai_parse(raw_text: str, ai_config) -> dict:
         "deepseek": "https://api.deepseek.com/v1",
     }.get(ai_config.provider, "")
 
-    prompt = PARSE_PROMPT.replace("{raw_text}", raw_text)
+    # ── 两阶段解析：AI 提取元数据 + 程序化提取条文 ──
+    preview = raw_text[:5000]
+    prompt = PARSE_META_PROMPT.replace("{raw_text}", preview)
 
     payload = {
         "model": ai_config.model_name,
@@ -223,9 +239,21 @@ async def ai_parse(raw_text: str, ai_config) -> dict:
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.1,
-        "max_tokens": ai_config.max_tokens,
-        
+        "max_tokens": min(4096, ai_config.max_tokens or 16384),
     }
+
+    import httpx
+    from app.routers.generation import _decrypt_api_key
+    try:
+        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+    except Exception:
+        raise Exception("API Key 解密失败，请前往 设置->AI配置 重新输入并保存 API Key")
+
+    base = ai_config.base_url or {
+        "openai": "https://api.openai.com/v1",
+        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "deepseek": "https://api.deepseek.com/v1",
+    }.get(ai_config.provider, "")
 
     async with httpx.AsyncClient(timeout=600) as client:
         resp = await client.post(
@@ -240,36 +268,34 @@ async def ai_parse(raw_text: str, ai_config) -> dict:
             raise Exception(f"AI API 错误 (HTTP {resp.status_code}): {detail}")
 
         data = resp.json()
-        logger.info("DeepSeek response status: %s, model: %s", resp.status_code, data.get("model", ""))
+        logger.info("AI parse status: %s, model: %s", resp.status_code, data.get("model", ""))
         text = data["choices"][0]["message"]["content"]
 
-        # 尝试直接解析
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
-
-        # 提取 ```json ... ``` 代码块
-        m = re.search(r"```(?:json)?[\s]*\n?(.*?)\n?```", text, re.DOTALL)
-        if m:
+        # 解析元数据 JSON
+        import re as _re
+        import json as _json
+        metadata = None
+        for extractor in [
+            lambda t: _json.loads(t),
+            lambda t: _json.loads(_re.search(r"```(?:json)?[\s]*\n?(.*?)\n?```", t, _re.DOTALL).group(1)) if _re.search(r"```(?:json)?[\s]*\n?(.*?)\n?```", t, _re.DOTALL) else None,
+            lambda t: _json.loads(_re.search(r"\{.*\}", t, _re.DOTALL).group(0)) if _re.search(r"\{.*\}", t, _re.DOTALL) else None,
+        ]:
             try:
-                return json.loads(m.group(1).strip())
-            except json.JSONDecodeError:
-                pass
+                metadata = extractor(text)
+                if metadata:
+                    break
+            except (_json.JSONDecodeError, AttributeError, IndexError):
+                continue
 
-        # 提取第一个 { ... } 对象
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except json.JSONDecodeError:
-                pass
+        if not metadata:
+            logger.warning("AI parse failed - raw: %s", text[:300])
+            raise Exception("AI 返回内容不是合法 JSON，请重试。如持续失败，可能是 API Key 无效或余额不足")
 
-        logger.warning("AI raw response (first 500 chars): %s", text[:500])
-        raise Exception("AI 返回内容不是合法 JSON，请重试。如持续失败，可能是 API Key 无效或余额不足")
-
-
-# ── 入库 ──
+    # 第二阶段：程序化提取全部条文
+    articles = _extract_articles_from_text(raw_text)
+    metadata["articles"] = articles
+    logger.info("AI parse done: %d articles extracted (AI metadata + local articles)", len(articles))
+    return metadata
 
 def ingest_regulation(parsed: dict, regulation_id: str,
                       operator: str = "admin",

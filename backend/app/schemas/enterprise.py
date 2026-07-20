@@ -31,7 +31,8 @@ class SurroundingInfo(BaseModel):
     sensitive_targets: list[SensitiveTarget] = []
     traffic_info: str = ""
 
-class EnterpriseCreate(BaseModel):
+class EnterpriseBase(BaseModel):
+    """企业共享字段。Create/Update/Response 继承此基类，消除字段重复定义。"""
     name: str
     address: str | None = None
     industry: str | None = None
@@ -64,69 +65,24 @@ class EnterpriseCreate(BaseModel):
     gis_lat: float | None = None
     gis_lng: float | None = None
 
-class EnterpriseUpdate(BaseModel):
-    name: str | None = None
-    address: str | None = None
-    industry: str | None = None
-    business_scope: str | None = None
-    employee_count: int | None = None
-    credit_code: str | None = None
-    legal_representative: str | None = None
-    economic_type: str | None = None
-    established_date: str | None = None
-    registered_capital: float | None = None
-    phone: str | None = None
-    fax: str | None = None
-    postal_code: str | None = None
-    land_area: float | None = None
-    building_area: float | None = None
-    safety_officer: str | None = None
-    safety_officer_phone: str | None = None
-    safety_staff_count: int | None = None
-    safety_standardization: str | None = None
-    fire_approval: str | None = None
-    fire_approval_date: str | None = None
-    last_plan_filing_date: str | None = None
-    last_plan_filing_authority: str | None = None
-    main_products: str | None = None
-    annual_capacity: str | None = None
-    hazardous_chemicals: str | None = None
-    special_equipment: str | None = None
-    building_overview: str | None = None
-    floor_plan_url: str | None = None
-    gis_lat: float | None = None
-    gis_lng: float | None = None
 
-class EnterpriseResponse(BaseModel):
+class EnterpriseCreate(EnterpriseBase):
+    """创建企业。name 从 EnterpriseBase 继承为必填。"""
+    pass
+
+
+class EnterpriseUpdate(EnterpriseBase):
+    """更新企业。所有字段均为可选，包括 name。"""
+    name: str | None = None  # 覆盖为可选
+
+class EnterpriseResponse(EnterpriseBase):
+    """企业响应。包含 EnterpriseBase 所有字段 + 额外响应字段。"""
     id: str
-    name: str
-    address: str | None
-    industry: str | None
-    business_scope: str | None
-    employee_count: int | None
-    credit_code: str | None = None
-    legal_representative: str | None = None
-    economic_type: str | None = None
     established_date: DatetimeStr | None = None
-    registered_capital: float | None = None
-    phone: str | None = None
-    fax: str | None = None
-    postal_code: str | None = None
-    land_area: float | None = None
-    building_area: float | None = None
-    safety_officer: str | None = None
-    safety_officer_phone: str | None = None
-    safety_staff_count: int | None = None
-    safety_standardization: str | None = None
-    fire_approval: str | None = None
     fire_approval_date: DatetimeStr | None = None
     last_plan_filing_date: DatetimeStr | None = None
     last_plan_filing_authority: str | None = None
-    main_products: str | None = None
-    annual_capacity: str | None = None
-    hazardous_chemicals: str | None = None
-    special_equipment: str | None = None
-    building_overview: str | None
+    building_overview: str | None = None
     org_structure: list = []
     surrounding_info: dict | None = None
     floor_plan_url: str | None = None
@@ -139,8 +95,6 @@ class EnterpriseResponse(BaseModel):
     updated_at: DatetimeStr
 
     model_config = {"from_attributes": True}
-
-# ── Autofill ──
 
 class AutofillRequest(BaseModel):
     name: str
