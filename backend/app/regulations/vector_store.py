@@ -59,6 +59,7 @@ class RegulationVectorStore:
         for a in articles:
             meta = dict(a.get("metadata", {}))
             meta["regulation_id"] = regulation_id
+            meta["article_number"] = a.get("number", "")
             metadatas.append(meta)
 
         if embedding_fn:
@@ -99,7 +100,29 @@ class RegulationVectorStore:
                 })
         return output
 
-    # ── 管理 ──
+    def search_articles(self, query: str, top_k: int = 20,
+                        filter_ids: list[str] = None) -> list[dict]:
+        """Article-level semantic search with wider recall."""
+        self.ensure_collection()
+        if self._collection.count() == 0:
+            return []
+        where = {"regulation_id": {"$in": filter_ids}} if filter_ids else None
+        n = min(top_k * 2, self._collection.count())
+        try:
+            results = self._collection.query(
+                query_texts=[query], n_results=n, where=where)
+        except Exception:
+            logger.warning("ChromaDB query failed")
+            return []
+        output = []
+        if results.get("documents") and results["documents"][0]:
+            for i, doc in enumerate(results["documents"][0]):
+                meta = results["metadatas"][0][i] if results.get("metadatas") else {}
+                output.append({"text": doc, "metadata": meta,
+                               "distance": results["distances"][0][i] if results.get("distances") else 0})
+        return output[:top_k]
+
+    # management
 
     def delete_regulation(self, regulation_id: str) -> int:
         self.ensure_collection()

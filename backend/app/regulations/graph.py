@@ -90,6 +90,79 @@ class RegulationGraph:
         return {"effective": effective, "abolished": abolished}
         return {"effective": effective, "abolished": abolished, "core_ids": core_ids}
 
+    # ── article sub-node management (V1.0) ──
+
+    def add_article_node(self, regulation_id, article):
+        import re as _re
+        num = article.get("number", "")
+        safe = _re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]", "_", num)
+        aid = "art_%s_%s" % (regulation_id, safe)
+        if aid in self._g:
+            self._g.nodes[aid].update({
+                "article_text": article.get("text",""),
+                "updated_at": _now()})
+            return aid
+        self._g.add_node(aid, label=num,
+                        full_name=article.get("title", num),
+                        node_type="article", status="effective",
+                        article_number=num,
+                        article_text=article.get("text",""),
+                        parent_regulation=regulation_id,
+                        topics=article.get("topics",[]),
+                        created_at=_now(), updated_at=_now())
+        self._g.add_edge(aid, regulation_id, relation="belongs_to")
+        return aid
+
+    def get_articles_by_regulation(self, regulation_id):
+        result = []
+        for nid, data in list(self._g.nodes(data=True)):
+            if data.get("node_type") == "article" and data.get("parent_regulation") == regulation_id:
+                node = dict(data)
+                node["id"] = nid
+                result.append(node)
+        return sorted(result, key=lambda a: a.get("article_number", ""))
+
+    def set_article_status(self, article_id, status, superseded_by=""):
+        if article_id not in self._g:
+            return False
+        self._g.nodes[article_id]["status"] = status
+        self._g.nodes[article_id]["updated_at"] = _now()
+        if superseded_by:
+            self._g.nodes[article_id]["superseded_by"] = superseded_by
+        return True
+
+    def get_effective_articles(self, regulation_id):
+        return [a for a in self.get_articles_by_regulation(regulation_id)
+                if a.get("status") != "abolished"]
+
+    def query_articles_by_plan_type(self, plan_type):
+        plan_regs = self.query_by_plan_type(plan_type)
+        articles = []
+        for reg in plan_regs.get("effective", []):
+            articles.extend(self.get_articles_by_regulation(reg["id"]))
+        return articles
+
+    def infer_article_topics(self, article_text: str, reg_topics: list[str] = None) -> list[str]:
+        """从条文文本中推断 topic 标签。"""
+        if not article_text:
+            return []
+        from app.regulations.scorer import TopicValidator
+        matched = []
+        text_lower = article_text.lower()
+        reg_topics = reg_topics or []
+        for canonical in TopicValidator.VALID_TOPICS:
+            candidates = [canonical] + TopicValidator.ALIASES.get(canonical, [])
+            for cand in candidates:
+                cnt = text_lower.count(cand.lower())
+                if cnt >= 2:
+                    matched.append(canonical)
+                    break
+                if cnt == 1 and canonical in reg_topics:
+                    matched.append(canonical)
+                    break
+        return list(set(matched))
+
+
     def query_by_topic(self, topic: str, limit: int = 10) -> list[dict]:
         """按主题标签查询法规。"""
         results = []
@@ -192,7 +265,12 @@ class RegulationGraph:
             node = dict(data)
             node["id"] = nid
             # 默认隐藏 topic（除非明确筛选"主题"类型）
+            # Always hide article sub-nodes
+            if node.get("node_type") == "article":
+                continue
+            # Hide topics by default (show only if explicitly requested)
             if node.get("node_type") == "topic" and (not node_type or node_type == "all"):
+                continue
                 continue
             if node_type and node_type != "all" and node.get("node_type") != node_type:
                 continue
@@ -205,6 +283,9 @@ class RegulationGraph:
                 code = (node.get("code") or "").lower()
                 if kw not in label and kw not in full and kw not in code:
                     continue
+            # Fallback identifiers
+            if not node.get("code") and not node.get("label") and not node.get("full_name"):
+                node["code"] = node.get("id", nid)
             results.append(node)
 
         results.sort(key=lambda n: n.get("updated_at", ""), reverse=True)
@@ -215,18 +296,23 @@ class RegulationGraph:
 
     def stats(self) -> dict:
         """统计信息。"""
-        nodes = [(nid, d) for nid, d in self._g.nodes(data=True) if d.get("node_type") != "topic"]
+        nodes = [(nid, d) for nid, d in self._g.nodes(data=True) if d.get("node_type") not in ("topic", "article")]
         total = len(nodes)
         effective = sum(1 for _, d in nodes if d.get("status") != "abolished")
         abolished = total - effective
         return {"total": total, "effective": effective, "abolished": abolished}
 
     def all_nodes(self) -> list[dict]:
-        """返回所有节点（用于前端图谱渲染）。"""
+        """返回所有节点（用于前端图谱渲染）。仅 article 子节点不返回。"""
         results = []
         for nid, data in self._g.nodes(data=True):
             node = dict(data)
+            if node.get("node_type") == "article":
+                continue
             node["id"] = nid
+            # Fallback identifiers for nodes without code/label
+            if not node.get("code") and not node.get("label") and not node.get("full_name"):
+                node["code"] = nid
             results.append(node)
         return results
 

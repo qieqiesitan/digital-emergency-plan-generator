@@ -25,41 +25,36 @@ interface SimNode {
 }
 
 function simulate(nodes: SimNode[], edges: { source: string; target: string }[], W: number, H: number) {
-  // Init positions in rough type-based clusters
-  const groups: Record<string, SimNode[]> = {};
+  const idealSpacing = 130;
+  const repulsionK = idealSpacing * idealSpacing;
+  const totalIter = 500;
+
+  // Random initial positions — spread across full canvas
   for (const n of nodes) {
-    const t = n.data.node_type || "topic";
-    (groups[t] = groups[t] || []).push(n);
+    n.x = n.radius + Math.random() * (W - 2 * n.radius);
+    n.y = n.radius + Math.random() * (H - 2 * n.radius);
+    n.vx = 0; n.vy = 0;
   }
-  const keys = Object.keys(groups);
-  for (let i = 0; i < keys.length; i++) {
-    const g = groups[keys[i]];
-    const angle = (2 * Math.PI * i) / keys.length;
-    const cx = W / 2 + Math.cos(angle) * 280;
-    const cy = H / 2 + Math.sin(angle) * 200;
-    for (let j = 0; j < g.length; j++) {
-      const a = (2 * Math.PI * j) / g.length;
-      const r = 60 + g.length * 8;
-      g[j].x = cx + Math.cos(a) * r;
-      g[j].y = cy + Math.sin(a) * r;
-      g[j].vx = 0; g[j].vy = 0;
-    }
-  }
-  // Force simulation
-  for (let iter = 0; iter < 150; iter++) {
-    const alpha = 1 - iter / 150;
+
+  // Force-directed layout: inverse-square repulsion + edge springs
+  for (let iter = 0; iter < totalIter; iter++) {
+    const alpha = 1 - iter / totalIter;
+    // Repulsion — inverse-square (electric-charge-like)
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const dx = nodes[j].x - nodes[i].x;
         const dy = nodes[j].y - nodes[i].y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const force = alpha * 8 * (nodes[i].radius + nodes[j].radius + 80) / dist;
+        const minDist = nodes[i].radius + nodes[j].radius + 6;
+        const effDist = Math.max(dist, minDist);
+        const force = alpha * repulsionK / (effDist * effDist);
         nodes[i].vx -= (dx / dist) * force;
         nodes[i].vy -= (dy / dist) * force;
         nodes[j].vx += (dx / dist) * force;
         nodes[j].vy += (dy / dist) * force;
       }
     }
+    // Edge attraction — springs
     for (const e of edges) {
       const s = nodes.find((n) => n.id === e.source);
       const t = nodes.find((n) => n.id === e.target);
@@ -67,18 +62,17 @@ function simulate(nodes: SimNode[], edges: { source: string; target: string }[],
       const dx = t.x - s.x;
       const dy = t.y - s.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const ideal = s.radius + t.radius + 160;
-      const force = alpha * 0.25 * (dist - ideal) / dist;
+      const ideal = s.radius + t.radius + 100;
+      const force = alpha * 0.08 * (dist - ideal) / dist;
       s.vx += dx * force;
       s.vy += dy * force;
       t.vx -= dx * force;
       t.vy -= dy * force;
     }
+    // Apply velocities — heavy damping, no center gravity
     for (const n of nodes) {
-      n.vx += (W / 2 - n.x) * 0.0005 * alpha;
-      n.vy += (H / 2 - n.y) * 0.0005 * alpha;
-      n.vx *= 0.88;
-      n.vy *= 0.88;
+      n.vx *= 0.65;
+      n.vy *= 0.65;
       n.x += n.vx;
       n.y += n.vy;
       n.x = Math.max(n.radius, Math.min(W - n.radius, n.x));
@@ -129,7 +123,7 @@ export function RegulationGraph() {
 
   useEffect(() => {
     if (!data) return;
-    const W = 1000, H = 650;
+    const W = 1400, H = 900;
     let filtered = data.nodes.filter(
       (n) => n.status !== "abolished" || n.node_type === "topic"
     );
@@ -229,7 +223,7 @@ export function RegulationGraph() {
           }}>
             <svg
               ref={svgRef}
-              viewBox="0 0 1000 650"
+              viewBox="0 0 1400 900"
               style={{
                 width: "100%", height: 520, display: "block",
                 cursor: dragRef.current ? "grabbing" : "grab",
@@ -311,7 +305,7 @@ export function RegulationGraph() {
                         {n.data.node_type === "law" ? "法" : n.data.node_type === "standard" ? "标" : n.data.node_type === "policy" ? "政" : "题"}
                       </text>
                       <text x={n.x} y={n.y + n.radius + 14} textAnchor="middle" fontSize={11} fontWeight={600} fill={isSel ? c : "#333"}>
-                        {(n.data.code || n.data.label).slice(0, 16)}
+                        {(n?.data?.code || n?.data?.label || "").slice(0, 16)}
                       </text>
                     </g>
                   );
@@ -326,7 +320,7 @@ export function RegulationGraph() {
               background: "rgba(255,255,255,0.85)", border: "1px solid #e8e8e8",
               overflow: "hidden", boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
             }}>
-              <svg width={120} height={80} viewBox="0 0 1000 650">
+              <svg width={120} height={80} viewBox="0 0 1400 900">
                 <rect width={1000} height={650} fill="#f0f2f5" />
                 {edges.map((e, i) => {
                   const s = nodes.find((n) => n.id === e.source);
@@ -417,7 +411,7 @@ export function RegulationGraph() {
                             {e.relation}
                           </Tag>
                           <Text ellipsis style={{ maxWidth: 180 }}>
-                            {otherNode?.data?.code || otherNode?.data?.label || other}
+                            {(otherNode?.data?.code || otherNode?.data?.label || other)}
                           </Text>
                         </div>
                       );

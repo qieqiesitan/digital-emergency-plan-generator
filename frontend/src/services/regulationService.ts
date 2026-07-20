@@ -1,4 +1,4 @@
-import api from "./api";
+﻿import api from "./api";
 import type {
   RegulationNode, RegulationListParams, RegulationListResponse,
   RegulationParseResult, RegulationCreateRequest, RegulationStats,
@@ -52,7 +52,7 @@ export async function abolishRegulation(id: string, replacedBy: string): Promise
 }
 
 export async function fetchRegulationGraph(): Promise<RegulationGraphData> {
-  const res = await api.get("/regulations/graph/data");
+  const res = await api.get("/regulations/graph-data");
   return res.data.data;
 }
 

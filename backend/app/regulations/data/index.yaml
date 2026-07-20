@@ -1,43 +1,143 @@
-comprehensive:
-  core:
-  - law_safety_production_2021
-  - law_emergency_response_2007
-  - policy_plan_management_2019
-  - policy_emergency_regulation_2019
-  - std_gbt29639_2020
-  optional:
-  - law_fire_protection_2021
-  - law_work_safety_2018
-onsite:
-  core:
-  - law_safety_production_2021
-  - policy_plan_management_2019
-  - std_gbt29639_2020
-  optional: []
-resource_investigation:
-  core:
-  - law_safety_production_2021
-  - policy_plan_management_2019
-  - policy_emergency_regulation_2019
-  - gb30077_2023
-  optional:
-  - gbt38565_2020
 risk_assessment:
   core:
-  - law_safety_production_2021
-  - std_gbt13861_2022
   - gb18218_2018
-  - gb6441_1986
-  - std_aqt8001_2007
+  - gb30871_2022
+  - reg_aq_t_3046_2013
+  - reg______612_
+  - reg________6_
+  - reg_______60_
+  - reg______466_
+  - reg______344_
+  - reg_______57_
+  - reg_______________41_
+  - reg___________37_
+  - reg_______________55_
+  - reg_ba6311cf
   optional:
-  - gb50140_2005
+  - gb30077_2023
+  - gb6441_1986
+  - law_safety_production_2021
+  - std_gbt29639_2020
+  - reg____
+  - reg________20_
+  - reg______394_
+  - reg__________21_
+  - reg______302_
+  - reg______128_
+  - reg______352_
+  - reg______639_
+  - reg________34_
+  - reg_______________38_
+  - reg_______39_
+  - reg______455_
+  - reg_______________93_
+  - reg_______________91_
+  - reg______445_
+  - reg______406_
+  - reg_db84c1ff
+  - reg_9d1dbd2f
+  - reg_355
+  - reg_d1583486
+  - reg_f5d9fb50
 special:
   core:
-  - law_safety_production_2021
-  - law_emergency_response_2007
-  - policy_plan_management_2019
-  - std_gbt29639_2020
-  - std_aqt9007_2019
-  optional:
   - law_fire_protection_2021
+  - reg________5_
+  - reg___________58_
+  - reg______120_
+  - reg_b7adaca1
+  - reg_f5d9fb50
+  optional:
+  - gb18218_2018
   - gb30871_2022
+  - gb50140_2005
+  - reg_aq_t_3046_2013
+  - reg______302_
+  - reg_______60_
+  - reg______121_
+  - reg______393_
+  - reg______466_
+  - reg______352_
+  - reg_______________30_
+  - reg______639_
+  - reg______344_
+  - reg_______57_
+  - reg_______________41_
+  - reg_______________55_
+  - reg______455_
+  - reg_______________93_
+  - reg______445_
+  - reg______406_
+  - reg_7beffe4d
+  - reg_532c28de
+  - reg_201
+  - reg_355
+  - reg_ba6311cf
+resource_investigation:
+  core:
+  - gb30077_2023
+  - gbt38565_2020
+  - std_gbt29639_2020
+  - reg_gb_t30676_2014
+  optional:
+  - reg____2006_24_
+comprehensive:
+  core:
+  - std_gbt29639_2020
+  optional:
+  - law_emergency_response_2007
+  - law_fire_protection_2021
+  - law_safety_production_2021
+  - policy_emergency_regulation_2019
+  - policy_plan_management_2019
+  - reg____
+  - reg______394_
+  - reg__________21_
+  - reg______599_
+  - reg______432_
+  - reg_______________20_
+  - reg________5_
+  - reg________6_
+  - reg____2013_8_
+  - reg____2006_24_
+  - reg______302_
+  - reg______124_
+  - reg______393_
+  - reg______166_
+  - reg________16_
+  - reg______172_
+  - reg_______________88_
+  - reg______708_
+  - reg______352_
+  - reg______639_
+  - reg________34_
+  - reg_____2024_5_
+  - reg______344_
+  - reg_______________38_
+  - reg_______________55_
+  - reg_______39_
+  - reg______406_
+  - reg______86_
+  - reg_0ee323e4
+  - reg_4
+  - reg_201
+  - reg_9d1dbd2f
+  - reg_d1583486
+  - reg_77777dc0
+  - reg_ba6311cf
+onsite:
+  core:
+  - std_gbt29639_2020
+  optional:
+  - law_emergency_response_2007
+  - law_fire_protection_2021
+  - law_safety_production_2021
+  - policy_emergency_regulation_2019
+  - policy_plan_management_2019
+  - reg______708_
+  - reg______352_
+  - reg______432_
+  - reg______86_
+  - reg_0ee323e4
+  - reg_9d1dbd2f
+  - reg_d1583486

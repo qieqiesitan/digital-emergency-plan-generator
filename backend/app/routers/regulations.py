@@ -1,4 +1,4 @@
-"""法规库管理 API — CRUD + AI解析 + 废止 + 图谱 + 索引 + 历史 + 源文件。"""
+﻿"""法规库管理 API — CRUD + AI解析 + 废止 + 图谱 + 索引 + 历史 + 源文件。"""
 
 import json
 import logging
@@ -175,6 +175,21 @@ async def check_duplicate(body: dict, _: User = Depends(get_current_user)):
     return {"code": 0, "data": result}
 
 
+@router.get("/graph-data")
+async def graph_data(_: User = Depends(get_current_user)):
+    graph = get_graph()
+    all_nodes = [n for n in graph.all_nodes() if n.get("node_type") != "article"]
+    valid_ids = set()
+    for n in all_nodes:
+        valid_ids.add(n.get("id", ""))
+    filtered_edges = []
+    for e in graph.get_edges():
+        if e.get("source", "") in valid_ids and e.get("target", "") in valid_ids:
+            filtered_edges.append(e)
+    return {"code": 0, "data": {
+        "nodes": all_nodes,
+        "edges": filtered_edges,
+    }}
 @router.get("/{regulation_id}")
 async def get_regulation(regulation_id: str, _: User = Depends(get_current_user)):
     graph = get_graph()
@@ -443,13 +458,6 @@ async def abolish_regulation(
 
 # ── 图谱 ──
 
-@router.get("/graph/data")
-async def graph_data(_: User = Depends(get_current_user)):
-    graph = get_graph()
-    return {"code": 0, "data": {
-        "nodes": graph.all_nodes(),
-        "edges": graph.get_edges(),
-    }}
 
 
 # ── 索引 ──

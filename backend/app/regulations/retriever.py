@@ -44,9 +44,12 @@ def _match_section_topics(section_key: str, section_title: str) -> list[str]:
 class RegulationRetriever:
     """编排图谱 + 向量的两级混合检索。"""
 
-    def __init__(self, graph, vector_store):
+    def __init__(self, graph, vector_store, bm25_index=None):
         self.graph = graph
         self.vector_store = vector_store
+        self.bm25_index = bm25_index
+        from app.regulations.scorer import ArticleRelevanceScorer
+        self.scorer = ArticleRelevanceScorer()
 
     def retrieve(self, plan_type: str, section_key: str = "",
                  enterprise_data: dict = None,
@@ -129,6 +132,150 @@ class RegulationRetriever:
 
         return {"effective": effective, "abolished": [], "matched_topics": topics}
 
+    # ── Article-level hybrid retrieval (V1.0 main path) ──
+
+    def retrieve_articles(
+        self, plan_type, section_key="", section_title="",
+        enterprise_data=None, max_articles=15,
+    ):
+        section_topics = _match_section_topics(section_key, section_title)
+        graph_c = self._graph_article_recall(plan_type, section_topics)
+        vector_c = self._vector_article_recall(
+            plan_type, section_key, section_title, section_topics, enterprise_data,
+        )
+        all_c = self._merge_dedup(graph_c, vector_c)
+        scored = self.scorer.score_articles(all_c, section_topics)
+        scored.sort(key=lambda s: s.score, reverse=True)
+        top = scored[:max_articles]
+        by_reg = {}
+        for sa in top:
+            rid = sa.candidate.regulation_id
+            by_reg.setdefault(rid, []).append(sa)
+        return {"articles": top, "by_regulation": by_reg,
+                "debug": {"graph_count": len(graph_c), "vector_count": len(vector_c),
+                           "merged_count": len(all_c)}}
+
+    def _graph_article_recall(self, plan_type, section_topics):
+        from app.regulations.scorer import ArticleCandidate
+        plan_regs = self.graph.query_by_plan_type(plan_type)
+        candidates = []
+        for reg in plan_regs.get("effective", []):
+            rid = reg.get("id", "")
+            arts = self.graph.get_articles_by_regulation(rid)
+            if not arts:
+                for art in self._load_articles(reg):
+                    num = art.get("number", "")
+                    art_text = art.get("text", "")
+                    # V2.0: topic keyword filter in fallback
+                    if section_topics:
+                        if not any(st in art_text or st in num for st in section_topics):
+                            continue
+                    safe = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]", "_", num)
+                    candidates.append(ArticleCandidate(
+                        id=f"art_{rid}_{safe}", regulation_id=rid,
+                        regulation_code=reg.get("code",""),
+                        regulation_name=reg.get("full_name", reg.get("label","")),
+                        article_number=num, article_text=art_text,
+                        topics=reg.get("topics",[]), vector_similarity=0.0,
+                        is_core=reg.get("is_core",False),
+                        is_abolished=reg.get("status")=="abolished"))
+                continue
+            for art in arts:
+                a_topics = art.get("topics", [])
+                if isinstance(a_topics, str):
+                    a_topics = [t.strip() for t in a_topics.split(",")]
+                if section_topics and a_topics and not any(
+                    t.lower() in [tt.lower() for tt in a_topics] for t in section_topics
+                ):
+                    continue
+                candidates.append(ArticleCandidate(
+                    id=art.get("id",""), regulation_id=rid,
+                    regulation_code=reg.get("code",""),
+                    regulation_name=reg.get("full_name", reg.get("label","")),
+                    article_number=art.get("article_number", art.get("label","")),
+                    article_text=art.get("article_text",""),
+                    topics=a_topics, vector_similarity=0.0,
+                    is_core=reg.get("is_core",False),
+                    is_abolished=reg.get("status")=="abolished"))
+        return candidates
+
+    def _vector_article_recall(self, plan_type, section_key, section_title, section_topics, enterprise_data):
+        if not self.vector_store or self.vector_store.collection_count() < 3:
+            return []
+        from app.regulations.scorer import ArticleCandidate
+        queries = self._build_semantic_queries(
+            enterprise_data or {}, plan_type, section_title or section_key or "")
+        all_r = {}
+        for q in queries:
+            try:
+                for item in self.vector_store.search_articles(q, top_k=12):
+                    k = item["metadata"].get("regulation_id","") + "_" + item["metadata"].get("article_number","")
+                    if k not in all_r or item.get("distance",1) < all_r[k].get("distance",1):
+                        all_r[k] = item
+            except Exception:
+                pass
+        candidates = []
+        for k, item in all_r.items():
+            meta = item.get("metadata",{})
+            rid = meta.get("regulation_id","")
+            rn = self.graph.get_node(rid) or {}
+            if not rn: continue
+            d = item.get("distance",1)
+            sim = 1.0/(1.0+float(d)) if d is not None else 0.5
+            candidates.append(ArticleCandidate(
+                id=f"art_{rid}_{meta.get('article_number','?')}", regulation_id=rid,
+                regulation_code=rn.get("code",""),
+                regulation_name=rn.get("full_name", rn.get("label","")),
+                article_number=meta.get("article_number",""),
+                article_text=item.get("text",""), topics=rn.get("topics",[]),
+                vector_similarity=sim, is_core=rn.get("is_core",False),
+                is_abolished=rn.get("status")=="abolished"))
+        return candidates
+
+    def _merge_dedup(self, graph_c, vector_c):
+        m = {}
+        for c in graph_c:
+            m[self._normalize_id(c.id)] = c
+        for c in vector_c:
+            k = self._normalize_id(c.id)
+            if k in m:
+                m[k].vector_similarity = max(m[k].vector_similarity, c.vector_similarity)
+            else:
+                m[k] = c
+        return list(m.values())
+
+    def _normalize_id(self, aid):
+        return re.sub(r'[\s_\-]', '', aid).lower()
+
+
+    def _build_semantic_queries(self, enterprise_data, plan_type, section_text):
+        """构造多条语义查询，每条聚焦不同信号维度。"""
+        type_labels = {
+            "comprehensive": "综合应急预案", "special": "专项应急预案",
+            "onsite": "现场处置方案", "risk_assessment": "风险评估报告",
+            "resource_investigation": "应急资源调查报告",
+        }
+        plan_label = type_labels.get(plan_type, plan_type)
+        queries = [f"{plan_label} 编制要求 {section_text}"]
+        industry = (enterprise_data or {}).get("industry", "")
+        if industry:
+            queries.append(f"{industry} {section_text} 规范要求")
+        risk_sources = (enterprise_data or {}).get("risk_sources", [])
+        if isinstance(risk_sources, list):
+            risk_names = [rs.get("name", "") if isinstance(rs, dict) else str(rs) for rs in risk_sources[:3]]
+            if risk_names:
+                queries.append(f"{' '.join(risk_names)} {section_text} 法规条款")
+        chemicals = (enterprise_data or {}).get("hazardous_chemicals", [])
+        if isinstance(chemicals, list):
+            chem_names = [c.get("name", "") if isinstance(c, dict) else str(c) for c in chemicals[:3]]
+            if chem_names:
+                queries.append(f"{' '.join(chem_names)} 安全管理 {section_text} 条款")
+        name = (enterprise_data or {}).get("name", "")
+        if name:
+            queries.append(f"{name} {section_text}")
+        return list(set(q.strip() for q in queries if q.strip()))
+
+
     # 文件索引缓存
     _file_index = None
 
@@ -200,7 +347,31 @@ class RegulationRetriever:
                 articles.append({"number": title, "text": text})
         return articles
 
-    def _build_semantic_query(self, enterprise_data: dict, plan_type: str) -> str:
+    
+    def _bm25_article_recall(self, query_text: str, top_k: int = 5) -> list:
+        """BM25 精确匹配召回。作为检索第 0 级，高分命中直接进入输出。"""
+        if not self.bm25_index:
+            return []
+        from app.regulations.scorer import ArticleCandidate
+        results = self.bm25_index.search(query_text, top_k=top_k)
+        candidates = []
+        for item in results:
+            meta = item["meta"]
+            candidates.append(ArticleCandidate(
+                id=item["id"],
+                regulation_id=meta["regulation_id"],
+                regulation_code=meta.get("regulation_code", ""),
+                regulation_name=meta.get("regulation_name", ""),
+                article_number=meta.get("article_number", ""),
+                article_text=item["text"],
+                topics=[],
+                vector_similarity=0.0,
+                is_core=False,
+                is_abolished=False,
+            ))
+        return candidates
+
+def _build_semantic_query(self, enterprise_data: dict, plan_type: str) -> str:
         parts = []
         type_labels = {
             "comprehensive": "综合应急预案",

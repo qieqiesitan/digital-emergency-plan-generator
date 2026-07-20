@@ -355,7 +355,26 @@ def ingest_regulation(parsed: dict, regulation_id: str,
         graph.add_edge(regulation_id, topic_id, relation="适用")
 
     # 5. 历史日志
-    log_event(regulation_id, "created", operator, {
+    # Write article sub-nodes to graph
+    try:
+        for art in parsed.get("articles", []):
+            if art.get("number") and art.get("text"):
+                graph.add_article_node(regulation_id, art)
+    except Exception as e:
+        logger.warning("Article node creation failed (non-fatal): %s", e)
+
+    # Auto-classify into index.yaml
+    try:
+        from app.regulations.article_index import ArticleIndexManager
+        mgr = ArticleIndexManager()
+        cl = mgr.auto_classify(regulation_id, parsed.get("topics", []), parsed.get("full_name", ""))
+        if cl:
+            mgr.update_index(regulation_id, cl)
+            logger.info("Auto-classified: %s -> %s", regulation_id, cl)
+    except Exception as e:
+        logger.debug("Auto-classify skipped (non-fatal): %s", e)
+
+        log_event(regulation_id, "created", operator, {
         "via": "upload" if source_path else "paste",
         "filename": source_filename,
         "file_size": len(source_file_bytes) if source_file_bytes else 0,
@@ -384,9 +403,9 @@ async def rebuild_index_with_ai(ai_config) -> dict:
         "deepseek": "https://api.deepseek.com/v1",
     }.get(ai_config.provider, "")
 
-    async def embedding_fn(texts: list[str]) -> list[list[float]]:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
+    def embedding_fn(texts: list[str]) -> list[list[float]]:
+        with httpx.Client(timeout=60) as client:
+            resp = client.post(
                 f"{base}/embeddings",
                 json={"model": "text-embedding-3-small", "input": texts},
                 headers={"Authorization": f"Bearer {api_key}"},

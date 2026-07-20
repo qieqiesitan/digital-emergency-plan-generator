@@ -117,3 +117,24 @@
 {"event_id": "42621924cab1", "timestamp": "2026-07-17T04:03:17Z", "regulation_id": "reg_e867be5f", "action": "created", "operator": "superadmin@test.com", "detail": {"via": "upload", "filename": "中华人民共和国社会保险法_20181229.md", "file_size": 31409, "article_count": 98}}
 {"event_id": "3d77596cd883", "timestamp": "2026-07-17T04:05:39Z", "regulation_id": "reg_d1583486", "action": "created", "operator": "superadmin@test.com", "detail": {"via": "upload", "filename": "中华人民共和国食品安全法_20250912.md", "file_size": 91753, "article_count": 154}}
 {"event_id": "d70aefa3ca39", "timestamp": "2026-07-17T04:10:14Z", "regulation_id": "reg_131feb77", "action": "created", "operator": "superadmin@test.com", "detail": {"via": "upload", "filename": "中华人民共和国特种设备安全法_20130629.md", "file_size": 41820, "article_count": 101}}
+{"event_id": "0f1dcbad5057", "timestamp": "2026-07-20T01:30:05Z", "regulation_id": "aq3013_2008", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "de494950470a", "timestamp": "2026-07-20T01:30:09Z", "regulation_id": "gb50016_2014", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "d86b40dce8ca", "timestamp": "2026-07-20T01:30:11Z", "regulation_id": "law_environmental_protection_2014", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "5c7bb0b4ae8d", "timestamp": "2026-07-20T01:30:16Z", "regulation_id": "law_labor_2018", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "9e615be1f840", "timestamp": "2026-07-20T01:30:18Z", "regulation_id": "law_occupational_disease_2018", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "733977e7c36d", "timestamp": "2026-07-20T01:30:21Z", "regulation_id": "law_special_equipment_2014", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "de7d0a1b1443", "timestamp": "2026-07-20T01:30:23Z", "regulation_id": "policy_14th_five_year_2022", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "c1350723fef0", "timestamp": "2026-07-20T01:30:25Z", "regulation_id": "policy_accident_report_2007", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "7b7dab78741b", "timestamp": "2026-07-20T01:30:28Z", "regulation_id": "policy_hazard_investigation_2008", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "7d12f8756957", "timestamp": "2026-07-20T01:30:30Z", "regulation_id": "policy_hazardous_chemicals_2013", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "fcb90205772e", "timestamp": "2026-07-20T01:30:32Z", "regulation_id": "policy_hazardous_chemicals_opinion_2020", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "c7e634ed46d3", "timestamp": "2026-07-20T01:30:34Z", "regulation_id": "policy_safety_training_2015", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "f937e02b8f2a", "timestamp": "2026-07-20T01:30:36Z", "regulation_id": "policy_special_operation_2015", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "97e63a296ebb", "timestamp": "2026-07-20T01:30:39Z", "regulation_id": "policy_state_council_2004", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "616726334969", "timestamp": "2026-07-20T01:30:42Z", "regulation_id": "reg_gb_t_29639_2020", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "e70b96c18985", "timestamp": "2026-07-20T01:30:44Z", "regulation_id": "reg_gb_t_99999_2025", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "388ba54f0564", "timestamp": "2026-07-20T01:30:48Z", "regulation_id": "std_gbt13861_2022", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "9e1e50c3a372", "timestamp": "2026-07-20T01:30:51Z", "regulation_id": "std_aqt9007_2019", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "9d69930eccc8", "timestamp": "2026-07-20T01:30:53Z", "regulation_id": "std_aqt8001_2007", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "76e012b786e2", "timestamp": "2026-07-20T01:30:55Z", "regulation_id": "std_aqt3033_2022", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
+{"event_id": "4e69460205a9", "timestamp": "2026-07-20T03:05:37Z", "regulation_id": "law_emergency_response_2007", "action": "deleted", "operator": "test@test.com", "detail": {}}

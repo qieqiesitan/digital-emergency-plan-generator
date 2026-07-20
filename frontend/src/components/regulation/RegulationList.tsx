@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Table, Input, Select, Button, Space, Tag, Card, Row, Col,
   Statistic, Tooltip, Badge, Typography, Modal, message,
@@ -161,7 +161,7 @@ export function RegulationList({ onAdd, onView, onAbolish }: Props) {
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>
                     <Badge status={r.status === "effective" ? "success" : "error"} style={{ marginRight: 6 }} />
-                    {(r.full_name || r.code || r.label).slice(0, 48)}
+                    {(r?.full_name || r?.code || r?.label || r?.id || "").slice(0, 48)}
                   </div>
                   <Text type="secondary" style={{ fontSize: 12 }}>{r.code !== r.full_name ? r.code : r.issuing_body || ""}</Text>
                 </div>

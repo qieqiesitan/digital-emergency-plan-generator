@@ -159,6 +159,17 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
             mermaid_inst = _get_mermaid_instruction(section_key, section_title)
             if mermaid_inst:
                 prompt += "\n\n" + mermaid_inst
+
+            # 追加法规上下文（修复：DB 模板路径也要注入法规）
+            reg_ctx = RegulationContextBuilder().get_chapter_context(
+                section_key=section_key,
+                section_title=section_title,
+                plan_type=plan_type,
+                enterprise_data=enterprise_data,
+            )
+            if reg_ctx:
+                prompt += "\n\n" + REGULATION_WRITING_RULE + "\n\n" + reg_ctx
+
             return prompt
 
     # 兜底：代码拼接

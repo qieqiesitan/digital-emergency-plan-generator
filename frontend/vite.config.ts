@@ -76,7 +76,7 @@ export default defineConfig(async () => ({
     port: 5173,
     cors: true,
     origin: "http://localhost:5173",
-    hmr: false,
+    hmr: { protocol: "ws", host: "localhost" }, watch: { usePolling: true, interval: 500 },
     proxy: {
       "/api": { target: API_TARGET, changeOrigin: true },
       "/uploads": { target: API_TARGET, changeOrigin: true },
