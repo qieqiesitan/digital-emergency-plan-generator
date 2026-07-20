@@ -11,9 +11,12 @@ from app.models.enterprise import AIConfig
 from app.models.chat import ChatConversation, ChatMessage
 from app.dependencies import get_current_user
 from app.services.llm_client import decrypt_api_key
+from app.services.mermaid_renderer import render_mermaid_svg
 from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
 from app.services.chat_dispatch import dispatch
+from datetime import datetime, timezone
 from app.services.sse_utils import sse_line
+import asyncio
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -148,7 +151,6 @@ async def _collect_llm(messages: list, ai_config: AIConfig) -> str:
 
 async def _render_mermaid_blocks(md_text: str) -> str:
     """提取 Markdown 中的 Mermaid 代码块，渲染为 SVG。"""
-    from app.services.mermaid_renderer import render_mermaid_svg
     pattern = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
     async def _replace(m):
         code = m.group(1).strip()
@@ -169,7 +171,6 @@ async def _render_mermaid_blocks(md_text: str) -> str:
 
 async def _md_to_html(md_text: str) -> str:
     """Markdown → HTML（含 Mermaid 渲染）"""
-    import markdown as md_lib
     html = await _render_mermaid_blocks(md_text)
     return md_lib.markdown(html, extensions=["tables", "fenced_code"], output_format="html5")
 
@@ -179,8 +180,6 @@ async def _md_to_html(md_text: str) -> str:
 
 async def _save_messages(user_id: str, conv_id: str, user_msg: str, assistant_msg: str):
     """保存一轮对话消息到 DB（使用独立 session）"""
-    from app.models.chat import ChatConversation, ChatMessage
-    from datetime import datetime, timezone
     async with async_session() as db:
         # 更新会话时间
         conv = await db.get(ChatConversation, conv_id)
@@ -279,8 +278,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
             yield sse_line({"type": "conv_id", "content": conv_id})
             yield sse_line({"type": "done"})
             # 保存消息
-            import asyncio
-            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, text_content))
+                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, text_content))
         return StreamingResponse(text_gen(), media_type="text/event-stream")
 
     # 多轮工具调用循环（最多5轮）
@@ -318,8 +316,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                         yield sse_line({"type": "error", "message": str(e)})
                     yield sse_line({"type": "conv_id", "content": conv_id})
                     yield sse_line({"type": "done"})
-                    import asyncio
-                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                     return
 
                 yield sse_line({"type": "function_result", "name": fn_name, "result": result_str})
@@ -344,8 +341,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 yield sse_line({"type": "error", "message": str(e)})
                 yield sse_line({"type": "conv_id", "content": conv_id})
                 yield sse_line({"type": "done"})
-                import asyncio
-                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                 return
 
             choice = next_resp.get("choices", [{}])[0]
@@ -364,8 +360,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                     yield sse_line({"type": "error", "message": str(e)})
                 yield sse_line({"type": "conv_id", "content": conv_id})
                 yield sse_line({"type": "done"})
-                import asyncio
-                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
                 return
 
             pending_tool_calls = next_tool_calls
@@ -374,7 +369,6 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         yield sse_line({"type": "error", "message": "操作轮数超过上限，请简化您的问题重试"})
         yield sse_line({"type": "conv_id", "content": conv_id})
         yield sse_line({"type": "done"})
-        import asyncio
-        asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限"))
+            asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限"))
 
     return StreamingResponse(agent_loop(), media_type="text/event-stream")

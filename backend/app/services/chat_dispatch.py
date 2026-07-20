@@ -10,6 +10,12 @@ from app.models.enterprise import (
     Enterprise, RiskSource, EmergencyResource, PlanProject,
     PlanSection, PlanTemplate, AIConfig as AIConfigModel,
 )
+from app.models.risk_assessment import RiskAssessmentReport
+from app.models.resource_investigation import ResourceInvestigationReport
+from app.services.enterprise_autofill import autofill
+from app.regulations import get_graph, get_vector_store
+import os
+from app.routers.export import generate_plan_docx as generate_plan_docx_func
 
 # ── dispatch ──
 
@@ -222,8 +228,7 @@ async def _autofill_enterprise(db, user, args):
     if not name:
         return {"error": "请提供企业名称", "verified": False}
     # Step 1: QCC lookup
-    from app.services.enterprise_autofill import autofill as do_autofill
-    fill_result = await do_autofill(user.id, name)
+    fill_result = await autofill(user.id, name)
     if fill_result["ok"]:
         canonical_name = fill_result.get("name", name)
         fields = fill_result.get("fields", {})
@@ -461,7 +466,6 @@ async def _list_templates(db, user, args):
 # ── 风险评估报告 ──
 
 async def _list_risk_assessments(db, user, args):
-    from app.models.risk_assessment import RiskAssessmentReport
     ent_id = args.get("enterprise_id", "")
     query = select(RiskAssessmentReport)
     if ent_id:
@@ -474,7 +478,6 @@ async def _list_risk_assessments(db, user, args):
 
 
 async def _get_risk_assessment(db, user, args):
-    from app.models.risk_assessment import RiskAssessmentReport
     report_id = args.get("report_id", "")
     if not report_id:
         return {"error": "请提供 report_id"}
@@ -487,7 +490,6 @@ async def _get_risk_assessment(db, user, args):
 # ── 应急资源调查报告 ──
 
 async def _list_resource_investigations(db, user, args):
-    from app.models.resource_investigation import ResourceInvestigationReport
     ent_id = args.get("enterprise_id", "")
     query = select(ResourceInvestigationReport)
     if ent_id:
@@ -500,7 +502,6 @@ async def _list_resource_investigations(db, user, args):
 
 
 async def _get_resource_investigation(db, user, args):
-    from app.models.resource_investigation import ResourceInvestigationReport
     report_id = args.get("report_id", "")
     if not report_id:
         return {"error": "请提供 report_id"}
@@ -514,7 +515,6 @@ async def _get_resource_investigation(db, user, args):
 
 async def _get_regulation_stats(db, user, args):
     """法规库统计：总数、现行数、废止数、已索引条数"""
-    from app.regulations import get_graph, get_vector_store
     graph = get_graph()
     s = graph.stats()
     vs = get_vector_store()
@@ -524,7 +524,6 @@ async def _get_regulation_stats(db, user, args):
 
 async def _list_regulations(db, user, args):
     """法规列表（从内存图谱读取）"""
-    from app.regulations import get_graph
     keyword = args.get("keyword", "")
     status = args.get("status", "all")
     page = args.get("page", 1)
@@ -542,7 +541,6 @@ async def _search_regulations(db, user, args):
     query = args.get("query", "")
     if not query:
         return {"error": "请提供 query"}
-    from app.regulations import get_vector_store, get_graph
     vs = get_vector_store()
     if vs:
         try:
@@ -568,7 +566,6 @@ async def _search_regulation_articles(db, user, args):
     top_k = _parse_int(args.get("top_k", 8)) or 8
     top_k = max(3, min(top_k, 15))
 
-    from app.regulations import get_graph
     import os, re as _re
 
     graph = get_graph()
@@ -716,12 +713,10 @@ async def _export_plan_docx(db, user, args):
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == user.id))).scalar_one_or_none()
     if not p:
         return {"error": "预案不存在"}
-    import os
-    from app.routers.export import generate_plan_docx as do_export
     export_dir = os.environ.get("EXPORT_DIR", "/app/exports")
     os.makedirs(export_dir, exist_ok=True)
     try:
-        filepath = await do_export(p.id, db)
+        filepath = await generate_plan_docx_func(p.id, db)
         return {"message": "导出成功", "filename": os.path.basename(filepath), "verified": True}
     except Exception as e:
         return {"error": f"导出失败: {str(e)}"}
