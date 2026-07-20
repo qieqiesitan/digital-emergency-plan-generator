@@ -82,6 +82,7 @@ resource_investigation:
   - reg_gb_t30676_2014
   optional:
   - reg____2006_24_
+  - reg_577
 comprehensive:
   core:
   - std_gbt29639_2020

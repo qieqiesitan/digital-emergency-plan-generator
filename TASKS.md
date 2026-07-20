@@ -1,13 +1,14 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：生成代码质量优化方案
+- 正在做什么：Phase 1 代码质量优化完成
 - 刚完成的动作：
-  - 全代码库系统性审查完成
-  - 审查发现：LLM 调用代码重复(5套)、generation.py 内批量生成重复(~80%)、chat_dispatch.py 30+ CRUD 函数模式重复、64个冗余脚本/空壳文件、多处延迟导入和循环依赖
-  - 报告中记录了详细的问题清单和整改方案优先级
-- 下一步：用户确认优化方案后按优先级逐项实施
+  Phase 1.0: 创建 services/sse_utils.py，统一 chat.py 和 generation.py 中的 SSE 函数
+  Phase 1.1: backend/scripts/ 中 18 个历史修复脚本归档到 archive/
+  Phase 1.2: 根目录 6 个临时脚本归档到 scripts/archive/，删除 -w 遗留文件
+  Phase 1.3: 创建 services/llm_client.py，统一 LLM 调用逻辑（decrypt_api_key + llm_chat_completion + llm_collect_all），重构 generation.py 流式函数消除 httpx 重复
+  Phase 1.4: 在 chat_dispatch.py 中添加泛化 CRUD 基础设施（_generic_list/create/update/delete + ENTITY_REGISTRY），8 个风险源/应急资源 CRUD 函数改为3行委托
+- 下一步：Phase 2+（合并批量生成逻辑、合并 Mermaid 管道、延迟导入消除、模型/Schema 合并、前端空壳组件处理）
 - 关键上下文：
-  - 后端 app/routers/generation.py 54.8k(最大文件)，app/services/docx_template.py 43k
-  - 5 套 LLM 调用函数分布在 chat.py 和 generation.py
-  - chat_dispatch.py 中 30+ 处理函数遵循相同 CRUD 模式
-  - 前端 src/components 下大量 0-3 行的空壳组件文件
-  - backend/venv 和 backend/.venv 两个虚拟环境
+  - 34 个文件变更，4 个文件新增（sse_utils.py, llm_client.py），24 个文件归档，1 个文件删除
+  - 3 个 savepoint：de341d7(初始) → ce3c872 → 1477e73 → b793833 → 3d01b0c(当前)
+  - 新增后端模块：services/sse_utils.py, services/llm_client.py
+  - 待处理：Phase 1.4 剩余的 8+ 个 CRUD 函数（enterprise, plan）待泛化
