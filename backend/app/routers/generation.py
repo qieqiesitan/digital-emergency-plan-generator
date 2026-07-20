@@ -40,6 +40,7 @@ import markdown
 
 import re
 
+from app.services.llm_client import decrypt_api_key
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import sse_event
 from app.services.prompt_cache import ensure_loaded, get_system_prompt, REGULATION_WRITING_RULE, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
@@ -100,25 +101,12 @@ SECTION_DIAGRAM_TYPE_MAP: dict[str, str] = {
 
 
 def _decrypt_api_key(hex_str: str) -> str:
-
-    try:
-        key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-
-        cipher = AES.new(key, AES.MODE_ECB)
-
-        return unpad(cipher.decrypt(bytes.fromhex(hex_str)), 16).decode()
-    except Exception:
-        raise Exception("AI Key解密失败，请前往 设置→AI配置 重新输入API Key保存后重试")
-
+    # Delegate to llm_client (unified decrypt)
+    return decrypt_api_key(hex_str)
 
 
 
     # _sse → sse_event (移入 services/sse_utils.py)
-
-
-    return json.dumps(obj, ensure_ascii=False)
-
-
 
 def _build_system_prompt(plan_type: str = "*") -> str:
     """构建系统提示词，优先使用数据库模板。"""

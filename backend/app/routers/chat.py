@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.enterprise import AIConfig
 from app.models.chat import ChatConversation, ChatMessage
 from app.dependencies import get_current_user
-from app.routers.generation import _decrypt_api_key
+from app.services.llm_client import decrypt_api_key
 from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
 from app.services.chat_dispatch import dispatch
 from app.services.sse_utils import sse_line
@@ -87,7 +87,7 @@ def _build_tool_messages(history: list, user_message: str) -> list:
 
 
 async def _call_llm(messages: list, ai_config: AIConfig) -> dict:
-    api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+    api_key = decrypt_api_key(ai_config.api_key_encrypted)
     base = ai_config.base_url or {
         "openai": "https://api.openai.com/v1",
         "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -102,7 +102,7 @@ async def _call_llm(messages: list, ai_config: AIConfig) -> dict:
 
 
 async def _call_llm_stream(messages: list, ai_config: AIConfig):
-    api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+    api_key = decrypt_api_key(ai_config.api_key_encrypted)
     base = ai_config.base_url or {
         "openai": "https://api.openai.com/v1",
         "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -131,7 +131,7 @@ async def _call_llm_stream(messages: list, ai_config: AIConfig):
 
 async def _collect_llm(messages: list, ai_config: AIConfig) -> str:
     """收集 LLM 完整响应（用于需要后处理的场景）"""
-    api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+    api_key = decrypt_api_key(ai_config.api_key_encrypted)
     base = ai_config.base_url or {
         "openai": "https://api.openai.com/v1",
         "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
