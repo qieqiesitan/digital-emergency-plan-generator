@@ -128,6 +128,8 @@ async def create_plan(data: PlanCreate, current_user=Depends(get_current_user), 
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == data.enterprise_id, Enterprise.user_id == current_user.id))).scalar_one_or_none()
     if not ent: raise HTTPException(404, "企业不存在")
     p = PlanProject(user_id=current_user.id, **data.model_dump(exclude_none=True))
+    if not p.style_preference and current_user.default_style_preference:
+        p.style_preference = current_user.default_style_preference
     db.add(p)
     await db.flush()
 

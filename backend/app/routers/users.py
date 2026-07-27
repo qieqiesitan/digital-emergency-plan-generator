@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -29,3 +30,36 @@ async def change_password(data: ChangePasswordRequest, current_user: User = Depe
     current_user.password_hash = hash_password(data.new_password)
     await db.commit()
     return {"code": 0, "message": "密码修改成功"}
+
+# ── 用户默认创作风格 ──
+
+class StylePreferenceUpdate(BaseModel):
+    model_config = {"protected_namespaces": ()}
+    formality: str = "standard"
+    detail_level: str = "balanced"
+    table_preference: str = "moderate"
+    diagram_preference: str = "mermaid"
+
+
+@router.get("/me/style-preference", response_model=ApiResponse[dict])
+async def get_style_preference(current_user=Depends(get_current_user)):
+    """获取当前用户的默认创作风格"""
+    return ApiResponse(data=current_user.default_style_preference or {
+        "formality": "standard",
+        "detail_level": "balanced",
+        "table_preference": "moderate",
+        "diagram_preference": "mermaid",
+    })
+
+
+@router.put("/me/style-preference", response_model=ApiResponse[dict])
+async def update_style_preference(
+    data: StylePreferenceUpdate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新当前用户的默认创作风格"""
+    current_user.default_style_preference = data.model_dump()
+    await db.commit()
+    return ApiResponse(data=current_user.default_style_preference, message="默认风格已更新")
+
