@@ -329,7 +329,32 @@ export default function PlanEditorPage() {
                 <span style={{ fontWeight: 500 }}>{currentSection.title}</span>
                 <Space>
                   <Badge count={editingContent.length} overflowCount={99999} style={{ backgroundColor: "#999" }} />
-                  <AIGenerateButton
+                  {styleMode === "panel" ? (
+            <StylePanel
+              value={stylePreference}
+              onChange={(sp) => {
+                setStylePreference(sp);
+                plansApi.update(id!, { style_preference: sp }).catch(() => {});
+              }}
+              onPreview={() => {}}
+              onSwitchToAdvanced={() => setStyleMode("advanced")}
+            />
+          ) : (
+            <AdvancedStylePanel
+              value={advancedOverrides}
+              sections={sections.map(s => ({ key: s.section_key, title: s.title }))}
+              defaultSystemPrompt="你是一位持有国家注册安全工程师资格的应急预案编制专家..."
+              onChange={(ao) => {
+                setAdvancedOverrides(ao);
+                plansApi.update(id!, {
+                  style_preference: { ...stylePreference, mode: "advanced" },
+                  advanced_prompt_overrides: ao,
+                }).catch(() => {});
+              }}
+              onExit={() => setStyleMode("panel")}
+            />
+          )}
+          <AIGenerateButton
                     planId={id!}
                     sectionKey={selectedKey}
                     sectionTitle={currentSection.title}
