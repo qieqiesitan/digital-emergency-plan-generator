@@ -15,6 +15,7 @@ def _build_plan(p: PlanProject, ent_name: str = "") -> PlanResponse:
     sections = p.sections or []
     return PlanResponse(
         id=p.id, enterprise_id=p.enterprise_id, enterprise_name=ent_name,
+        style_preference=p.style_preference, advanced_prompt_overrides=p.advanced_prompt_overrides,
         plan_type=p.plan_type, title=p.title, accident_type=p.accident_type,
         status=p.status, current_version=p.current_version,
         sections_count=len(sections),
