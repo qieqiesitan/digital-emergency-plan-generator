@@ -150,8 +150,7 @@ export default function PlanCreatePage() {
           <StylePanel
             value={stylePreference}
             onChange={setStylePreference}
-            onPreview={() => {}}
-            onSwitchToAdvanced={() => {}}
+            showAdvanced={false}
           />
           <Space style={{ marginTop: 16 }}>
             <Button onClick={() => setCurrentStep(2)}>上一步</Button>

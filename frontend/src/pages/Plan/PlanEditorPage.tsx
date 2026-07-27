@@ -336,8 +336,14 @@ export default function PlanEditorPage() {
                 setStylePreference(sp);
                 plansApi.update(id!, { style_preference: sp }).catch(() => {});
               }}
-              onPreview={() => {}}
+              onPreview={() => {
+                const firstSection = sections[0];
+                if (firstSection && id) {
+                  generateSectionStream(firstSection.section_key);
+                }
+              }}
               onSwitchToAdvanced={() => setStyleMode("advanced")}
+              showAdvanced
             />
           ) : (
             <AdvancedStylePanel
