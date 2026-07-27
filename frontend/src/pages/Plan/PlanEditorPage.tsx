@@ -12,6 +12,9 @@ import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
 import SectionTree from "@/components/plan/SectionTree";
 import RichTextEditor from "@/components/plan/RichTextEditor";
 import AIGenerateButton from "@/components/plan/AIGenerateButton";
+import { StylePanel, DEFAULT_STYLE } from "@/components/plan/StylePanel";
+import { AdvancedStylePanel } from "@/components/plan/AdvancedStylePanel";
+import type { StylePreference, AdvancedPromptOverrides } from "@/components/plan/StylePanel";
 import type { PlanSection, SectionTemplate } from "@/types/plan";
 import type { SSEEvent } from "@/types/plan";
 
