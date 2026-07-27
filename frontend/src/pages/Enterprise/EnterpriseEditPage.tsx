@@ -1,17 +1,17 @@
 import { useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Form, Input, Select, InputNumber, Button, Card, Spin, message, Upload, Space, DatePicker, Collapse } from "antd";
+import { Form, Input, Select, AutoComplete, InputNumber, Button, Card, Spin, message, Upload, Space, DatePicker, Collapse } from "antd";
 import { UploadOutlined, EnvironmentOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getEnterprise, updateEnterprise } from "@/services/enterpriseService";
 import { uploadFile } from "@/services/enterpriseService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PRESET_INDUSTRIES } from "@/utils/constants";
+import { ECONOMIC_TYPE_OPTIONS } from "@/utils/constants";
 import GisMapPicker from "@/components/enterprise/GisMapPicker";
 import type { EnterpriseUpdate } from "@/types/enterprise";
 import dayjs from "dayjs";
 
-const ECONOMIC_TYPES = ["国有", "集体", "民营", "外资", "合资", "股份制", "个体"];
 const STANDARDIZATION_LEVELS = ["一级", "二级", "三级", "未评定"];
 
 export default function EnterpriseEditPage() {
@@ -60,7 +60,14 @@ export default function EnterpriseEditPage() {
           <Form.Item name="credit_code" label="统一社会信用代码"><Input maxLength={18} /></Form.Item>
           <Form.Item name="legal_representative" label="法定代表人"><Input /></Form.Item>
           <Form.Item name="economic_type" label="经济类型">
-            <Select options={ECONOMIC_TYPES.map(t => ({ value: t, label: t }))} />
+            <AutoComplete
+            placeholder="?????????"
+            options={ECONOMIC_TYPE_OPTIONS.map(t => ({ value: t, label: t }))}
+            filterOption={(inputValue, option) =>
+              option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+            }
+            allowClear
+          />
           </Form.Item>
           <Form.Item name="established_date" label="成立日期" getValueFromEvent={(d: dayjs.Dayjs | null) => d?.format("YYYY-MM-DD")}
             getValueProps={(v: string) => ({ value: v ? dayjs(v) : null })}>

@@ -1,7 +1,9 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Input from "@/mobile/components/ui/Input";
+import Chip from "@/mobile/components/ui/Chip";
 import SelectSheet from "@/mobile/components/ui/SelectSheet";
+import { ECONOMIC_TYPE_OPTIONS } from "@/utils/constants";
 
 const INDUSTRY_OPTIONS = [
   "工贸", "危化", "矿山", "建筑", "交通",
@@ -15,6 +17,7 @@ export interface EnterpriseFormData {
   business_scope: string;
   employee_count: number | null;
   address: string;
+  economic_type: string;
   province?: string;
   city?: string;
   district?: string;
@@ -37,6 +40,7 @@ export default function EnterpriseForm({
     business_scope: initialValues?.business_scope ?? "",
     employee_count: initialValues?.employee_count ?? null,
     address: initialValues?.address ?? "",
+    economic_type: initialValues?.economic_type ?? "",
     province: initialValues?.province ?? "",
     city: initialValues?.city ?? "",
     district: initialValues?.district ?? "",
@@ -93,6 +97,29 @@ export default function EnterpriseForm({
             onChange={(v) => set("industry", v)}
             placeholder="选择行业分类"
           />
+
+          {/* 经济类型 — 预设标签 + 自由输入 */}
+          <div>
+            <label className="text-caption text-neutral-500 mb-1 block">经济类型</label>
+            <Input
+              value={values.economic_type}
+              onChange={(v) => set("economic_type", v)}
+              placeholder="选择或输入经济类型"
+              className="mb-2"
+            />
+            <div className="flex flex-wrap gap-2">
+              {ECONOMIC_TYPE_OPTIONS.map(t => (
+                <Chip
+                  key={t}
+                  selected={values.economic_type === t}
+                  onClick={() => set("economic_type", t)}
+                >
+                  {t}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
           <Input
             label="经营范围"
             value={values.business_scope}

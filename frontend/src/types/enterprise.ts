@@ -1,6 +1,7 @@
-﻿export interface OrgMember {
+export interface OrgMember {
   role: string;
   name: string;
+  economic_type?: string | null;
   position: string;
   phone: string;
   responsibilities: string;
@@ -9,11 +10,13 @@
 export interface OrgGroup {
   group_key: string;
   group_name: string;
+  economic_type?: string | null;
   members: OrgMember[];
 }
 
 export interface NearbyUnit {
   name: string;
+  economic_type?: string | null;
   direction: string;
   distance_m: number;
   main_risk: string;
@@ -21,6 +24,7 @@ export interface NearbyUnit {
 
 export interface SensitiveTarget {
   name: string;
+  economic_type?: string | null;
   direction: string;
   distance_m: number;
   type: string;
@@ -33,8 +37,10 @@ export interface SurroundingInfo {
 }
 
 export interface Enterprise {
+  economic_type: string | null;
   id: string;
   name: string;
+  economic_type?: string | null;
   address: string;
   industry: string;
   business_scope: string;
@@ -54,6 +60,7 @@ export interface Enterprise {
 
 export interface EnterpriseCreate {
   name: string;
+  economic_type?: string | null;
   address?: string;
   industry?: string;
   business_scope?: string;

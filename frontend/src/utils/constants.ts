@@ -40,3 +40,23 @@ export const PLAN_STATUS_LABELS: Record<string, string> = {
 };
 
 // 以下为本地常量 fallback
+
+// 经济类型预设选项（AutoComplete 下拉用，允许自由输入自定义值）
+export const ECONOMIC_TYPE_OPTIONS = [
+  "国有",
+  "集体",
+  "民营",
+  "外资",
+  "合资",
+  "股份制",
+  "个体",
+  "有限责任公司",
+  "股份有限公司",
+  "股份合作制",
+  "联营",
+  "外商投资企业",
+  "港澳台商投资企业",
+  "农民专业合作社",
+  "个人独资企业",
+  "合伙企业",
+] as const;
