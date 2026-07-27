@@ -1110,27 +1110,7 @@ def _md_to_html(text: str) -> str:
 
     return markdown.markdown(text, extensions=["tables", "fenced_code"])
 
-async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*"):
-    try:
-        messages = [
-            {"role": "system", "content": _build_system_prompt(plan_type)},
-            {"role": "user", "content": prompt},
-        ]
-        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
-        async for chunk in gen:
-            yield chunk
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, str(e))
 
-
-async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*") -> str:
-    messages = [
-        {"role": "system", "content": _build_system_prompt(plan_type)},
-        {"role": "user", "content": prompt},
-    ]
-    return await llm_collect_all(messages, ai_config, timeout=120)
 
 @router.post("/{plan_id}/generate/batch")
 
