@@ -3,6 +3,23 @@ import { Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import SegmentedControl from "@/mobile/components/ui/SegmentedControl";
 
+
+
+// 风格参数类型（与Web端StylePanel对齐）
+interface MobileStyleParams {
+  formality: "formal" | "standard" | "practical";
+  detail_level: "concise" | "balanced" | "comprehensive";
+  table_preference: "minimal" | "moderate" | "heavy";
+  diagram_preference: "none" | "mermaid";
+}
+
+const DEFAULT_MOBILE_STYLE: MobileStyleParams = {
+  formality: "standard",
+  detail_level: "balanced",
+  table_preference: "moderate",
+  diagram_preference: "mermaid",
+};
+
 interface AIGenerationSheetProps {
   open: boolean;
   onClose: () => void;
@@ -19,7 +36,7 @@ interface AIGenerationSheetProps {
     name: string;
     aiGeneratable: boolean;
   }>;
-  onGenerate: (selectedChapters: string[]) => void;
+  onGenerate: (selectedChapters: string[], styleParams: MobileStyleParams) => void;
 }
 
 export default function AIGenerationSheet({
