@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -43,7 +44,7 @@ import re
 from app.services.llm_client import decrypt_api_key, llm_chat_completion, llm_collect_all
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import sse_event
-from app.services.prompt_cache import ensure_loaded, get_system_prompt, REGULATION_WRITING_RULE, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
+from app.services.prompt_cache import ensure_loaded, get_system_prompt, build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_mermaid_prompt, get_diagram_prompt, render_template
 from app.regulations.context_builder import RegulationContextBuilder
 
 from app.schemas.plan import RegenerateRequest
@@ -108,12 +109,14 @@ def _decrypt_api_key(hex_str: str) -> str:
 
     # _sse → sse_event (移入 services/sse_utils.py)
 
-def _build_system_prompt(plan_type: str = "*") -> str:
-    """构建系统提示词，优先使用数据库模板。"""
-    return get_system_prompt(plan_type)
+def _build_system_prompt(plan_type: str = "*", style_preference: dict | None = None, advanced_overrides: dict | None = None) -> str:
+    """构建系统提示词，优先风格参数，fallback 到数据库模板。"""
+    return build_system_prompt_with_style(plan_type, style_preference, advanced_overrides)
 
-def _get_mermaid_instruction(section_key: str | None, section_title: str) -> str | None:
+def _get_mermaid_instruction(section_key: str | None, section_title: str, diagram_preference: str = "mermaid") -> str | None:
     """Return a Mermaid-specific prompt instruction if this section needs a flowchart."""
+    if diagram_preference == "none":
+        return None
     if not section_key:
         return None
     flow_label = FLOWCHART_SECTION_MAP.get(section_key)
@@ -134,7 +137,7 @@ def _get_mermaid_instruction(section_key: str | None, section_title: str) -> str
         f"5. 节点文字使用中文，简洁明了（每节点不超过15个字）\n"
     )
 
-def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*", accident_type: str | None = None) -> str:
+def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*", accident_type: str | None = None, diagram_preference: str = "mermaid") -> str:
     """构建章节提示词，优先使用数据库模板，未命中则用代码拼接兜底。"""
     # 尝试从数据库获取模板
     if plan_type != "*" and section_key:
@@ -144,7 +147,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
             prompt = render_template(tmpl["user_prompt_template"], variables)
             if tmpl.get("system_prompt"):
                 prompt = tmpl["system_prompt"] + "\n\n---\n\n" + prompt
-            mermaid_inst = _get_mermaid_instruction(section_key, section_title)
+            mermaid_inst = _get_mermaid_instruction(section_key, section_title, diagram_preference)
             if mermaid_inst:
                 prompt += "\n\n" + mermaid_inst
 
@@ -177,7 +180,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
 
         prompt += f"额外要求：{custom_instruction}\n\n"
 
-    mermaid_inst = _get_mermaid_instruction(section_key, section_title)
+    mermaid_inst = _get_mermaid_instruction(section_key, section_title, diagram_preference)
 
     if mermaid_inst:
 
@@ -460,10 +463,10 @@ def _fix_markdown_tables(md_text: str) -> str:
 
     return '\n'.join(result)
 
-async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*"):
+async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*", style_preference=None, advanced_overrides=None):
     try:
         messages = [
-            {"role": "system", "content": _build_system_prompt(plan_type)},
+            {"role": "system", "content": _build_system_prompt(plan_type, style_preference, advanced_overrides)},
             {"role": "user", "content": prompt},
         ]
         gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
@@ -475,9 +478,9 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
         raise HTTPException(500, str(e))
 
 
-async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*") -> str:
+async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*", style_preference=None, advanced_overrides=None) -> str:
     messages = [
-        {"role": "system", "content": _build_system_prompt(plan_type)},
+        {"role": "system", "content": _build_system_prompt(plan_type, style_preference, advanced_overrides)},
         {"role": "user", "content": prompt},
     ]
     return await llm_collect_all(messages, ai_config, timeout=120)
@@ -590,11 +593,11 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                     try:
 
-                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
+                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference="mermaid")
 
                         full = ""
 
-                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config, plan_type):
+                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config, plan_type, p.style_preference, p.advanced_prompt_overrides):
 
                             full += chunk_content
 
@@ -802,7 +805,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type), ai_config, p.plan_type)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference="mermaid"), ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides)
 
                         s.content = _md_to_html(full)
 
@@ -901,7 +904,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
-    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
+    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference=diagram_pref)
 
     p.status = "generating"
 
@@ -917,7 +920,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             full = ""
 
-            async for chunk_content in _stream_llm_chunks(prompt, ai_config, p.plan_type):
+            async for chunk_content in _stream_llm_chunks(prompt, ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides):
 
                 full += chunk_content
 
@@ -1235,11 +1238,11 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                     try:
 
-                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
+                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference="mermaid")
 
                         full = ""
 
-                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config, plan_type):
+                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config, plan_type, p.style_preference, p.advanced_prompt_overrides):
 
                             full += chunk_content
 
@@ -1447,7 +1450,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                     try:
 
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type), ai_config, p.plan_type)
+                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference="mermaid"), ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides)
 
                         s.content = _md_to_html(full)
 
@@ -1546,7 +1549,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
-    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type)
+    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference=diagram_pref)
 
     p.status = "generating"
 
@@ -1562,7 +1565,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             full = ""
 
-            async for chunk_content in _stream_llm_chunks(prompt, ai_config, p.plan_type):
+            async for chunk_content in _stream_llm_chunks(prompt, ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides):
 
                 full += chunk_content
 
@@ -1665,7 +1668,7 @@ async def regenerate_selection(
         try:
             yield sse_event("progress", message=f"正在重生成「{s.title}」选中段落...")
 
-            async for chunk_content in _stream_llm_chunks(user_prompt, ai_config, p.plan_type):
+            async for chunk_content in _stream_llm_chunks(user_prompt, ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides):
                 yield sse_event("chunk", content=chunk_content)
 
             p.status = "draft"
@@ -1679,3 +1682,72 @@ async def regenerate_selection(
             yield sse_event("error", message=str(e))
 
     return EventSourceResponse(event_generator())
+
+class PreviewRequest(BaseModel):
+    section_key: str = "sec_1"
+    max_tokens: int = 300
+
+
+@router.post("/{plan_id}/generate/preview")
+async def generate_preview(
+    plan_id: str, body: PreviewRequest,
+    request: Request, current_user=Depends(get_current_user), db=Depends(get_db)
+):
+    """生成风格预览片段（短文本，不落库）。"""
+    p = (await db.execute(select(PlanProject).where(
+        PlanProject.id == plan_id, PlanProject.user_id == current_user.id
+    ))).scalar_one_or_none()
+    if not p: raise HTTPException(404, "预案不存在")
+
+    s = (await db.execute(select(PlanSection).where(
+        PlanSection.plan_project_id == plan_id,
+        PlanSection.section_key == body.section_key
+    ))).scalar_one_or_none()
+    if not s: raise HTTPException(404, "章节不存在")
+
+    ai_config = (await db.execute(select(AIConfig).where(
+        AIConfig.user_id == current_user.id
+    ))).scalar_one_or_none()
+    if not ai_config: raise HTTPException(400, "请先配置 AI 模型")
+
+    ent = (await db.execute(select(Enterprise).where(
+        Enterprise.id == p.enterprise_id
+    ))).scalar_one_or_none()
+    risk_sources = (await db.execute(select(RiskSource).where(
+        RiskSource.enterprise_id == p.enterprise_id
+    ))).scalars().all()
+    resources = (await db.execute(select(EmergencyResource).where(
+        EmergencyResource.enterprise_id == p.enterprise_id
+    ))).scalars().all()
+    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    if ent:
+        ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
+
+    diagram_pref = "mermaid"
+    if p.style_preference:
+        diagram_pref = p.style_preference.get("diagram_preference", "mermaid")
+
+    prompt = _build_section_prompt(
+        s.title, ent_data, section_key=body.section_key,
+        plan_type=p.plan_type, accident_type=p.accident_type,
+        diagram_preference=diagram_pref,
+    )
+
+    async def event_generator():
+        try:
+            full = ""
+            async for chunk in _stream_llm_chunks(
+                prompt, ai_config, p.plan_type,
+                p.style_preference, p.advanced_prompt_overrides
+            ):
+                full += chunk
+                yield sse_event("chunk", content=chunk)
+                if len(full) > body.max_tokens:
+                    yield sse_event("done", message="预览完成")
+                    return
+            yield sse_event("done", message="预览完成")
+        except Exception as e:
+            yield sse_event("error", message=str(e))
+
+    return EventSourceResponse(event_generator())
+
