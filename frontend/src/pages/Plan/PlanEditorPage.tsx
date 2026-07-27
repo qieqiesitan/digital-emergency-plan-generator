@@ -273,7 +273,8 @@ export default function PlanEditorPage() {
         }
         extra={
           <Space>
-            <Button
+<Button onClick={() => setStyleModalOpen(true)} icon={<SettingOutlined />}>创作风格</Button>
+                        <Button
                 icon={isGenerating ? <LoadingOutlined /> : <ThunderboltOutlined />}
                 type="primary"
                 ghost
