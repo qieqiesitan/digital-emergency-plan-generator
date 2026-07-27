@@ -128,6 +128,8 @@ class PlanProject(Base):
     current_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    style_preference: Mapped[Optional[dict]] = mapped_column(JSONB, default=None)
+    advanced_prompt_overrides: Mapped[Optional[dict]] = mapped_column(JSONB, default=None)
 
     enterprise = relationship("Enterprise", back_populates="plans", lazy="selectin")
     sections = relationship("PlanSection", back_populates="plan_project", cascade="all, delete-orphan", lazy="selectin")
