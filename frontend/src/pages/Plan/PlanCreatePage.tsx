@@ -150,6 +150,7 @@ export default function PlanCreatePage() {
           <StylePanel
             value={stylePreference}
             onChange={setStylePreference}
+            onPreview={() => message.info("创建预案后可在编辑页面预览生成效果")}
             showAdvanced={false}
           />
           <Space style={{ marginTop: 16 }}>
