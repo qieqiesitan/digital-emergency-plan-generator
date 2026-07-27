@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Spin, Input, Button, Space, Badge, message, Progress, Modal } from "antd";
+import { Spin, Input, Button, Space, Badge, message, Progress } from "antd";
+import Modal from "antd/es/modal";
 import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPlan, updatePlan, createVersion } from "@/services/planService";
@@ -8,9 +9,6 @@ import { listSections, updateSection } from "@/services/planService";
 import { generateBatchStream } from "@/services/generationService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
-import { StylePanel, DEFAULT_STYLE } from "@/components/plan/StylePanel";
-import { AdvancedStylePanel } from "@/components/plan/AdvancedStylePanel";
-import type { StylePreference, AdvancedPromptOverrides } from "@/components/plan/StylePanel";
 import SectionTree from "@/components/plan/SectionTree";
 import RichTextEditor from "@/components/plan/RichTextEditor";
 import AIGenerateButton from "@/components/plan/AIGenerateButton";
@@ -42,10 +40,6 @@ export default function PlanEditorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
-  const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
-  const [advancedOverrides, setAdvancedOverrides] = useState<AdvancedPromptOverrides | null>(null);
-  const [styleMode, setStyleMode] = useState<"panel" | "advanced">("panel");
-  const [styleModalOpen, setStyleModalOpen] = useState(false);
 
   const { data: plan, isLoading: planLoading } = useQuery({
     queryKey: ["plan", id],
@@ -343,14 +337,8 @@ export default function PlanEditorPage() {
                 setStylePreference(sp);
                 plansApi.update(id!, { style_preference: sp }).catch(() => {});
               }}
-              onPreview={() => {
-                const firstSection = sections[0];
-                if (firstSection && id) {
-                  generateSectionStream(firstSection.section_key);
-                }
-              }}
+              onPreview={() => {}}
               onSwitchToAdvanced={() => setStyleMode("advanced")}
-              showAdvanced
             />
           ) : (
             <AdvancedStylePanel
@@ -408,47 +396,22 @@ export default function PlanEditorPage() {
                 </>
               )}
             </div>
-
-      {/* 创作风格弹窗 */}
-      <Modal
-        title="创作风格"
-        open={styleModalOpen}
-        onCancel={() => setStyleModalOpen(false)}
-        footer={null}
-        width={520}
-        destroyOnHidden
-      >
+          )}
+        </div>
+      </div>
+      <Modal title="创作风格" open={styleModalOpen} onCancel={() => setStyleModalOpen(false)} footer={null} width={520} destroyOnHidden>
         {styleMode === "panel" ? (
-          <StylePanel
-            value={stylePreference}
-            onChange={(sp) => {
-              setStylePreference(sp);
-              plansApi.update(id!, { style_preference: sp }).catch(() => {});
-            }}
-            onPreview={() => {
-              const firstSection = sections && sections[0];
-              if (firstSection && id) {
-                generateSectionStream(firstSection.section_key);
-                setStyleModalOpen(false);
-              }
-            }}
+          <StylePanel value={stylePreference}
+            onChange={(sp) => { setStylePreference(sp); plansApi.update(id!, { style_preference: sp }).catch(() => {}); }}
+            onPreview={() => { const s = sections && sections[0]; if (s && id) { generateSectionStream(s.section_key); setStyleModalOpen(false); } }}
             onSwitchToAdvanced={() => setStyleMode("advanced")}
-            showAdvanced
-          />
+            showAdvanced />
         ) : (
-          <AdvancedStylePanel
-            value={advancedOverrides}
+          <AdvancedStylePanel value={advancedOverrides}
             sections={(sections || []).map(s => ({ key: s.section_key, title: s.title }))}
             defaultSystemPrompt="你是一位持有国家注册安全工程师资格的应急预案编制专家..."
-            onChange={(ao) => {
-              setAdvancedOverrides(ao);
-              plansApi.update(id!, {
-                style_preference: { ...stylePreference, mode: "advanced" },
-                advanced_prompt_overrides: ao,
-              }).catch(() => {});
-            }}
-            onExit={() => setStyleMode("panel")}
-          />
+            onChange={(ao) => { setAdvancedOverrides(ao); plansApi.update(id!, { style_preference: { ...stylePreference, mode: "advanced" }, advanced_prompt_overrides: ao }).catch(() => {}); }}
+            onExit={() => setStyleMode("panel")} />
         )}
       </Modal>
     </div>
