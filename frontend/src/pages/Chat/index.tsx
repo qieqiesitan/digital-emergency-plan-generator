@@ -11,6 +11,9 @@ import {
   type ChatSSEEvent,
   type Conversation,
 } from "@/services/chatService";
+import MarkdownIt from "markdown-it";
+import DOMPurify from "dompurify";
+const md = new MarkdownIt();
 
 const { Text, Paragraph } = Typography;
 
@@ -323,7 +326,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                   ) : msg.html ? (
                     <div dangerouslySetInnerHTML={{ __html: msg.content }} />
                   ) : (
-                    <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>
+                    <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(md.render(msg.content || "")) }} />
                   )}
                 </div>
               </div>
@@ -478,7 +481,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                     ) : msg.html ? (
                       <div dangerouslySetInnerHTML={{ __html: msg.content }} />
                     ) : (
-                      <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>
+                      <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(md.render(msg.content || "")) }} />
                     )}
                   </div>
                 </div>

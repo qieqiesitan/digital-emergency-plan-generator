@@ -138,3 +138,14 @@
 {"event_id": "9d69930eccc8", "timestamp": "2026-07-20T01:30:53Z", "regulation_id": "std_aqt8001_2007", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
 {"event_id": "76e012b786e2", "timestamp": "2026-07-20T01:30:55Z", "regulation_id": "std_aqt3033_2022", "action": "deleted", "operator": "superadmin@test.com", "detail": {}}
 {"event_id": "4e69460205a9", "timestamp": "2026-07-20T03:05:37Z", "regulation_id": "law_emergency_response_2007", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "261cf115d111", "timestamp": "2026-07-20T07:11:22Z", "regulation_id": "reg_gb_t30676_2014", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "91b69259c534", "timestamp": "2026-07-20T07:13:33Z", "regulation_id": "reg_aq_t_3046_2013_1", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "766a47b1a716", "timestamp": "2026-07-20T07:44:05Z", "regulation_id": "gb18218_2018", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "d5ae64c2ce1c", "timestamp": "2026-07-20T07:52:47Z", "regulation_id": "reg_gb_16423_2020", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "8fcfa2896731", "timestamp": "2026-07-20T07:54:25Z", "regulation_id": "reg_gb_t_30676_2014", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "59f31788c58c", "timestamp": "2026-07-20T07:56:10Z", "regulation_id": "reg_gb_6441_2025", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "6a4dd7650eb2", "timestamp": "2026-07-20T08:43:30Z", "regulation_id": "std_gbt29639_2020", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "3591ec0e934b", "timestamp": "2026-07-20T08:49:09Z", "regulation_id": "gbt38565_2020", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "3edc1f2fb46f", "timestamp": "2026-07-20T09:03:40Z", "regulation_id": "reg_11f5d398_1", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "892c7a733f95", "timestamp": "2026-07-20T09:06:38Z", "regulation_id": "reg_4c33c458", "action": "deleted", "operator": "test@test.com", "detail": {}}
+{"event_id": "520a223b664c", "timestamp": "2026-07-24T02:38:37Z", "regulation_id": "_system", "action": "reindexed", "operator": "test@test.com", "detail": {"total_articles": 7599, "status": "done", "duration_seconds": 310.8}}

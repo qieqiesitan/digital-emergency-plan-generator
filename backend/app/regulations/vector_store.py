@@ -136,7 +136,7 @@ class RegulationVectorStore:
         self.ensure_collection()
         return self._collection.count()
 
-    def rebuild_all(self, embedding_fn, texts_dir: str = None) -> dict:
+    def rebuild_all(self, embedding_fn=None, texts_dir: str = None) -> dict:
         import re
 
         if texts_dir is None:

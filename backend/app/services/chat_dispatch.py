@@ -280,7 +280,30 @@ async def _autofill_enterprise(db, user, args):
         # 查询失败时仍用原名创建
         ent_name = name
         fields = {}
-    # Step 2: 创建企业
+    # Step 2: 查重（同名企业已存在时直接返回，避免重复创建）
+    existing = (await db.execute(
+        select(Enterprise).where(
+            Enterprise.user_id == user.id,
+            func.lower(Enterprise.name) == ent_name.strip().lower(),
+        )
+    )).scalar_one_or_none()
+    if existing:
+        # 用 QCC 数据补充已有企业
+        for fld in ["industry", "address", "employee_count", "credit_code",
+                     "legal_representative", "registered_capital", "business_scope"]:
+            val = fields.get(fld)
+            if val and getattr(existing, fld) is None:
+                setattr(existing, fld, val)
+        await db.commit()
+        fill_info = "已通过工商数据自动填充" if fill_result.get("ok") else f"QCC查询失败({fill_result.get('reason', '')})，仅更新基础信息"
+        return {
+            "id": existing.id, "name": existing.name,
+            "message": f"企业「{existing.name}」已存在，已更新基础信息",
+            "fill_info": fill_info, "original_query": name, "verified": True,
+            "filled_fields": list(fields.keys()) if fields else [],
+        }
+
+    # Step 3: 创建企业
     ent = Enterprise(
         id=str(uuid4()), user_id=user.id, name=ent_name,
         industry=args.get("industry") or fields.get("industry", ""),
@@ -309,6 +332,18 @@ async def _autofill_enterprise(db, user, args):
 
 
 async def _create_enterprise(db, user, args):
+    # 查重：同名企业已存在时直接返回
+    name = args.get("name", "")
+    if name:
+        from sqlalchemy import func as _func
+        existing = (await db.execute(
+            select(Enterprise).where(
+                Enterprise.user_id == user.id,
+                _func.lower(Enterprise.name) == name.strip().lower(),
+            )
+        )).scalar_one_or_none()
+        if existing:
+            return {"id": existing.id, "name": existing.name, "message": "企业已存在，无需重复创建", "verified": True}
     try:
         return await _generic_create(db, user, args, _ENT_CFG)
     except _ErrorDict as e:
@@ -660,7 +695,10 @@ async def _search_regulation_articles(db, user, args):
             article_number = lines[0].lstrip("#").strip() if lines else ""
             article_text = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
 
-            if not article_text or len(article_text) < 10:
+            if not article_text or len(article_text) < 10 or len(article_number) > 30:
+                continue
+            # Skip preamble/metadata blocks (not actual articles)
+            if any(kw in article_number for kw in ["发布机关", "发布日期", "施行日期", "适用主题", "上位法依据"]):
                 continue
 
             score = 0

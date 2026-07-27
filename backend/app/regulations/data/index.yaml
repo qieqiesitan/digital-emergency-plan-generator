@@ -13,6 +13,26 @@ risk_assessment:
   - reg___________37_
   - reg_______________55_
   - reg_ba6311cf
+  - reg_aq_t_3046_2013_1
+  - reg_gb_18218_2018
+  - reg_gb_30077_2023
+  - reg_gb_30871_2022
+  - reg_gb_39800_1_2020
+  - reg_gb_39800_2_2020
+  - reg_gb_39800_5_2023
+  - reg_gb_39800_6_2023
+  - reg_gb_39800_7_2023
+  - reg_gb_39800_8_2024
+  - reg_gb_39800_9_2024
+  - reg_gb_39800_12_2025
+  - reg_gb_t_13861_2022
+  - reg_gb_t_33000_2025
+  - reg_yj_t_31_2025
+  - reg_gb_t_27921_2023_iec_31010_2019
+  - reg_gb_t_24353_2022
+  - reg_36
+  - reg_4_1
+  - reg_4c33c458_1
   optional:
   - gb30077_2023
   - gb6441_1986
@@ -40,6 +60,14 @@ risk_assessment:
   - reg_d1583486
   - reg_f5d9fb50
   - reg_779889ff
+  - reg_gb_6441_2025
+  - reg_gb_16423_2020
+  - reg_gb_39800_3_2020
+  - reg_gb_39800_4_2020
+  - reg_gb_39800_10_2025
+  - reg_gb_39800_11_2025
+  - reg_5eaef22f
+  - reg_11f5d398_1
 special:
   core:
   - law_fire_protection_2021
@@ -48,6 +76,7 @@ special:
   - reg______120_
   - reg_b7adaca1
   - reg_f5d9fb50
+  - reg_61
   optional:
   - gb18218_2018
   - gb30871_2022
@@ -74,18 +103,35 @@ special:
   - reg_201
   - reg_355
   - reg_ba6311cf
+  - reg_aq_t_3046_2013_1
+  - reg_gb_18218_2018
+  - reg_gb_30077_2023
+  - reg_gb_30871_2022
+  - reg_gb_39800_2_2020
+  - reg_yj_t_31_2025
+  - reg_36
+  - reg_5eaef22f
+  - reg_4c33c458_1
 resource_investigation:
   core:
   - gb30077_2023
   - gbt38565_2020
   - std_gbt29639_2020
   - reg_gb_t30676_2014
+  - reg_gb_t_30676_2014
+  - reg_gb_30077_2023
+  - reg_gb_t_30676_2014_1
+  - reg_gb_t_38565_2020
+  - reg_11f5d398_1
   optional:
   - reg____2006_24_
   - reg_577
+  - reg_aq_t_9011_2019
 comprehensive:
   core:
   - std_gbt29639_2020
+  - reg_gb_t_29639_2020
+  - reg_gb_t_33942_2017
   optional:
   - law_emergency_response_2007
   - law_fire_protection_2021
@@ -127,6 +173,11 @@ comprehensive:
   - reg_d1583486
   - reg_77777dc0
   - reg_ba6311cf
+  - reg_aq_t_9011_2019
+  - reg_61
+  - reg_11f5d398_1
+  - reg_4c33c458_1
+  - reg_aq_t_9007_2019
 onsite:
   core:
   - std_gbt29639_2020

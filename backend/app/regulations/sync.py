@@ -163,9 +163,9 @@ PARSE_PROMPT = """你是一位安全生产法规数据库录入助手。请从�
 
 3. 发布机关：发布日期前的发文机关全称
 
-4. 发布日期：常见格式如"2020年3月6日发布"、"二〇二〇年三月六日"
+4. 发布日期：常见格式如"2020年3月6日发布"、"二〇二〇年三月六日"，统一输出为"XXXX年XX月XX日"格式
 
-5. 施行日期（核心字段）：常见格式"自2020年10月1日起施行"、"2021年6月1日实施"
+5. 施行日期（核心字段）：常见格式"自2020年10月1日起施行"、"2021年6月1日实施"，统一输出为"XXXX年XX月XX日"格式
 
 6. 替代关系（核心字段）：查找"替代"、"代替"、"废止"等关键词，列出被替代的法规编号
    例：["GB/T 29639-2013", "AQ/T 9002-2006"]
@@ -181,8 +181,6 @@ PARSE_PROMPT = """你是一位安全生产法规数据库录入助手。请从�
 
 9. 法规类型：law（法律）、standard（标准）、policy（政策）
 
-10. 条文清单：按条款编号逐条提取，每条标注"第X条"编号和完整原文，不要合并或省略
-
 只返回纯JSON，不要任何解释文字：
 {
   "code": "GB/T 29639-2020",
@@ -194,13 +192,90 @@ PARSE_PROMPT = """你是一位安全生产法规数据库录入助手。请从�
   "based_on": ["中华人民共和国安全生产法", "生产安全事故应急预案管理办法"],
   "node_type": "standard",
   "topics": ["应急预案编制", "应急管理", "应急演练"],
-  "articles": [{"number": "第一条", "text": "..."}, {"number": "第二条", "text": "..."}]
 }"""
 
 
 
 # ── 条文程序化提取（替代 LLM 提取，解决长文本截断问题）──
 
+
+
+# ── LLM 兜底提取条文（仅当程序化提取为空时调用）──
+
+ARTICLE_EXTRACT_PROMPT = """你是一位安全生产法规数据库录入助手。请从以下法规/标准全文文本中提取所有条文或章节。
+
+输入文本：
+{raw_text}
+
+请按文档中的原始编号逐条提取所有条文/章节，每条标注编号和完整原文，不要合并或省略。
+
+如果文档使用"第X条"格式，使用该编号。如果使用"X"、"X.Y"等章节编号格式，也使用该编号。
+每种编号类型都要提取，但不要提取参考文献列表或目录中的编号。
+
+只返回纯JSON数组，不要任何解释文字：
+[{"number": "第一条", "text": "..."}, {"number": "第二条", "text": "..."}, {"number": "1", "text": "..."}, {"number": "3.1", "text": "..."}]"""
+
+
+async def _ai_extract_articles(raw_text: str, ai_config) -> list[dict]:
+    """用 LLM 提取条文（兜底）。返回 [{"number": str, "text": str}, ...]。"""
+    import httpx
+    import json as _json
+    import re as _re
+    from app.routers.generation import _decrypt_api_key
+
+    try:
+        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+    except Exception:
+        return []
+
+    base = ai_config.base_url or {
+        "openai": "https://api.openai.com/v1",
+        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "deepseek": "https://api.deepseek.com/v1",
+    }.get(ai_config.provider, "")
+
+    prompt = ARTICLE_EXTRACT_PROMPT.replace("{raw_text}", raw_text)
+    payload = {
+        "model": ai_config.model_name,
+        "messages": [
+            {"role": "system", "content": "你是一个精确的JSON数据提取器。只输出JSON数组，不要解释。"},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.1,
+        "max_tokens": min(65536, (ai_config.max_tokens or 16384) * 2),
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=600) as client:
+            resp = await client.post(
+                f"{base}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+            text = data["choices"][0]["message"]["content"]
+
+            # Try multiple JSON parsing strategies
+            for extractor in [
+                lambda t: _json.loads(t),
+                lambda t: _json.loads(_re.search(r"```(?:json)?\s*\n?(.*?)\n?```", t, _re.DOTALL).group(1).strip()) if _re.search(r"```(?:json)?\s*\n?(.*?)\n?```", t, _re.DOTALL) else None,
+                lambda t: _json.loads(_re.search(r"\[.*?\]", t, _re.DOTALL).group(0)) if _re.search(r"\[.*?\]", t, _re.DOTALL) else None,
+                lambda t: _json.loads("[" + _re.search(r"\{.*", t, _re.DOTALL).group(0) + "]") if _re.search(r"\{.*", t, _re.DOTALL) else None,
+            ]:
+                try:
+                    result = extractor(text)
+                    if result:
+                        if isinstance(result, dict) and "articles" in result:
+                            return result["articles"]
+                        if isinstance(result, list):
+                            return result
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return []
 
 def _extract_articles_from_text(text: str) -> list[dict]:
     """从法规原文中提取所有条文，逐条编号。"""
@@ -215,10 +290,7 @@ def _extract_articles_from_text(text: str) -> list[dict]:
     )
     matches = list(pattern.finditer(text))
     if not matches:
-        pattern2 = _re.compile(r"(?:^|\n)[\s\u3000]*(?:#+[\s\u3000]*)?(\d+)[.\u3001\uff09]\s*", _re.MULTILINE)
-        matches = list(pattern2.finditer(text))
-    if not matches:
-        return [{"number": "全文", "text": text.strip()[:5000]}]
+        return []
     for i, m in enumerate(matches):
         number = m.group().strip()
         number = _re.sub(r"^[#\s\u3000]*", "", number).strip()
@@ -243,9 +315,8 @@ async def ai_parse(raw_text: str, ai_config) -> dict:
         "deepseek": "https://api.deepseek.com/v1",
     }.get(ai_config.provider, "")
 
-    # 元数据提取：只发前 5000 字符给 AI
-    preview = raw_text[:5000]
-    prompt = PARSE_PROMPT.replace("{raw_text}", preview)
+    # 发送全文给 AI 提取元数据（输出仅元数据，max_tokens=4096 足够）
+    prompt = PARSE_PROMPT.replace("{raw_text}", raw_text)
 
     payload = {
         "model": ai_config.model_name,
@@ -254,7 +325,7 @@ async def ai_parse(raw_text: str, ai_config) -> dict:
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.1,
-        "max_tokens": min(4096, ai_config.max_tokens or 16384),
+        "max_tokens": ai_config.max_tokens or 16384,
         
     }
 
@@ -419,34 +490,8 @@ def ingest_regulation(parsed: dict, regulation_id: str,
 # ── 索引管理 ──
 
 async def rebuild_index_with_ai(ai_config) -> dict:
-    """使用 AI API 的 embedding 重建向量索引。"""
-    import httpx
-
-    from app.routers.generation import _decrypt_api_key
-    try:
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
-    except Exception:
-        raise Exception("API Key 解密失败，请前往 设置->AI配置 重新输入并保存 API Key")
-
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-
-    def embedding_fn(texts: list[str]) -> list[list[float]]:
-        with httpx.Client(timeout=60) as client:
-            resp = client.post(
-                f"{base}/embeddings",
-                json={"model": "text-embedding-3-small", "input": texts},
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"Embedding失败: {resp.status_code}")
-            data = resp.json()
-            return [item["embedding"] for item in data["data"]]
-
+    """重建法规向量索引（使用 ChromaDB 内置 Embedding 模型，无需外部 API）。"""
     from app.regulations import get_vector_store
     vs = get_vector_store()
-    result = vs.rebuild_all(embedding_fn)
+    result = vs.rebuild_all(embedding_fn=None)
     return result

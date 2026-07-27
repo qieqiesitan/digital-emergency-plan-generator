@@ -171,6 +171,8 @@ async def _render_mermaid_blocks(md_text: str) -> str:
 
 async def _md_to_html(md_text: str) -> str:
     """Markdown → HTML（含 Mermaid 渲染）"""
+    import markdown as md_lib
+    import markdown as md_lib
     html = await _render_mermaid_blocks(md_text)
     return md_lib.markdown(html, extensions=["tables", "fenced_code"], output_format="html5")
 

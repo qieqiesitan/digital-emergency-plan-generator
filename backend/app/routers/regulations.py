@@ -262,6 +262,18 @@ async def parse_regulation(
     ai_config = await _get_ai_config(current_user.id, db)
     try:
         result = await ai_parse(raw_text, ai_config)
+        # 条文程序化提取（不受 AI max_tokens 限制）
+        from app.regulations.sync import _extract_articles_from_text
+        articles = _extract_articles_from_text(raw_text)
+        # 程序化提取为空时，兜底用 LLM 提取（适用于非 第X条 格式的标准文件）
+        if not articles:
+            try:
+                from app.regulations.sync import _ai_extract_articles
+                articles = await _ai_extract_articles(raw_text, ai_config)
+            except Exception as ex:
+                logger.warning("LLM article extraction fallback failed: %s", ex)
+                articles = []
+        result["articles"] = articles
     except Exception as e:
         logger.exception("AI解析失败")
         raise HTTPException(500, f"AI解析失败: {e}")
