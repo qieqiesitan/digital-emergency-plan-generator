@@ -9,7 +9,7 @@ from app.models.resource_investigation import ResourceInvestigationReport
 
 logger = logging.getLogger(__name__)
 
-from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt
+from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt, build_system_prompt_with_style
 
 
 async def build_resource_investigation_context(enterprise_id: str, db: AsyncSession) -> dict:

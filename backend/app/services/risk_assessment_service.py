@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 # 提示词缓存（延迟导入，避免循环引用）
-from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt
+from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt, build_system_prompt_with_style
 
 RISK_ORDER = {"重大": 0, "较大": 1, "一般": 2, "低": 3}
 
@@ -148,10 +148,12 @@ XX在生产经营过程中主要可能发生的较大风险事故类型为：火
 7. 直接输出报告正文，不要加任何前言、后记或说明性文字"""
 
 
-def _get_ra_system_prompt() -> str:
-    """获取风险评估系统提示词，优先从数据库取。"""
+def _get_ra_system_prompt(style_preference: dict | None = None) -> str:
+    """获取风险评估系统提示词，优先从数据库取，fallback 风格注入。"""
     cached = get_report_system_prompt("risk_assessment_system")
-    return cached if cached else SYSTEM_PROMPT
+    if cached:
+        return cached
+    return build_system_prompt_with_style(style_preference=style_preference or {})
 
 # L/S value normalizers
 _LS_TEXT_MAP = {"\u9ad8": 4, "\u4e2d": 3, "\u4f4e": 2, "\u8f83\u9ad8": 4, "\u8f83\u4f4e": 2, "\u5f88\u9ad8": 5, "\u5f88\u4f4e": 1}
