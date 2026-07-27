@@ -902,7 +902,9 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
         pass
 
-
+    diagram_pref = 'mermaid'
+    if p.style_preference:
+        diagram_pref = p.style_preference.get('diagram_preference', 'mermaid')
 
     prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference=diagram_pref)
 
@@ -1549,6 +1551,10 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
+
+    diagram_pref = "mermaid"
+    if p.style_preference:
+        diagram_pref = p.style_preference.get("diagram_preference", "mermaid")
     prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference=diagram_pref)
 
     p.status = "generating"
