@@ -24,6 +24,7 @@ class SectionUpdate(BaseModel):
 
 class EnterprisePlanSummary(BaseModel):
     enterprise_id: str; enterprise_name: str
+    industry: str = ""
     total: int = 0
     comprehensive_count: int = 0
     special_count: int = 0

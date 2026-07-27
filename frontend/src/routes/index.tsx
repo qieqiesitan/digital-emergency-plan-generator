@@ -42,6 +42,7 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-assessment/preview", element: <RiskAssessmentPreview /> },
   { path: "/enterprises/:id/resource-investigation/preview", element: <ResourceInvestigationPreview /> },
   { path: "/plans", element: <PlanCardsPage /> },
+  { path: "/plans/all", element: <PlanListPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
   { path: "/plans/new", element: <PlanCreatePage /> },
   { path: "/plans/:id/edit", element: <PlanEditorPage /> },

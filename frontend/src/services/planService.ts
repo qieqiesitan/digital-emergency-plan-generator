@@ -8,7 +8,7 @@ import type {
 } from "@/types/plan";
 
 export interface PlanQueryParams extends PaginationParams {
-  enterprise_id: string;
+  enterprise_id?: string;
   plan_type?: string;
   status?: string;
   search?: string;

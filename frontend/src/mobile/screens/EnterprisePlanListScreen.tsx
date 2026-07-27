@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight, Plus, FileText, Target, Factory,
-  Edit3, Eye, Trash2, Sparkles,
+  Edit3, Eye, Trash2, Search,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import NavBar from "@/mobile/components/ui/NavBar";
@@ -14,6 +14,7 @@ import Chip from "@/mobile/components/ui/Chip";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import FAB from "@/mobile/components/ui/FAB";
 import Spinner from "@/mobile/components/ui/Spinner";
+import Input from "@/mobile/components/ui/Input";
 import Toast, { useToast } from "@/mobile/components/ui/Toast";
 import { listPlans, deletePlan } from "@/services/planService";
 import { getEnterprise } from "@/services/enterpriseService";
@@ -32,12 +33,20 @@ const TYPE_FILTERS = [
   { key: "onsite", label: "现场处置" },
 ];
 
+const STATUS_FILTERS = [
+  { key: "", label: "全部状态" },
+  { key: "draft", label: "草稿" },
+  { key: "completed", label: "已完成" },
+];
+
 export default function EnterprisePlanListScreen() {
   const { id: enterpriseId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", enterpriseId],
@@ -46,7 +55,7 @@ export default function EnterprisePlanListScreen() {
   });
 
   const { data: plans = [], isLoading } = useQuery({
-    queryKey: ["plans", enterpriseId, typeFilter],
+    queryKey: ["plans", enterpriseId, typeFilter, search, statusFilter],
     queryFn: async () => {
       const params: Record<string, unknown> = {
         enterprise_id: enterpriseId,
@@ -54,6 +63,8 @@ export default function EnterprisePlanListScreen() {
         page_size: 100,
       };
       if (typeFilter) params.plan_type = typeFilter;
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
       const res = await listPlans(params as Parameters<typeof listPlans>[0]);
       return res.data.items;
     },
@@ -84,6 +95,8 @@ export default function EnterprisePlanListScreen() {
     );
   }
 
+  const hasFilters = typeFilter || search || statusFilter;
+
   return (
     <SafeArea className="bg-neutral-50 min-h-dvh pb-20">
       <NavBar
@@ -97,20 +110,42 @@ export default function EnterprisePlanListScreen() {
         }]}
       />
 
-      {/* 筛选 */}
-      {plans.length > 0 && (
-        <div className="px-md pt-sm pb-2 flex gap-2 overflow-x-auto hide-scrollbar">
-          {TYPE_FILTERS.map(f => (
-            <Chip
-              key={f.key}
-              selected={typeFilter === f.key}
-              onClick={() => setTypeFilter(f.key)}
-            >
-              {f.label}
-            </Chip>
-          ))}
-        </div>
-      )}
+      {/* 搜索 */}
+      <div className="px-md pt-sm pb-1">
+        <Input
+          prefixIcon={<Search size={18} />}
+          placeholder="搜索预案标题…"
+          value={search}
+          onChange={setSearch}
+          className="bg-white"
+        />
+      </div>
+
+      {/* 类型筛选 */}
+      <div className="px-md pt-1 pb-1 flex gap-2 overflow-x-auto hide-scrollbar">
+        {TYPE_FILTERS.map(f => (
+          <Chip
+            key={f.key}
+            selected={typeFilter === f.key}
+            onClick={() => setTypeFilter(f.key)}
+          >
+            {f.label}
+          </Chip>
+        ))}
+      </div>
+
+      {/* 状态筛选 */}
+      <div className="px-md pb-2 flex gap-2 overflow-x-auto hide-scrollbar">
+        {STATUS_FILTERS.map(f => (
+          <Chip
+            key={f.key}
+            selected={statusFilter === f.key}
+            onClick={() => setStatusFilter(f.key)}
+          >
+            {f.label}
+          </Chip>
+        ))}
+      </div>
 
       {/* 列表 */}
       <div className="px-md py-2 space-y-2">
@@ -207,10 +242,10 @@ export default function EnterprisePlanListScreen() {
           <div className="pt-8">
             <EmptyState
               icon={<FileText size={48} className="text-neutral-300" />}
-              title={typeFilter ? `暂无${TYPE_FILTERS.find(f => f.key === typeFilter)?.label ?? ""}预案` : "暂无预案"}
-              description="为当前企业创建第一个应急预案"
-              action="新建预案"
-              onAction={() => navigate(`/m/plans/new?enterprise_id=${enterpriseId}`)}
+              title={hasFilters ? "未找到匹配预案" : "暂无预案"}
+              description={hasFilters ? "尝试调整筛选条件" : "为当前企业创建第一个应急预案"}
+              action={hasFilters ? undefined : "新建预案"}
+              onAction={hasFilters ? undefined : () => navigate(`/m/plans/new?enterprise_id=${enterpriseId}`)}
             />
           </div>
         )}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Table, Modal, Form, Input, Select, Button, message, Space, Popconfirm, Checkbox, Row, Col, Divider,
+  Table, Modal, Form, Input, Select, Button, message, Space, Popconfirm, Checkbox, Divider,
 } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -153,26 +153,22 @@ export default function RoleManagePage() {
           </Form.Item>
 
           <Form.Item name="permission_ids" label="权限配置">
-            <Checkbox.Group style={{ width: "100%" }}>
+            <Checkbox.Group style={{ display: "block", width: "100%" }}>
               <Divider orientation="left" plain style={{ fontSize: 13, margin: "4px 0" }}>菜单权限</Divider>
-              <Row gutter={[16, 8]} style={{ marginBottom: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 12px", marginBottom: 12 }}>
                 {menuPermissions.map(p => (
-                  <Col span={8} key={p.id}>
-                    <Checkbox value={p.id}>{p.name}</Checkbox>
-                  </Col>
+                  <Checkbox key={p.id} value={p.id}>{p.name}</Checkbox>
                 ))}
-              </Row>
+              </div>
               <Divider orientation="left" plain style={{ fontSize: 13, margin: "4px 0" }}>操作权限</Divider>
               {Object.entries(groupedActions).map(([resource, perms]) => (
                 <div key={resource} style={{ marginBottom: 10 }}>
                   <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 12, color: "#999" }}>{resource}</div>
-                  <Row gutter={[16, 6]}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "4px 12px", }}>
                     {perms.map(p => (
-                      <Col span={12} key={p.id}>
-                        <Checkbox value={p.id}>{p.name}</Checkbox>
-                      </Col>
+                      <Checkbox key={p.id} value={p.id}>{p.name}</Checkbox>
                     ))}
-                  </Row>
+                  </div>
                 </div>
               ))}
             </Checkbox.Group>

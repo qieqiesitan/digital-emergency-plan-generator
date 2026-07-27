@@ -1,17 +1,19 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, FileText, Target, Factory, Building2, AlertTriangle } from "lucide-react";
+import { Plus, FileText, Target, Factory, Building2, AlertTriangle, Search } from "lucide-react";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import Card from "@/mobile/components/ui/Card";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import Skeleton from "@/mobile/components/ui/Skeleton";
+import Input from "@/mobile/components/ui/Input";
 import { listEnterprises } from "@/services/enterpriseService";
 import { getEnterprisePlanSummary } from "@/services/planService";
 
 export default function PlanCardsScreen() {
   const navigate = useNavigate();
+  const [search, setSearch] = useState("");
 
   const { data: enterprises = [], isLoading: entLoading, error: entError } = useQuery({
     queryKey: ["enterprises"],
@@ -34,7 +36,14 @@ export default function PlanCardsScreen() {
   const getSummary = (eid: string) =>
     summaries.find(s => s.enterprise_id === eid);
 
-  // 计算总计
+  // client-side enterprise name filter
+  const filteredEnterprises = useMemo(() => {
+    if (!search) return enterprises;
+    const q = search.toLowerCase();
+    return enterprises.filter(e => e.name.toLowerCase().includes(q));
+  }, [enterprises, search]);
+
+  // 璁＄畻鎬昏
   const totalStats = useMemo(() => {
     let comprehensive = 0, special = 0, onsite = 0;
     summaries.forEach(s => {
@@ -65,7 +74,7 @@ export default function PlanCardsScreen() {
     );
   }
 
-  // API 错误
+  // API 閿欒
   if (entError && enterprises.length === 0) {
     return (
       <SafeArea className="bg-neutral-50 min-h-dvh">
@@ -83,7 +92,7 @@ export default function PlanCardsScreen() {
     );
   }
 
-  // 无企业
+  // 鏃犱紒涓?
   if (enterprises.length === 0) {
     return (
       <SafeArea className="bg-neutral-50 min-h-dvh">
@@ -101,19 +110,19 @@ export default function PlanCardsScreen() {
     );
   }
 
-  // 分离有预案和无预案的企业
-  const withPlans = enterprises.filter(ent => {
+  // 鍒嗙鏈夐妗堝拰鏃犻妗堢殑浼佷笟锛堜娇鐢ㄨ繃婊ゅ悗鐨勫垪琛級
+  const withPlans = filteredEnterprises.filter(ent => {
     const s = getSummary(ent.id);
     return ((s?.comprehensive_count ?? 0) + (s?.special_count ?? 0) + (s?.onsite_count ?? 0)) > 0;
   });
-  const withoutPlans = enterprises.filter(ent => !withPlans.includes(ent));
+  const withoutPlans = filteredEnterprises.filter(ent => !withPlans.includes(ent));
 
   return (
     <SafeArea className="bg-neutral-50 min-h-dvh">
       <NavBar title="预案管理" />
 
       <div className="px-md py-md space-y-lg">
-        {/* 统计概览 */}
+        {/* 缁熻姒傝 */}
         {totalStats.total > 0 && (
           <div className="flex gap-3">
             <div className="flex-1 bg-white rounded-md shadow-card p-3 text-center">
@@ -131,7 +140,18 @@ export default function PlanCardsScreen() {
           </div>
         )}
 
-        {/* 有预案的企业 */}
+        {/* 鎼滅储 */}
+        <div>
+          <Input
+            prefixIcon={<Search size={18} />}
+            placeholder="搜索企业名称…"
+            value={search}
+            onChange={setSearch}
+            className="bg-white"
+          />
+        </div>
+
+        {/* 鏈夐妗堢殑浼佷笟 */}
         {withPlans.length > 0 && (
           <>
             <div className="flex items-center justify-between">
@@ -215,7 +235,7 @@ export default function PlanCardsScreen() {
           </>
         )}
 
-        {/* 无预案的企业 — 也展示出来，引导创建 */}
+        {/* 鏃犻妗堢殑浼佷笟 — 涔熷睍绀哄嚭鏉ワ紝寮曞鍒涘缓 */}
         {withoutPlans.length > 0 && (
           <>
             <div className="flex items-center justify-between">
@@ -258,8 +278,19 @@ export default function PlanCardsScreen() {
           </>
         )}
 
-        {/* 如果既有 onPlans 也有 offPlans 为空且统计也为零: 极端空态 */}
-        {withPlans.length === 0 && withoutPlans.length > 0 && totalStats.total === 0 && (
+        {/* 鎼滅储鏃犵粨鏋? */}
+        {search && filteredEnterprises.length === 0 && (
+          <div className="pt-4">
+            <EmptyState
+              icon={<Search size={40} className="text-neutral-300" />}
+              title="未找到匹配企业"
+              description="尝试其他关键词"
+            />
+          </div>
+        )}
+
+        {/* 鏋佺绌烘€? */}
+        {!search && withPlans.length === 0 && withoutPlans.length > 0 && totalStats.total === 0 && (
           <div className="text-center py-6">
             <p className="text-body-sm text-neutral-400">
               以上企业暂未创建预案，点击「创建」开始

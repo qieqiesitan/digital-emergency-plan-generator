@@ -45,6 +45,7 @@ export interface SectionUpdate {
 export interface EnterprisePlanSummary {
   enterprise_id: string;
   enterprise_name: string;
+  industry: string;
   total: number;
   comprehensive_count: number;
   special_count: number;

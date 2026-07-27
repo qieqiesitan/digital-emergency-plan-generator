@@ -82,6 +82,7 @@ async def enterprise_plan_summary(
         select(
             Enterprise.id.label("enterprise_id"),
             Enterprise.name.label("enterprise_name"),
+            Enterprise.industry.label("industry"),
             func.count(PlanProject.id).label("total"),
             func.count(case((PlanProject.plan_type == "comprehensive", 1))).label("comprehensive_count"),
             func.count(case((PlanProject.plan_type == "special", 1))).label("special_count"),
@@ -94,7 +95,7 @@ async def enterprise_plan_summary(
             PlanProject.user_id == current_user.id,
         ))
         .where(Enterprise.user_id == current_user.id)
-        .group_by(Enterprise.id, Enterprise.name)
+        .group_by(Enterprise.id, Enterprise.name, Enterprise.industry)
         .order_by(Enterprise.name)
     )
     result = await db.execute(stmt)
@@ -103,6 +104,7 @@ async def enterprise_plan_summary(
         EnterprisePlanSummary(
             enterprise_id=row.enterprise_id,
             enterprise_name=row.enterprise_name,
+            industry=row.industry or "",
             total=row.total,
             comprehensive_count=row.comprehensive_count,
             special_count=row.special_count,
