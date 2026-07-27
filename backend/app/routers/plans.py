@@ -127,9 +127,17 @@ async def get_plan(plan_id: str, current_user=Depends(get_current_user), db=Depe
 async def create_plan(data: PlanCreate, current_user=Depends(get_current_user), db=Depends(get_db)):
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == data.enterprise_id, Enterprise.user_id == current_user.id))).scalar_one_or_none()
     if not ent: raise HTTPException(404, "企业不存在")
-    p = PlanProject(user_id=current_user.id, **data.model_dump(exclude_none=True))
-    if not p.style_preference and current_user.default_style_preference:
-        p.style_preference = current_user.default_style_preference
+        # 继承用户默认风格（前端未传时，从DB直接获取）
+    if data.style_preference is None:
+        user_row = (await db.execute(select(User).where(User.id == current_user.id))).scalar_one_or_none()
+        if user_row and user_row.default_style_preference:
+            plan_data = data.model_dump(exclude_none=True)
+            plan_data["style_preference"] = user_row.default_style_preference
+            p = PlanProject(user_id=current_user.id, **plan_data)
+        else:
+            p = PlanProject(user_id=current_user.id, **data.model_dump(exclude_none=True))
+    else:
+        p = PlanProject(user_id=current_user.id, **data.model_dump(exclude_none=True))
     db.add(p)
     await db.flush()
 
