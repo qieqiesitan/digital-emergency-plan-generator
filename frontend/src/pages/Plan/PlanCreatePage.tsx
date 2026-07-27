@@ -8,6 +8,8 @@ import { getEnterprise } from "@/services/enterpriseService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PLAN_TYPE_LABELS } from "@/utils/constants";
+import { StylePanel, DEFAULT_STYLE } from "@/components/plan/StylePanel";
+import type { StylePreference } from "@/components/plan/StylePanel";
 import type { PlanType } from "@/types/plan";
 
 const { Title, Text } = Typography;
@@ -26,6 +28,7 @@ export default function PlanCreatePage() {
   const [planType, setPlanType] = useState<PlanType | null>(initType);
   const [accidentType, setAccidentType] = useState<string>("");
   const [title, setTitle] = useState("");
+  const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", effectiveEnterpriseId],
@@ -52,6 +55,7 @@ export default function PlanCreatePage() {
     { title: "选择类型" },
     { title: "事故类型" },
     { title: "填写信息" },
+    { title: "创作风格" },
     { title: "确认创建" },
   ];
 
@@ -142,6 +146,24 @@ export default function PlanCreatePage() {
 
       {currentStep === 3 && (
         <div>
+          <Title level={5}>选择创作风格</Title>
+          <StylePanel
+            value={stylePreference}
+            onChange={setStylePreference}
+            onPreview={() => {}}
+            onSwitchToAdvanced={() => {}}
+          />
+          <Space style={{ marginTop: 16 }}>
+            <Button onClick={() => setCurrentStep(2)}>上一步</Button>
+            <Button type="primary" onClick={() => setCurrentStep(4)}>
+              下一步
+            </Button>
+          </Space>
+        </div>
+      )}
+
+      {currentStep === 4 && (
+        <div>
           <Title level={5}>确认创建</Title>
           <Card>
             <Descriptions column={1}>
@@ -152,7 +174,7 @@ export default function PlanCreatePage() {
             </Descriptions>
           </Card>
           <Space style={{ marginTop: 16 }}>
-            <Button onClick={() => setCurrentStep(2)}>上一步</Button>
+            <Button onClick={() => setCurrentStep(3)}>上一步</Button>
             <Button
               type="primary"
               loading={mutation.isPending}
@@ -162,6 +184,7 @@ export default function PlanCreatePage() {
                   plan_type: planType!,
                   title: title || defaultTitle,
                   accident_type: accidentType || null,
+                  style_preference: stylePreference,
                 });
               }}
             >
