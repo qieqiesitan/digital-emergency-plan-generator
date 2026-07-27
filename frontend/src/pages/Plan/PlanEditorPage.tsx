@@ -40,6 +40,10 @@ export default function PlanEditorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
+  const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
+  const [advancedOverrides, setAdvancedOverrides] = useState<AdvancedPromptOverrides | null>(null);
+  const [styleMode, setStyleMode] = useState<"panel" | "advanced">("panel");
+  const [styleModalOpen, setStyleModalOpen] = useState(false);
 
   const { data: plan, isLoading: planLoading } = useQuery({
     queryKey: ["plan", id],
