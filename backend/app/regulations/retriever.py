@@ -143,8 +143,9 @@ class RegulationRetriever:
         vector_c = self._vector_article_recall(
             plan_type, section_key, section_title, section_topics, enterprise_data,
         )
-        all_c = self._merge_dedup(graph_c, vector_c)
-        scored = self.scorer.score_articles(all_c, section_topics)
+       all_c = self._merge_dedup(graph_c, vector_c)
+        all_c = self._exclude_irrelevant_regulations(all_c, section_topics, enterprise_data)
+       scored = self.scorer.score_articles(all_c, section_topics)
         scored.sort(key=lambda s: s.score, reverse=True)
         top = scored[:max_articles]
         by_reg = {}
@@ -232,7 +233,30 @@ class RegulationRetriever:
                 is_abolished=rn.get("status")=="abolished"))
         return candidates
 
-    def _merge_dedup(self, graph_c, vector_c):
+   def _merge_dedup(self, graph_c, vector_c):
+    def _exclude_irrelevant_regulations(self, candidates, section_topics, enterprise_data):
+        """当企业不涉及危化品时，排除仅含危化品/特殊作业 topic 的法规条文。
+        保守策略：仅排除 regulation topics 严格包含于危化topic集合的法规；
+        对于混合 topic 的法规（如 GB 30871 含 应急救援 等通用 topic），不做排除，
+        由 A/E 方案在其他层面兜底。
+        """
+        if not enterprise_data or not section_topics:
+            return candidates
+        has_chemicals = bool(enterprise_data.get("hazardous_chemicals", []))
+        if has_chemicals:
+            return candidates
+        if set(section_topics) & {"危险化学品", "特殊作业"}:
+            return candidates
+        HAZARD_ONLY_TOPICS = {"危险化学品", "特殊作业", "重大危险源"}
+        filtered = []
+        for c in candidates:
+            reg = self.graph.get_node(c.regulation_id)
+            reg_topics = set((reg or {}).get("topics", []) or [])
+            if reg_topics and reg_topics.issubset(HAZARD_ONLY_TOPICS):
+                continue
+            filtered.append(c)
+        return filtered
+
         m = {}
         for c in graph_c:
             m[self._normalize_id(c.id)] = c

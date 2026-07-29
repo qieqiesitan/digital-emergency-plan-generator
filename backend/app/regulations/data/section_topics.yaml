@@ -14,7 +14,7 @@ patterns:
     topics: [应急资源, 应急救援物资, 应急物资, 应急资源调查]
 
   - key: "sec_响应|sec_处置|应急响应|应急处置|sec_5"
-    topics: [应急救援, 应急响应, 危险化学品, 特殊作业]
+    topics: [应急救援, 应急响应]
 
   - key: "sec_预防|sec_预警|预防预警|sec_4"
     topics: [风险评估, 安全培训, 应急管理, 危险化学品]
@@ -23,7 +23,7 @@ patterns:
     topics: [应急演练, 演练]
 
   - key: "sec_后期|sec_恢复|后期处置|恢复重建"
-    topics: [应急管理, 特殊作业]
+    topics: [应急管理]
 
   - key: "sec_保障|保障措施|sec_6"
     topics: [应急资源, 安全培训, 应急救援物资]
