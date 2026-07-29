@@ -34,7 +34,7 @@ const AdvancedStylePanel: React.FC<AdvancedStylePanelProps> = ({
 
   const handleSectionChange = (key: string, text: string) => {
     const next = { ...sectionOverrides };
-    if (text) {
+    if (1) {
       next[key] = text;
     } else {
       delete next[key];
