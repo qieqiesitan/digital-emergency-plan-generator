@@ -1,43 +1,149 @@
 """风险评估多方法计算引擎。支持 LS 矩阵、LEC 评价法、煤矿 LS 矩阵、直接判定法。"""
+
 from typing import Optional
 from dataclasses import dataclass
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from app.models.risk_management import RiskAssessmentMethod
+
 
 @dataclass
 class RiskResult:
-    risk_level: str; risk_score: str; action: str; deadline: str
+    """风险评估计算结果。
 
-def compute_risk(method_type: str, params: dict, config: dict | None = None) -> RiskResult:
+    Attributes:
+        risk_level: 风险等级标签，如"重大""较大""一般""低"。
+        risk_score: 风险分值表达式，如 "R=12" 或 "D=240"。
+        action:   建议处置措施文本。
+        deadline: 整改期限描述。
+    """
+    risk_level: str
+    risk_score: str
+    action: str
+    deadline: str
+
+
+def compute_risk(
+    method_type: str,
+    params: dict,
+    config: dict | None = None,
+) -> RiskResult:
+    """根据评估方法类型和参数计算风险等级。
+
+    Args:
+        method_type: 评估方法 — "LS" / "LEC" / "COAL_LS" / "DIRECT"。
+        params: 方法所需参数，常见键有 l, s, e, c, risk_level。
+        config: 方法配置字典，含 risk_thresholds 阈值列表。
+
+    Returns:
+        RiskResult，包含等级、分值、处置措施和整改期限。
+    """
+    # 直接判定法：直接返回 params 中的风险等级
     if method_type == "DIRECT":
         level = params.get("risk_level", "一般")
-        return RiskResult(risk_level=level, risk_score="-", action=level, deadline="按需")
+        return RiskResult(
+            risk_level=level,
+            risk_score="-",
+            action=level,
+            deadline="按需",
+        )
+
     thresholds = (config or {}).get("risk_thresholds", [])
+
+    # 计算风险分值 R 或 D，根据不同方法
     if method_type == "LS":
-        l_val = float(params.get("l", 3)); s_val = float(params.get("s", 3)); r = int(l_val * s_val); score_str = f"R={r}"
+        l_val = float(params.get("l", 3))
+        s_val = float(params.get("s", 3))
+        r = int(l_val * s_val)
+        score_str = f"R={r}"
     elif method_type == "LEC":
-        l_val = float(params.get("l", 1)); e_val = float(params.get("e", 1)); c_val = float(params.get("c", 1)); r = int(l_val * e_val * c_val); score_str = f"D={r}"
+        l_val = float(params.get("l", 1))
+        e_val = float(params.get("e", 1))
+        c_val = float(params.get("c", 1))
+        r = int(l_val * e_val * c_val)
+        score_str = f"D={r}"
     elif method_type == "COAL_LS":
-        l_val = float(params.get("l", 3)); s_val = float(params.get("s", 3)); r = int(l_val * s_val); score_str = f"R={r}"
+        l_val = float(params.get("l", 3))
+        s_val = float(params.get("s", 3))
+        r = int(l_val * s_val)
+        score_str = f"R={r}"
+        # 煤矿 LS 默认阈值（当配置未提供时使用）
         if not thresholds:
             thresholds = [
-                {"min":20,"max":25,"level":"重大","action":"立即停产整改","deadline":"立即"},
-                {"min":15,"max":19,"level":"较大","action":"限期停产整改","deadline":"1个月"},
-                {"min":10,"max":14,"level":"一般","action":"限期整改","deadline":"3个月"},
-                {"min":1,"max":9,"level":"低","action":"加强日常管理","deadline":"持续"},
+                {"min": 20, "max": 25, "level": "重大",
+                 "action": "立即停产整改", "deadline": "立即"},
+                {"min": 15, "max": 19, "level": "较大",
+                 "action": "限期停产整改", "deadline": "1个月"},
+                {"min": 10, "max": 14, "level": "一般",
+                 "action": "限期整改", "deadline": "3个月"},
+                {"min": 1,  "max": 9,  "level": "低",
+                 "action": "加强日常管理", "deadline": "持续"},
             ]
     else:
-        return RiskResult(risk_level="一般", risk_score="-", action="未知方法", deadline="N/A")
+        return RiskResult(
+            risk_level="一般",
+            risk_score="-",
+            action="未知方法",
+            deadline="N/A",
+        )
+
+    # 按阈值区间匹配风险等级
     for t in thresholds:
         if t["min"] <= r <= t["max"]:
-            return RiskResult(risk_level=t["level"], risk_score=score_str, action=t.get("action",""), deadline=t.get("deadline",""))
-    return RiskResult(risk_level="低", risk_score=score_str, action="日常管理", deadline="持续")
+            return RiskResult(
+                risk_level=t["level"],
+                risk_score=score_str,
+                action=t.get("action", ""),
+                deadline=t.get("deadline", ""),
+            )
 
-async def get_active_method_config(db: AsyncSession, enterprise_id: str, method_type: str = "LS") -> dict | None:
-    result = await db.execute(select(RiskAssessmentMethod).where(RiskAssessmentMethod.enterprise_id==enterprise_id, RiskAssessmentMethod.method_type==method_type, RiskAssessmentMethod.is_active==True))
+    # 未命中任何阈值区间时的兜底
+    return RiskResult(
+        risk_level="低",
+        risk_score=score_str,
+        action="日常管理",
+        deadline="持续",
+    )
+
+
+async def get_active_method_config(
+    db: AsyncSession,
+    enterprise_id: str,
+    method_type: str = "LS",
+) -> dict | None:
+    """获取启用的评估方法配置。
+
+    先查企业级配置，若无则回退到系统级（enterprise_id 为 NULL）配置。
+
+    Args:
+        db: 异步数据库会话。
+        enterprise_id: 企业 ID。
+        method_type: 评估方法类型，默认 "LS"。
+
+    Returns:
+        方法配置字典，未找到时返回 None。
+    """
+    # 先查企业级
+    result = await db.execute(
+        select(RiskAssessmentMethod).where(
+            RiskAssessmentMethod.enterprise_id == enterprise_id,
+            RiskAssessmentMethod.method_type == method_type,
+            RiskAssessmentMethod.is_active == True,
+        )
+    )
     m = result.scalar_one_or_none()
-    if m: return m.config
-    result = await db.execute(select(RiskAssessmentMethod).where(RiskAssessmentMethod.enterprise_id.is_(None), RiskAssessmentMethod.method_type==method_type, RiskAssessmentMethod.is_active==True))
+    if m:
+        return m.config
+
+    # 回退到系统级配置
+    result = await db.execute(
+        select(RiskAssessmentMethod).where(
+            RiskAssessmentMethod.enterprise_id.is_(None),
+            RiskAssessmentMethod.method_type == method_type,
+            RiskAssessmentMethod.is_active == True,
+        )
+    )
     m = result.scalar_one_or_none()
     return m.config if m else None
