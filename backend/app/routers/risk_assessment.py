@@ -20,7 +20,9 @@ from app.schemas.common import ApiResponse
 from app.routers.generation import _decrypt_api_key, _stream_llm
 from app.services.risk_assessment_service import (
     CHAPTER_DEFINITIONS as RA_CHAPTER_DEFINITIONS,
-    build_risk_assessment_context,
+)
+from app.services.risk_context_builder import build_risk_management_context
+from app.services.risk_assessment_service import (
     build_chapter_prompt,
     get_chapter_keys,
     get_chapter_title,
@@ -444,7 +446,7 @@ async def generate_risk_assessment(
     if existing:
         raise HTTPException(400, "已有正在生成的报告，请等待完成")
 
-    context = await build_risk_assessment_context(enterprise_id, db)
+    context = await build_risk_management_context(enterprise_id, db)
 
     report = (await db.execute(
         select(RiskAssessmentReport).where(RiskAssessmentReport.enterprise_id == enterprise_id)

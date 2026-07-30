@@ -45,6 +45,7 @@ def _build_response(e: Enterprise) -> EnterpriseResponse:
         business_scope=e.business_scope, employee_count=e.employee_count,
         building_overview=e.building_overview, org_structure=e.org_structure or [],
         surrounding_info=e.surrounding_info,
+        risk_method_config=e.risk_method_config or {},
         floor_plan_url=e.floor_plan_url,
         gis_lat=e.gis_lat,
         gis_lng=e.gis_lng,

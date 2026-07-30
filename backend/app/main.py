@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.database import engine, Base
-from app.routers import chat, auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations
+from app.routers import chat, auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations
 from app.dependencies import get_current_user
 from app.services.mermaid_renderer import _close_browser
 from app.middleware.hmac_auth import HmacAuthMiddleware
@@ -61,6 +61,7 @@ app.include_router(ai_config.router, prefix="/api/v1")
 app.include_router(risk_assessment.router, prefix="/api/v1")
 app.include_router(resource_investigation.router, prefix="/api/v1")
 app.include_router(risk_sources_ext.router, prefix="/api/v1")
+app.include_router(risk_management.router, prefix="/api/v1")
 app.include_router(resources_ext.router, prefix="/api/v1")
 app.include_router(surrounding_ai.router, prefix="/api/v1")
 app.include_router(hazardous_chemicals.router, prefix="/api/v1")

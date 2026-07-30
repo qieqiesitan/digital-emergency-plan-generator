@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 
 from fastapi.responses import StreamingResponse
+# Note: risk_sources endpoints are deprecated. Use /enterprises/{id}/risk-management/* instead.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
