@@ -53,6 +53,8 @@ class Enterprise(Base):
     natural_conditions: Mapped[Optional[str]] = mapped_column(Text)
     special_equipment: Mapped[Optional[str]] = mapped_column(Text)
     surrounding_info: Mapped[Optional[dict]] = mapped_column(JSONB)
+    # 风险分级管控
+    risk_method_config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     # 厂区平面图 & GIS 定位
     floor_plan_url: Mapped[Optional[str]] = mapped_column(String(500))
     gis_lat: Mapped[Optional[float]] = mapped_column(Float)
@@ -81,6 +83,7 @@ class RiskSource(Base):
     risk_level: Mapped[Optional[str]] = mapped_column(String(20))
     control_measures: Mapped[Optional[str]] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    migrated: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     enterprise = relationship("Enterprise", back_populates="risk_sources", lazy="selectin")
