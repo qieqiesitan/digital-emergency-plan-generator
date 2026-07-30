@@ -565,13 +565,13 @@ export default function RiskManagementTab({
             添加分区
           </Button>
           <Button icon={<ThunderboltOutlined />}>
-            {"🚀 智能导引"}
+            {"🚀 智能导引", onClick: () => {} }
           </Button>
           <Button icon={<BarChartOutlined />}>
-            {"📊 可视化总览"}
+            {"📊 可视化总览", onClick: () => navigate(`/enterprises/${enterpriseId}/risk-overview`)}
           </Button>
           <Button icon={<SettingOutlined />}>
-            {"⚙ 评估方法"}
+            {"⚙ 评估方法", onClick: () => navigate(`/enterprises/${enterpriseId}/risk-methods`)}
           </Button>
         </div>
 
