@@ -1,0 +1,679 @@
+ <!DOCTYPE html>
+ <html lang="zh-CN">
+ <head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>风险分级管控 - 原型 v1.0</title>
+ <style>
+ :root {
+   --red: #ff4d4f; --orange: #fa8c16; --yellow: #fadb14; --green: #52c41a; --gray: #d9d9d9;
+   --bg: #f5f5f5; --card: #fff; --border: #e8e8e8; --text: #262626; --text2: #8c8c8c;
+   --primary: #1677ff; --primary-bg: #e6f4ff;
+   --radius: 8px; --shadow: 0 2px 8px rgba(0,0,0,.08);
+ }
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ body { font: 14px/1.6 -apple-system, "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+ 
+ /* ── Top Nav ── */
+ .topbar { background: #001529; color: #fff; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+ .topbar h2 { font-size: 16px; font-weight: 600; }
+ .topbar nav { display: flex; gap: 4px; }
+ .topbar nav button { background: transparent; color: rgba(255,255,255,.65); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: .2s; }
+ .topbar nav button:hover { color: #fff; background: rgba(255,255,255,.08); }
+ .topbar nav button.active { color: #fff; background: var(--primary); }
+ 
+ /* ── Layout ── */
+ .container { max-width: 1400px; margin: 24px auto; padding: 0 24px; }
+ .page { display: none; }
+ .page.active { display: block; }
+ 
+ /* ── Cards ── */
+ .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
+ .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+ .card-header h3 { font-size: 15px; font-weight: 600; }
+ 
+ /* ── Buttons ── */
+ .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text); transition: .2s; }
+ .btn:hover { border-color: var(--primary); color: var(--primary); }
+ .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+ .btn-primary:hover { opacity: .85; color: #fff; }
+ .btn-danger { color: var(--red); border-color: var(--red); }
+ .btn-sm { padding: 2px 10px; font-size: 12px; }
+ .btn-ghost { border: none; background: transparent; color: var(--text2); }
+ .btn-ghost:hover { color: var(--primary); }
+ .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+ 
+ /* ── Tags ── */
+ .tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+ .tag-red { background: #fff1f0; color: var(--red); border: 1px solid #ffa39e; }
+ .tag-orange { background: #fff7e6; color: var(--orange); border: 1px solid #ffd591; }
+ .tag-yellow { background: #fffbe6; color: #d4b106; border: 1px solid #ffe58f; }
+ .tag-green { background: #f6ffed; color: var(--green); border: 1px solid #b7eb8f; }
+ .tag-blue { background: #e6f4ff; color: var(--primary); border: 1px solid #91caff; }
+ .tag-gray { background: #fafafa; color: #8c8c8c; border: 1px solid #d9d9d9; }
+ 
+ /* ── Tree ── */
+ .tree { font-size: 13px; }
+ .tree-node { padding-left: 0; }
+ .tree-node-children { padding-left: 24px; border-left: 1px dashed var(--border); margin-left: 8px; }
+ .tree-node-row { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; cursor: pointer; transition: .15s; white-space: nowrap; }
+ .tree-node-row:hover { background: #fafafa; }
+ .tree-node-row.selected { background: var(--primary-bg); }
+ .tree-toggle { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text2); cursor: pointer; border-radius: 3px; flex-shrink: 0; }
+ .tree-toggle:hover { background: #eee; }
+ .tree-actions { display: none; margin-left: auto; gap: 2px; }
+ .tree-node-row:hover .tree-actions { display: flex; }
+ .tree-actions button { padding: 1px 6px; font-size: 11px; border: none; background: transparent; color: var(--text2); cursor: pointer; border-radius: 3px; }
+ .tree-actions button:hover { background: #eee; color: var(--primary); }
+ .tree-count { font-size: 11px; color: var(--text2); }
+ 
+ /* ── Panel ── */
+ .panel-right { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-height: 200px; }
+ .panel-right h4 { font-size: 14px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+ 
+ /* ── Modal overlay ── */
+ .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; justify-content: center; align-items: center; }
+ .modal-overlay.open { display: flex; }
+ .modal { background: #fff; border-radius: 12px; box-shadow: 0 6px 30px rgba(0,0,0,.15); width: 90%; max-width: 720px; max-height: 85vh; display: flex; flex-direction: column; }
+ .modal-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+ .modal-header h3 { font-size: 16px; }
+ .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+ .modal-footer { padding: 12px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+ 
+ /* ── Form ── */
+ .form-group { margin-bottom: 16px; }
+ .form-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text); }
+ .form-label .required { color: var(--red); margin-left: 4px; }
+ .form-input, .form-select, .form-textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: inherit; transition: .2s; }
+ .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(22,119,255,.1); }
+ .form-textarea { resize: vertical; min-height: 80px; }
+ .form-row { display: flex; gap: 12px; }
+ .form-row > * { flex: 1; }
+ 
+ /* ── Segmented ── */
+ .segmented { display: inline-flex; border-radius: 6px; background: #f0f0f0; padding: 2px; }
+ .segmented button { padding: 5px 14px; border: none; background: transparent; font-size: 13px; cursor: pointer; border-radius: 5px; transition: .2s; color: var(--text2); }
+ .segmented button.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); font-weight: 500; }
+ 
+ /* ── Radio Cards ── */
+ .radio-cards { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; }
+ .radio-card { border: 2px solid var(--border); border-radius: 8px; padding: 10px 14px; cursor: pointer; transition: .2s; display: flex; gap: 10px; align-items: flex-start; }
+ .radio-card:hover { border-color: var(--primary); }
+ .radio-card.selected { border-color: var(--primary); background: var(--primary-bg); }
+ .radio-card .radio-indicator { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; }
+ .radio-card.selected .radio-indicator { border-color: var(--primary); background: var(--primary); }
+ .radio-card.selected .radio-indicator::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+ .radio-card .radio-body { flex: 1; }
+ .radio-card .radio-label { font-weight: 600; font-size: 14px; }
+ .radio-card .radio-desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+ 
+ /* ── Rating Preview ── */
+ .rating-preview { background: #fafafa; border-radius: 8px; padding: 16px; margin-top: 16px; }
+ .rating-preview .result { font-size: 18px; font-weight: 700; margin: 8px 0; }
+ .matrix { display: inline-grid; gap: 1px; background: var(--border); border-radius: 6px; overflow: hidden; }
+ .matrix-cell { width: 42px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; background: #fff; }
+ .matrix-cell.highlight { outline: 3px solid var(--primary); outline-offset: -2px; border-radius: 2px; z-index: 1; }
+ .matrix-cell.lvl-red { background: #fff1f0; color: var(--red); }
+ .matrix-cell.lvl-orange { background: #fff7e6; color: var(--orange); }
+ .matrix-cell.lvl-yellow { background: #fffbe6; color: #d4b106; }
+ .matrix-cell.lvl-green { background: #f6ffed; color: var(--green); }
+ 
+ /* ── Dashboard Grid ── */
+ .dashboard { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 300px 280px; gap: 16px; }
+ .dash-panel { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; overflow: hidden; display: flex; flex-direction: column; }
+ .dash-panel h4 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+ .dash-panel .panel-content { flex: 1; overflow: auto; }
+ 
+ /* ── Topology ── */
+ .topology { position: relative; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+ .topology svg { max-width: 100%; max-height: 100%; }
+ .topo-node rect { fill: #fff; stroke: #d9d9d9; stroke-width: 1.5; rx: 6; }
+ .topo-node text { font-size: 11px; fill: #262626; font-family: inherit; }
+ .topo-node .level-bar { stroke-width: 4; }
+ 
+ /* ── Stats ── */
+ .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+ .stat-item { text-align: center; }
+ .stat-value { font-size: 28px; font-weight: 700; }
+ .stat-label { font-size: 12px; color: var(--text2); }
+ .bar-chart { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+ .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+ .bar-label { width: 70px; text-align: right; }
+ .bar-track { flex: 1; height: 18px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+ .bar-fill { height: 100%; border-radius: 4px; transition: width .5s; }
+ 
+ /* ── Dual Layout ── */
+ .dual-layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+ @media (max-width: 900px) { .dual-layout { grid-template-columns: 1fr; } .dashboard { grid-template-columns: 1fr; grid-template-rows: auto; } }
+ 
+ /* ── Method cards ── */
+ .method-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+ .method-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; border: 2px solid transparent; transition: .2s; cursor: pointer; }
+ .method-card:hover { border-color: var(--primary); }
+ .method-card .mc-type { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+ .method-card .mc-name { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+ .method-card .mc-formula { font-family: monospace; font-size: 14px; color: var(--primary); margin-bottom: 8px; }
+ .method-card .mc-meta { font-size: 12px; color: var(--text2); }
+ .method-card .mc-actions { margin-top: 12px; display: flex; gap: 8px; }
+ 
+ /* ── AI suggestion box ── */
+ .ai-box { background: linear-gradient(135deg, #e6f4ff, #f0f5ff); border: 1px solid #91caff; border-radius: 10px; padding: 16px; margin: 12px 0; }
+ .ai-box .ai-title { font-weight: 600; font-size: 14px; color: var(--primary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+ .ai-box .ai-items { display: flex; flex-direction: column; gap: 8px; }
+ .ai-item { background: #fff; border-radius: 8px; padding: 12px; border: 1px solid var(--border); }
+ .ai-item .ai-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+ .ai-item .ai-item-body { font-size: 12px; color: var(--text2); }
+ </style>
+ </head>
+ <body>
+ 
+ <!-- ─── TOP BAR ─── -->
+ <div class="topbar">
+   <h2>⚠ 风险分级管控 — 交互原型</h2>
+   <nav>
+     <button class="active" onclick="switchPage('hierarchy')">📋 层级树</button>
+     <button onclick="switchPage('methods')">⚙ 评估方法</button>
+     <button onclick="switchPage('event')">⚠ 添加事件</button>
+     <button onclick="switchPage('guide')">🚀 智能导引</button>
+     <button onclick="switchPage('dashboard')">📊 可视化总览</button>
+   </nav>
+ </div>
+ 
+ <div class="container">
+ <!-- ═══════════ PAGE 1: Hierarchy Tree ═══════════ -->
+ <div id="page-hierarchy" class="page active">
+   <div class="dual-layout">
+     <div>
+       <div class="card" style="max-height:70vh;overflow-y:auto">
+         <div class="card-header">
+           <h3>风险分级管控层级树</h3>
+           <div class="toolbar">
+             <button class="btn btn-sm" onclick="alert('打开智能导引')">🚀 智能导引</button>
+             <button class="btn btn-sm" onclick="alert('添加分区')">+ 添加分区</button>
+           </div>
+         </div>
+         <div class="tree" id="hierarchy-tree"></div>
+       </div>
+     </div>
+     <div>
+       <div class="panel-right" id="detail-panel">
+         <h4>📌 选择左侧节点查看详情</h4>
+         <p style="color:var(--text2);font-size:13px">点击层级树中的节点，这里将显示该节点的详细信息、关联数据和快捷操作。</p>
+       </div>
+     </div>
+   </div>
+ </div>
+ 
+ <!-- ═══════════ PAGE 2: Methods ═══════════ -->
+ <div id="page-methods" class="page">
+   <div class="card">
+     <div class="card-header">
+       <h3>风险评估方法管理</h3>
+       <button class="btn btn-primary btn-sm">+ 新建方法</button>
+     </div>
+     <div class="method-grid">
+       <div class="method-card">
+         <div class="mc-type">[系统预置] · ★ 使用中</div>
+         <div class="mc-name">L×S 风险矩阵法（5级）</div>
+         <div class="mc-formula">R = L × S</div>
+         <div class="mc-meta">2 参数 · L(1-5) 5档 · S(1-5) 5档 · 4 级风险等级</div>
+         <div class="mc-actions"><button class="btn btn-sm" onclick="switchPage('methods');openMethodEditor()">查看详情</button> <button class="btn btn-sm">复制并编辑</button></div>
+       </div>
+       <div class="method-card">
+         <div class="mc-type">[系统预置]</div>
+         <div class="mc-name">LEC 评价法（格雷厄姆-金尼法）</div>
+         <div class="mc-formula">D = L × E × C</div>
+         <div class="mc-meta">3 参数 · L(0.1-10) 7档 · E(0.5-10) 6档 · C(1-100) 6档</div>
+         <div class="mc-actions"><button class="btn btn-sm">查看详情</button> <button class="btn btn-sm">复制并编辑</button></div>
+       </div>
+       <div class="method-card" style="border-color:var(--primary)">
+         <div class="mc-type">[企业级] · ☆</div>
+         <div class="mc-name">化工行业 LS 矩阵（修订版）</div>
+         <div class="mc-formula">R = L × S</div>
+         <div class="mc-meta">2 参数 · L(1-5) 5档 · S(1-6) 6档 · 5 级风险等级（添加"可接受"级别）</div>
+         <div class="mc-actions"><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">设为默认</button> <button class="btn btn-sm btn-danger">删除</button></div>
+       </div>
+     </div>
+   </div>
+ 
+   <!-- Method Editor (inline) -->
+   <div class="card" id="method-editor" style="display:none">
+     <div class="card-header"><h3>编辑：L×S 风险矩阵法（5级）</h3><div class="toolbar"><button class="btn btn-sm" onclick="document.getElementById('method-editor').style.display='none'">关闭</button><button class="btn btn-primary btn-sm">保存</button></div></div>
+     <div style="display:flex;gap:20px">
+       <div style="flex:1">
+         <div class="form-row"><div class="form-group"><label class="form-label">方法名称</label><input class="form-input" value="L×S 风险矩阵法（5级）"></div><div class="form-group"><label class="form-label">公式</label><input class="form-input" value="R = L × S"></div></div>
+         <h4 style="margin:16px 0 8px">参数：L — 事故发生的可能性 (1~5)</h4>
+         <table style="width:100%;border-collapse:collapse;font-size:13px" border="1" cellpadding="8" rules="all" frame="box" style="border-color:var(--border)">
+           <tr style="background:#fafafa"><th>值</th><th>等级标签</th><th>标准描述</th><th width="60">操作</th></tr>
+           <tr><td>1</td><td contenteditable>极不可能</td><td contenteditable style="font-size:11px">有充分有效的防范控制监测保护措施，员工安全意识高…</td><td><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-ghost">✕</button></td></tr>
+           <tr><td>2</td><td contenteditable>不太可能</td><td contenteditable style="font-size:11px">危害一旦发生能及时发现并定期监测，或现场有防范控制措施…</td><td><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-ghost">✕</button></td></tr>
+           <tr><td>3</td><td contenteditable>可能</td><td contenteditable style="font-size:11px">没有保护措施或未严格按操作程序执行，或危害的发生容易被发现…</td><td><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-ghost">✕</button></td></tr>
+           <tr><td>4</td><td contenteditable>较可能</td><td contenteditable style="font-size:11px">危害的发生不容易被发现，现场没有检测系统…</td><td><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-ghost">✕</button></td></tr>
+           <tr><td>5</td><td contenteditable>极可能</td><td contenteditable style="font-size:11px">在现场没有采取防范监测保护控制措施…</td><td><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-ghost">✕</button></td></tr>
+         </table>
+         <button class="btn btn-sm" style="margin-top:8px">+ 添加等级</button>
+         <h4 style="margin:16px 0 8px">风险等级阈值</h4>
+         <table style="width:100%;border-collapse:collapse;font-size:13px" border="1" cellpadding="6" rules="all" frame="box">
+           <tr style="background:#fafafa"><th>等级</th><th>R值下限</th><th>R值上限</th><th>颜色</th><th>整改行动</th><th>期限</th></tr>
+           <tr><td>重大</td><td contenteditable>20</td><td contenteditable>25</td><td><span class="tag tag-red">#ff4d4f</span></td><td contenteditable>立即整改</td><td contenteditable>立即</td></tr>
+           <tr><td>较大</td><td contenteditable>15</td><td contenteditable>19</td><td><span class="tag tag-orange">#fa8c16</span></td><td contenteditable>立即或近期整改</td><td contenteditable>近期</td></tr>
+           <tr><td>一般</td><td contenteditable>9</td><td contenteditable>14</td><td><span class="tag tag-yellow">#fadb14</span></td><td contenteditable>2年内治理</td><td contenteditable>2年</td></tr>
+           <tr><td>低</td><td contenteditable>1</td><td contenteditable>8</td><td><span class="tag tag-green">#52c41a</span></td><td contenteditable>有条件时治理</td><td contenteditable>有条件时</td></tr>
+         </table>
+       </div>
+       <div style="width:300px">
+         <div class="panel-right">
+           <h4>实时评测</h4>
+           <div class="form-group"><label class="form-label">L（可能性）</label><input type="range" min="1" max="5" value="3" id="method-l" oninput="updateMethodPreview()" style="width:100%"><div style="display:flex;justify-content:space-between;font-size:11px"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div></div>
+           <div class="form-group"><label class="form-label">S（严重性）</label><input type="range" min="1" max="5" value="4" id="method-s" oninput="updateMethodPreview()" style="width:100%"><div style="display:flex;justify-content:space-between;font-size:11px"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div></div>
+           <div class="rating-preview">
+             <span style="font-size:12px;color:var(--text2)">计算结果</span>
+             <div class="result" id="method-result"></div>
+             <div id="method-matrix"></div>
+           </div>
+         </div>
+       </div>
+     </div>
+   </div>
+ </div>
+ 
+ <!-- ═══════════ PAGE 3: Event Form ═══════════ -->
+ <div id="page-event" class="page">
+   <div class="card" style="max-width:680px;margin:0 auto">
+     <div class="card-header"><h3>⚠ 添加风险事件 — 1号储罐 → 罐体</h3></div>
+     <div class="form-group"><label class="form-label">事故类型 <span class="required">*</span></label><select class="form-select"><option>储罐泄漏</option><option>火灾爆炸</option><option>中毒窒息</option><option>机械伤害</option><option>触电</option></select></div>
+     <div class="form-group"><label class="form-label">事故描述</label><textarea class="form-textarea" placeholder="描述该事故的发生情景和典型后果"></textarea></div>
+     <div class="form-row"><div class="form-group"><label class="form-label">触发条件</label><textarea class="form-textarea" rows="2"></textarea></div><div class="form-group"><label class="form-label">可能后果</label><textarea class="form-textarea" rows="2"></textarea></div></div>
+     
+     <div style="margin:16px 0"><label class="form-label">评估方法</label>
+       <div class="segmented" id="method-switch">
+         <button class="active" onclick="switchMethod('LS')">LS 矩阵</button>
+         <button onclick="switchMethod('LEC')">LEC 评价</button>
+         <button onclick="switchMethod('DIRECT')">直接判定</button>
+       </div>
+     </div>
+     
+     <div id="params-ls">
+       <div class="form-group"><label class="form-label">L — 事故发生的可能性</label>
+         <div class="radio-cards">
+           <div class="radio-card" onclick="selectLS('l',1)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">1 · 极不可能</div><div class="radio-desc">有充分有效的防范、控制、监测、保护措施，员工安全意识高，严格执行操作规程，极不可能发生事故</div></div></div>
+           <div class="radio-card" onclick="selectLS('l',2)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">2 · 不太可能</div><div class="radio-desc">危害一旦发生能及时发现，并定期进行监测，或现场有防范控制措施并能有效执行，或过去偶尔发生事故或事件</div></div></div>
+           <div class="radio-card" onclick="selectLS('l',3)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">3 · 可能</div><div class="radio-desc">没有保护措施，或未严格按操作程序执行，或危害的发生容易被发现，或过去曾经发生类似事故或事件</div></div></div>
+           <div class="radio-card selected" onclick="selectLS('l',4)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">4 · 较可能</div><div class="radio-desc">危害的发生不容易被发现，现场没有检测系统，或控制措施未有效执行或不恰当，或危害常发生在预期情况下发生</div></div></div>
+           <div class="radio-card" onclick="selectLS('l',5)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">5 · 极可能</div><div class="radio-desc">在现场没有采取防范、监测、保护、控制措施，或危害的发生不能被发现，或在正常情况下经常发生此类事故或事件</div></div></div>
+         </div>
+       </div>
+       <div class="form-group"><label class="form-label">S — 事故后果严重程度</label>
+         <div class="radio-cards">
+           <div class="radio-card" onclick="selectLS('s',1)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">1 · 很低</div><div class="radio-desc">轻微伤害，无财产损失，不影响运营</div></div></div>
+           <div class="radio-card" onclick="selectLS('s',2)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">2 · 低</div><div class="radio-desc">轻微伤害，财产损失<1万元，基本不影响运营</div></div></div>
+           <div class="radio-card" onclick="selectLS('s',3)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">3 · 中</div><div class="radio-desc">人员轻伤，财产损失1-10万元，短期影响运营</div></div></div>
+           <div class="radio-card" onclick="selectLS('s',4)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">4 · 高</div><div class="radio-desc">人员重伤，财产损失10-100万元，较长时间停运</div></div></div>
+           <div class="radio-card selected" onclick="selectLS('s',5)"><div class="radio-indicator"></div><div class="radio-body"><div class="radio-label">5 · 很高</div><div class="radio-desc">人员死亡，财产损失>100万元，长期停运或关闭</div></div></div>
+         </div>
+       </div>
+     </div>
+     <div id="params-lec" style="display:none">
+       <div class="form-group"><label class="form-label">L — 事故发生的可能性</label><select class="form-select" onchange="updateLEC()" id="lec-l"><option value="0.1">0.1 实际不可能</option><option value="0.2">0.2 极不可能</option><option value="0.5">0.5 很不可能</option><option value="1">1 可能性小</option><option value="3">3 可能但不经常</option><option value="6" selected>6 相当可能</option><option value="10">10 完全可以预料</option></select></div>
+       <div class="form-row"><div class="form-group"><label class="form-label">E — 暴露频率</label><select class="form-select" onchange="updateLEC()" id="lec-e"><option value="0.5">0.5 非常罕见</option><option value="1">1 每年几次</option><option value="2">2 每月一次</option><option value="3" selected>3 每周一次</option><option value="6">6 逐日</option><option value="10">10 连续暴露</option></select></div><div class="form-group"><label class="form-label">C — 后果严重度</label><select class="form-select" onchange="updateLEC()" id="lec-c"><option value="1">1 引人注意</option><option value="3">3 重大</option><option value="7">7 严重</option><option value="15" selected>15 非常严重</option><option value="40">40 灾难</option><option value="100">100 大灾难</option></select></div></div>
+     </div>
+     <div id="params-direct" style="display:none"><div class="form-group"><label class="form-label">风险等级</label><select class="form-select"><option>重大</option><option>较大</option><option>一般</option><option selected>低</option></select></div></div>
+     
+     <div class="rating-preview">
+       <span style="font-size:12px;color:var(--text2)">评级结果预览（实时计算）</span>
+       <div class="result" id="event-result"></div>
+       <div id="event-matrix"></div>
+     </div>
+     
+     <!-- AI suggestion -->
+     <div class="ai-box" style="margin-top:16px">
+       <div class="ai-title">✨ AI 分析并建议</div>
+       <div class="ai-items">
+         <div class="ai-item"><div class="ai-item-header"><span class="tag tag-red">推荐</span> <strong>储罐泄漏</strong></div><div class="ai-item-body">原油从罐体腐蚀点或焊缝缺陷处泄漏，遇火源引发火灾。建议 L=2（不太可能 — 有定期测厚和巡检）、S=4（高 — 泄漏量大可能引发火灾）。<br><a href="#" style="color:var(--primary)" onclick="event.preventDefault();applyAISuggestion()">[全部采纳]</a> <a href="#" style="color:var(--text2)" onclick="event.preventDefault()">[仅采纳文本]</a></div></div>
+         <div class="ai-item"><div class="ai-item-header"><span class="tag tag-orange">备选</span> <strong>火灾爆炸</strong></div><div class="ai-item-body">如泄漏后遇点火源（静电、电气火花），可能引发火灾爆炸。<a href="#" style="color:var(--primary)" onclick="event.preventDefault()">[全部采纳]</a></div></div>
+       </div>
+     </div>
+     
+     <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+       <button class="btn">取消</button><button class="btn btn-primary">保存事件</button>
+     </div>
+   </div>
+ </div>
+ 
+ <!-- ═══════════ PAGE 4: Smart Guide ═══════════ -->
+ <div id="page-guide" class="page">
+   <div class="card" style="max-width:720px;margin:0 auto">
+     <div style="display:flex;gap:0;margin-bottom:20px">
+       <div style="flex:1;text-align:center;padding:12px;background:var(--primary-bg);border-radius:8px 0 0 8px;font-weight:600;color:var(--primary)">步骤 1：描述区域</div>
+       <div style="flex:1;text-align:center;padding:12px;background:#fafafa;border-radius:0 8px 8px 0;color:var(--text2)">步骤 2：审核结果</div>
+     </div>
+     <div class="form-group"><label class="form-label">请用自然语言描述您要分析的区域</label>
+       <textarea class="form-textarea" style="min-height:140px;font-size:14px" placeholder="例如：储罐区位于厂区西北角，有3个5000m³的原油储罐（1号、2号、3号），每个储罐配有进油管道、出油管道、呼吸阀、雷达液位计和温度传感器。储罐区南侧有一个槽车装卸平台…">储罐区位于厂区西北角，有3个5000m³的原油储罐（1号、2号、3号），每个储罐配有进油管道、出油管道、呼吸阀、雷达液位计和温度传感器。储罐区南侧有一个槽车装卸平台，设2个装卸车位，配有装卸泵和输油臂。区域西北角有一个独立的消防泵房，含消防水泵和泡沫灭火系统。</textarea>
+       <div style="font-size:12px;color:var(--text2);margin-top:4px">💡 提示：越详细越准确。提及设备名称数量、空间位置、特殊工艺或危险物质。已输入 178 字。</div>
+     </div>
+     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+       <button class="btn">取消</button><button class="btn btn-primary" onclick="showGuideResult()">下一步 → AI 分析</button>
+     </div>
+ 
+     <!-- Step 2: preview -->
+     <div id="guide-result" style="display:none;margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
+       <div style="margin-bottom:12px;font-weight:600">🤖 AI 生成了以下风险管控结构，请审核：</div>
+       <div class="tree">
+         <div class="tree-node"><div class="tree-node-row"><span style="font-size:12px;margin-right:4px">✅</span>🏭 储罐区 ─ <span class="tag tag-orange">较大风险</span> <span class="tree-count">5对象·12单元·18事件·62措施</span></div>
+           <div class="tree-node-children">
+             <div class="tree-node"><div class="tree-node-row"><span style="font-size:12px;margin-right:4px">✅</span>📦 1号储罐 <span class="tag tag-orange">◆ 风险点</span></div><div class="tree-node-children">
+               <div class="tree-node"><div class="tree-node-row">⚙ 罐体</div><div class="tree-node-children">
+                 <div class="tree-node"><div class="tree-node-row"><span style="font-size:12px;margin-right:4px">✅</span>⚠ 储罐泄漏 <span class="tag tag-orange">R=20 重大</span></div><div class="tree-node-children">
+                   <div class="tree-node"><div class="tree-node-row">🛡 可燃气体检测报警 <span class="tag tag-gray">待实施</span></div></div>
+                   <div class="tree-node"><div class="tree-node-row">🛡 储罐防腐定期测厚 <span class="tag tag-gray">待实施</span></div></div>
+                   <div class="tree-node"><div class="tree-node-row">🛡 防静电工作服+防毒面具 <span class="tag tag-gray">待实施</span></div></div>
+                   <div class="tree-node"><div class="tree-node-row">🛡 储罐泄漏现场处置方案 <span class="tag tag-gray">待实施</span></div></div>
+                 </div></div>
+                 <div class="tree-node"><div class="tree-node-row"><span style="font-size:12px;margin-right:4px">✅</span>⚠ 火灾爆炸 <span class="tag tag-orange">R=16 较大</span></div></div>
+               </div></div>
+               <div class="tree-node"><div class="tree-node-row">⚙ 进油管道</div></div>
+               <div class="tree-node"><div class="tree-node-row">⚙ 出油管道</div></div>
+             </div></div>
+             <div class="tree-node"><div class="tree-node-row"><span style="font-size:12px;margin-right:4px">✅</span>📦 2号储罐 <span class="tag tag-orange">◆ 风险点</span></div></div>
+             <div class="tree-node"><div class="tree-node-row"><span style="font-size:12px;margin-right:4px">✅</span>📦 装卸平台</div></div>
+             <div class="tree-node"><div class="tree-node-row"><span style="font-size:12px;margin-right:4px">✅</span>📦 消防泵房</div></div>
+           </div>
+         </div>
+       </div>
+       <div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:12px;margin:16px 0;font-size:13px">
+         ⚠️ 以上内容由 AI 生成，请逐项核实后确认导入。可点击节点编辑或取消勾选。导入后仍可在层级树中修改。
+       </div>
+       <div style="display:flex;justify-content:space-between;align-items:center">
+         <span style="font-size:13px;color:var(--text2)">ℹ️ 汇总：1分区 · 5对象 · 12单元 · 18事件 · 62措施</span>
+         <div style="display:flex;gap:8px">
+           <button class="btn" onclick="document.getElementById('guide-result').style.display='none'">返回修改</button>
+           <button class="btn btn-primary" onclick="alert('数据已导入！')">确认并导入全部</button>
+         </div>
+       </div>
+     </div>
+   </div>
+ </div>
+ 
+ <!-- ═══════════ PAGE 5: Dashboard ═══════════ -->
+ <div id="page-dashboard" class="page">
+   <div class="toolbar" style="margin-bottom:16px">
+     <button class="btn btn-sm active">四象限</button><button class="btn btn-sm">平面图优先</button><button class="btn btn-sm">数据优先</button>
+     <span style="margin-left:auto;font-size:13px;color:var(--text2)">XX有限公司 — 风险管控总览</span>
+   </div>
+   <div class="dashboard">
+     <!-- ① Floor plan -->
+     <div class="dash-panel">
+       <h4>① 厂区平面图热区</h4>
+       <div class="panel-content" style="position:relative;background:#f9f9f9;border:1px dashed var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center">
+         <svg viewBox="0 0 400 280" style="width:100%;height:100%">
+           <rect x="20" y="20" width="360" height="240" fill="#fafafa" stroke="#d9d9d9" stroke-width="1"/>
+           <polygon points="60,40 200,40 200,180 60,180" fill="#ff4d4f" opacity="0.25" stroke="#ff4d4f" stroke-width="2"/>
+           <text x="130" y="115" text-anchor="middle" font-size="12" fill="#ff4d4f" font-weight="700">储罐区</text>
+           <polygon points="220,40 370,40 370,120 220,120" fill="#fa8c16" opacity="0.25" stroke="#fa8c16" stroke-width="2"/>
+           <text x="295" y="85" text-anchor="middle" font-size="12" fill="#fa8c16" font-weight="700">生产车间</text>
+           <rect x="300" y="140" width="70" height="60" fill="#52c41a" opacity="0.25" stroke="#52c41a" stroke-width="2" rx="2"/>
+           <text x="335" y="175" text-anchor="middle" font-size="11" fill="#52c41a" font-weight="600">配电房</text>
+           <circle cx="130" cy="90" r="4" fill="#ff4d4f"/><text x="138" y="93" font-size="9" fill="#ff4d4f">1号储罐</text>
+           <circle cx="150" cy="150" r="4" fill="#ff4d4f"/><text x="158" y="153" font-size="9" fill="#ff4d4f">2号储罐</text>
+         </svg>
+       </div>
+     </div>
+     <!-- ② Matrix -->
+     <div class="dash-panel">
+       <h4>② 风险矩阵热力图（LS 5×5）</h4>
+       <div class="panel-content">
+         <div class="matrix" id="dash-matrix"></div>
+       </div>
+     </div>
+     <!-- ③ Stats -->
+     <div class="dash-panel">
+       <h4>③ 风险统计</h4>
+       <div class="panel-content">
+         <div class="stats-grid">
+           <div class="stat-item"><div class="stat-value" style="color:var(--red)">5</div><div class="stat-label">重大风险</div></div>
+           <div class="stat-item"><div class="stat-value" style="color:var(--orange)">8</div><div class="stat-label">较大风险</div></div>
+           <div class="stat-item"><div class="stat-value" style="color:var(--yellow)">10</div><div class="stat-label">一般风险</div></div>
+           <div class="stat-item"><div class="stat-value" style="color:var(--green)">12</div><div class="stat-label">低风险</div></div>
+         </div>
+         <div class="bar-chart" style="margin-top:16px">
+           <div class="bar-row"><span class="bar-label">火灾</span><div class="bar-track"><div class="bar-fill" style="width:80%;background:var(--red)"></div></div><span>12</span></div>
+           <div class="bar-row"><span class="bar-label">触电</span><div class="bar-track"><div class="bar-fill" style="width:53%;background:var(--orange)"></div></div><span>8</span></div>
+           <div class="bar-row"><span class="bar-label">机械伤害</span><div class="bar-track"><div class="bar-fill" style="width:40%;background:var(--yellow)"></div></div><span>6</span></div>
+           <div class="bar-row"><span class="bar-label">高处坠落</span><div class="bar-track"><div class="bar-fill" style="width:33%;background:var(--yellow)"></div></div><span>5</span></div>
+           <div class="bar-row"><span class="bar-label">中毒窒息</span><div class="bar-track"><div class="bar-fill" style="width:27%;background:var(--green)"></div></div><span>4</span></div>
+         </div>
+       </div>
+     </div>
+     <!-- ④ Topology -->
+     <div class="dash-panel">
+       <h4 style="display:flex;align-items:center;gap:8px">④ 管控拓扑图 <span style="font-weight:400;font-size:12px;cursor:pointer;color:var(--primary)" onclick="alert('切换到层级树视图')">[切换层级树]</span></h4>
+       <div class="panel-content topology" style="overflow:auto">
+         <svg viewBox="0 0 600 260" xmlns="http://www.w3.org/2000/svg" style="min-width:600px">
+           <!-- Lines -->
+           <line x1="300" y1="25" x2="100" y2="65" stroke="#d9d9d9" stroke-width="1.5"/>
+           <line x1="300" y1="25" x2="300" y2="65" stroke="#d9d9d9" stroke-width="1.5"/>
+           <line x1="300" y1="25" x2="500" y2="65" stroke="#d9d9d9" stroke-width="1.5"/>
+           <line x1="100" y1="115" x2="50" y2="155" stroke="#d9d9d9" stroke-width="1"/>
+           <line x1="100" y1="115" x2="100" y2="155" stroke="#d9d9d9" stroke-width="1"/>
+           <line x1="100" y1="115" x2="150" y2="155" stroke="#d9d9d9" stroke-width="1"/>
+           <line x1="50" y1="200" x2="35" y2="238" stroke="#d9d9d9" stroke-width="1"/>
+           <line x1="50" y1="200" x2="60" y2="238" stroke="#d9d9d9" stroke-width="1"/>
+           <line x1="300" y1="115" x2="260" y2="155" stroke="#d9d9d9" stroke-width="1"/>
+           <line x1="300" y1="115" x2="340" y2="155" stroke="#d9d9d9" stroke-width="1"/>
+           <!-- Enterprise node -->
+           <rect x="230" y="2" width="140" height="26" rx="4" fill="#fff" stroke="#d9d9d9"/><rect x="230" y="2" width="4" height="26" rx="2" fill="#fa8c16"/><text x="300" y="18" text-anchor="middle" font-size="11" font-weight="600">XX有限公司 · 35事件</text>
+           <!-- Zone nodes -->
+           <rect x="20" y="65" width="160" height="30" rx="4" fill="#fff" stroke="#ff4d4f" stroke-width="1.5"/><rect x="20" y="65" width="4" height="30" rx="2" fill="#ff4d4f"/><text x="100" y="83" text-anchor="middle" font-size="11" font-weight="600">储罐区 ◆ 重大 · 18事件</text>
+           <rect x="220" y="65" width="160" height="30" rx="4" fill="#fff" stroke="#fa8c16"/><rect x="220" y="65" width="4" height="30" rx="2" fill="#fa8c16"/><text x="300" y="83" text-anchor="middle" font-size="11" font-weight="600">生产车间 ◆ 较大 · 12事件</text>
+           <rect x="420" y="65" width="160" height="30" rx="4" fill="#fff" stroke="#52c41a"/><rect x="420" y="65" width="4" height="30" rx="2" fill="#52c41a"/><text x="500" y="83" text-anchor="middle" font-size="11" font-weight="600">配电房 · 5事件</text>
+           <!-- Object nodes (under 储罐区) -->
+           <rect x="5" y="125" width="90" height="22" rx="4" fill="#fff" stroke="#d9d9d9"/><rect x="5" y="125" width="3" height="22" rx="2" fill="#ff4d4f"/><text x="50" y="139" text-anchor="middle" font-size="10">1号储罐◆</text>
+           <rect x="55" y="155" width="90" height="22" rx="4" fill="#fff" stroke="#d9d9d9"/><rect x="55" y="155" width="3" height="22" rx="2" fill="#fa8c16"/><text x="100" y="169" text-anchor="middle" font-size="10">2号储罐◆</text>
+           <rect x="105" y="155" width="90" height="22" rx="4" fill="#fff" stroke="#d9d9d9"/><rect x="105" y="155" width="3" height="22" rx="2" fill="var(--yellow)"/><text x="150" y="169" text-anchor="middle" font-size="10">装卸平台</text>
+           <!-- Unit nodes (under 1号储罐) -->
+           <rect x="5" y="195" width="50" height="18" rx="3" fill="#f6ffed" stroke="#d9d9d9"/><text x="30" y="207" text-anchor="middle" font-size="9">罐体</text>
+           <rect x="35" y="195" width="50" height="18" rx="3" fill="#f6ffed" stroke="#d9d9d9"/><text x="60" y="207" text-anchor="middle" font-size="9">管道</text>
+           <!-- Event nodes (under 罐体) -->
+           <rect x="5" y="225" width="70" height="16" rx="3" fill="#fff1f0" stroke="#ffa39e"/><text x="40" y="236" text-anchor="middle" font-size="9" fill="#ff4d4f">⚠ 储罐泄漏 R=20</text>
+           <rect x="40" y="225" width="70" height="16" rx="3" fill="#fff7e6" stroke="#ffd591"/><text x="75" y="236" text-anchor="middle" font-size="9" fill="#fa8c16">⚠ 火灾爆炸 R=16</text>
+           <!-- Object nodes (under 生产车间) -->
+           <rect x="235" y="155" width="80" height="22" rx="4" fill="#fff" stroke="#d9d9d9"/><rect x="235" y="155" width="3" height="22" rx="2" fill="#fa8c16"/><text x="275" y="169" text-anchor="middle" font-size="10">冷冻机组</text>
+           <rect x="320" y="155" width="80" height="22" rx="4" fill="#fff" stroke="#d9d9d9"/><rect x="320" y="155" width="3" height="22" rx="2" fill="var(--yellow)"/><text x="360" y="169" text-anchor="middle" font-size="10">10kV配电室</text>
+           <!-- Legend -->
+           <rect x="10" y="248" width="12" height="12" rx="3" fill="#fff1f0" stroke="#ffa39e"/><text x="26" y="258" font-size="9" fill="#8c8c8c">重大</text>
+           <rect x="70" y="248" width="12" height="12" rx="3" fill="#fff7e6" stroke="#ffd591"/><text x="86" y="258" font-size="9" fill="#8c8c8c">较大</text>
+           <rect x="130" y="248" width="12" height="12" rx="3" fill="#fffbe6" stroke="#ffe58f"/><text x="146" y="258" font-size="9" fill="#8c8c8c">一般</text>
+           <rect x="190" y="248" width="12" height="12" rx="3" fill="#f6ffed" stroke="#b7eb8f"/><text x="206" y="258" font-size="9" fill="#8c8c8c">低</text>
+           <circle cx="260" cy="254" r="5" fill="none" stroke="#8c8c8c"/><text x="270" y="258" font-size="9" fill="#8c8c8c">◆ = 风险点</text>
+         </svg>
+       </div>
+     </div>
+   </div>
+ </div>
+ </div>
+ 
+ <script>
+ // ── Page switching ──
+ function switchPage(name) {
+   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+   document.getElementById('page-' + name).classList.add('active');
+   document.querySelectorAll('.topbar button').forEach(b => b.classList.remove('active'));
+   event.target.classList.add('active');
+ }
+ 
+ // ── Hierarchy Tree ──
+ const treeData = [
+   { id:'z1', icon:'🏭', name:'储罐区', tag:'', count:'5对象·12单元·18事件', children:[
+     { id:'o1', icon:'📦', name:'1号储罐 ◆', tag:'tag-orange', count:'6单元·8事件', children:[
+       { id:'u1', icon:'⚙', name:'罐体', count:'3事件', children:[
+         { id:'e1', icon:'⚠', name:'储罐泄漏', tag:'tag-red', note:'R=20', children:[
+           { id:'m1', icon:'🛡', name:'可燃气体检测报警', tag:'tag-gray', note:'待实施' },
+           { id:'m2', icon:'🛡', name:'储罐巡检制度', tag:'tag-gray', note:'待实施' },
+         ]},
+         { id:'e2', icon:'⚠', name:'火灾爆炸', tag:'tag-orange', note:'R=16' },
+       ]},
+       { id:'u2', icon:'⚙', name:'进油管道', count:'1事件' },
+     ]},
+     { id:'o2', icon:'📦', name:'2号储罐 ◆', tag:'tag-orange', count:'6单元·7事件' },
+     { id:'o3', icon:'📦', name:'装卸平台', count:'2单元·2事件' },
+   ]},
+   { id:'z2', icon:'🏭', name:'生产车间', tag:'tag-orange', count:'2对象·7单元·12事件', children:[
+     { id:'o4', icon:'📦', name:'冷冻机组', tag:'', count:'3单元·5事件' },
+   ]},
+ ];
+ 
+ function buildTree(nodes, depth=0) {
+   return nodes.map(n => {
+     const hasKids = n.children && n.children.length > 0;
+     const tagHtml = n.tag ? `<span class="tag ${n.tag}">${n.tag==='tag-red'?'重大':n.tag==='tag-orange'?'较大':n.tag==='tag-green'?'低':'待实施'}</span>` : '';
+     const noteHtml = n.note ? `<span style="font-size:11px;color:var(--text2)">${n.note}</span>` : '';
+     const countHtml = n.count ? `<span class="tree-count">${n.count}</span>` : '';
+     return `<div class="tree-node" data-id="${n.id}">
+       <div class="tree-node-row" onclick="selectNode('${n.id}')">
+         ${hasKids ? `<span class="tree-toggle" onclick="event.stopPropagation();toggleNode(this)">▶</span>` : `<span style="width:18px;flex-shrink:0"></span>`}
+         <span>${n.icon||''} ${n.name}</span> ${tagHtml} ${noteHtml} ${countHtml}
+         <span class="tree-actions">
+           <button title="添加子项">+</button><button title="编辑">✎</button><button title="删除">✕</button>
+         </span>
+       </div>
+       ${hasKids ? `<div class="tree-node-children" style="display:block">${buildTree(n.children, depth+1)}</div>` : ''}
+     </div>`;
+   }).join('');
+ }
+ 
+ document.getElementById('hierarchy-tree').innerHTML = buildTree(treeData);
+ 
+ function toggleNode(el) {
+   const children = el.parentElement.nextElementSibling;
+   if (children) {
+     const isOpen = children.style.display !== 'none';
+     children.style.display = isOpen ? 'none' : 'block';
+     el.textContent = isOpen ? '▶' : '▼';
+   }
+ }
+ 
+ function selectNode(id) {
+   document.querySelectorAll('.tree-node-row').forEach(r => r.classList.remove('selected'));
+   const row = document.querySelector(`[data-id="${id}"] > .tree-node-row`);
+   if (row) { row.classList.add('selected'); }
+   const node = findNode(treeData, id);
+   if (node) {
+     document.getElementById('detail-panel').innerHTML = `<h4>📌 ${node.icon} ${node.name}</h4>
+       <p style="color:var(--text2);font-size:13px;margin-top:8px">ID: ${node.id}<br>子节点数: ${(node.children||[]).length}</p>
+       <div style="margin-top:12px;display:flex;gap:4px;flex-wrap:wrap">
+         <button class="btn btn-sm">✎ 编辑</button><button class="btn btn-sm">+ 添加子项</button>
+         <button class="btn btn-sm">🤖 AI 建议</button><button class="btn btn-sm btn-danger">删除</button>
+       </div>`;
+   }
+ }
+ 
+ function findNode(nodes, id) {
+   for (const n of nodes) {
+     if (n.id === id) return n;
+     if (n.children) { const f = findNode(n.children, id); if (f) return f; }
+   }
+   return null;
+ }
+ 
+ // ── LS Radio ──
+ let lsValues = { l: 4, s: 5 };
+ function selectLS(type, val) {
+   lsValues[type] = val;
+   const container = type === 'l' ? document.querySelectorAll('#params-ls .radio-cards')[0] : document.querySelectorAll('#params-ls .radio-cards')[1];
+   container.querySelectorAll('.radio-card').forEach((c, i) => { c.classList.toggle('selected', i+1 === val); });
+   updateEventPreview();
+ }
+ 
+ // ── Method switch ──
+ let currentMethod = 'LS';
+ function switchMethod(m) {
+   currentMethod = m;
+   document.querySelectorAll('#method-switch button').forEach(b => b.classList.remove('active'));
+   event.target.classList.add('active');
+   document.getElementById('params-ls').style.display = m === 'LS' ? '' : 'none';
+   document.getElementById('params-lec').style.display = m === 'LEC' ? '' : 'none';
+   document.getElementById('params-direct').style.display = m === 'DIRECT' ? '' : 'none';
+   updateEventPreview();
+ }
+ 
+ // ── Rating calc ──
+ function calcLS(l, s) { const r = l * s; let lvl, clr; if (r >= 20) { lvl = '重大'; clr = 'var(--red)'; } else if (r >= 15) { lvl = '较大'; clr = 'var(--orange)'; } else if (r >= 9) { lvl = '一般'; clr = 'var(--yellow)'; } else { lvl = '低'; clr = 'var(--green)'; } return { r, lvl, clr }; }
+ function calcLEC(l, e, c) { const d = Math.round(l * e * c); let lvl, clr; if (d >= 320) { lvl = '重大'; clr = 'var(--red)'; } else if (d >= 160) { lvl = '较大'; clr = 'var(--orange)'; } else if (d >= 70) { lvl = '一般'; clr = 'var(--yellow)'; } else { lvl = '低'; clr = 'var(--green)'; } return { r: d, lvl, clr, label: `D=${d}` }; }
+ 
+ function getCellClass(r) { if (r >= 20) return 'lvl-red'; if (r >= 15) return 'lvl-orange'; if (r >= 9) return 'lvl-yellow'; return 'lvl-green'; }
+ 
+ function renderMatrix(containerId, highlightL, highlightS) {
+   let html = '';
+   html += '<div style="font-size:10px;text-align:center;margin-bottom:2px">S →</div>';
+   for (let l = 1; l <= 5; l++) {
+     for (let s = 1; s <= 5; s++) {
+       const r = l * s;
+       const cls = getCellClass(r);
+       const hl = (l === highlightL && s === highlightS) ? ' highlight' : '';
+       html += `<div class="matrix-cell ${cls}${hl}">${r}</div>`;
+     }
+   }
+   document.getElementById(containerId).innerHTML = `<div class="matrix" style="grid-template-columns:repeat(5,42px)">${html}</div><div style="font-size:10px;margin-top:2px;display:flex;justify-content:center;gap:36px"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div><div style="font-size:10px;text-align:right;margin-top:-18px">L</div>`;
+ }
+ 
+ function updateEventPreview() {
+   if (currentMethod === 'LS') {
+     const { r, lvl, clr } = calcLS(lsValues.l, lsValues.s);
+     document.getElementById('event-result').innerHTML = `R = L(${lsValues.l}) × S(${lsValues.s}) = <b style="color:${clr}">${r}</b> → <span class="tag" style="background:${clr};color:#fff">${lvl}风险</span>`;
+     renderMatrix('event-matrix', lsValues.l, lsValues.s);
+   } else if (currentMethod === 'LEC') {
+     const l = parseFloat(document.getElementById('lec-l').value);
+     const e = parseFloat(document.getElementById('lec-e').value);
+     const c = parseFloat(document.getElementById('lec-c').value);
+     const res = calcLEC(l, e, c);
+     document.getElementById('event-result').innerHTML = `D = L(${l}) × E(${e}) × C(${c}) = <b style="color:${res.clr}">${res.r}</b> → <span class="tag" style="background:${res.clr};color:#fff">${res.lvl}风险</span>`;
+     document.getElementById('event-matrix').innerHTML = `<span style="font-size:12px;color:var(--text2)">LEC 方法不使用固定矩阵，评级依据 D 值与阈值表比较</span>`;
+   } else {
+     document.getElementById('event-result').innerHTML = `<span style="color:var(--text2)">直接判定模式下无自动计算结果</span>`;
+     document.getElementById('event-matrix').innerHTML = '';
+   }
+ }
+ function updateLEC() { updateEventPreview(); }
+ 
+ // ── Method preview ──
+ function updateMethodPreview() {
+   const l = parseInt(document.getElementById('method-l').value);
+   const s = parseInt(document.getElementById('method-s').value);
+   const { r, lvl, clr } = calcLS(l, s);
+   document.getElementById('method-result').innerHTML = `R = ${l} × ${s} = <b style="color:${clr}">${r}</b> → <span class="tag" style="background:${clr};color:#fff">${lvl}风险</span>`;
+   renderMatrix('method-matrix', l, s);
+ }
+ 
+ // ── AI suggestion ──
+ function applyAISuggestion() {
+   document.querySelector('#params-ls textarea') && (document.querySelector('#params-ls textarea').value = '原油从罐体腐蚀点或焊缝缺陷处泄漏…');
+   lsValues = { l: 2, s: 4 };
+   document.querySelectorAll('#params-ls .radio-cards')[0].querySelectorAll('.radio-card').forEach((c,i) => c.classList.toggle('selected', i===1));
+   document.querySelectorAll('#params-ls .radio-cards')[1].querySelectorAll('.radio-card').forEach((c,i) => c.classList.toggle('selected', i===3));
+   updateEventPreview();
+   alert('AI 建议已应用：L=2, S=4');
+ }
+ 
+ // ── Guide ──
+ function showGuideResult() { document.getElementById('guide-result').style.display = 'block'; }
+ 
+ // ── Dashboard matrix ──
+ function renderDashMatrix() {
+   let html = '';
+   const data = [[0,0,3,0,0],[0,2,5,2,1],[0,4,6,2,0],[0,1,0,0,0],[0,0,0,0,0]];
+   for (let l = 0; l < 5; l++) for (let s = 0; s < 5; s++) {
+     const r = (l+1)*(s+1); const cls = getCellClass(r); const val = data[l][s];
+     html += `<div class="matrix-cell ${cls}" style="cursor:pointer" title="${val}个事件 R=${r}">${val||''}</div>`;
+   }
+   document.getElementById('dash-matrix').innerHTML = `<div class="matrix" style="grid-template-columns:repeat(5,48px);font-size:14px">${html}</div>`;
+ }
+ 
+ function openMethodEditor() { document.getElementById('method-editor').style.display = 'block'; }
+ 
+ // ── Init ──
+ updateEventPreview();
+ updateMethodPreview();
+ renderDashMatrix();
+ </script>
+ </body>
+ </html>
