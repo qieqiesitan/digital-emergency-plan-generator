@@ -1,7 +1,7 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：风险评估方法管理页面开发 — 两个 React 页面组件已创建
+- 正在做什么：风险总览页面开发完成，三个文件已创建
 - 已完成：
-  1. frontend/src/pages/Enterprise/RiskMethodListPage.tsx — 卡片网格列表页（316行），Row+Col 3列布局，含系统/企业方法分组、5x5矩阵缩略图、模板选择新建弹窗
-  2. frontend/src/pages/Enterprise/RiskMethodEditorPage.tsx — 双栏编辑器（439行），左70%参数/阈值编辑+区间重叠验证，右30%实时LS评估面板（Slider+矩阵高亮）
-  3. 集成现有类型 riskManagement.ts、服务 riskManagementService.ts、引擎 riskMethodEngine.ts
-- 下一步：验证 TypeScript 编译、添加路由配置、连接后端 API 联调
+  1. frontend/src/components/enterprise/RiskOverviewMatrix.tsx — LS 矩阵总览组件（239行），统计层级事件在5x5矩阵中的分布，单元格着色+Tooltip事件列表+点击筛选
+  2. frontend/src/components/enterprise/RiskOverviewStats.tsx — 统计图表组件（204行），PieChart风险等级分布+BarChart事故类型Top5+汇总行（分区/对象/事件/措施/落实率）
+  3. frontend/src/pages/Enterprise/RiskOverviewPage.tsx — 四象限总览页面（645行），CSS Grid 2x2布局，Segmented三视图切换（四象限/平面图优先/数据优先），内嵌FloorPlanHeatmap+矩阵+统计+层级树+SVG管控拓扑图
+- 下一步：TypeScript 编译检查、添加路由配置、验证 getFullHierarchy API 数据格式
