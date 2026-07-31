@@ -492,6 +492,7 @@ export default function RiskManagementTab({
 }: Props) {
   const [selectedNode, setSelectedNode] = useState<TreeNodeMeta | null>(null);
   const [addZoneOpen, setAddZoneOpen] = useState(false);
+  const [smartGuideOpen, setSmartGuideOpen] = useState(false);
 
   const {
     data: hierarchy,
@@ -564,14 +565,14 @@ export default function RiskManagementTab({
           >
             添加分区
           </Button>
-          <Button icon={<ThunderboltOutlined />}>
-            {"🚀 智能导引", onClick: () => {} }
+          <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>
+            🚀 智能导引
           </Button>
-          <Button icon={<BarChartOutlined />}>
-            {"📊 可视化总览", onClick: () => navigate(`/enterprises/${enterpriseId}/risk-overview`)}
+          <Button icon={<BarChartOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-overview`)}>
+            📊 可视化总览
           </Button>
-          <Button icon={<SettingOutlined />}>
-            {"⚙ 评估方法", onClick: () => navigate(`/enterprises/${enterpriseId}/risk-methods`)}
+          <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>
+            ⚙ 评估方法
           </Button>
         </div>
 

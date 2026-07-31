@@ -37,7 +37,8 @@ function InfoTab({ enterprise }: { enterprise: Record<string, unknown> }) {
   const fields = [
     { label: "企业名称", value: enterprise.name },
     { label: "行业分类", value: enterprise.industry },
-    { label: "经营范围", value: enterprise.business_scope },`r`n    { label: "经济类型", value: enterprise.economic_type || "-" },
+    { label: "经营范围", value: enterprise.business_scope },
+    { label: "经济类型", value: enterprise.economic_type || "-" },
     { label: "员工人数", value: enterprise.employee_count ? `${enterprise.employee_count} 人` : "-" },
     { label: "地址", value: enterprise.address },
   ];

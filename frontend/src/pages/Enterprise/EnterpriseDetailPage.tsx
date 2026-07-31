@@ -14,8 +14,8 @@ import EmergencyResourceForm from "@/components/enterprise/EmergencyResourceForm
 import SurroundingInfoPanel from "@/components/enterprise/SurroundingInfoPanel";
 import RiskAssessmentTab from "@/pages/Enterprise/RiskAssessmentTab";
 import ResourceInvestigationTab from "@/pages/Enterprise/ResourceInvestigationTab";
-import HazardousChemicalsTab
-import RiskManagementTab from './RiskManagementTab' from "@/pages/Enterprise/HazardousChemicalsTab";
+import HazardousChemicalsTab from "@/pages/Enterprise/HazardousChemicalsTab";
+import RiskManagementTab from "./RiskManagementTab";
 import type { OrgGroup, SurroundingInfo } from "@/types/enterprise";
 import type { RiskSource } from "@/types/riskSource";
 import type { EmergencyResource } from "@/types/emergencyResource";
