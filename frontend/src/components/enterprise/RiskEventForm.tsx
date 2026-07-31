@@ -211,7 +211,7 @@ export default function RiskEventForm({
         onFinish={handleFinish}
       >
         {/* ─── Section 1: Basic info ───────────────────────────── */}
-        <Divider orientation="left" plain style={{ fontSize: 13 }}>基础信息</Divider>
+        <Divider  plain style={{ fontSize: 13 }}>基础信息</Divider>
 
         <Form.Item
           name="accident_type"
@@ -260,7 +260,7 @@ export default function RiskEventForm({
         </Button>
 
         {/* ─── Section 2: Method params ────────────────────────── */}
-        <Divider orientation="left" plain style={{ fontSize: 13 }}>评价方法与参数</Divider>
+        <Divider  plain style={{ fontSize: 13 }}>评价方法与参数</Divider>
 
         <Form.Item label="评价方法">
           <Segmented
@@ -380,7 +380,7 @@ export default function RiskEventForm({
         {/* ─── Section 3: Rating Preview ───────────────────────── */}
         {(methodType === "LS" || methodType === "COAL_LS" || methodType === "LEC") && (
           <>
-            <Divider orientation="left" plain style={{ fontSize: 13 }}>等级预览</Divider>
+            <Divider  plain style={{ fontSize: 13 }}>等级预览</Divider>
 
             {riskResult && (
               <div style={{ marginBottom: 16 }}>
@@ -498,7 +498,7 @@ export default function RiskEventForm({
 
         {methodType === "DIRECT" && directLevel?.level && (
           <>
-            <Divider orientation="left" plain style={{ fontSize: 13 }}>判定结果</Divider>
+            <Divider  plain style={{ fontSize: 13 }}>判定结果</Divider>
             <Tag color={RISK_LEVEL_COLORS[DIRECT_LEVELS.find((d) => d.value === directLevel.level)?.label ?? "低"] ?? "#999"}>
               {DIRECT_LEVELS.find((d) => d.value === directLevel.level)?.label ?? "未选择"}
             </Tag>

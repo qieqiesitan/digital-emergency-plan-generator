@@ -67,7 +67,7 @@
          Modal.confirm({ title: `确认删除对象「${meta.name}」？`, content: "将级联删除该对象下所有单元、事件和措施", onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/objects/${meta.id}`, { method: "DELETE" }); refetch(); } });
          break;
        case "delete-unit":
-         Modal.confirm({ title: `确认删除单元「${meta.name}」？`, content: "将级联删除该单元下所有事件和措施", onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/objects/${meta.id}/units/${meta.id}`, { method: "DELETE" }); refetch(); } });
+         Modal.confirm({ title: `确认删除单元「${meta.name}」？`, content: "将级联删除该单元下所有事件和措施", onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/objects/placeholder/units/${meta.id}`, { method: "DELETE" }); refetch(); } });
          break;
        case "delete-event":
          Modal.confirm({ title: `确认删除事件「${meta.name}」？`, onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/events/${meta.id}`, { method: "DELETE" }); refetch(); } });
