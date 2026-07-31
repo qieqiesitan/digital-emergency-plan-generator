@@ -190,6 +190,11 @@ export default function EnterpriseDetailPage() {
       label: "危险化学品",
       children: <HazardousChemicalsTab enterpriseId={id!} />,
     },
+    {
+      key: "risk-management",
+      label: "风险分级管控",
+      children: <RiskManagementTab enterpriseId={id!} floorPlanUrl={enterprise.floor_plan_url} />,
+    },
   ];
 
   return (
