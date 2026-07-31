@@ -1,4 +1,5 @@
-﻿import type { ResourceInvestigationReport, ResourceInvestigationPreview } from "@/types/resourceInvestigation";
+﻿import type { ApiResponse } from '@/types/common';
+import type { ResourceInvestigationReport, ResourceInvestigationPreview } from "@/types/resourceInvestigation";
 import type { SSEEvent } from "@/types/riskAssessment";
 import type { ChapterDef } from '@/services/riskAssessmentService';
 import api from "./api";

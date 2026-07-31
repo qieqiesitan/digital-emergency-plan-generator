@@ -37,10 +37,9 @@ export interface SurroundingInfo {
 }
 
 export interface Enterprise {
-  economic_type: string | null;
   id: string;
   name: string;
-  economic_type?: string | null;
+  economic_type: string | null;
   address: string;
   industry: string;
   business_scope: string;

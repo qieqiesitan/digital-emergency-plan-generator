@@ -1,4 +1,5 @@
-﻿import type { RiskAssessmentReport, RiskAssessmentPreview, SSEEvent } from "@/types/riskAssessment";
+﻿import type { ApiResponse } from '@/types/common';
+import type { RiskAssessmentReport, RiskAssessmentPreview, SSEEvent } from "@/types/riskAssessment";
 import api from "./api";
 
 export async function getRiskAssessment(enterpriseId: string): Promise<RiskAssessmentReport> {

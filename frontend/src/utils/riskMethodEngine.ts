@@ -32,7 +32,7 @@ export const MEASURE_CATEGORY_LABELS: Record<string, string> = { engineering: "�
 export const ACCIDENT_TYPES = ["物体打击","车辆伤害","机械伤害","起重伤害","触电","淹溺","灼烫","火灾","高处坠落","坍塌","锅炉爆炸","容器爆炸","其他爆炸","中毒和窒息","其他伤害"];
 export function getCellClass(r: number): string { if (r >= 20) return "lvl-red"; if (r >= 15) return "lvl-orange"; if (r >= 9) return "lvl-yellow"; return "lvl-green"; }
 
-export function renderMatrixData(methodType: string, thresholds = DEFAULT_LS_THRESHOLDS): { l: number; s: number; r: number; level: string; color: string }[][] {
+export function renderMatrixData(_methodType: string, thresholds = DEFAULT_LS_THRESHOLDS): { l: number; s: number; r: number; level: string; color: string }[][] {
   const rows: { l: number; s: number; r: number; level: string; color: string }[][] = [];
   for (let l = 1; l <= 5; l++) {
     const row: typeof rows[0] = [];
