@@ -283,7 +283,7 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
 
 // Component
 
-export default function RiskHierarchyTree({ data, onSelect, onRefresh }: Props) {
+export default function RiskHierarchyTree({ data, onSelect, onRefresh, onAction }: Props) {
   const treeData = useMemo(() => buildTreeData(data), [data]);
   const totalNodes = useMemo(
     () =>
