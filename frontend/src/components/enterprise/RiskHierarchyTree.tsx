@@ -328,28 +328,9 @@ export default function RiskHierarchyTree({ data, onSelect, onRefresh }: Props) 
 
   const handleAction = useCallback(
     (key: string, meta: TreeNodeMeta) => {
-      const typeLabel = TYPE_LABEL[meta.type];
-      switch (key) {
-        case "add-object":
-        case "add-unit":
-        case "add-event":
-        case "add-measure":
-          message.info("\u6253\u5f00\u6dfb\u52a0" + typeLabel + "\u4e0b\u7ea7\u8868\u5355\uff08\u8282\u70b9: " + meta.name + "\uff09");
-          break;
-        case "edit":
-          message.info("\u6253\u5f00\u7f16\u8f91" + typeLabel + "\u8868\u5355\uff08\u8282\u70b9: " + meta.name + "\uff09");
-          break;
-        case "delete":
-          message.warning("\u5220\u9664" + typeLabel + "\u786e\u8ba4\uff08\u8282\u70b9: " + meta.name + "\uff09");
-          break;
-        case "ai-fill":
-          message.info("\u89e6\u53d1\u667a\u80fd\u586b\u5145" + typeLabel + "\u4e0b\u7ea7\uff08\u8282\u70b9: " + meta.name + "\uff09");
-          break;
-        default:
-          break;
-      }
+      onAction(key, meta);
     },
-    []
+    [onAction]
   );
 
   const titleRender = useCallback(
