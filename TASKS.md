@@ -1,5 +1,5 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：多层设计草案 v2 已推送，等待用户确认
+- 正在做什么：正式规格文档已提交，会话任务完成
 - 刚完成的动作：
   - 已确认现有实现：risk_zones.floor_plan_polygon 字段、RiskZoneForm 多边形绘制弹窗、FloorPlanPicker、RiskOverviewPage 占位热区
   - 已确认断点：RiskManagementTab 提交 zone 时未传 floor_plan_polygon；HierarchyZone 响应不含 polygon/坐标；RiskOverviewPage 的 FloorPlanHeatmap 只是卡片占位
@@ -34,7 +34,12 @@
   - 用户确认跨楼层规则：风险分区不可以跨楼层
   - 已推送首版设计草案 v2：frontend/prototypes/risk-mapping-design-v2.html
   - 静态原型地址：http://127.0.0.1:53824/risk-mapping-design-v2.html
-- 下一步：确认 v2 草案后整理正式规格文档
+  - 用户已确认 v2 草案
+  - 已按项目规则运行 git save，保存点 9608ea7
+  - 三个子智能体已并行返回：后端数据/API、前端工作台/总览、测试与实施顺序
+  - 已整合并写入 docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md
+  - 已通过独立审查智能体复审，修复 client_id 映射、updated_at、OverviewResponse、迁移 SQL、外键约束等契约问题
+- 下一步：无待办
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
-  - 工作区有大量既有改动（非本次任务产生），只修改了 TASKS.md 和 .gitignore
+  - 已提交：docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md
