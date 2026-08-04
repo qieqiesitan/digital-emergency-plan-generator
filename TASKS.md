@@ -1,6 +1,13 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：正式规格文档已提交，会话任务完成
+- 正在做什么：已补充四色分布图设计文档边界，等待用户确认是否提交或生成实施计划
 - 刚完成的动作：
+  - 已补充设计文档 4.7 删除与级联规则、批量保存 floor_updated_at 并发检测、平面图上传契约、旧 CRUD 兼容规则
+  - 已同步更新前端类型、错误码、AC-20/21/22、实施顺序、受影响文件、风险与关键决策
+  - 已通过 rg 一致性检查，确认无残留 CASCADE 描述；工作区仅修改 TASKS.md 和规格文档
+  - 已运行 git diff --check，无空白或冲突标记问题
+  - 已重读规格文档关键章节，并对照 backend/app/models/risk_management.py、backend/app/routers/risk_management.py 现有实现
+  - 发现主要待补点：floor 级 updated_at 并发检测、企业/分区删除级联语义、平面图上传 API 细节
+  - 已读取 TASKS.md 并确认工作区状态：branch codex/protego-integration，干净无未提交文件
   - 已确认现有实现：risk_zones.floor_plan_polygon 字段、RiskZoneForm 多边形绘制弹窗、FloorPlanPicker、RiskOverviewPage 占位热区
   - 已确认断点：RiskManagementTab 提交 zone 时未传 floor_plan_polygon；HierarchyZone 响应不含 polygon/坐标；RiskOverviewPage 的 FloorPlanHeatmap 只是卡片占位
   - 已确认前端已有 leaflet / react-leaflet，后端已有 JSONB polygon 与对象 location_x/y
@@ -39,7 +46,7 @@
   - 三个子智能体已并行返回：后端数据/API、前端工作台/总览、测试与实施顺序
   - 已整合并写入 docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md
   - 已通过独立审查智能体复审，修复 client_id 映射、updated_at、OverviewResponse、迁移 SQL、外键约束等契约问题
-- 下一步：无待办
+- 下一步：等用户确认提交规格文档，或继续生成实施计划
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
   - 已提交：docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md

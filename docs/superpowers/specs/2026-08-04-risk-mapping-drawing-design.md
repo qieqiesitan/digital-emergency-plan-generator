@@ -174,7 +174,7 @@ frontend/src/utils/riskMappingGeometry.ts
 ```sql
 CREATE TABLE IF NOT EXISTS enterprise_floors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    enterprise_id UUID NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+    enterprise_id UUID NOT NULL,
     name VARCHAR(255) NOT NULL,
     sort_order INTEGER NOT NULL DEFAULT 0,
     floor_plan_url VARCHAR(500),
@@ -184,7 +184,8 @@ CREATE TABLE IF NOT EXISTS enterprise_floors (
     canvas_texts JSONB NOT NULL DEFAULT '[]'::jsonb,
     is_default BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_ef_enterprise FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS idx_ef_enterprise ON enterprise_floors(enterprise_id);
@@ -197,7 +198,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ef_default_per_enterprise ON enterprise_flo
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | id | UUID | PK | 楼层 ID |
-| enterprise_id | UUID | NOT NULL, FK, CASCADE | 所属企业 |
+| enterprise_id | UUID | NOT NULL, FK, RESTRICT | 所属企业 |
 | name | VARCHAR(255) | NOT NULL | 楼层名称，如“一层”“总图” |
 | sort_order | INTEGER | NOT NULL, default 0 | 排序值，升序展示 |
 | floor_plan_url | VARCHAR(500) | NULL | 该楼层平面图 URL |
@@ -231,6 +232,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ef_default_per_enterprise ON enterprise_flo
 - 有分区或风险点的楼层不允许删除，返回 `FLOOR_IN_USE`。
 - 默认楼层由旧 `enterprises.floor_plan_url` 迁移产生。
 - 更新默认楼层 `floor_plan_url` 时，同步写回 `enterprises.floor_plan_url`，保证旧字段兼容。
+- 企业删除不允许由数据库静默级联触发，必须由应用层 `enterprise_cleanup_service` 按 `4.7` 顺序显式清理。
 
 ### 4.2 risk_zones 扩展
 
@@ -275,7 +277,7 @@ CREATE INDEX IF NOT EXISTS idx_ro_floor ON risk_objects(floor_id);
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | floor_id | UUID | NULL, FK | 风险对象所属楼层 |
-| zone_id | UUID | NULL, FK | 所属分区 |
+| zone_id | UUID | NULL, FK, RESTRICT | 所属分区；迁移时替换现有 `SET NULL`，禁止删除分区后对象游离 |
 | location_x | FLOAT | NULL | 百分比 X 坐标，0-100 |
 | location_y | FLOAT | NULL | 百分比 Y 坐标，0-100 |
 | is_risk_point | BOOLEAN | NOT NULL, default false | 是否工作台风险点 |
@@ -286,6 +288,7 @@ CREATE INDEX IF NOT EXISTS idx_ro_floor ON risk_objects(floor_id);
 - `zone_id` 与 `floor_id` 同时提供时必须一致，否则返回 `ZONE_FLOOR_MISMATCH`。
 - 工作台新建风险点必须设置 `zone_id`、`location_x`、`location_y`，`floor_id` 可省略并由服务端沿用分区楼层，并强制 `is_risk_point=true`。
 - 工作台保存只处理风险点；普通风险对象仍通过现有对象 CRUD 管理。
+- 删除分区时，风险对象由应用层级联删除，具体顺序与确认规则见 `4.7`。
 
 ### 4.4 floor_plan_polygon v2 结构
 
@@ -373,7 +376,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS enterprise_floors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    enterprise_id UUID NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+    enterprise_id UUID NOT NULL,
     name VARCHAR(255) NOT NULL,
     sort_order INTEGER NOT NULL DEFAULT 0,
     floor_plan_url VARCHAR(500),
@@ -383,12 +386,40 @@ CREATE TABLE IF NOT EXISTS enterprise_floors (
     canvas_texts JSONB NOT NULL DEFAULT '[]'::jsonb,
     is_default BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_ef_enterprise FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS idx_ef_enterprise ON enterprise_floors(enterprise_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ef_enterprise_name ON enterprise_floors(enterprise_id, name);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ef_default_per_enterprise ON enterprise_floors(enterprise_id) WHERE is_default = true;
+
+DO $$
+DECLARE fk_name text;
+BEGIN
+    SELECT conname INTO fk_name
+    FROM pg_constraint
+    WHERE conrelid = 'enterprise_floors'::regclass
+      AND contype = 'f'
+      AND confrelid = 'enterprises'::regclass
+      AND conname <> 'fk_ef_enterprise';
+    IF fk_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE enterprise_floors DROP CONSTRAINT %I', fk_name);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fk_ef_enterprise'
+          AND conrelid = 'enterprise_floors'::regclass
+    ) THEN
+        ALTER TABLE enterprise_floors
+            ADD CONSTRAINT fk_ef_enterprise
+            FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE RESTRICT;
+    END IF;
+END $$;
 
 INSERT INTO enterprise_floors (enterprise_id, name, sort_order, floor_plan_url, description, is_default)
 SELECT e.id, '默认总图', 0, e.floor_plan_url, '由 enterprises.floor_plan_url 迁移生成', true
@@ -442,6 +473,33 @@ BEGIN
     END IF;
 END $$;
 
+DO $$
+DECLARE fk_name text;
+BEGIN
+    SELECT conname INTO fk_name
+    FROM pg_constraint
+    WHERE conrelid = 'risk_objects'::regclass
+      AND contype = 'f'
+      AND confrelid = 'risk_zones'::regclass
+      AND conname <> 'fk_risk_objects_zone';
+    IF fk_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE risk_objects DROP CONSTRAINT %I', fk_name);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fk_risk_objects_zone'
+          AND conrelid = 'risk_objects'::regclass
+    ) THEN
+        ALTER TABLE risk_objects
+            ADD CONSTRAINT fk_risk_objects_zone
+            FOREIGN KEY (zone_id) REFERENCES risk_zones(id) ON DELETE RESTRICT;
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_rz_floor ON risk_zones(floor_id);
 CREATE INDEX IF NOT EXISTS idx_ro_floor ON risk_objects(floor_id);
 
@@ -466,6 +524,40 @@ COMMIT;
 ```
 
 迁移脚本必须支持幂等重跑，并生成预检报告。
+
+### 4.7 删除与级联规则
+
+目标：不允许数据库静默把风险对象置为无分区对象；所有风险分级数据删除必须由应用层按明确顺序执行，并提供可审计的确认信息。
+
+外键策略：
+
+- `enterprise_floors.enterprise_id -> enterprises.id`：`ON DELETE RESTRICT`。
+- `risk_zones.floor_id -> enterprise_floors.id`：`ON DELETE RESTRICT`。
+- `risk_objects.floor_id -> enterprise_floors.id`：`ON DELETE RESTRICT`。
+- `risk_objects.zone_id -> risk_zones.id`：迁移时由现有 `SET NULL` 替换为 `ON DELETE RESTRICT`。
+- `risk_units`、`risk_events`、`risk_measures` 继续使用 `ON DELETE CASCADE`，由 ORM/应用层按依赖顺序删除。
+
+分区删除流程：
+
+1. 后端统计分区下 `risk_objects`、`risk_units`、`risk_events`、`risk_measures` 数量。
+2. 分区下没有任何风险对象时，直接删除分区。
+3. 分区下存在风险对象或风险事件时，返回 `CASCADE_CONFIRM_REQUIRED`，`detail.data` 包含 `object_count`、`unit_count`、`event_count`、`measure_count`。
+4. 用户通过 `confirm_cascade_zone_ids` 二次确认后，同一事务内按“措施 -> 事件 -> 单元 -> 风险对象 -> 分区”顺序删除。
+5. 删除分区不自动删除楼层；删除后不得保留 `zone_id=null` 的工作台风险点。
+
+楼层删除规则：
+
+- 楼层下存在分区或风险对象时返回 `FLOOR_IN_USE`，不提供级联删除。
+- 必须先删除或迁移该楼层分区后，才能删除楼层。
+- 唯一默认楼层不可直接删除，必须先设置新的默认楼层。
+
+企业删除规则：
+
+- 现有 `DELETE /enterprises/{enterprise_id}` 改为调用新增 `enterprise_cleanup_service`，不再仅依赖数据库级联。
+- 应用层同一事务内按“措施 -> 事件 -> 单元 -> 风险对象 -> 分区 -> 楼层 -> 企业”顺序清理。
+- 企业下其他历史业务数据仍沿用现有数据库级联；本服务只负责避免 `RESTRICT` 外键与新增楼层数据产生删除冲突。
+- 平面图物理文件在业务事务提交成功后清理；清理失败只记录日志，不回滚业务删除。
+- 企业删除接口返回待清理数量，前端必须二次确认。
 
 ---
 
@@ -555,6 +647,19 @@ COMMIT;
 - 不允许删除唯一默认楼层；不允许直接删除存在分区或风险对象的楼层。
 - 上传平面图成功后返回新的 `floor_plan_url`。
 - 更新默认楼层平面图时同步写回 `enterprises.floor_plan_url`。
+
+`POST /floors/{floor_id}/plan` 请求与行为：
+
+- `Content-Type`：`multipart/form-data`，字段 `file` 必填，类型为图片文件。
+- 支持类型：`image/png`、`image/jpeg`、`image/webp`。
+- 文件大小限制：不超过 20 MB。
+- 像素限制：长边不超过 12000 像素，短边不超过 12000 像素。
+- 存储路径：`uploads/enterprises/{enterprise_id}/floors/{floor_id}/{yyyyMMdd}_{uuid}.{ext}`；如项目已有统一对象存储或上传服务，优先复用。
+- 校验通过后写入 `floor_plan_url`，并从图片尺寸写入 `canvas_width`、`canvas_height`。
+- 若该楼层 `is_default=true`，同一事务内同步写回 `enterprises.floor_plan_url`。
+- 新文件提交成功后，尽力删除旧平面图文件；删除失败只记录日志，不影响本次更新。
+- 上传过程中任一校验失败，必须清理临时文件。
+- 响应为 `FloorResponse`，包含新 `floor_plan_url`、`canvas_width`、`canvas_height`、`updated_at`。
 
 ### 5.3 Workbench 聚合加载
 
@@ -681,6 +786,14 @@ GET /workbench?floor_id={floor_id}
 - 新建风险点必须提供 `zone_id`、`location_x`、`location_y`；`floor_id` 可省略并由服务端推导。
 - 坐标范围 0-100。
 
+旧 CRUD 兼容规则：
+
+- `RiskZoneCreate.floor_id` 兼容为空；为空时服务端自动解析企业默认楼层，避免旧表单创建无楼层分区。
+- `RiskZoneUpdate.floor_id` 可为空表示不修改楼层；移动分区时同一事务内同步更新该分区下所有风险对象的 `floor_id`。
+- `RiskObjectCreate.floor_id` 兼容为空；`zone_id` 非空时沿用分区楼层，`zone_id` 与 `floor_id` 均为空时允许普通对象暂不归属楼层。
+- `RiskObjectCreate` 或 `RiskObjectUpdate` 设置 `is_risk_point=true` 时，`zone_id`、`location_x`、`location_y` 必须提供，否则返回 `RISK_POINT_INVALID`。
+- 旧前端继续提交 `floor_plan_polygon` 时，后端统一归一化为 v2；迁移完成后写入结构应始终为 v2。
+
 ### 5.5 Hierarchy 与 Overview
 
 `GET /hierarchy` 新增 `floor_id` 查询参数。
@@ -753,6 +866,7 @@ POST /workbench/batch-save
 ```json
 {
   "floor_id": "floor-id",
+  "floor_updated_at": "2026-08-04T10:00:00+08:00",
   "zones": [
     {
       "client_id": "zone-client-1",
@@ -828,6 +942,7 @@ POST /workbench/batch-save
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | floor_id | UUID | 是 | 当前楼层 |
+| floor_updated_at | datetime | 是 | 楼层 `updated_at`，用于画布相关数据并发检测 |
 | zones | array | 是 | 保存后当前楼层应存在的全部分区 |
 | zones[].client_id | string | 新建时必填 | 前端生成的临时 ID，用于同批风险点绑定 |
 | zones[].zone_id | UUID/null | 条件 | null 表示新建分区 |
@@ -851,6 +966,7 @@ POST /workbench/batch-save
 批量保存规则：
 
 - 保存前校验当前楼层所有未删除分区都已出现在 `zones`，且 `polygons` 非空。
+- 保存前锁定当前楼层，并比较请求 `floor_updated_at` 与数据库 `updated_at`；不一致返回 `SAVE_CONFLICT`。
 - 请求内所有 `client_id` 必须唯一；`zones[].client_id` 与 `risk_points[].client_id` 不得互相冲突。
 - `risk_points[].zone_id` 与 `risk_points[].zone_client_id` 不允许同时提供，且必须能解析到唯一分区。
 - 分区 `zone_id=null` 时创建新分区；新分区必须提供 `client_id`，后端在事务内创建后生成 `client_id -> zone_id` 映射。
@@ -875,7 +991,8 @@ POST /workbench/batch-save
       "id": "floor-id",
       "name": "一层",
       "floor_plan_url": "/uploads/floors/floor-1.png",
-      "canvas_texts": []
+      "canvas_texts": [],
+      "updated_at": "2026-08-04T10:01:00+08:00"
     },
     "zones": [],
     "risk_points": [],
@@ -891,6 +1008,7 @@ POST /workbench/batch-save
 ```
 
 前端保存后使用映射替换本地临时 ID，并用响应刷新 store。
+响应中的 `floor.updated_at` 必须回填到本地 `floor_updated_at`，作为下一次批量保存的并发基线。
 
 ### 5.7 错误码
 
@@ -902,7 +1020,7 @@ POST /workbench/batch-save
 | 404 | RISK_POINT_NOT_FOUND | 风险点不存在或不属于当前企业 |
 | 409 | FLOOR_IN_USE | 楼层存在分区或风险对象，不允许删除 |
 | 409 | SAVE_CONFLICT | 并发保存冲突 |
-| 409 | CASCADE_CONFIRM_REQUIRED | 删除分区需要显式确认级联风险事件 |
+| 409 | CASCADE_CONFIRM_REQUIRED | 删除分区需要显式确认级联风险对象/风险事件，data 返回各层级影响数量 |
 | 422 | ZONE_NOT_BOUND | 当前楼层存在未绑定区域 |
 | 422 | ZONE_FLOOR_MISMATCH | 分区或风险点楼层不一致 |
 | 422 | POLYGON_INVALID | v2 结构、点数、坐标范围不合法 |
@@ -1092,6 +1210,7 @@ export interface EnterpriseFloor {
   is_default: boolean;
   zone_count?: number;
   risk_point_count?: number;
+  updated_at: string;
 }
 
 export interface RiskCanvasText {
@@ -1185,6 +1304,7 @@ export interface BatchSaveRiskPointItem {
 
 export interface BatchSavePayload {
   floor_id: string;
+  floor_updated_at: string;
   zones: BatchSaveZoneItem[];
   risk_points: BatchSaveRiskPointItem[];
   deleted_risk_point_ids: string[];
@@ -1339,6 +1459,7 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 - 每个多边形至少 3 个顶点。
 - 多边形面积大于 0。
 - 坐标 0-100。
+- `floor_updated_at` 来自最近一次工作台/楼层加载，不能为空。
 - 同一分区所有多边形属于同一楼层。
 - 风险点必须有名称、分区、楼层、坐标。
 - 新建风险点 `is_risk_point=true`。
@@ -1357,8 +1478,9 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 ### 8.3 并发与事务
 
 - 批量保存单事务。
-- 使用 `SELECT ... FOR UPDATE` 锁行。
-- 检测 `updated_at` 或版本变化，冲突返回 `SAVE_CONFLICT`。
+- 使用 `SELECT ... FOR UPDATE` 锁定当前楼层、分区、风险点。
+- 当前楼层必须比较 `floor_updated_at`，覆盖平面图替换、楼层文字、画布尺寸等画布相关变更；不一致返回 `SAVE_CONFLICT`。
+- 既有分区和既有风险点必须比较各自 `updated_at`，不一致返回 `SAVE_CONFLICT`。
 - 首版不承诺实时协同，冲突时提示用户刷新或重新合并。
 
 ---
@@ -1369,6 +1491,7 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 - 只读角色只能查看工作台和总览，不能进入编辑或调用批量保存。
 - 文件上传限制图片类型、大小和像素尺寸。
 - 上传失败时清理临时文件。
+- 删除分区或企业时必须校验写权限，并返回影响数量供前端二次确认。
 - 输入校验不允许任意 SQL、路径穿越、恶意多边形坐标。
 
 ---
@@ -1450,8 +1573,9 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 | AC-17 | 旧总图迁移 | 旧 floor_plan_url 迁移到默认楼层，原地址仍可用 |
 | AC-18 | 迁移安全 | 迁移支持预检、单企业事务、失败回滚、幂等重跑 |
 | AC-19 | 同批新建分区与风险点 | 工作台同批新建分区和风险点时，通过 client_id 映射保存，刷新后绑定关系正确 |
-| AC-20 | 并发冲突 | 另一用户已修改数据时保存返回 SAVE_CONFLICT，不静默覆盖 |
-| AC-21 | 级联删除确认 | 删除有风险事件的分区必须显式确认，否则返回 CASCADE_CONFIRM_REQUIRED |
+| AC-20 | 并发冲突 | 另一用户已修改楼层画布数据、分区或风险点后保存返回 SAVE_CONFLICT，不静默覆盖 |
+| AC-21 | 级联删除确认 | 删除有风险对象或风险事件的分区必须显式确认，否则返回 CASCADE_CONFIRM_REQUIRED，并返回各层级影响数量 |
+| AC-22 | 平面图上传 | 支持 PNG/JPEG/WebP，超限或非法文件被拒绝；上传成功返回新 URL、画布尺寸和 updated_at，默认楼层同步写回旧字段 |
 
 ---
 
@@ -1459,8 +1583,8 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 
 | 阶段 | 任务 | 依赖 | 估算 |
 |---|---|---|---|
-| 阶段 1 | 数据兼容与迁移基线 | 无 | 2.5 人日 |
-| 阶段 2 | 后端工作台 API | 阶段 1 | 3 人日 |
+| 阶段 1 | 数据兼容与迁移基线（含外键 RESTRICT、企业清理服务） | 无 | 2.5 人日 |
+| 阶段 2 | 后端工作台 API（含平面图上传、批量保存并发检测、级联删除确认） | 阶段 1 | 3 人日 |
 | 阶段 3 | 前端状态与工作台框架 | 阶段 2 | 2.5 人日 |
 | 阶段 4 | Konva 绘制与编辑 | 阶段 3 | 4 人日 |
 | 阶段 5 | 绑定、颜色与保存校验 | 阶段 4 | 2 人日 |
@@ -1479,10 +1603,15 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 - `backend/app/models/risk_management.py`：扩展 `RiskZone.floor_id`、`RiskObject.floor_id`。
 - `backend/app/schemas/risk_management.py`：扩展楼层、分区、对象、层级、总览、批量保存 Schema。
 - `backend/app/routers/risk_management.py`：新增 Floors、Workbench、Overview、Batch Save。
+- `backend/app/routers/enterprises.py`：企业删除改为调用应用层清理服务。
+- `backend/app/services/enterprise_cleanup_service.py`：新增企业级风险分级数据清理服务。
+- `backend/app/services/floor_plan_storage_service.py`：新增平面图校验、存储、替换与旧文件清理。
 - `backend/app/services/risk_mapping_service.py`：新增绘图业务服务。
 - `backend/db_migration_risk_mapping_workbench.sql`：新增迁移。
 - `backend/tests/test_risk_mapping_workbench.py`：新增后端工作台/批量保存测试。
 - `backend/tests/test_risk_mapping_migration.py`：新增迁移兼容与幂等测试。
+- `backend/tests/test_risk_mapping_cascade.py`：新增分区/企业删除确认与级联测试。
+- `backend/tests/test_floor_plan_upload.py`：新增平面图上传校验与默认楼层同步测试。
 
 ### 前端
 
@@ -1532,6 +1661,8 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 | 大数据量画布卡顿 | 高 | 按楼层加载、分层渲染、点集简化 |
 | 批量保存部分成功 | 高 | 单事务 + 行锁 + 全量校验 |
 | 图片上传和底图处理 | 中高 | 限制类型/大小/像素，失败自动清理 |
+| 企业/分区级联误删 | 高 | 影响数量预览、二次确认、应用层单事务清理、级联测试 |
+| 平面图文件残留 | 中 | 新文件提交成功后清理旧文件，失败记录日志 |
 | 多人并发覆盖 | 中高 | 行锁 + 版本检测 + SAVE_CONFLICT |
 | 旧数据兼容问题 | 中 | 迁移预检、幂等、抽样核对 |
 | 坐标体系不一致 | 中 | 百分比坐标统一，测试图固定 |
@@ -1551,3 +1682,7 @@ export function stageToPercent(position: { x: number; y: number }, floor: Enterp
 | 无平面图能否使用 | 能，空白画布 + 网格/辅助线 |
 | 旧单张平面图如何处理 | 迁移为默认楼层/总图 |
 | 保存是否原子 | 是，批量保存单事务 |
+| 楼层画布并发 | 批量保存校验 floor_updated_at，平面图/文字/画布尺寸变更触发 SAVE_CONFLICT |
+| 删除分区 | 有风险对象或风险事件时必须显式确认，应用层按依赖顺序级联删除 |
+| 删除企业 | 调用 enterprise_cleanup_service 显式清理新增楼层与风险分级数据，不依赖静默数据库级联 |
+| 旧 CRUD 兼容 | 旧表单可不传 floor_id，服务端解析默认楼层；风险点仍强制绑定分区和坐标 |
