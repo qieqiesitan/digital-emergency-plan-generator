@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>四色分布图 - 绘图工具集</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #1f2329;
+      --muted: #6b7280;
+      --primary: #1677ff;
+      --red: #ff4d4f;
+      --orange: #fa8c16;
+      --yellow: #fadb14;
+      --green: #52c41a;
+      --shadow: 0 8px 24px rgba(31, 35, 41, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .page { max-width: 1160px; margin: 0 auto; padding: 24px 16px 48px; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .topbar h1 { margin: 0; font-size: 20px; line-height: 1.4; }
+    .topbar p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .status {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      background: #eef7ff;
+      border: 1px solid #b7d9ff;
+      color: #0a5dc2;
+      border-radius: 6px;
+      font-size: 12px;
+      max-width: 340px;
+      line-height: 1.6;
+    }
+    .section { margin-top: 20px; }
+    .section-title { font-size: 17px; margin: 0 0 6px; }
+    .section-sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+    .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .option {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .option:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+    .option.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12), var(--shadow);
+    }
+    .option-head { display: flex; align-items: center; gap: 8px; }
+    .letter {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: #edf2f7;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .option.selected .letter { background: var(--primary); color: #fff; }
+    .option h3 { margin: 0; font-size: 15px; }
+    .option p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .tool-list {
+      list-style: none;
+      margin: 0;
+      padding: 10px 12px;
+      background: #fafbfc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .tool-list li {
+      padding: 6px 8px;
+      background: #fff;
+      border: 1px solid #edf0f3;
+      border-radius: 5px;
+    }
+    .tool-list li.extra { color: #0a5dc2; border-color: #b7d9ff; background: #eef7ff; }
+    .pros, .cons { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .pros strong { color: #1f9d55; }
+    .cons strong { color: #c2410c; }
+    .selection-bar {
+      position: sticky;
+      bottom: 12px;
+      margin-top: 18px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .selection-bar code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; }
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      border-radius: 8px;
+      color: #614700;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    @media (max-width: 900px) {
+      .options { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; }
+      .status { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div>
+        <h1>绘图工具集</h1>
+        <p>已确认：独立工作台、分区 + 风险点拖拽与新建、绑定两种流程、一个分区多个区域。</p>
+      </div>
+      <div class="status">
+        当前问题：工作台首版需要哪些绘图工具？
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">你希望首版工具集做到哪一档？</h2>
+      <p class="section-sub">在页面点击卡片可标记选择，最终请也在终端回复 A / B / C。</p>
+      <div class="options" id="options">
+        <div class="option" data-choice="a" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">A</span>
+            <h3>核心工具（推荐）</h3>
+          </div>
+          <p>足够画四色分布图，不引入复杂绘图能力。</p>
+          <ul class="tool-list">
+            <li>矩形 / 多边形</li>
+            <li>选择 / 移动 / 顶点编辑</li>
+            <li>删除 / 撤销 / 重做</li>
+            <li>风险点：拖动已有 / 新建</li>
+            <li>文字标签 / 图例</li>
+            <li>画布缩放 / 平移</li>
+          </ul>
+          <div class="pros"><strong>优点：</strong>覆盖主流程，开发量可控。</div>
+          <div class="cons"><strong>限制：</strong>没有自由画笔、网格和图层。</div>
+        </div>
+
+        <div class="option" data-choice="b" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">B</span>
+            <h3>核心 + 自由画笔</h3>
+          </div>
+          <p>在核心工具基础上，允许徒手圈出复杂边界。</p>
+          <ul class="tool-list">
+            <li>核心工具全部能力</li>
+            <li class="extra">自由画笔：手绘闭合区域</li>
+            <li class="extra">画笔平滑 / 转多边形</li>
+          </ul>
+          <div class="pros"><strong>优点：</strong>适合不规则厂房、山坡、复杂边界。</div>
+          <div class="cons"><strong>限制：</strong>手绘转多边形需要额外处理。</div>
+        </div>
+
+        <div class="option" data-choice="c" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">C</span>
+            <h3>完整工具</h3>
+          </div>
+          <p>在 B 基础上，加入网格、辅助线和图层管理。</p>
+          <ul class="tool-list">
+            <li>核心 + 自由画笔</li>
+            <li class="extra">网格 / 吸附</li>
+            <li class="extra">辅助线 / 标尺</li>
+            <li class="extra">图层：平面图底图 / 分区 / 风险点</li>
+          </ul>
+          <div class="pros"><strong>优点：</strong>最接近专业制图体验。</div>
+          <div class="cons"><strong>限制：</strong>首版开发量最大。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="selection-bar">
+      <span>当前选择：<code id="current">未选择</code></span>
+      <span>请在终端回复 A / B / C</span>
+    </div>
+
+    <div class="note">
+      这是讨论用静态原型，不是业务代码。无论哪档，缩放/平移建议放进核心，因为平面图经常需要放大细节。
+    </div>
+  </div>
+
+  <script>
+    function select(el) {
+      document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      const choice = el.getAttribute('data-choice').toUpperCase();
+      document.getElementById('current').textContent = choice;
+      localStorage.setItem('risk-mapping-tools', choice);
+    }
+    const saved = localStorage.getItem('risk-mapping-tools');
+    if (saved) {
+      const el = document.querySelector(`.option[data-choice="${saved.toLowerCase()}"]`);
+      if (el) select(el);
+    }
+  </script>
+</body>
+</html>

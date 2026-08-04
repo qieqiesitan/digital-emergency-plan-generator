@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>四色分布图 - 分区绑定交互</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #1f2329;
+      --muted: #6b7280;
+      --primary: #1677ff;
+      --red: #ff4d4f;
+      --orange: #fa8c16;
+      --yellow: #fadb14;
+      --green: #52c41a;
+      --shadow: 0 8px 24px rgba(31, 35, 41, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .page { max-width: 1160px; margin: 0 auto; padding: 24px 16px 48px; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .topbar h1 { margin: 0; font-size: 20px; line-height: 1.4; }
+    .topbar p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .status {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      background: #eef7ff;
+      border: 1px solid #b7d9ff;
+      color: #0a5dc2;
+      border-radius: 6px;
+      font-size: 12px;
+      max-width: 320px;
+      line-height: 1.6;
+    }
+    .section { margin-top: 20px; }
+    .section-title { font-size: 17px; margin: 0 0 6px; }
+    .section-sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+    .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .option {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .option:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+    .option.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12), var(--shadow);
+    }
+    .option-head { display: flex; align-items: center; gap: 8px; }
+    .letter {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: #edf2f7;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .option.selected .letter { background: var(--primary); color: #fff; }
+    .option h3 { margin: 0; font-size: 15px; }
+    .option p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .mock {
+      min-height: 190px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    .mock-title {
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+    }
+    .mock-body {
+      flex: 1;
+      padding: 10px;
+      min-height: 170px;
+    }
+    .canvas {
+      position: relative;
+      height: 130px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #eef1f5, #dfe5ec);
+      overflow: hidden;
+    }
+    .zone {
+      position: absolute;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pin {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff4d4f;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+      transform: translate(-50%, -50%);
+    }
+    .pros, .cons { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .pros strong { color: #1f9d55; }
+    .cons strong { color: #c2410c; }
+    .selection-bar {
+      position: sticky;
+      bottom: 12px;
+      margin-top: 18px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .selection-bar code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; }
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      border-radius: 8px;
+      color: #614700;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    @media (max-width: 900px) {
+      .options { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; }
+      .status { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div>
+        <h1>分区绑定交互</h1>
+        <p>已确认：C 混合模式、绘制 + 保存 + 总览联动、颜色自动默认 + 手动覆盖、独立工作台、分区 + 风险点拖拽。</p>
+      </div>
+      <div class="status">
+        当前问题：绘制一个区域后，怎么和风险分区建立绑定关系？
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">你希望哪种绑定流程？</h2>
+      <p class="section-sub">在页面点击卡片可标记选择，最终请也在终端回复 A / B / C。</p>
+      <div class="options" id="options">
+        <div class="option" data-choice="a" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">A</span>
+            <h3>先选分区再画（推荐）</h3>
+          </div>
+          <p>左侧选中“储罐区”，然后在画布上画区域，保存时自动绑定到当前分区。</p>
+          <div class="mock">
+            <div class="mock-title">先选再画</div>
+            <div class="mock-body">
+              <div style="display:grid;grid-template-columns:130px 1fr;gap:8px;height:150px">
+                <div style="background:#f7f8fa;border-radius:6px;padding:8px">
+                  <div style="font-size:11px;color:#595959;margin-bottom:6px">分区列表</div>
+                  <div style="height:22px;background:#e6f4ff;border:1px solid #91caff;border-radius:4px;margin-bottom:5px;display:flex;align-items:center;padding:0 6px;font-size:10px;color:#0958d9">储罐区</div>
+                  <div style="height:22px;background:#fff;border:1px solid #d9d9d9;border-radius:4px;margin-bottom:5px;display:flex;align-items:center;padding:0 6px;font-size:10px">配电房</div>
+                  <div style="height:22px;background:#fff;border:1px solid #d9d9d9;border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:10px">生产车间</div>
+                </div>
+                <div class="canvas">
+                  <div class="zone" style="left:12%;top:22%;width:64%;height:40%;background:rgba(255,77,79,.34);border:1px solid #ff4d4f;color:#8c1f20">储罐区</div>
+                </div>
+              </div>
+              <div style="margin-top:8px;font-size:11px;color:#1f9d55">已绑定：储罐区</div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>绑定关系清晰，不容易产生未绑定区域。</div>
+          <div class="cons"><strong>限制：</strong>如果只想先画图、后补分区，流程不够自由。</div>
+        </div>
+
+        <div class="option" data-choice="b" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">B</span>
+            <h3>先画再绑定</h3>
+          </div>
+          <p>先在画布上画区域，画完后在右侧或弹窗里选择要绑定的风险分区。</p>
+          <div class="mock">
+            <div class="mock-title">先画再绑</div>
+            <div class="mock-body">
+              <div style="display:grid;grid-template-columns:1fr 140px;gap:8px;height:150px">
+                <div class="canvas">
+                  <div class="zone" style="left:12%;top:22%;width:64%;height:40%;background:rgba(255,77,79,.34);border:1px solid #ff4d4f;color:#8c1f20">储罐区</div>
+                </div>
+                <div style="background:#f7f8fa;border-radius:6px;padding:8px">
+                  <div style="font-size:11px;color:#595959;margin-bottom:6px">绑定分区</div>
+                  <div style="height:24px;background:#fff;border:1px solid #d9d9d9;border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:10px;color:#8c8c8c">请选择</div>
+                  <div style="height:24px;background:#fff;border:1px solid #d9d9d9;border-radius:4px;margin-top:6px;display:flex;align-items:center;padding:0 6px;font-size:10px">新建分区</div>
+                </div>
+              </div>
+              <div style="margin-top:8px;font-size:11px;color:#c2410c">未绑定：等待选择分区</div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>适合先快速圈出区域，再统一整理分区。</div>
+          <div class="cons"><strong>限制：</strong>容易遗漏未绑定区域，需要待绑定清单。</div>
+        </div>
+
+        <div class="option" data-choice="c" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">C</span>
+            <h3>两种都支持</h3>
+          </div>
+          <p>可以选分区后画，也可以画完再绑定；未绑定区域进入“待绑定”清单。</p>
+          <div class="mock">
+            <div class="mock-title">混合绑定</div>
+            <div class="mock-body">
+              <div style="display:grid;grid-template-columns:130px 1fr;gap:8px;height:150px">
+                <div style="background:#f7f8fa;border-radius:6px;padding:8px">
+                  <div style="font-size:11px;color:#595959;margin-bottom:6px">模式</div>
+                  <div style="height:22px;background:#e6f4ff;border:1px solid #91caff;border-radius:4px;margin-bottom:5px;display:flex;align-items:center;padding:0 6px;font-size:10px;color:#0958d9">先选分区</div>
+                  <div style="height:22px;background:#fff;border:1px solid #d9d9d9;border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:10px">先画再绑</div>
+                </div>
+                <div class="canvas">
+                  <div class="zone" style="left:12%;top:22%;width:52%;height:38%;background:rgba(255,77,79,.34);border:1px solid #ff4d4f;color:#8c1f20">储罐区</div>
+                  <div class="zone" style="left:68%;top:55%;width:26%;height:28%;background:rgba(217,217,217,.55);border:1px dashed #8c8c8c;color:#595959">待绑定</div>
+                </div>
+              </div>
+              <div style="margin-top:8px;font-size:11px;color:#c2410c">待绑定 1 个区域</div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>适应两种操作习惯，符合完整工作台定位。</div>
+          <div class="cons"><strong>限制：</strong>需要增加待绑定状态和校验。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="selection-bar">
+      <span>当前选择：<code id="current">未选择</code></span>
+      <span>请在终端回复 A / B / C</span>
+    </div>
+
+    <div class="note">
+      这是讨论用静态原型，不是业务代码。绑定结果最终应保存到 risk_zones.floor_plan_polygon，并同步到总览。
+    </div>
+  </div>
+
+  <script>
+    function select(el) {
+      document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      const choice = el.getAttribute('data-choice').toUpperCase();
+      document.getElementById('current').textContent = choice;
+      localStorage.setItem('risk-mapping-binding-flow', choice);
+    }
+    const saved = localStorage.getItem('risk-mapping-binding-flow');
+    if (saved) {
+      const el = document.querySelector(`.option[data-choice="${saved.toLowerCase()}"]`);
+      if (el) select(el);
+    }
+  </script>
+</body>
+</html>

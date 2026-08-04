@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>四色分布图 - 多层厂房方案</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #1f2329;
+      --muted: #6b7280;
+      --primary: #1677ff;
+      --red: #ff4d4f;
+      --orange: #fa8c16;
+      --yellow: #fadb14;
+      --green: #52c41a;
+      --shadow: 0 8px 24px rgba(31, 35, 41, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .page { max-width: 1160px; margin: 0 auto; padding: 24px 16px 48px; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .topbar h1 { margin: 0; font-size: 20px; line-height: 1.4; }
+    .topbar p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .status {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      background: #eef7ff;
+      border: 1px solid #b7d9ff;
+      color: #0a5dc2;
+      border-radius: 6px;
+      font-size: 12px;
+      max-width: 340px;
+      line-height: 1.6;
+    }
+    .section { margin-top: 20px; }
+    .section-title { font-size: 17px; margin: 0 0 6px; }
+    .section-sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+    .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .option {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .option:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+    .option.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12), var(--shadow);
+    }
+    .option-head { display: flex; align-items: center; gap: 8px; }
+    .letter {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: #edf2f7;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .option.selected .letter { background: var(--primary); color: #fff; }
+    .option h3 { margin: 0; font-size: 15px; }
+    .option p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .mock {
+      min-height: 190px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    .mock-title {
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+    }
+    .mock-body {
+      flex: 1;
+      padding: 10px;
+      min-height: 150px;
+    }
+    .floor-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+    .floor-tab {
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .floor-tab.active { border-color: var(--primary); background: #eef7ff; color: var(--primary); }
+    .canvas {
+      position: relative;
+      height: 120px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #eef1f5, #dfe5ec);
+      overflow: hidden;
+    }
+    .zone {
+      position: absolute;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pin {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff4d4f;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+      transform: translate(-50%, -50%);
+    }
+    .pros, .cons { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .pros strong { color: #1f9d55; }
+    .cons strong { color: #c2410c; }
+    .data-card {
+      margin-top: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .data-card-title {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .data-card-body { padding: 14px; }
+    pre {
+      background: #101828;
+      color: #e6edf3;
+      border-radius: 8px;
+      padding: 14px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .selection-bar {
+      position: sticky;
+      bottom: 12px;
+      margin-top: 18px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .selection-bar code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; }
+    @media (max-width: 900px) {
+      .options { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; }
+      .status { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div>
+        <h1>多层厂房方案</h1>
+        <p>在企业有多层厂房、多个楼栋、多张平面图时，需要先决定楼层维度进入首版还是预留。</p>
+      </div>
+      <div class="status">
+        当前问题：首版是否完整支持楼层，还是先做单层并预留数据字段？
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">你希望多层怎么处理？</h2>
+      <p class="section-sub">在页面点击卡片可标记选择，最终请也在终端回复 A / B / C。</p>
+      <div class="options" id="options">
+        <div class="option" data-choice="a" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">A</span>
+            <h3>单层先行，预留多层（推荐）</h3>
+          </div>
+          <p>首版工作台只编辑一个画布；数据结构先加 floors / floor_id，二期再开放楼层切换。</p>
+          <div class="mock">
+            <div class="mock-title">首版：单层完整</div>
+            <div class="mock-body">
+              <div class="canvas">
+                <div class="zone" style="left:10%;top:14%;width:48%;height:36%;background:rgba(255,77,79,.32);border:1px solid #ff4d4f;color:#8c1f20">储罐区</div>
+                <div class="zone" style="right:10%;top:14%;width:30%;height:34%;background:rgba(250,140,22,.32);border:1px solid #fa8c16;color:#7a3d05">配电房</div>
+              </div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>首版范围可控，数据模型不为二期返工。</div>
+          <div class="cons"><strong>限制：</strong>多层企业暂时只能先画一层，或按总图近似表达。</div>
+        </div>
+
+        <div class="option" data-choice="b" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">B</span>
+            <h3>首版完整支持多层</h3>
+          </div>
+          <p>企业可维护楼层列表和每层平面图；工作台和总览都支持楼层切换，分区/风险点/多边形都带 floor_id。</p>
+          <div class="mock">
+            <div class="mock-title">多层工作台</div>
+            <div class="mock-body">
+              <div class="floor-tabs">
+                <div class="floor-tab">总图</div>
+                <div class="floor-tab active">一层</div>
+                <div class="floor-tab">二层</div>
+                <div class="floor-tab">三层</div>
+              </div>
+              <div class="canvas">
+                <div class="zone" style="left:12%;top:16%;width:44%;height:36%;background:rgba(255,77,79,.32);border:1px solid #ff4d4f;color:#8c1f20">一层生产区</div>
+                <div class="zone" style="right:10%;top:22%;width:28%;height:30%;background:rgba(250,140,22,.32);border:1px solid #fa8c16;color:#7a3d05">一层配电房</div>
+                <div class="pin" style="left:26%;top:34%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>直接满足多层企业，画图和总览都准确。</div>
+          <div class="cons"><strong>限制：</strong>需要楼层管理页面、每层平面图上传、楼层筛选，首版工作量明显增加。</div>
+        </div>
+
+        <div class="option" data-choice="c" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">C</span>
+            <h3>先做楼层切换占位</h3>
+          </div>
+          <p>首版先放“总图 / 一层”切换入口，但只实现一个可用画布，其余楼层提示“后续支持”。</p>
+          <div class="mock">
+            <div class="mock-title">楼层切换占位</div>
+            <div class="mock-body">
+              <div class="floor-tabs">
+                <div class="floor-tab active">总图</div>
+                <div class="floor-tab">一层</div>
+                <div class="floor-tab">二层</div>
+              </div>
+              <div class="canvas">
+                <div class="zone" style="left:12%;top:16%;width:48%;height:36%;background:rgba(255,77,79,.32);border:1px solid #ff4d4f;color:#8c1f20">总图区域</div>
+              </div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>给用户预期，后端提前接好楼层结构。</div>
+          <div class="cons"><strong>限制：</strong>切换其他楼层时功能不可用，容易造成半成品体验。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="data-card">
+      <div class="data-card-title">数据模型建议</div>
+      <div class="data-card-body">
+        <pre>enterprise_floors: id / enterprise_id / name / floor_no / image_url / sort_order
+risk_zones.floor_id: nullable
+risk_objects.floor_id: nullable
+floor_plan_polygon.polygons[].floor_id: nullable</pre>
+        <p style="margin:10px 0 0;font-size:13px;color:var(--muted)">
+          floor_id 为空时表示“总图 / 全厂平面”，非空时表示该分区或风险点属于某层。这样首版可以先不实现楼层 UI，但二期不需要改表。
+        </p>
+      </div>
+    </div>
+
+    <div class="selection-bar">
+      <span>当前选择：<code id="current">未选择</code></span>
+      <span>请在终端回复 A / B / C</span>
+    </div>
+  </div>
+
+  <script>
+    function select(el) {
+      document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      const choice = el.getAttribute('data-choice').toUpperCase();
+      document.getElementById('current').textContent = choice;
+      localStorage.setItem('risk-mapping-floors', choice);
+    }
+    const saved = localStorage.getItem('risk-mapping-floors');
+    if (saved) {
+      const el = document.querySelector(`.option[data-choice="${saved.toLowerCase()}"]`);
+      if (el) select(el);
+    }
+  </script>
+</body>
+</html>

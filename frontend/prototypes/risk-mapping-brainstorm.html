@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>四色分布图绘图功能讨论原型</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #1f2329;
+      --muted: #6b7280;
+      --primary: #1677ff;
+      --red: #ff4d4f;
+      --orange: #fa8c16;
+      --yellow: #fadb14;
+      --green: #52c41a;
+      --shadow: 0 8px 24px rgba(31, 35, 41, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .page { max-width: 1160px; margin: 0 auto; padding: 24px 16px 48px; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .topbar h1 { margin: 0; font-size: 20px; line-height: 1.4; }
+    .topbar p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .status {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      background: #eef7ff;
+      border: 1px solid #b7d9ff;
+      color: #0a5dc2;
+      border-radius: 6px;
+      font-size: 12px;
+      max-width: 320px;
+      line-height: 1.6;
+    }
+    .section { margin-top: 20px; }
+    .section-title { font-size: 17px; margin: 0 0 6px; }
+    .section-sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+    .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .option {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .option:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+    .option.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12), var(--shadow);
+    }
+    .option-head { display: flex; align-items: center; gap: 8px; }
+    .letter {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: #edf2f7;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .option.selected .letter { background: var(--primary); color: #fff; }
+    .option h3 { margin: 0; font-size: 15px; }
+    .option p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .mock {
+      min-height: 170px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    .mock-title {
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+    }
+    .mock-body {
+      flex: 1;
+      padding: 10px;
+      min-height: 150px;
+    }
+    .canvas {
+      position: relative;
+      height: 130px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #eef1f5, #dfe5ec);
+      overflow: hidden;
+    }
+    .zone {
+      position: absolute;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pin {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff4d4f;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+      transform: translate(-50%, -50%);
+    }
+    .pros, .cons { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .pros strong { color: #1f9d55; }
+    .cons strong { color: #c2410c; }
+    .selection-bar {
+      position: sticky;
+      bottom: 12px;
+      margin-top: 18px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .selection-bar code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; }
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      border-radius: 8px;
+      color: #614700;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    @media (max-width: 900px) {
+      .options { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; }
+      .status { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div>
+        <h1>工作台首版范围</h1>
+        <p>已确认：C 混合模式、绘制 + 保存 + 总览联动、颜色自动默认 + 手动覆盖、独立四色分布图工作台。</p>
+      </div>
+      <div class="status">
+        当前问题：首版工作台除了分区多边形，是否还要直接管理风险点？
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">你希望工作台首版包含哪些能力？</h2>
+      <p class="section-sub">在页面点击卡片可标记选择，最终请也在终端回复 A / B / C。</p>
+      <div class="options" id="options">
+        <div class="option" data-choice="a" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">A</span>
+            <h3>只做分区多边形（推荐）</h3>
+          </div>
+          <p>画矩形/多边形，绑定风险分区，按风险等级自动填色，支持手动覆盖，并同步到总览。</p>
+          <div class="mock">
+            <div class="mock-title">分区画布</div>
+            <div class="mock-body">
+              <div class="canvas">
+                <div class="zone" style="left:8%;top:12%;width:48%;height:34%;background:rgba(255,77,79,.34);border:1px solid #ff4d4f;color:#8c1f20">储罐区</div>
+                <div class="zone" style="right:8%;top:12%;width:30%;height:32%;background:rgba(250,140,22,.34);border:1px solid #fa8c16;color:#7a3d05">配电房</div>
+                <div class="zone" style="left:10%;bottom:10%;width:58%;height:24%;background:rgba(250,219,20,.38);border:1px solid #fadb14;color:#6b5b00">生产车间</div>
+              </div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>首版范围最小，先把“画图 + 绑定 + 总览”主链路跑通。</div>
+          <div class="cons"><strong>限制：</strong>风险点仍只在层级树里维护，画布上不直接展示。</div>
+        </div>
+
+        <div class="option" data-choice="b" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">B</span>
+            <h3>分区 + 风险点标记</h3>
+          </div>
+          <p>在 A 的基础上，可在画布上放置风险点图钉，点击查看所属对象、事件和等级。</p>
+          <div class="mock">
+            <div class="mock-title">分区 + 风险点</div>
+            <div class="mock-body">
+              <div class="canvas">
+                <div class="zone" style="left:8%;top:12%;width:48%;height:34%;background:rgba(255,77,79,.34);border:1px solid #ff4d4f;color:#8c1f20">储罐区</div>
+                <div class="zone" style="right:8%;top:12%;width:30%;height:32%;background:rgba(250,140,22,.34);border:1px solid #fa8c16;color:#7a3d05">配电房</div>
+                <div class="zone" style="left:10%;bottom:10%;width:58%;height:24%;background:rgba(250,219,20,.38);border:1px solid #fadb14;color:#6b5b00">生产车间</div>
+                <div class="pin" style="left:22%;top:25%"></div>
+                <div class="pin" style="left:36%;top:40%"></div>
+                <div class="pin" style="right:22%;top:30%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>总览更接近实际风险分布，风险点位置一目了然。</div>
+          <div class="cons"><strong>限制：</strong>需要复用或补做风险点坐标编辑。</div>
+        </div>
+
+        <div class="option" data-choice="c" onclick="select(this)">
+          <div class="option-head">
+            <span class="letter">C</span>
+            <h3>分区 + 风险点拖拽编辑</h3>
+          </div>
+          <p>在 B 的基础上，支持直接在画布上拖动风险点，保存后同步更新对象坐标。</p>
+          <div class="mock">
+            <div class="mock-title">可拖拽画布</div>
+            <div class="mock-body">
+              <div class="canvas">
+                <div class="zone" style="left:8%;top:12%;width:48%;height:34%;background:rgba(255,77,79,.34);border:1px solid #ff4d4f;color:#8c1f20">储罐区</div>
+                <div class="zone" style="right:8%;top:12%;width:30%;height:32%;background:rgba(250,140,22,.34);border:1px solid #fa8c16;color:#7a3d05">配电房</div>
+                <div class="zone" style="left:10%;bottom:10%;width:58%;height:24%;background:rgba(250,219,20,.38);border:1px solid #fadb14;color:#6b5b00">生产车间</div>
+                <div class="pin" style="left:22%;top:25%;box-shadow:0 0 0 5px rgba(22,119,255,.15)"></div>
+                <div class="pin" style="left:36%;top:40%"></div>
+                <div class="pin" style="right:22%;top:30%;box-shadow:0 0 0 5px rgba(22,119,255,.15)"></div>
+              </div>
+            </div>
+          </div>
+          <div class="pros"><strong>优点：</strong>以后做风险点总览时更直接。</div>
+          <div class="cons"><strong>限制：</strong>首版交互和保存逻辑更重。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="selection-bar">
+      <span>当前选择：<code id="current">未选择</code></span>
+      <span>请在终端回复 A / B / C</span>
+    </div>
+
+    <div class="note">
+      这是讨论用静态原型，不是业务代码。它不会写入数据库，只用来确认产品边界和交互方向。
+    </div>
+  </div>
+
+  <script>
+    function select(el) {
+      document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      const choice = el.getAttribute('data-choice').toUpperCase();
+      document.getElementById('current').textContent = choice;
+      localStorage.setItem('risk-mapping-workbench-scope', choice);
+    }
+    const saved = localStorage.getItem('risk-mapping-workbench-scope');
+    if (saved) {
+      const el = document.querySelector(`.option[data-choice="${saved.toLowerCase()}"]`);
+      if (el) select(el);
+    }
+  </script>
+</body>
+</html>

@@ -1,14 +1,40 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：回答“风险源”与“风险分级管控”在系统企业信息中的关系及替代性
+- 正在做什么：多层设计草案 v2 已推送，等待用户确认
 - 刚完成的动作：
-  - 已读取 TASKS.md 与 AGENTS.md
-  - 已运行 git save，保存点 e9a34d1
-  - 已用 graphify query 查询，并读取新五层模型、上下文构建器、前端标签页和迁移端点
-  - 已确认 Web 企业详情页同时存在“风险源”Tab 与“风险分级管控”Tab
-  - 已确认旧 risk_sources CRUD 仍可用，移动端/仪表盘/chat 仍读旧表；风险评估主流程已改为 build_risk_management_context，但前置检查仍查旧表
-- 下一步：已无未完成分析步骤，准备输出结论并做最终快照
+  - 已确认现有实现：risk_zones.floor_plan_polygon 字段、RiskZoneForm 多边形绘制弹窗、FloorPlanPicker、RiskOverviewPage 占位热区
+  - 已确认断点：RiskManagementTab 提交 zone 时未传 floor_plan_polygon；HierarchyZone 响应不含 polygon/坐标；RiskOverviewPage 的 FloorPlanHeatmap 只是卡片占位
+  - 已确认前端已有 leaflet / react-leaflet，后端已有 JSONB polygon 与对象 location_x/y
+  - 视觉伴侣服务器已启动：http://localhost:53823/
+  - 浏览器事件确认：hybrid（C 混合模式）
+  - 用户确认颜色规则：自动默认 + 手动覆盖
+  - 已推送 entry-point.html：分区表单内增强 / 独立工作台 / 工作台+表单快捷入口
+  - 用户确认入口：B 独立四色分布图工作台
+  - 由于 key 认证页面不易展示，已改为普通本地静态原型：frontend/prototypes/risk-mapping-brainstorm.html
+  - 静态原型服务：http://127.0.0.1:53824/risk-mapping-brainstorm.html
+  - 已停止旧的 53823 视觉伴侣服务器，避免 key 认证页面干扰
+  - 用户确认工作台首版范围：C 分区 + 风险点拖拽编辑
+  - 已推送分区绑定交互原型：frontend/prototypes/risk-mapping-binding-flow.html
+  - 静态原型地址：http://127.0.0.1:53824/risk-mapping-binding-flow.html
+  - 用户确认绑定流程：C 两种都支持
+  - 已推送分区区域模型原型：frontend/prototypes/risk-mapping-shape-model.html
+  - 静态原型地址：http://127.0.0.1:53824/risk-mapping-shape-model.html
+  - 用户确认区域模型：B 一个分区多个区域
+  - 已推送风险点来源原型：frontend/prototypes/risk-mapping-risk-point-source.html
+  - 静态原型地址：http://127.0.0.1:53824/risk-mapping-risk-point-source.html
+  - 用户确认风险点来源：C 已有可拖 + 可新建
+  - 已推送绘图工具集原型：frontend/prototypes/risk-mapping-tools.html
+  - 静态原型地址：http://127.0.0.1:53824/risk-mapping-tools.html
+  - 用户确认工具集：C 完整工具
+  - 用户确认技术方案：B Konva.js + react-konva
+  - 已推送首版设计草案原型：frontend/prototypes/risk-mapping-design.html
+  - 静态原型地址：http://127.0.0.1:53824/risk-mapping-design.html
+  - 已推送多层厂房方案原型：frontend/prototypes/risk-mapping-floors.html
+  - 静态原型地址：http://127.0.0.1:53824/risk-mapping-floors.html
+  - 用户确认楼层方案：B 首版完整支持多层
+  - 用户确认跨楼层规则：风险分区不可以跨楼层
+  - 已推送首版设计草案 v2：frontend/prototypes/risk-mapping-design-v2.html
+  - 静态原型地址：http://127.0.0.1:53824/risk-mapping-design-v2.html
+- 下一步：确认 v2 草案后整理正式规格文档
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
-  - 本任务为只读分析，不修改业务代码
-  - 结论要点：概念上不可替代；设计上旧 risk_sources 被新五层模型替代；当前代码/UI 仍是新旧并存，需迁移后旧数据才进入新体系
-  - 相关文件：backend/app/models/enterprise.py、backend/app/models/risk_management.py、backend/app/services/risk_context_builder.py、backend/app/routers/risk_management.py、frontend/src/pages/Enterprise/EnterpriseDetailPage.tsx
+  - 工作区有大量既有改动（非本次任务产生），只修改了 TASKS.md 和 .gitignore

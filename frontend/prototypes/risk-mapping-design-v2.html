@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>四色分布图 - 首版设计草案 v2</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #1f2329;
+      --muted: #6b7280;
+      --primary: #1677ff;
+      --red: #ff4d4f;
+      --orange: #fa8c16;
+      --yellow: #fadb14;
+      --green: #52c41a;
+      --shadow: 0 8px 24px rgba(31, 35, 41, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .page { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+    .page-header { margin-bottom: 18px; }
+    .page-header h1 { margin: 0 0 6px; font-size: 22px; }
+    .page-header p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .section { margin-top: 22px; }
+    .section-title { font-size: 17px; margin: 0 0 10px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-title {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .card-body { padding: 14px; }
+    .workbench {
+      display: grid;
+      grid-template-columns: 220px 1fr 260px;
+      gap: 10px;
+      height: 560px;
+      min-height: 420px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-title {
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+    }
+    .panel-body { flex: 1; padding: 10px; overflow: hidden; }
+    .toolbar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 8px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .tool {
+      height: 32px;
+      min-width: 44px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .tool.active { border-color: var(--primary); background: #eef7ff; color: var(--primary); }
+    .tool.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .floor-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .floor-tab {
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .floor-tab.active { border-color: var(--primary); background: #eef7ff; color: var(--primary); }
+    .zone-list { display: flex; flex-direction: column; gap: 6px; }
+    .zone-item {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .zone-item.selected { border-color: var(--primary); background: #eef7ff; }
+    .zone-color { width: 12px; height: 12px; border-radius: 3px; }
+    .canvas-wrap {
+      position: relative;
+      height: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #eef1f5, #dfe5ec);
+    }
+    .zone-shape {
+      position: absolute;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .pin {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ff4d4f;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+      transform: translate(-50%, -50%);
+    }
+    .pin.new { background: var(--primary); }
+    .property-row { margin-bottom: 12px; }
+    .property-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .input {
+      width: 100%;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      font-size: 12px;
+      background: #fff;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .summary-item {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .summary-item strong { display: block; font-size: 15px; margin-bottom: 6px; }
+    .summary-item span { font-size: 12px; color: var(--muted); line-height: 1.6; display: block; }
+    pre {
+      background: #101828;
+      color: #e6edf3;
+      border-radius: 8px;
+      padding: 14px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .rule-list { margin: 0; padding-left: 18px; color: var(--text); font-size: 13px; line-height: 1.9; }
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      border-radius: 8px;
+      color: #614700;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    @media (max-width: 1000px) {
+      .workbench { grid-template-columns: 1fr; height: auto; }
+      .canvas-wrap { height: 420px; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-header">
+      <h1>四色分布图工作台 - 首版设计草案 v2</h1>
+      <p>在 v1 基础上纳入完整多层支持：楼层列表、每层平面图、楼层切换；风险分区不可跨楼层。</p>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">1. 工作台布局：支持楼层切换</h2>
+      <div class="card">
+        <div class="card-title">RiskMappingWorkbenchPage v2</div>
+        <div class="card-body">
+          <div class="floor-tabs">
+            <div class="floor-tab">总图</div>
+            <div class="floor-tab active">一层</div>
+            <div class="floor-tab">二层</div>
+            <div class="floor-tab">三层</div>
+            <div class="floor-tab">管理楼层</div>
+          </div>
+          <div class="toolbar">
+            <div class="tool active">选择</div>
+            <div class="tool">矩形</div>
+            <div class="tool">多边形</div>
+            <div class="tool">自由画笔</div>
+            <div class="tool">风险点</div>
+            <div class="tool">文字</div>
+            <div class="tool">网格</div>
+            <div class="tool">撤销</div>
+            <div class="tool">重做</div>
+            <div class="tool primary" style="margin-left:auto">保存</div>
+          </div>
+          <div class="workbench">
+            <div class="panel">
+              <div class="panel-title">一层风险分区</div>
+              <div class="panel-body">
+                <div class="zone-list">
+                  <div class="zone-item selected"><span>一层生产区</span><span class="zone-color" style="background:#ff4d4f"></span></div>
+                  <div class="zone-item"><span>一层配电房</span><span class="zone-color" style="background:#fa8c16"></span></div>
+                  <div class="zone-item"><span>一层仓库</span><span class="zone-color" style="background:#fadb14"></span></div>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <div class="zone-shape" style="left:10%;top:14%;width:44%;height:38%;background:rgba(255,77,79,.32);border:1px solid #ff4d4f;color:#8c1f20">一层生产区</div>
+              <div class="zone-shape" style="right:9%;top:14%;width:28%;height:34%;background:rgba(250,140,22,.32);border:1px solid #fa8c16;color:#7a3d05">一层配电房</div>
+              <div class="zone-shape" style="left:11%;bottom:10%;width:56%;height:22%;background:rgba(250,219,20,.34);border:1px solid #fadb14;color:#6b5b00">一层仓库</div>
+              <div class="pin" style="left:25%;top:28%"></div>
+              <div class="pin new" style="right:24%;top:30%"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-title">属性</div>
+              <div class="panel-body">
+                <div class="property-row">
+                  <label>楼层</label>
+                  <div class="input">一层</div>
+                </div>
+                <div class="property-row">
+                  <label>绑定分区</label>
+                  <div class="input">一层生产区</div>
+                </div>
+                <div class="property-row">
+                  <label>颜色来源</label>
+                  <div class="input">自动 + 手动覆盖</div>
+                </div>
+                <div class="property-row">
+                  <label>风险点</label>
+                  <div class="input">1号反应釜 / 新建...</div>
+                </div>
+                <div class="property-row">
+                  <label>未保存变更</label>
+                  <div class="input">1 个区域 / 1 个风险点</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">2. 楼层管理</h2>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <strong>企业编辑页</strong>
+          <span>维护楼层名称、排序、每层平面图上传。</span>
+        </div>
+        <div class="summary-item">
+          <strong>工作台</strong>
+          <span>顶部楼层切换，分区列表和画布按当前楼层过滤。</span>
+        </div>
+        <div class="summary-item">
+          <strong>总览页</strong>
+          <span>楼层切换，渲染当前楼层多边形和风险点。</span>
+        </div>
+        <div class="summary-item">
+          <strong>兼容旧数据</strong>
+          <span>原有 enterprise.floor_plan_url 迁移为默认楼层/总图。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">3. 数据模型 v2</h2>
+      <div class="card">
+        <div class="card-body">
+          <pre>enterprise_floors: id / enterprise_id / name / floor_no / image_url / sort_order
+risk_zones.floor_id: NOT NULL
+risk_objects.floor_id: nullable（未设置时沿用所属分区楼层）
+floor_plan_polygon: { "version": 2, "polygons": [{ "points": [...] }] }</pre>
+          <ul class="rule-list">
+            <li>风险分区不可跨楼层，因此 floor_plan_polygon 不需要给每个 polygon 再存 floor_id。</li>
+            <li>同一分区可在同一楼层内包含多个不相邻区域。</li>
+            <li>风险点来源仍是 risk_objects，工作台切换楼层时只展示当前楼层风险点。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">4. 前后端改动边界 v2</h2>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <strong>新增接口</strong>
+          <span>enterprise floors CRUD；工作台批量保存。</span>
+        </div>
+        <div class="summary-item">
+          <strong>扩展接口</strong>
+          <span>zones / objects / hierarchy 返回 floor_id。</span>
+        </div>
+        <div class="summary-item">
+          <strong>前端新增</strong>
+          <span>楼层管理组件、工作台楼层切换、总览楼层切换。</span>
+        </div>
+        <div class="summary-item">
+          <strong>测试重点</strong>
+          <span>切层过滤、跨层数据隔离、保存后总览正确。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      这是讨论用静态原型。若确认 v2，下一步我会把这份草案整理为正式规格文档。
+    </div>
+  </div>
+</body>
+</html>
