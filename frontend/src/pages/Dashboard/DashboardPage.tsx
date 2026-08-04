@@ -55,7 +55,7 @@ export default function DashboardPage() {
   }
 
   const stats = data.stats;
-  const enterprises = enterprisePage?.items ?? [];
+  const enterprises = (enterprisePage as any)?.data?.items ?? [];
 
   const handleQuickCreate = (type: PlanType) => {
     setSelectedType(type);
@@ -149,7 +149,7 @@ export default function DashboardPage() {
         ) : (
           <List
             dataSource={enterprises}
-            renderItem={(enterprise) => (
+            renderItem={(enterprise: any) => (
               <List.Item
                 style={{ cursor: "pointer", padding: "12px 8px" }}
                 onClick={() => handleSelectEnterprise(enterprise.id)}

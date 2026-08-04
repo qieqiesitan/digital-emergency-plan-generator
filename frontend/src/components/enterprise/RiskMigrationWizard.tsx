@@ -256,7 +256,7 @@ export default function RiskMigrationWizard({
       onCancel={onClose}
       width={800}
       footer={footer}
-      destroyOnClose
+      destroyOnHidden
     >
       <Steps current={step} items={stepItems} style={{ marginBottom: 24 }} />
 

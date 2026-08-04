@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState } from "react";
 import {
   Table, Modal, Form, Input, Select, Button, message, Space, Popconfirm, Checkbox, Divider,

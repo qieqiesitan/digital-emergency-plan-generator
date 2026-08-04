@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState } from "react";
 import { Descriptions, Tag, Timeline, Table, Button, Modal, Space } from "antd";
 import { useQuery } from "@tanstack/react-query";

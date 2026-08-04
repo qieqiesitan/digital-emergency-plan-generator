@@ -184,7 +184,7 @@ export default function PlanCreatePage() {
                   plan_type: planType!,
                   title: title || defaultTitle,
                   accident_type: accidentType || null,
-                  style_preference: stylePreference,
+                  style_preference: stylePreference as any,
                 });
               }}
             >

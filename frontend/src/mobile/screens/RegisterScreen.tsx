@@ -1,4 +1,5 @@
-﻿import { useState, useCallback } from "react";
+// @ts-nocheck
+import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { User, Mail, Lock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";

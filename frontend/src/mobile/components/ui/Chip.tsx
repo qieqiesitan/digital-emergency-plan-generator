@@ -1,11 +1,13 @@
-﻿import React from "react";
+import React from "react";
 import { X } from "lucide-react";
 
 type ChipVariant = "default" | "selected";
 
 interface ChipProps {
   variant?: ChipVariant;
-  label: string;
+  children?: React.ReactNode;
+  label?: string;
+  selected?: boolean;
   icon?: React.ReactNode;
   onRemove?: () => void;
   onClick?: () => void;
@@ -18,22 +20,25 @@ const variantClasses: Record<ChipVariant, string> = {
 };
 
 export default function Chip({
-  variant = "default",
+  children,
   label,
+  selected,
+  variant = "default",
   icon,
   onRemove,
   onClick,
   className = "",
 }: ChipProps) {
+  const resolvedVariant: ChipVariant = selected ? "selected" : variant;
   return (
     <span
       className={`inline-flex items-center h-8 px-3 rounded-full text-body-sm font-medium gap-1.5 select-none ${
         onClick ? "cursor-pointer active:scale-95" : ""
-      } ${variantClasses[variant]} ${className}`}
+      } ${variantClasses[resolvedVariant]} ${className}`}
       onClick={onClick}
     >
       {icon && <span className="shrink-0">{icon}</span>}
-      <span>{label}</span>
+      <span>{children || label}</span>
       {onRemove && (
         <button
           onClick={(e) => {

@@ -1,11 +1,11 @@
-﻿import React, { useEffect } from "react";
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface BottomSheetProps {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  height?: "auto" | "40%" | "60%" | "90%";
+  height?: "auto" | "40%" | "60%" | "70%" | "90%";
   showHandle?: boolean;
 }
 
@@ -13,6 +13,7 @@ const heightMap: Record<string, string> = {
   auto: "auto",
   "40%": "40dvh",
   "60%": "60dvh",
+  "70%": "70dvh",
   "90%": "90dvh",
 };
 

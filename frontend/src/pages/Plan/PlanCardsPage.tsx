@@ -47,7 +47,7 @@ export default function PlanCardsPage() {
       const matchSearch = !search
         || item.enterprise_name.toLowerCase().includes(search.toLowerCase());
       const matchIndustry = !industry
-        || ((item as Record<string, unknown>).industry as string) === industry;
+        || ((item as unknown as Record<string, unknown>).industry as string) === industry;
       return matchSearch && matchIndustry;
     });
   }, [allItems, search, industry]);

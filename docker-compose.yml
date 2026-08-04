@@ -40,6 +40,8 @@ services:
       - ./backend/uploads:/app/uploads
       - ./backend/app/templates:/app/app/templates
       - ./frontend/dist:/frontend/dist
+      - chroma_cache:/root/.cache/chroma
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,5 +76,6 @@ services:
 volumes:
   shuzihuayuan_pgdata:
     external: true
+  chroma_cache:
 
 

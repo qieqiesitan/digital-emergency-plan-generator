@@ -126,6 +126,72 @@ def _parse_ai_json(raw: str) -> dict:
         raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
 
 
+def _normalize_measure(item) -> dict:
+    """把 AI 返回的字符串措施归一化为预览 schema 所需的字典。"""
+    if not isinstance(item, dict):
+        return {
+            "description": str(item or "").strip(),
+            "measure_category": "",
+            "measure_type": None,
+            "check_items": [],
+        }
+    item.setdefault("description", "")
+    item.setdefault("measure_category", "")
+    item.setdefault("measure_type", None)
+    item.setdefault("check_items", [])
+    return item
+
+
+def _normalize_smart_guide_hierarchy(data: dict) -> dict:
+    """归一化 AI 智能导引返回的预览层级，补齐缺省字段并转换字符串措施。"""
+    zones = []
+    for zone in data.get("zones", []) or []:
+        if not isinstance(zone, dict):
+            continue
+        zone.setdefault("description", None)
+        objects = []
+        for obj in zone.get("objects", []) or []:
+            if not isinstance(obj, dict):
+                continue
+            units = []
+            for unit in obj.get("units", []) or []:
+                if not isinstance(unit, dict):
+                    continue
+                unit.setdefault("description", None)
+                for event in unit.get("events", []) or []:
+                    if not isinstance(event, dict):
+                        continue
+                    event.setdefault("description", None)
+                    event.setdefault("risk_level", None)
+                    event.setdefault("risk_score", None)
+                    event.setdefault("method_type", "LS")
+                    event.setdefault("method_params", {})
+                    event["measures"] = [
+                        _normalize_measure(item) for item in event.get("measures", [])
+                    ]
+                units.append(unit)
+            obj["units"] = units
+            events = []
+            for event in obj.get("events", []) or []:
+                if not isinstance(event, dict):
+                    continue
+                event.setdefault("description", None)
+                event.setdefault("risk_level", None)
+                event.setdefault("risk_score", None)
+                event.setdefault("method_type", "LS")
+                event.setdefault("method_params", {})
+                event["measures"] = [
+                    _normalize_measure(item) for item in event.get("measures", [])
+                ]
+                events.append(event)
+            obj["events"] = events
+            objects.append(obj)
+        zone["objects"] = objects
+        zones.append(zone)
+    data["zones"] = zones
+    return data
+
+
 async def suggest_objects(
     zone_name: str,
     zone_desc: str,
@@ -324,7 +390,7 @@ async def smart_guide(
 
     raw = await _call_llm(messages, ai_config)
     data = _parse_ai_json(raw)
-    return data
+    return _normalize_smart_guide_hierarchy(data)
 
 
 async def analyze_floor_plan(

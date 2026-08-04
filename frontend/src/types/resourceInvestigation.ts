@@ -1,4 +1,4 @@
-﻿export interface ResourceGap {
+export interface ResourceGap {
   category: string;
   needed: string;
   reason: string;

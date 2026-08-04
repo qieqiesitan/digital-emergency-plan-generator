@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";

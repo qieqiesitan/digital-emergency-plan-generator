@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Row, Col, Card, Tag, Button, Modal, Select, Input,
@@ -6,15 +6,15 @@ import {
 } from "antd";
 import {
   PlusOutlined, StarFilled, StarOutlined, CopyOutlined,
-  EditOutlined, DeleteOutlined, EyeOutlined,
+  EditOutlined, DeleteOutlined, EyeOutlined, ArrowLeftOutlined,
 } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   listMethods, deleteMethod, duplicateMethod,
   createMethod,
 } from "@/services/riskManagementService";
-import type { RiskAssessmentMethod, MethodConfig, MethodType } from "@/types/riskManagement";
-import { renderMatrixData, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import type { MethodConfig } from "@/types/riskManagement";
+import { renderMatrixData } from "@/utils/riskMethodEngine";
 
 const { Title, Text } = Typography;
 
@@ -123,24 +123,35 @@ function MatrixThumbnail({ config }: { config: MethodConfig }) {
   const thresholds = config.risk_thresholds?.length
     ? config.risk_thresholds.map(t => ({ ...t }))
     : undefined;
+  const isLEC = config.formula?.includes("L × E × C") || config.parameters?.length >= 3;
 
   let matrixData: { l: number; s: number; r: number; level: string; color: string }[][] = [];
 
-  if (config.parameters?.length >= 2) {
+  if (isLEC) {
+    matrixData = [];
+  } else if (config.parameters?.length >= 2) {
     matrixData = renderMatrixData("LS", thresholds as any);
   } else {
     matrixData = renderMatrixData("LS");
   }
 
+  if (isLEC) {
+    return (
+      <div style={{ marginTop: 12 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>LEC 三参数评价法不适用二维矩阵预览，请进入编辑器查看阈值</Text>
+      </div>
+    );
+  }
+
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, width: 180, height: 180 }}>
-        <div style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>L\S</div>
+        <div style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>L\\S</div>
         {[1, 2, 3, 4, 5].map(s => (
           <div key={`h-${s}`} style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>{s}</div>
         ))}
         {matrixData.map((row, li) => (
-          <>
+          <Fragment key={`row-${li}`}>
             <div key={`lh-${li}`} style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>{li + 1}</div>
             {row.map((cell, si) => (
               <div
@@ -159,7 +170,7 @@ function MatrixThumbnail({ config }: { config: MethodConfig }) {
                 {cell.r}
               </div>
             ))}
-          </>
+          </Fragment>
         ))}
       </div>
     </div>
@@ -226,7 +237,10 @@ export default function RiskMethodListPage({ enterpriseId: propEid }: Props) {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0 }}>风险评估方法管理</Title>
+        <Space>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}`)}>返回</Button>
+          <Title level={4} style={{ margin: 0 }}>风险评估方法管理</Title>
+        </Space>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
           新建方法
         </Button>

@@ -25,11 +25,12 @@ interface Props {
   onClose: () => void;
   onSubmit: (values: RiskObjectFormValues) => void;
   initialValues?: RiskObjectFormValues;
+  isEdit?: boolean;
   zones: { id: string; name: string }[];
   floorPlanUrl?: string | null;
 }
 
-export default function RiskObjectForm({ open, onClose, onSubmit, initialValues, zones, floorPlanUrl }: Props) {
+export default function RiskObjectForm({ open, onClose, onSubmit, initialValues, isEdit = false, zones, floorPlanUrl }: Props) {
   const [form] = Form.useForm<RiskObjectFormValues>();
   const [isRiskPoint, setIsRiskPoint] = useState(initialValues?.is_risk_point ?? false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -49,7 +50,7 @@ export default function RiskObjectForm({ open, onClose, onSubmit, initialValues,
   return (
     <>
       <Drawer
-        title={initialValues ? "编辑风险对象" : "新增风险对象"}
+        title={isEdit ? "编辑风险对象" : "新增风险对象"}
         open={open}
         onClose={onClose}
         width={520}
@@ -95,7 +96,7 @@ export default function RiskObjectForm({ open, onClose, onSubmit, initialValues,
                 allowClear
                 placeholder="选择对象类别"
                 options={OBJECT_CATEGORIES.map((c) => ({ value: c, label: c }))}
-                dropdownRender={(menu) => (
+                popupRender={(menu) => (
                   <>
                     {menu}
                     <div style={{ borderTop: "1px solid #f0f0f0", padding: "8px 12px" }}>

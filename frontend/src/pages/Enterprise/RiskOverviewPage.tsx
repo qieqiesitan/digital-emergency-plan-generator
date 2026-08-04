@@ -1,23 +1,22 @@
- import { useState, useMemo, useRef, useEffect } from "react";
- import { useNavigate, useParams } from "react-router-dom";
- import { Card, Segmented, Button, Tree, Tag, Tooltip, Spin, Space, Empty } from "antd";
+import { useState, useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Card, Segmented, Button, Tree, Tag, Spin, Space, Empty } from "antd";
  import { ArrowLeftOutlined } from "@ant-design/icons";
  import { useQuery } from "@tanstack/react-query";
  import { getFullHierarchy } from "@/services/riskManagementService";
- import RiskOverviewMatrix from "@/components/enterprise/RiskOverviewMatrix";
- import RiskOverviewStats from "@/components/enterprise/RiskOverviewStats";
- import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
- import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent } from "@/types/riskManagement";
+import RiskOverviewMatrix from "@/components/enterprise/RiskOverviewMatrix";
+import RiskOverviewStats from "@/components/enterprise/RiskOverviewStats";
+import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import type { HierarchyZone } from "@/types/riskManagement";
  
  type ViewMode = "quad" | "floorplan" | "data";
  
  export default function RiskOverviewPage() {
    const { id: enterpriseId } = useParams<{ id: string }>();
-   const navigate = useNavigate();
-   const [viewMode, setViewMode] = useState<ViewMode>("quad");
-   const [rightView, setRightView] = useState<"tree" | "topology">(() => (localStorage.getItem("risk-overview-right") as "tree" | "topology") || "tree");
-   const [filterIds, setFilterIds] = useState<string[]>([]);
-   const [highlightZone, setHighlightZone] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState<ViewMode>("quad");
+  const [rightView, setRightView] = useState<"tree" | "topology">(() => (localStorage.getItem("risk-overview-right") as "tree" | "topology") || "tree");
+  const [highlightZone, setHighlightZone] = useState<string | null>(null);
  
    const { data: zones = [], isLoading } = useQuery({ queryKey: ["risk-hierarchy", enterpriseId], queryFn: () => getFullHierarchy(enterpriseId!), enabled: !!enterpriseId });
  
@@ -32,7 +31,7 @@
    return (
      <div style={{ padding: "0 0 16px 0" }}>
        <Space style={{ marginBottom: 16 }}>
-         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}`)}>返回</Button>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
          <Segmented options={[{ label: "四象限", value: "quad" }, { label: "平面图优先", value: "floorplan" }, { label: "数据优先", value: "data" }]} value={viewMode} onChange={v => setViewMode(v as ViewMode)} />
        </Space>
        <div style={gridStyle}>
@@ -41,7 +40,7 @@
            <FloorPlanHeatmap zones={zones} highlightZone={highlightZone} onZoneClick={setHighlightZone} />
          </Card>
          {/* Q2: Risk Matrix */}
-         <Card size="small" title="② 风险矩阵热力图"><RiskOverviewMatrix zones={zones} onEventFilter={setFilterIds} /></Card>
+        <Card size="small" title="② 风险矩阵热力图"><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} /></Card>
          {/* Q3: Stats */}
          {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计"><RiskOverviewStats zones={zones} /></Card>}
          {/* Q4: Tree/Topology */}

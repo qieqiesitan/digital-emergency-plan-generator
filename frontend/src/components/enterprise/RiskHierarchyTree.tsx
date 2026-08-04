@@ -1,6 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
-import { Tree, Tag, Dropdown, message } from "antd";
-import type { MenuProps } from "antd";
+import { useMemo, useCallback } from "react";
+import { Tree, Tag, Tooltip, Button } from "antd";
 import type { DataNode, EventDataNode } from "antd/es/tree";
 import {
   PlusOutlined,
@@ -23,63 +22,54 @@ export interface TreeNodeMeta {
   id: string;
   type: "zone" | "object" | "unit" | "event" | "measure";
   name: string;
+  parentId?: string;
+  parentType?: "zone" | "object" | "unit" | "event";
 }
 
 interface Props {
   data: HierarchyZone[];
   onSelect: (node: TreeNodeMeta) => void;
-  onRefresh: () => void;
+  onRefresh?: () => void;
+  onAction: (action: string, meta: TreeNodeMeta) => void;
 }
 
 // Helpers
 
 const EMOJI: Record<TreeNodeMeta["type"], string> = {
-  zone: "\U0001F3ED",
-  object: "\U0001F4E6",
+  zone: "\u{1F3ED}",
+  object: "\u{1F4E6}",
   unit: "\u2699\uFE0F",
   event: "\u26A0\uFE0F",
-  measure: "\U0001F6E1\uFE0F",
+  measure: "\u{1F6E1}\uFE0F",
 };
 
-const TYPE_LABEL: Record<TreeNodeMeta["type"], string> = {
-  zone: "\u5206\u533a",
-  object: "\u5206\u6790\u5bf9\u8c61",
-  unit: "\u5355\u5143",
-  event: "\u98ce\u9669\u4e8b\u4ef6",
-  measure: "\u7ba1\u63a7\u63aa\u65bd",
-};
-
-const ACTION_ITEMS: Record<TreeNodeMeta["type"], MenuProps["items"]> = {
+const ACTION_ITEMS: Record<TreeNodeMeta["type"], { key: string; label: string; icon: React.ReactNode }[]> = {
   zone: [
-    { key: "add-object", label: "\u6dfb\u52a0\u5206\u6790\u5bf9\u8c61", icon: "<PlusOutlined />" },
-    { type: "divider" },
-    { key: "edit", label: "\u7f16\u8f91\u5206\u533a", icon: "<EditOutlined />" },
-    { key: "delete", label: "\u5220\u9664\u5206\u533a", icon: "<DeleteOutlined />", danger: true },
+    { key: "add-object", label: "添加分析对象", icon: <PlusOutlined /> },
+    { key: "edit", label: "编辑分区", icon: <EditOutlined /> },
+    { key: "delete", label: "删除分区", icon: <DeleteOutlined /> },
   ],
   object: [
-    { key: "add-unit", label: "\u6dfb\u52a0\u5355\u5143", icon: "<PlusOutlined />" },
-    { key: "add-event", label: "\u6dfb\u52a0\u98ce\u9669\u4e8b\u4ef6", icon: "<PlusOutlined />" },
-    { type: "divider" },
-    { key: "ai-fill", label: "\U0001F916 \u667a\u80fd\u586b\u5145\u4e0b\u7ea7", icon: "<ThunderboltOutlined />" },
-    { key: "edit", label: "\u7f16\u8f91\u5bf9\u8c61", icon: "<EditOutlined />" },
-    { key: "delete", label: "\u5220\u9664\u5bf9\u8c61", icon: "<DeleteOutlined />", danger: true },
+    { key: "add-unit", label: "添加单元", icon: <PlusOutlined /> },
+    { key: "add-event", label: "添加风险事件", icon: <PlusOutlined /> },
+    { key: "ai-fill", label: "智能填充下级", icon: <ThunderboltOutlined /> },
+    { key: "edit", label: "编辑对象", icon: <EditOutlined /> },
+    { key: "delete", label: "删除对象", icon: <DeleteOutlined /> },
   ],
   unit: [
-    { key: "add-event", label: "\u6dfb\u52a0\u98ce\u9669\u4e8b\u4ef6", icon: "<PlusOutlined />" },
-    { type: "divider" },
-    { key: "ai-fill", label: "\U0001F916 \u667a\u80fd\u586b\u5145\u4e0b\u7ea7", icon: "<ThunderboltOutlined />" },
-    { key: "edit", label: "\u7f16\u8f91\u5355\u5143", icon: "<EditOutlined />" },
-    { key: "delete", label: "\u5220\u9664\u5355\u5143", icon: "<DeleteOutlined />", danger: true },
+    { key: "add-event", label: "添加风险事件", icon: <PlusOutlined /> },
+    { key: "ai-fill", label: "智能填充下级", icon: <ThunderboltOutlined /> },
+    { key: "edit", label: "编辑单元", icon: <EditOutlined /> },
+    { key: "delete", label: "删除单元", icon: <DeleteOutlined /> },
   ],
   event: [
-    { key: "add-measure", label: "\u6dfb\u52a0\u7ba1\u63a7\u63aa\u65bd", icon: "<PlusOutlined />" },
-    { type: "divider" },
-    { key: "edit", label: "\u7f16\u8f91\u4e8b\u4ef6", icon: "<EditOutlined />" },
-    { key: "delete", label: "\u5220\u9664\u4e8b\u4ef6", icon: "<DeleteOutlined />", danger: true },
+    { key: "add-measure", label: "添加管控措施", icon: <PlusOutlined /> },
+    { key: "edit", label: "编辑事件", icon: <EditOutlined /> },
+    { key: "delete", label: "删除事件", icon: <DeleteOutlined /> },
   ],
   measure: [
-    { key: "edit", label: "\u7f16\u8f91\u63aa\u65bd", icon: "<EditOutlined />" },
-    { key: "delete", label: "\u5220\u9664\u63aa\u65bd", icon: "<DeleteOutlined />", danger: true },
+    { key: "edit", label: "编辑措施", icon: <EditOutlined /> },
+    { key: "delete", label: "删除措施", icon: <DeleteOutlined /> },
   ],
 };
 
@@ -98,8 +88,7 @@ function TitleRow({
   isRiskPoint?: boolean;
   onAction: (key: string, meta: TreeNodeMeta) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const menuItems = ACTION_ITEMS[meta.type];
+  const actions = ACTION_ITEMS[meta.type];
 
   return (
     <span
@@ -107,12 +96,11 @@ function TitleRow({
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        maxWidth: "100%",
+        width: "100%",
+        minWidth: 0,
         overflow: "hidden",
         lineHeight: "28px",
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <span style={{ flexShrink: 0 }}>
         {isRiskPoint && <span style={{ color: "#ff4d4f", marginRight: 2 }}>{"\u25C6"}</span>}
@@ -152,27 +140,33 @@ function TitleRow({
           {childCount}
         </span>
       )}
-      {hovered && menuItems && menuItems.length > 0 && (
-        <Dropdown
-          menu={{
-            items: menuItems,
-            onClick: ({ key }) => onAction(key, meta),
+      {actions.length > 0 && (
+        <span
+          style={{
+            marginLeft: "auto",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 2,
+            flexShrink: 0,
+            paddingLeft: 8,
           }}
-          trigger={["click"]}
         >
-          <span
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              cursor: "pointer",
-              color: "#1677ff",
-              fontSize: 14,
-              flexShrink: 0,
-              padding: "0 2px",
-            }}
-          >
-            <PlusOutlined />
-          </span>
-        </Dropdown>
+          {actions.map((action) => (
+            <Tooltip key={action.key} title={action.label}>
+              <Button
+                type="text"
+                size="small"
+                icon={action.icon}
+                aria-label={action.label}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAction(action.key, meta);
+                }}
+                style={{ color: action.key === "delete" ? "#ff4d4f" : "#1677ff" }}
+              />
+            </Tooltip>
+          ))}
+        </span>
       )}
     </span>
   );
@@ -181,7 +175,7 @@ function TitleRow({
 // Build tree data
 
 function buildTreeData(zones: HierarchyZone[]): DataNode[] {
-  function measuresToNodes(measures: HierarchyMeasure[]): DataNode[] {
+  function measuresToNodes(measures: HierarchyMeasure[], parentId: string): DataNode[] {
     return measures.map((m) => ({
       key: "measure-" + m.id,
       title: "",
@@ -190,15 +184,17 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
         id: m.id,
         type: "measure" as const,
         name: m.description,
+        parentId,
+        parentType: "event" as const,
       },
       _riskLevel: null,
       _childCount: 0,
     }));
   }
 
-  function eventsToNodes(events: HierarchyEvent[]): DataNode[] {
+  function eventsToNodes(events: HierarchyEvent[], parentId: string, parentType: "unit" | "object"): DataNode[] {
     return events.map((ev) => {
-      const childNodes = measuresToNodes(ev.measures || []);
+      const childNodes = measuresToNodes(ev.measures || [], ev.id);
       return {
         key: "event-" + ev.id,
         title: "",
@@ -208,6 +204,8 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
           id: ev.id,
           type: "event" as const,
           name: ev.accident_type,
+          parentId,
+          parentType,
         },
         _riskLevel: ev.risk_level,
         _childCount: childNodes.length,
@@ -215,9 +213,9 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
     });
   }
 
-  function unitsToNodes(units: HierarchyUnit[]): DataNode[] {
+  function unitsToNodes(units: HierarchyUnit[], parentId: string): DataNode[] {
     return units.map((u) => {
-      const childNodes = eventsToNodes(u.events || []);
+      const childNodes = eventsToNodes(u.events || [], u.id, "unit");
       return {
         key: "unit-" + u.id,
         title: "",
@@ -227,6 +225,8 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
           id: u.id,
           type: "unit" as const,
           name: u.name,
+          parentId,
+          parentType: "object" as const,
         },
         _riskLevel: null,
         _childCount: childNodes.length,
@@ -234,16 +234,18 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
     });
   }
 
-  function objectsToNodes(objects: HierarchyObject[]): DataNode[] {
+  function objectsToNodes(objects: HierarchyObject[], parentId: string): DataNode[] {
     return objects.map((o) => {
-      const unitNodes = unitsToNodes(o.units || []);
+      const unitNodes = unitsToNodes(o.units || [], o.id);
       const directEventNodes = eventsToNodes(
         (o.events || []).filter(
           (ev) =>
             !(o.units || []).some((u) =>
               (u.events || []).some((ue) => ue.id === ev.id)
             )
-        )
+        ),
+        o.id,
+        "object"
       );
       const allChildren = [...unitNodes, ...directEventNodes];
       return {
@@ -255,6 +257,8 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
           id: o.id,
           type: "object" as const,
           name: o.name,
+          parentId,
+          parentType: "zone" as const,
         },
         _riskLevel: null,
         _childCount: allChildren.length,
@@ -264,16 +268,16 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
   }
 
   return zones.map((z) => {
-    const childNodes = objectsToNodes(z.objects || []);
+    const childNodes = objectsToNodes(z.objects || [], z.id);
     return {
       key: "zone-" + z.id,
       title: "",
       children: childNodes.length > 0 ? childNodes : undefined,
       isLeaf: childNodes.length === 0,
       _meta: {
-        id: z.id,
-        type: "zone" as const,
-        name: z.name,
+          id: z.id,
+          type: "zone" as const,
+          name: z.name,
       },
       _riskLevel: null,
       _childCount: childNodes.length,
@@ -283,7 +287,7 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
 
 // Component
 
-export default function RiskHierarchyTree({ data, onSelect, onRefresh, onAction }: Props) {
+export default function RiskHierarchyTree({ data, onSelect, onAction }: Props) {
   const treeData = useMemo(() => buildTreeData(data), [data]);
   const totalNodes = useMemo(
     () =>
@@ -317,7 +321,7 @@ export default function RiskHierarchyTree({ data, onSelect, onRefresh, onAction 
   );
 
   const handleSelect = useCallback(
-    (selectedKeys: React.Key[], info: { node: EventDataNode<DataNode> }) => {
+    (_selectedKeys: React.Key[], info: { node: EventDataNode<DataNode> }) => {
       const meta = (info.node as DataNode & { _meta?: TreeNodeMeta })._meta;
       if (meta) {
         onSelect(meta);

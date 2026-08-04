@@ -24,6 +24,9 @@ import SystemConfigPage from "@/pages/Settings/SystemConfigPage";
 import RegulationManagePage from "@/pages/Settings/RegulationManagePage";
 import RiskAssessmentPreview from "@/pages/Enterprise/RiskAssessmentPreview";
 import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigationPreview";
+import RiskOverviewPage from "@/pages/Enterprise/RiskOverviewPage";
+import RiskMethodListPage from "@/pages/Enterprise/RiskMethodListPage";
+import RiskMethodEditorPage from "@/pages/Enterprise/RiskMethodEditorPage";
 import ChatPage from "@/pages/Chat";
 
 function MobileRedirect() {
@@ -41,6 +44,9 @@ const contentRoutes = [
   { path: "/enterprises/:id/edit", element: <EnterpriseEditPage /> },
   { path: "/enterprises/:id/risk-assessment/preview", element: <RiskAssessmentPreview /> },
   { path: "/enterprises/:id/resource-investigation/preview", element: <ResourceInvestigationPreview /> },
+  { path: "/enterprises/:id/risk-overview", element: <RiskOverviewPage /> },
+  { path: "/enterprises/:id/risk-methods", element: <RiskMethodListPage /> },
+  { path: "/enterprises/:id/risk-methods/:methodId", element: <RiskMethodEditorPage /> },
   { path: "/plans", element: <PlanCardsPage /> },
   { path: "/plans/all", element: <PlanListPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },

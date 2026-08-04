@@ -99,7 +99,7 @@ export default function RiskMeasureForm({
         initialValues={initialValues}
         onFinish={handleFinish}
       >
-        <Divider orientation="left" plain style={{ fontSize: 13 }}>措施信息</Divider>
+        <Divider titlePlacement="left" plain style={{ fontSize: 13 }}>措施信息</Divider>
 
         <Form.Item
           name="measure_category"
@@ -160,12 +160,12 @@ export default function RiskMeasureForm({
           ✨ AI 建议措施
         </Button>
 
-        <Divider orientation="left" plain style={{ fontSize: 13 }}>检查项目</Divider>
+        <Divider titlePlacement="left" plain style={{ fontSize: 13 }}>检查项目</Divider>
 
         <Form.List name="check_items">
           {(fields, { add, remove }) => (
             <>
-              {fields.map(({ key, name, ...restField }, index) => (
+              {fields.map(({ key, name, ...restField }, _index) => (
                 <div
                   key={key}
                   style={{
@@ -176,7 +176,7 @@ export default function RiskMeasureForm({
                     position: "relative",
                   }}
                 >
-                  <Space direction="vertical" style={{ width: "100%" }} size={8}>
+                  <Space orientation="vertical" style={{ width: "100%" }} size={8}>
                     <Form.Item
                       {...restField}
                       name={[name, "name"]}

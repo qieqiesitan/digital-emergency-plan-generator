@@ -15,7 +15,7 @@ class RiskObjectCreate(BaseModel): zone_id: str | None = None; name: str; catego
 class RiskObjectUpdate(BaseModel): zone_id: str | None = None; name: str | None = None; category: str | None = None; location: str | None = None; location_x: float | None = None; location_y: float | None = None; description: str | None = None; image_url: str | None = None; is_risk_point: bool | None = None; sort_order: int | None = None
 class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
 
-class RiskUnitCreate(BaseModel): object_id: str; name: str; unit_type: str | None = None; description: str | None = None; location: str | None = None; sort_order: int = 0
+class RiskUnitCreate(BaseModel): object_id: str | None = None; name: str; unit_type: str | None = None; description: str | None = None; location: str | None = None; sort_order: int = 0
 class RiskUnitUpdate(BaseModel): name: str | None = None; unit_type: str | None = None; description: str | None = None; location: str | None = None; sort_order: int | None = None
 class RiskUnitResponse(BaseModel): id: str; object_id: str; name: str; unit_type: str | None; description: str | None; location: str | None; sort_order: int; created_at: DatetimeStr; event_count: int = 0; model_config = {"from_attributes": True}
 
@@ -23,7 +23,7 @@ class RiskEventCreate(BaseModel): unit_id: str | None = None; object_id: str | N
 class RiskEventUpdate(BaseModel): accident_type: str | None = None; description: str | None = None; trigger_conditions: str | None = None; consequences: str | None = None; method_type: str | None = None; method_params: dict | None = None
 class RiskEventResponse(BaseModel): id: str; unit_id: str | None; object_id: str | None; accident_type: str; description: str | None; trigger_conditions: str | None; consequences: str | None; method_type: str; method_params: dict; risk_level: str | None; risk_score: str | None; sort_order: int; created_at: DatetimeStr; measure_count: int = 0; model_config = {"from_attributes": True}
 
-class RiskMeasureCreate(BaseModel): event_id: str; measure_category: str; measure_type: str | None = None; description: str; responsible_person: str | None = None; deadline: date | None = None; check_items: list[dict] = []; sort_order: int = 0
+class RiskMeasureCreate(BaseModel): event_id: str | None = None; measure_category: str; measure_type: str | None = None; description: str; responsible_person: str | None = None; deadline: date | None = None; check_items: list[dict] = []; sort_order: int = 0
 class RiskMeasureUpdate(BaseModel): measure_category: str | None = None; measure_type: str | None = None; description: str | None = None; responsible_person: str | None = None; deadline: date | None = None; check_items: list[dict] | None = None; status: str | None = None; sort_order: int | None = None
 class RiskMeasureResponse(BaseModel): id: str; event_id: str; measure_category: str; measure_type: str | None; description: str; responsible_person: str | None; deadline: date | None; check_items: list[dict]; status: str; sort_order: int; created_at: DatetimeStr; model_config = {"from_attributes": True}
 
@@ -36,7 +36,46 @@ class HierarchyZoneResponse(BaseModel): id: str; name: str; description: str | N
 class MigrationPreviewItem(BaseModel): source_id: str; source_name: str; suggested_zone: str = ""; suggested_object: str = ""; suggested_events: list[dict] = []
 class MigrationPreviewResponse(BaseModel): items: list[MigrationPreviewItem]; total: int
 class MigrationExecuteRequest(BaseModel): mappings: list[dict]
+
+class SmartGuideMeasure(BaseModel):
+    description: str
+    measure_category: str = ""
+    measure_type: str | None = None
+    check_items: list[dict] = []
+    model_config = {"extra": "allow"}
+
+class SmartGuideEvent(BaseModel):
+    accident_type: str
+    description: str | None = None
+    risk_level: str | None = None
+    risk_score: str | None = None
+    method_type: str = "LS"
+    method_params: dict = {}
+    measures: list[SmartGuideMeasure] = []
+    model_config = {"extra": "allow"}
+
+class SmartGuideUnit(BaseModel):
+    name: str
+    unit_type: str | None = None
+    description: str | None = None
+    events: list[SmartGuideEvent] = []
+    model_config = {"extra": "allow"}
+
+class SmartGuideObject(BaseModel):
+    name: str
+    category: str | None = None
+    is_risk_point: bool = False
+    units: list[SmartGuideUnit] = []
+    events: list[SmartGuideEvent] = []
+    model_config = {"extra": "allow"}
+
+class SmartGuideZone(BaseModel):
+    name: str
+    description: str | None = None
+    objects: list[SmartGuideObject] = []
+    model_config = {"extra": "allow"}
+
 class SmartGuideRequest(BaseModel): description: str
-class SmartGuideResponse(BaseModel): hierarchy: list[HierarchyZoneResponse]; summary: dict = {}
+class SmartGuideResponse(BaseModel): hierarchy: list[SmartGuideZone]; summary: dict = {}
 class MethodPreviewRequest(BaseModel): method_id: str; params: dict
 class MethodPreviewResponse(BaseModel): risk_level: str; risk_score: str; action: str; deadline: str

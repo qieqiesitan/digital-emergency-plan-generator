@@ -144,7 +144,6 @@ export default function FloatingChat() {
           </div>
         }
         placement="right"
-        width={420}
         open={open}
         onClose={() => setOpen(false)}
         closeIcon={<CloseOutlined />}

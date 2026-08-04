@@ -55,6 +55,28 @@ export interface Enterprise {
   plans_count: number;
   created_at: string;
   updated_at: string;
+  // extended fields from backend
+  credit_code?: string | null;
+  legal_representative?: string | null;
+  established_date?: string | null;
+  registered_capital?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  postal_code?: string | null;
+  land_area?: number | null;
+  building_area?: number | null;
+  safety_officer?: string | null;
+  safety_officer_phone?: string | null;
+  safety_staff_count?: number | null;
+  safety_standardization?: string | null;
+  fire_approval?: string | null;
+  fire_approval_date?: string | null;
+  last_plan_filing_date?: string | null;
+  last_plan_filing_authority?: string | null;
+  main_products?: string | null;
+  annual_capacity?: string | null;
+  hazardous_chemicals?: string | null;
+  special_equipment?: string | null;
 }
 
 export interface EnterpriseCreate {

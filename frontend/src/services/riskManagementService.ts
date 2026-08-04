@@ -1,6 +1,6 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig } from "@/types/riskManagement";
+import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig, SmartGuideZone } from "@/types/riskManagement";
 
 const BASE = (eid: string) => `/enterprises/${eid}/risk-management`;
 
@@ -28,7 +28,10 @@ export const createUnit = (eid: string, oid: string, data: RiskUnitCreate) => ap
 export const updateUnit = (eid: string, oid: string, uid: string, data: Partial<RiskUnitCreate>) => api.put<ApiResponse<RiskUnit>>(`${BASE(eid)}/objects/${oid}/units/${uid}`, data).then(r => r.data.data);
 export const deleteUnit = (eid: string, oid: string, uid: string) => api.delete(`${BASE(eid)}/objects/${oid}/units/${uid}`);
 
-export const createEvent = (eid: string, uid: string, data: RiskEventCreate) => api.post<ApiResponse<RiskEvent>>(`${BASE(eid)}/units/${uid}/events`, data).then(r => r.data.data);
+export const createEvent = (eid: string, parentId: string, data: RiskEventCreate) => {
+  const path = data.object_id && !data.unit_id ? `${BASE(eid)}/objects/${parentId}/events` : `${BASE(eid)}/units/${parentId}/events`;
+  return api.post<ApiResponse<RiskEvent>>(path, data).then(r => r.data.data);
+};
 export const updateEvent = (eid: string, evid: string, data: Partial<RiskEventCreate>) => api.put<ApiResponse<RiskEvent>>(`${BASE(eid)}/events/${evid}`, data).then(r => r.data.data);
 export const deleteEvent = (eid: string, evid: string) => api.delete(`${BASE(eid)}/events/${evid}`);
 export const recalcEvent = (eid: string, evid: string) => api.post<ApiResponse<RiskEvent>>(`${BASE(eid)}/events/${evid}/recalc`).then(r => r.data.data);
@@ -43,6 +46,6 @@ export const getFullHierarchy = (eid: string) => api.get<ApiResponse<HierarchyZo
 export const aiSuggestObjects = (eid: string, data: { zone_name: string; zone_desc: string; enterprise_info: Record<string, unknown>; existing_names: string[] }) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/suggest-objects`, data).then(r => r.data.data);
 export const aiSuggestEvents = (eid: string, data: Record<string, unknown>) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/suggest-events`, data).then(r => r.data.data);
 export const aiSuggestMeasures = (eid: string, data: Record<string, unknown>) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/suggest-measures`, data).then(r => r.data.data);
-export const aiSmartGuide = (eid: string, description: string) => api.post<ApiResponse<{ hierarchy: HierarchyZone[]; summary: Record<string, unknown> }>>(`${BASE(eid)}/ai/smart-guide`, { description }).then(r => r.data.data);
+export const aiSmartGuide = (eid: string, description: string) => api.post<ApiResponse<{ hierarchy: SmartGuideZone[]; summary: Record<string, unknown> }>>(`${BASE(eid)}/ai/smart-guide`, { description }).then(r => r.data.data);
 export const aiAnalyzeFloorPlan = (eid: string, enterprise_info: Record<string, unknown>) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/analyze-floor-plan`, { enterprise_info }).then(r => r.data.data);
 export const aiMigratePreview = (eid: string) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/migrate-preview`).then(r => r.data.data);

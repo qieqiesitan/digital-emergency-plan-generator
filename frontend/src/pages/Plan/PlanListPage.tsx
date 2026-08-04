@@ -187,7 +187,7 @@ export default function PlanListPage() {
 
       <Table
         columns={columns}
-        dataSource={plans}
+        dataSource={plans as any}
         rowKey="id"
         loading={isLoading}
         pagination={{

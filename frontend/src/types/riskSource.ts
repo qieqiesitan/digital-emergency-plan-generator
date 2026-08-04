@@ -1,4 +1,4 @@
-﻿export type RiskLevel = "重大" | "较大" | "一般" | "低";
+export type RiskLevel = "重大" | "较大" | "一般" | "低";
 export type Likelihood = "高" | "中" | "低";
 export type Severity = "高" | "中" | "低";
 
@@ -28,6 +28,7 @@ export interface RiskSourceCreate {
   description?: string;
   likelihood?: Likelihood;
   severity?: Severity;
+  risk_level?: RiskLevel;
   control_measures?: string;
 }
 

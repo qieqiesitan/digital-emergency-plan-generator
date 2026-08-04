@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useCallback, Fragment } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Row, Col, Card, Input, Select, Slider, Table, Collapse, Button,
   Space, Typography, Tag, Spin, message, Popconfirm, ColorPicker,
@@ -13,7 +13,8 @@ import {
 } from "@/services/riskManagementService";
 import type { RiskAssessmentMethod, MethodConfig } from "@/types/riskManagement";
 import {
-  computeRiskLS, renderMatrixData, RISK_LEVEL_COLORS, getCellClass,
+  computeRiskLS, renderMatrixData, RISK_LEVEL_COLORS,
+  computeRiskLEC,
 } from "@/utils/riskMethodEngine";
 
 const { Title, Text } = Typography;
@@ -65,7 +66,6 @@ function thresholdsOverlap(items: ThresholdDef[]): number[] {
 
 export default function RiskMethodEditorPage() {
   const { id: enterpriseId, methodId } = useParams<{ id: string; methodId: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isCreate = !methodId || methodId === "new";
@@ -85,6 +85,9 @@ export default function RiskMethodEditorPage() {
   // Evaluation sliders
   const [lValue, setLValue] = useState(3);
   const [sValue, setSValue] = useState(3);
+  const [lecL, setLecL] = useState<number>(1);
+  const [lecE, setLecE] = useState<number>(3);
+  const [lecC, setLecC] = useState<number>(7);
 
   // Load existing method
   const { data: method, isLoading } = useQuery({
@@ -191,8 +194,10 @@ export default function RiskMethodEditorPage() {
   };
 
   // Risk evaluation
-  const riskResult = computeRiskLS(lValue, sValue);
-  const matrixData = renderMatrixData("LS");
+  const riskResult = methodType === "LEC"
+    ? computeRiskLEC(lecL, lecE, lecC)
+    : computeRiskLS(lValue, sValue);
+  const matrixData = renderMatrixData(methodType === "LEC" ? "LEC" : "LS");
   const overlapRows = thresholdsOverlap(thresholds);
 
   const paramColumns = (paramIdx: number) => [
@@ -286,7 +291,7 @@ export default function RiskMethodEditorPage() {
                     </Popconfirm>
                   }
                 >
-                  <Space direction="vertical" style={{ width: "100%" }} size="small">
+                  <Space orientation="vertical" style={{ width: "100%" }} size="small">
                     <Row gutter={[12, 0]}>
                       <Col span={8}>
                         <Text style={{ fontSize: 12 }}>Key</Text>
@@ -312,7 +317,7 @@ export default function RiskMethodEditorPage() {
                       </div>
                       <Table
                         dataSource={param.levels}
-                        rowKey={(r, ri) => `${param.key}-lvl-${ri}`}
+                        rowKey={(_, ri) => `${param.key}-lvl-${ri}`}
                         columns={paramColumns(pi)}
                         size="small"
                         pagination={false}
@@ -349,7 +354,7 @@ export default function RiskMethodEditorPage() {
                   <Input size="small" type="number" value={record.max} onChange={e => updateThreshold(ri, "max", Number(e.target.value))} />
                 )},
                 { title: "颜色", dataIndex: "color", width: 70, render: (_: unknown, record: ThresholdDef, ri: number) => (
-                  <ColorPicker value={record.color} onChange={(c, hex) => updateThreshold(ri, "color", hex)} size="small" />
+                  <ColorPicker value={record.color} onChange={(_, hex) => updateThreshold(ri, "color", hex)} size="small" />
                 )},
                 { title: "处置措施", dataIndex: "action", render: (_: unknown, record: ThresholdDef, ri: number) => (
                   <Input size="small" value={record.action} onChange={e => updateThreshold(ri, "action", e.target.value)} placeholder="立即整改" />
@@ -378,65 +383,103 @@ export default function RiskMethodEditorPage() {
         <Col xs={24} lg={7}>
           <div style={{ position: "sticky", top: 24 }}>
             <Card title="实时评估" size="small" style={{ marginBottom: 16 }}>
-              <div style={{ marginBottom: 16 }}>
-                <Text strong>L - 事故可能性</Text>
-                <Slider min={1} max={5} value={lValue} onChange={setLValue} marks={{ 1: "1", 2: "2", 3: "3", 4: "4", 5: "5" }} />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <Text strong>S - 后果严重程度</Text>
-                <Slider min={1} max={5} value={sValue} onChange={setSValue} marks={{ 1: "1", 2: "2", 3: "3", 4: "4", 5: "5" }} />
-              </div>
-              <div style={{ textAlign: "center", padding: "12px 0", background: "#fafafa", borderRadius: 8, marginBottom: 16 }}>
-                <div style={{ fontSize: 14 }}>R = {lValue} x {sValue} = <Text strong style={{ fontSize: 18 }}>{riskResult.riskScore.replace("R=", "")}</Text></div>
-                <Tag color={RISK_LEVEL_COLORS[riskResult.riskLevel] || "#1890ff"} style={{ marginTop: 8, fontSize: 16, padding: "4px 16px" }}>
-                  {riskResult.riskLevel}
-                </Tag>
-              </div>
+              {methodType === "LEC" ? (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text strong style={{ fontSize: 12 }}>L - 事故可能性</Text>
+                    <Select value={lecL} onChange={setLecL} style={{ width: "100%", marginTop: 4 }}
+                      options={[{ value: 0.1, label: "0.1-实际不可能" },{ value: 0.5, label: "0.5-极不可能" },{ value: 1, label: "1-可能性小" },{ value: 2, label: "2-可能但不经常" },{ value: 3, label: "3-可能" },{ value: 6, label: "6-相当可能" },{ value: 10, label: "10-完全可以预料" }]} />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text strong style={{ fontSize: 12 }}>E - 暴露频率</Text>
+                    <Select value={lecE} onChange={setLecE} style={{ width: "100%", marginTop: 4 }}
+                      options={[{ value: 0.5, label: "0.5-每年一次" },{ value: 1, label: "1-每月一次" },{ value: 2, label: "2-每周一次" },{ value: 3, label: "3-每日一次" },{ value: 6, label: "6-每班数次" },{ value: 10, label: "10-连续暴露" }]} />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text strong style={{ fontSize: 12 }}>C - 事故后果</Text>
+                    <Select value={lecC} onChange={setLecC} style={{ width: "100%", marginTop: 4 }}
+                      options={[{ value: 1, label: "1-轻微" },{ value: 3, label: "3-较小" },{ value: 7, label: "7-严重" },{ value: 15, label: "15-非常严重" },{ value: 40, label: "40-灾难" },{ value: 100, label: "100-大灾难" }]} />
+                  </div>
+                  <div style={{ textAlign: "center", padding: "12px 0", background: "#fafafa", borderRadius: 8, marginBottom: 16 }}>
+                    <div style={{ fontSize: 13 }}>D = {lecL} × {lecE} × {lecC} = <Text strong style={{ fontSize: 18 }}>{Math.round(lecL * lecE * lecC)}</Text></div>
+                    <Tag color={RISK_LEVEL_COLORS[riskResult.riskLevel] || "#1890ff"} style={{ marginTop: 8, fontSize: 16, padding: "4px 16px" }}>{riskResult.riskLevel}</Tag>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text strong>L - 事故可能性</Text>
+                    <Slider min={1} max={5} value={lValue} onChange={setLValue} marks={{ 1: "1", 2: "2", 3: "3", 4: "4", 5: "5" }} />
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text strong>S - 后果严重程度</Text>
+                    <Slider min={1} max={5} value={sValue} onChange={setSValue} marks={{ 1: "1", 2: "2", 3: "3", 4: "4", 5: "5" }} />
+                  </div>
+                  <div style={{ textAlign: "center", padding: "12px 0", background: "#fafafa", borderRadius: 8, marginBottom: 16 }}>
+                    <div style={{ fontSize: 14 }}>R = {lValue} × {sValue} = <Text strong style={{ fontSize: 18 }}>{riskResult.riskScore.replace("R=", "")}</Text></div>
+                    <Tag color={RISK_LEVEL_COLORS[riskResult.riskLevel] || "#1890ff"} style={{ marginTop: 8, fontSize: 16, padding: "4px 16px" }}>{riskResult.riskLevel}</Tag>
+                  </div>
+                </>
+              )}
             </Card>
 
-            <Card title="风险矩阵" size="small">
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, aspectRatio: "1" }}>
-                <div style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>L\S</div>
-                {[1, 2, 3, 4, 5].map(s => (
-                  <div key={`eh-${s}`} style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>{s}</div>
-                ))}
-                {matrixData.map((row, li) => (
-                  <>
-                    <div key={`elh-${li}`} style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>{li + 1}</div>
-                    {row.map((cell, si) => {
-                      const isActive = (li + 1) === lValue && (si + 1) === sValue;
-                      return (
-                        <div
-                          key={`${li}-${si}`}
-                          style={{
-                            backgroundColor: cell.color,
-                            borderRadius: 2,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 11,
-                            color: "#fff",
-                            fontWeight: 600,
-                            border: isActive ? "3px solid #000" : "1px solid transparent",
-                            boxSizing: "border-box",
-                          }}
-                        >
-                          {cell.r}
-                        </div>
-                      );
-                    })}
-                  </>
-                ))}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-around", marginTop: 12, flexWrap: "wrap", gap: 4 }}>
-                {Object.entries(RISK_LEVEL_COLORS).map(([level, color]) => (
-                  <Space key={level} size={4}>
-                    <div style={{ width: 12, height: 12, backgroundColor: color, borderRadius: 2 }} />
-                    <Text style={{ fontSize: 11 }}>{level}</Text>
-                  </Space>
-                ))}
-              </div>
-            </Card>
+            {methodType !== "LEC" && (
+              <Card title="风险矩阵" size="small">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, aspectRatio: "1" }}>
+                  <div style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>L\S</div>
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <div key={`eh-${s}`} style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>{s}</div>
+                  ))}
+                  {matrixData.map((row, li) => (
+                    <Fragment key={`row-${li}`}>
+                      <div key={`elh-${li}`} style={{ fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>{li + 1}</div>
+                      {row.map((cell, si) => {
+                        const isActive = (li + 1) === lValue && (si + 1) === sValue;
+                        return (
+                          <div
+                            key={`${li}-${si}`}
+                            style={{
+                              backgroundColor: cell.color,
+                              borderRadius: 2,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 11,
+                              color: "#fff",
+                              fontWeight: 600,
+                              border: isActive ? "3px solid #000" : "1px solid transparent",
+                              boxSizing: "border-box",
+                            }}
+                          >
+                            {cell.r}
+                          </div>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-around", marginTop: 12, flexWrap: "wrap", gap: 4 }}>
+                  {Object.entries(RISK_LEVEL_COLORS).map(([level, color]) => (
+                    <Space key={level} size={4}>
+                      <div style={{ width: 12, height: 12, backgroundColor: color, borderRadius: 2 }} />
+                      <Text style={{ fontSize: 11 }}>{level}</Text>
+                    </Space>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {methodType === "LEC" && (
+              <Card title="LEC 风险区间" size="small">
+                <div style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>D = L × E × C 值所在位置：</div>
+                <div style={{ position: "relative", height: 24, background: "linear-gradient(to right, #52c41a, #fadb14, #fa8c16, #ff4d4f)", borderRadius: 6 }}>
+                  <div style={{ position: "absolute", top: 0, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "6px solid #000", left: `${Math.min(100, (Math.round(lecL * lecE * lecC) / 500) * 100)}%`, transform: "translateX(-50%)", zIndex: 2 }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#999", marginTop: 4 }}>
+                  <span>0</span><span>70</span><span>160</span><span>320</span>
+                </div>
+              </Card>
+            )}
           </div>
         </Col>
       </Row>

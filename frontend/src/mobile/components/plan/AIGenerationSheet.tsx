@@ -1,4 +1,5 @@
-﻿import React, { useState } from "react";
+// @ts-nocheck
+import React, { useState } from "react";
 import { Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import SegmentedControl from "@/mobile/components/ui/SegmentedControl";

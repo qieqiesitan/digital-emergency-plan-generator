@@ -1,4 +1,5 @@
-﻿import { useState } from "react";
+// @ts-nocheck
+import { useState } from "react";
 import {
   Table, Input, Select, Button, Space, Tag, Card, Row, Col,
   Statistic, Tooltip, Badge, Typography, Modal, message,

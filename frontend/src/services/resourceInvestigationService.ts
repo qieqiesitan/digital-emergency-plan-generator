@@ -1,4 +1,4 @@
-﻿import type { ApiResponse } from '@/types/common';
+import type { ApiResponse } from '@/types/common';
 import type { ResourceInvestigationReport, ResourceInvestigationPreview } from "@/types/resourceInvestigation";
 import type { SSEEvent } from "@/types/riskAssessment";
 import type { ChapterDef } from '@/services/riskAssessmentService';
@@ -39,7 +39,7 @@ export async function downloadResourceInvestigation(enterpriseId: string): Promi
 
 export function generateResourceInvestigationStream(
   enterpriseId: string,
-  customInstruction?: string,
+  customInstruction: string | undefined,
   onEvent: (event: SSEEvent) => void,
   onError: (error: string) => void,
   onComplete: () => void

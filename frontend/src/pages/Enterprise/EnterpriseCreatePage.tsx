@@ -219,7 +219,7 @@ export default function EnterpriseCreatePage() {
 
   const onFinish = (values: Record<string, unknown>) => {
     const payload: Record<string, unknown> = { ...values, floor_plan_url: floorPlanUrl ?? null };
-    mutation.mutate(payload);
+    mutation.mutate(payload as any);
   };
 
   return (

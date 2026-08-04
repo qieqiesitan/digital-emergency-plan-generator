@@ -67,6 +67,7 @@ export interface RegulationCreateRequest {
   effective_date: string;
   node_type?: string;
   version?: string;
+  status?: string;
   replaces: string[];
   based_on: string[];
   topics: string[];
@@ -127,6 +128,8 @@ export interface DuplicateMatch {
 
 export interface DuplicateCheckResponse {
   duplicates: DuplicateMatch[];
+  duplicate?: DuplicateMatch | null;
+  matches?: DuplicateMatch[];
   is_duplicate: boolean;
 }
 
@@ -157,5 +160,6 @@ export interface BatchAbolishResponse {
   total: number;
   success_count: number;
   fail_count: number;
+  abolished?: number;
 }
 

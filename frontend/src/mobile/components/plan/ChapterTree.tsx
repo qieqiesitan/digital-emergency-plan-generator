@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   ChevronRight, CheckCircle, Circle,
   Sparkles, AlertCircle, GitBranch, Download,
@@ -11,6 +11,16 @@ export interface ChapterNode {
   aiGeneratable: boolean;
   required: boolean;
   children?: ChapterNode[];
+}
+
+interface ChapterRowProps {
+  chapter: ChapterNode;
+  depth: number;
+  state: { hasContent: boolean; aiGenerated: boolean } | undefined;
+  isSelected: boolean;
+  sectionStates: Record<string, { hasContent: boolean; aiGenerated: boolean }>;
+  selectedKey: string | null;
+  onSelect: (c: ChapterNode) => void;
 }
 
 interface ChapterTreeProps {
@@ -28,14 +38,10 @@ function ChapterRow({
   depth,
   state,
   isSelected,
+  sectionStates,
+  selectedKey,
   onSelect,
-}: {
-  chapter: ChapterNode;
-  depth: number;
-  state: { hasContent: boolean; aiGenerated: boolean } | undefined;
-  isSelected: boolean;
-  onSelect: (c: ChapterNode) => void;
-}) {
+}: ChapterRowProps) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = chapter.children && chapter.children.length > 0;
 
@@ -98,8 +104,7 @@ function ChapterRow({
           key={child.key}
           chapter={child}
           depth={depth + 1}
-          state={sectionStates[child.key]}
-          isSelected={selectedKey === child.key}
+          state={sectionStates[child.key]} sectionStates={sectionStates} selectedKey={selectedKey} isSelected={selectedKey === child.key}
           onSelect={onSelect}
         />
       ))}
@@ -120,8 +125,7 @@ export default function ChapterTree({
           key={chapter.key}
           chapter={chapter}
           depth={0}
-          state={sectionStates[chapter.key]}
-          isSelected={selectedKey === chapter.key}
+          state={sectionStates[chapter.key]} sectionStates={sectionStates} selectedKey={selectedKey} isSelected={selectedKey === chapter.key}
           onSelect={onSelect}
         />
       ))}

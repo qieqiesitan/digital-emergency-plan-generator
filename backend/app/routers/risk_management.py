@@ -218,6 +218,19 @@ async def create_event(unit_id: str, body: RiskEventCreate, enterprise_id: str, 
     await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))
 
+@router.post("/objects/{object_id}/events", response_model=ApiResponse[RiskEventResponse], status_code=201)
+async def create_object_event(object_id: str, body: RiskEventCreate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    obj = (await db.execute(select(RiskObject).where(RiskObject.id==object_id, RiskObject.enterprise_id==enterprise_id))).scalar_one_or_none()
+    if not obj: raise HTTPException(404, "对象不存在")
+    config = await get_active_method_config(db, enterprise_id, body.method_type)
+    rating = compute_risk(body.method_type, body.method_params, config)
+    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, risk_level=rating.risk_level, risk_score=rating.risk_score)
+    db.add(ev)
+    await db.commit()
+    await db.refresh(ev)
+    return ApiResponse(data=RiskEventResponse.model_validate(ev))
+
 @router.put("/events/{event_id}", response_model=ApiResponse[RiskEventResponse])
 async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)

@@ -22,16 +22,54 @@ export interface RiskObject { id: string; enterprise_id: string; zone_id: string
 export interface RiskObjectCreate { zone_id?: string; name: string; category?: string; location?: string; location_x?: number; location_y?: number; description?: string; image_url?: string; is_risk_point?: boolean; }
 
 export interface RiskUnit { id: string; object_id: string; name: string; unit_type: string | null; description: string | null; location: string | null; sort_order: number; created_at: string; event_count: number; }
-export interface RiskUnitCreate { object_id: string; name: string; unit_type?: string; description?: string; location?: string; }
+export interface RiskUnitCreate { object_id?: string; name: string; unit_type?: string; description?: string; location?: string; }
 
 export interface RiskEvent { id: string; unit_id: string | null; object_id: string | null; accident_type: string; description: string | null; trigger_conditions: string | null; consequences: string | null; method_type: MethodType; method_params: Record<string, number>; risk_level: string | null; risk_score: string | null; sort_order: number; created_at: string; measure_count: number; }
 export interface RiskEventCreate { unit_id?: string; object_id?: string; accident_type: string; description?: string; trigger_conditions?: string; consequences?: string; method_type?: MethodType; method_params?: Record<string, number>; }
 
 export interface RiskMeasure { id: string; event_id: string; measure_category: MeasureCategory; measure_type: string | null; description: string; responsible_person: string | null; deadline: string | null; check_items: CheckItem[]; status: MeasureStatus; sort_order: number; created_at: string; }
-export interface RiskMeasureCreate { event_id: string; measure_category: MeasureCategory; measure_type?: string; description: string; responsible_person?: string; deadline?: string; check_items?: CheckItem[]; }
+export interface RiskMeasureCreate { event_id?: string; measure_category: MeasureCategory; measure_type?: string; description: string; responsible_person?: string; deadline?: string; check_items?: CheckItem[]; }
 
 export interface HierarchyMeasure extends Pick<RiskMeasure, 'id'|'measure_category'|'measure_type'|'description'|'status'> { check_items: CheckItem[]; }
 export interface HierarchyEvent extends Pick<RiskEvent, 'id'|'accident_type'|'description'|'risk_level'|'risk_score'|'method_type'> { method_params: Record<string, number>; measures: HierarchyMeasure[]; }
 export interface HierarchyUnit extends Pick<RiskUnit, 'id'|'name'|'unit_type'> { events: HierarchyEvent[]; }
 export interface HierarchyObject extends Pick<RiskObject, 'id'|'name'|'category'|'is_risk_point'> { units: HierarchyUnit[]; events: HierarchyEvent[]; }
 export interface HierarchyZone extends Pick<RiskZone, 'id'|'name'|'description'> { objects: HierarchyObject[]; }
+
+export interface SmartGuideMeasure {
+  description: string;
+  measure_category?: string;
+  measure_type?: string;
+  check_items?: CheckItem[];
+}
+
+export interface SmartGuideEvent {
+  accident_type: string;
+  description?: string;
+  risk_level?: string;
+  risk_score?: string;
+  method_type?: string;
+  method_params?: Record<string, number>;
+  measures?: SmartGuideMeasure[];
+}
+
+export interface SmartGuideUnit {
+  name: string;
+  unit_type?: string;
+  description?: string;
+  events?: SmartGuideEvent[];
+}
+
+export interface SmartGuideObject {
+  name: string;
+  category?: string;
+  is_risk_point?: boolean;
+  units?: SmartGuideUnit[];
+  events?: SmartGuideEvent[];
+}
+
+export interface SmartGuideZone {
+  name: string;
+  description?: string;
+  objects?: SmartGuideObject[];
+}

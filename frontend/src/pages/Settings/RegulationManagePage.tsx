@@ -83,8 +83,8 @@ export default function RegulationManagePage() {
                     <div>
                       <div><strong>{actionLabels[e.action] || e.action}</strong> — {e.operator}</div>
                       <div style={{ color: "#999", fontSize: 12 }}>{e.timestamp} | {e.regulation_id}</div>
-                      {e.detail && (e.detail as Record<string,unknown>).filename && <div style={{ fontSize: 12 }}>文件: {String((e.detail as Record<string,unknown>).filename)}</div>}
-                      {e.detail && (e.detail as Record<string,unknown>).replaced_by && <div style={{ fontSize: 12 }}>替代: {String((e.detail as Record<string,unknown>).replaced_by)}</div>}
+                      {e.detail && (e.detail as Record<string,any>).filename && <div style={{ fontSize: 12 }}>文件: {String((e.detail as Record<string,any>).filename)}</div>}
+                      {e.detail && (e.detail as Record<string,any>).replaced_by && <div style={{ fontSize: 12 }}>替代: {String((e.detail as Record<string,any>).replaced_by)}</div>}
                     </div>
                   ),
                 }))} />

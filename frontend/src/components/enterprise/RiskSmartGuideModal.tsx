@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Modal, Input, Button, Tree, Alert, Spin, message } from "antd";
+import { App as AntApp, Modal, Input, Button, Tree, Alert, Spin } from "antd";
 import type { DataNode } from "antd/es/tree";
 import {
   ThunderboltOutlined,
@@ -15,11 +15,13 @@ import {
   createMeasure,
 } from "@/services/riskManagementService";
 import type {
-  HierarchyZone,
-  HierarchyObject,
-  HierarchyUnit,
-  HierarchyEvent,
-  HierarchyMeasure,
+  MethodType,
+  MeasureCategory,
+  SmartGuideZone,
+  SmartGuideObject,
+  SmartGuideUnit,
+  SmartGuideEvent,
+  SmartGuideMeasure,
 } from "@/types/riskManagement";
 
 interface Props {
@@ -70,7 +72,7 @@ function getNodeDisplayName(source: Record<string, unknown>, nodeType: NodeType)
   }
 }
 
-function collectAllKeys(hierarchy: HierarchyZone[]): React.Key[] {
+function collectAllKeys(hierarchy: SmartGuideZone[]): React.Key[] {
   const keys: React.Key[] = [];
   hierarchy.forEach((z, zi) => {
     keys.push("z-" + zi);
@@ -97,7 +99,7 @@ function collectAllKeys(hierarchy: HierarchyZone[]): React.Key[] {
 }
 
 function countChecked(
-  hierarchy: HierarchyZone[],
+  hierarchy: SmartGuideZone[],
   checkedKeys: React.Key[],
 ): Counts {
   const set = new Set(checkedKeys.map(String));
@@ -131,9 +133,10 @@ export default function RiskSmartGuideModal({
   onRefresh,
   enterpriseId,
 }: Props) {
+  const { message: antMessage } = AntApp.useApp();
   const [step, setStep] = useState<Step>("input");
   const [description, setDescription] = useState("");
-  const [hierarchy, setHierarchy] = useState<HierarchyZone[]>([]);
+  const [hierarchy, setHierarchy] = useState<SmartGuideZone[]>([]);
   const [checkedKeys, setCheckedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -162,14 +165,14 @@ export default function RiskSmartGuideModal({
       setStep("preview");
     },
     onError: (e: Error) => {
-      message.error("AI \u5206\u6790\u5931\u8D25: " + (e?.message || "\u8BF7\u91CD\u8BD5"));
+      antMessage.error("AI \u5206\u6790\u5931\u8D25: " + (e?.message || "\u8BF7\u91CD\u8BD5"));
       setStep("input");
     },
   });
 
   const handleStartAnalysis = () => {
     if (!description.trim()) {
-      message.warning("\u8BF7\u5148\u63CF\u8FF0\u533A\u57DF\u60C5\u51B5");
+      antMessage.warning("\u8BF7\u5148\u63CF\u8FF0\u533A\u57DF\u60C5\u51B5");
       return;
     }
     setStep("loading");
@@ -212,7 +215,6 @@ export default function RiskSmartGuideModal({
             const unitKey = "z-" + zi + "-o-" + oi + "-u-" + ui;
             const unitName = nameOverrides[unitKey] || unit.name;
             const createdUnit = await createUnit(enterpriseId, createdObj.id, {
-              object_id: createdObj.id,
               name: unitName,
               unit_type: unit.unit_type || undefined,
             });
@@ -228,7 +230,7 @@ export default function RiskSmartGuideModal({
                 unit_id: createdUnit.id,
                 accident_type: evName,
                 description: ev.description || undefined,
-                method_type: ev.method_type || "LS",
+                method_type: (ev.method_type as MethodType) || "LS",
                 method_params: ev.method_params || {},
               });
               totalCreated++;
@@ -240,8 +242,7 @@ export default function RiskSmartGuideModal({
 
                 const mDesc = nameOverrides[mKey] || m.description;
                 await createMeasure(enterpriseId, createdEv.id, {
-                  event_id: createdEv.id,
-                  measure_category: m.measure_category || "engineering",
+                  measure_category: (m.measure_category as MeasureCategory) || "engineering",
                   measure_type: m.measure_type || undefined,
                   description: mDesc,
                   check_items: m.check_items || [],
@@ -261,7 +262,7 @@ export default function RiskSmartGuideModal({
               object_id: createdObj.id,
               accident_type: evName,
               description: ev.description || undefined,
-              method_type: ev.method_type || "LS",
+              method_type: (ev.method_type as MethodType) || "LS",
               method_params: ev.method_params || {},
             });
             totalCreated++;
@@ -272,9 +273,8 @@ export default function RiskSmartGuideModal({
               if (!keySet.has(mKey)) continue;
 
               const mDesc = nameOverrides[mKey] || m.description;
-              await createMeasure(enterpriseId, createdEv.id, {
-                event_id: createdEv.id,
-                measure_category: m.measure_category || "engineering",
+            await createMeasure(enterpriseId, createdEv.id, {
+              measure_category: (m.measure_category as MeasureCategory) || "engineering",
                 measure_type: m.measure_type || undefined,
                 description: mDesc,
                 check_items: m.check_items || [],
@@ -288,18 +288,18 @@ export default function RiskSmartGuideModal({
       return totalCreated;
     },
     onSuccess: (count: number) => {
-      message.success("\u6210\u529F\u5BFC\u5165 " + count + " \u6761\u6570\u636E");
+      antMessage.success("\u6210\u529F\u5BFC\u5165 " + count + " \u6761\u6570\u636E");
       onRefresh();
       onClose();
     },
     onError: (e: Error) => {
-      message.error("\u5BFC\u5165\u5931\u8D25: " + (e?.message || "\u672A\u77E5\u9519\u8BEF"));
+      antMessage.error("\u5BFC\u5165\u5931\u8D25: " + (e?.message || "\u672A\u77E5\u9519\u8BEF"));
     },
   });
 
   const treeData = useMemo<DataNode[]>(() => {
     function buildMeasures(
-      measures: HierarchyMeasure[],
+      measures: SmartGuideMeasure[],
       zi: number,
       oi: number,
       ui: number,
@@ -325,7 +325,7 @@ export default function RiskSmartGuideModal({
     }
 
     function buildEvents(
-      events: HierarchyEvent[],
+      events: SmartGuideEvent[],
       zi: number,
       oi: number,
       ui: number,
@@ -352,7 +352,7 @@ export default function RiskSmartGuideModal({
     }
 
     function buildUnits(
-      units: HierarchyUnit[],
+      units: SmartGuideUnit[],
       zi: number,
       oi: number,
       prefix: string,
@@ -378,21 +378,13 @@ export default function RiskSmartGuideModal({
     }
 
     function buildObjects(
-      objects: HierarchyObject[],
+      objects: SmartGuideObject[],
       zi: number,
     ): DataNode[] {
       return objects.map((o, oi) => {
         const key = "z-" + zi + "-o-" + oi;
         const unitNodes = buildUnits(o.units || [], zi, oi, key);
-        const directEvNodes = buildEvents(
-          (o.events || []).filter(
-            (ev) => !(o.units || []).some((u) => (u.events || []).some((ue) => ue.id === ev.id)),
-          ),
-          zi,
-          oi,
-          -1,
-          key,
-        );
+        const directEvNodes = buildEvents(o.events || [], zi, oi, -1, key);
         const allChildren = [...unitNodes, ...directEvNodes];
         return {
           key,
@@ -569,12 +561,12 @@ export default function RiskSmartGuideModal({
 
   return (
     <Modal
-      title="AI \u667A\u80FD\u751F\u6210\u98CE\u9669\u5C42\u7EA7"
+      title="AI 智能生成风险层级"
       open={open}
       onCancel={onClose}
       width={720}
       footer={footer}
-      destroyOnClose
+      destroyOnHidden
     >
       {step === "input" && (
         <div>
@@ -624,7 +616,7 @@ export default function RiskSmartGuideModal({
           <Alert
             type="warning"
             showIcon
-            message="AI \u751F\u6210\u6570\u636E\u8BF7\u6838\u5B9E\u540E\u786E\u8BA4\u5BFC\u5165"
+            message="AI 生成数据请核实后确认导入，确认后可在层级树中继续编辑"
             style={{ marginBottom: 12 }}
           />
 

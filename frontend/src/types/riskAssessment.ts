@@ -1,4 +1,4 @@
-﻿export interface RiskAssessmentSummary {
+export interface RiskAssessmentSummary {
   risk_source_count: number;
   risk_level_distribution: Record<string, number>;
   top_risks: Array<{
@@ -35,7 +35,7 @@ export interface RiskAssessmentPreview {
 }
 
 export interface SSEEvent {
-  type: "progress" | "chunk" | "section_done" | "batch_done" | "error";
+  type: "progress" | "chunk" | "section_done" | "batch_done" | "error" | "token" | "chapter_start" | "chapter_end" | "done" | "complete";
   message?: string;
   stage?: string;
   content?: string;
@@ -46,4 +46,8 @@ export interface SSEEvent {
   total?: number;
   completed?: number;
   failed?: number;
+  chapter?: string;
+  token?: string;
+  chunk?: string;
+  chapters?: Array<{ key: string; title: string; content: string }>;
 }

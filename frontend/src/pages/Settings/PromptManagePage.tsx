@@ -54,7 +54,7 @@ export default function PromptManagePage() {
 
   // 客户端按类型筛选
   const prompts = allPrompts.filter((p: PromptTemplate) => {
-    const code = p.templateCode || "";
+    const code = p.template_code || "";
     // 预案类型: emergency_{category}_{planType}_...
     const parts = code.split("_");
     const planTypeInCode = parts.length >= 3 ? parts[2] : "";
@@ -140,7 +140,7 @@ export default function PromptManagePage() {
   };
 
   const columns = [
-    { title: "模板编码", dataIndex: "templateCode", key: "template_code", width: 160 },
+    { title: "模板编码", dataIndex: "template_code", key: "template_code", width: 160 },
     { title: "模板名称", dataIndex: "templateName", key: "template_name", width: 180 },
     {
       title: "分类", dataIndex: "category", key: "category", width: 140,
@@ -151,9 +151,9 @@ export default function PromptManagePage() {
       render: (s: string) => { const enabled = s === "0" || s === "1" || s === "active"; return <Tag color={enabled ? "green" : "default"}>{enabled ? "启用" : "禁用"}</Tag> },
     },
     {
-      title: "适用章节", dataIndex: "templateCode", key: "section", width: 160,
+      title: "适用章节", dataIndex: "template_code", key: "section", width: 160,
       render: (code: string) => {
-        // 从 templateCode 解析 section_key 并映射中文名
+        // 从 template_code 解析 section_key 并映射中文名
         const parts = (code || "").split("_");
         const SK_MAP: Record<string, string> = {
           sec_1: "总则/风险分析/风险提示", sec_1_1: "编制目的/事故类型", sec_1_2: "编制依据/影响范围", sec_1_3: "适用范围", sec_1_4: "预案体系", sec_1_5: "工作原则",
@@ -239,7 +239,7 @@ export default function PromptManagePage() {
         destroyOnClose
       >
         <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: "请输入模板编码" }]}>
+          <Form.Item name="template_code" label="模板编码" rules={[{ required: true, message: "请输入模板编码" }]}>
             <Input disabled={!!editingPrompt} />
           </Form.Item>
           <Form.Item name="templateName" label="模板名称" rules={[{ required: true, message: "请输入模板名称" }]}>

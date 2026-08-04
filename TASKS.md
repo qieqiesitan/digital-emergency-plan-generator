@@ -1,7 +1,13 @@
-
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：修复风险分级管控测试反馈的 4 个问题
-- 已完成：git save/codegraph 可用；npm run build 基线失败，其中包含本批相关错误：RiskHierarchyTree Props 缺 onAction、RiskManagementTab 传 onAction、未使用导入等
-- 下一步：创建保存点，再按 TDD 写失败测试/验证；随后修路由、RiskHierarchyTree 图标和操作栏
-- 关键上下文：前端构建当前有大量既有 TS 错误，不能以全量 build 作为唯一绿灯；修复目标至少要让风险相关 TS 错误消失
-
+- 正在做什么：视觉伴侣原型已推送，等待用户查看并选择绘图形态
+- 刚完成的动作：
+  - 已确认现有实现：risk_zones.floor_plan_polygon 字段、RiskZoneForm 多边形绘制弹窗、FloorPlanPicker、RiskOverviewPage 占位热区
+  - 已确认断点：RiskManagementTab 提交 zone 时未传 floor_plan_polygon；HierarchyZone 响应不含 polygon/坐标；RiskOverviewPage 的 FloorPlanHeatmap 只是卡片占位
+  - 已确认前端已有 leaflet / react-leaflet，后端已有 JSONB polygon 与对象 location_x/y
+  - .gitignore 增加 .superpowers/，用于持久化视觉头脑风暴原型
+  - 视觉伴侣服务器已启动：http://localhost:53823/
+  - 已写入绘图形态选择页：.superpowers/brainstorm/41760-1785836802/content/drawing-options.html
+- 下一步：根据用户对 A/B/C 的选择继续澄清交互边界
+- 关键上下文：
+  - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
+  - 工作区有大量既有改动（非本次任务产生），只修改了 TASKS.md 和 .gitignore

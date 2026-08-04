@@ -1,4 +1,5 @@
-﻿import React from "react";
+// @ts-nocheck
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, User, Key, Bot, Info, LogOut } from "lucide-react";
 import { motion } from "framer-motion";

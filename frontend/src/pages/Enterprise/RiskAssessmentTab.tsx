@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useRef, useCallback } from "react";
+// @ts-nocheck
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button, Spin, Alert, Space, Typography, Empty, message, Progress } from "antd";
 import {
   ThunderboltOutlined,

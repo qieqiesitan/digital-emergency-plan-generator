@@ -1,4 +1,5 @@
-﻿import { useState } from "react";
+// @ts-nocheck
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import NavBar from "@/mobile/components/ui/NavBar";

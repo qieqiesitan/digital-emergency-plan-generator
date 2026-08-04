@@ -1,19 +1,28 @@
-﻿import React from "react";
+import React from "react";
 import { motion } from "framer-motion";
 
 interface SegmentedControlProps {
-  options: Array<{ value: string; label: string }>;
-  value: string;
+  options?: Array<{ value: string; label: string }>;
+  segments?: Array<{ key: string; label: string }>;
+  value?: string;
+  activeKey?: string;
   onChange: (value: string) => void;
   className?: string;
 }
 
 export default function SegmentedControl({
-  options,
-  value,
+  options: optOptions,
+  segments,
+  value: optValue,
+  activeKey,
   onChange,
   className = "",
 }: SegmentedControlProps) {
+  const rawOptions = segments?.map(s => ({ value: s.key, label: s.label })) ?? optOptions ?? [];
+  const rawValue = activeKey ?? optValue ?? "";
+  const options = rawOptions;
+  const value = rawValue;
+
   return (
     <div
       className={`inline-flex bg-neutral-100 rounded-md p-0.5 ${className}`}

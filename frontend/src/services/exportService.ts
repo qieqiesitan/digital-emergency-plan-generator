@@ -9,7 +9,7 @@ export async function getExportPreview(planId: string): Promise<ExportPreview> {
 
 export async function exportDocx(planId: string): Promise<Blob | ExportTask> {
   const res = await api.post(`/plans/${planId}/export/docx`, {}, { responseType: "blob", timeout: 120000 });
-  const ct = res.headers["content-type"] || "";
+  const ct = String(res.headers["content-type"] || "");
   if (ct.includes("application/vnd.openxmlformats") || ct.includes("application/octet-stream")) {
     return res.data as Blob;
   }

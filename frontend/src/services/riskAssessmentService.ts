@@ -1,4 +1,4 @@
-﻿import type { ApiResponse } from '@/types/common';
+import type { ApiResponse } from '@/types/common';
 import type { RiskAssessmentReport, RiskAssessmentPreview, SSEEvent } from "@/types/riskAssessment";
 import api from "./api";
 
@@ -37,10 +37,9 @@ export async function downloadRiskAssessment(enterpriseId: string): Promise<void
 
 export function generateRiskAssessmentStream(
   enterpriseId: string,
-  customInstruction?: string,
   onEvent: (event: SSEEvent) => void,
   onError: (error: string) => void,
-  onComplete: () => void
+  customInstruction: string | undefined, onComplete: () => void
 ): AbortController {
   const controller = new AbortController();
   const token = localStorage.getItem("access_token");

@@ -1,7 +1,5 @@
 import React, { useMemo } from "react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import type { HierarchyZone } from "@/types/riskManagement";
-import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 
 interface Props {
   zones: HierarchyZone[];
@@ -121,6 +119,8 @@ export default function RiskOverviewStats({ zones }: Props) {
     { label: "管控措施", value: stats.totalMeasures },
     { label: "措施落实率", value: `${implementedPercent}%` },
   ];
+  const maxRiskCount = stats.riskDistribution.reduce((max, item) => Math.max(max, item.value), 1);
+  const maxAccidentCount = stats.accidentTypeTop5.reduce((max, item) => Math.max(max, item.count), 1);
 
   if (zones.length === 0) {
     return (
@@ -134,41 +134,53 @@ export default function RiskOverviewStats({ zones }: Props) {
     <div style={CARD_STYLE}>
       {/* Charts row */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, flex: 1, minHeight: 0 }}>
-        {/* Pie chart */}
+        {/* Risk level distribution */}
         <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={HEADING_STYLE}>风险等级分布</div>
-          <ResponsiveContainer width="100%" height="85%">
-            <PieChart>
-              <Pie
-                data={stats.riskDistribution}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius="75%"
-                innerRadius="40%"
-                label={({ name, value }) => `${name} ${value}`}
-                labelLine={false}
-              >
-                {stats.riskDistribution.map((entry, idx) => (
-                  <Cell key={idx} fill={entry.color} />
-                ))}
-              </Pie>
-              <RechartsTooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minHeight: 0, overflow: "auto" }}>
+            {stats.riskDistribution.length > 0 ? stats.riskDistribution.map((item) => (
+              <div key={item.name}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <span>{item.name}</span>
+                  <span>{item.value}</span>
+                </div>
+                <div style={{ height: 12, background: "#f5f5f5", borderRadius: 6, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${(item.value / maxRiskCount) * 100}%`,
+                      height: "100%",
+                      background: item.color,
+                      borderRadius: 6,
+                    }}
+                  />
+                </div>
+              </div>
+            )) : <div style={{ color: "#999", fontSize: 12 }}>暂无风险等级数据</div>}
+          </div>
         </div>
-        {/* Bar chart */}
+        {/* Accident type top 5 */}
         <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={HEADING_STYLE}>事故类型 Top 5</div>
-          <ResponsiveContainer width="100%" height="85%">
-            <BarChart data={stats.accidentTypeTop5} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-              <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 11 }} />
-              <RechartsTooltip />
-              <Bar dataKey="count" fill="#1677ff" radius={[0, 4, 4, 0]} barSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minHeight: 0, overflow: "auto" }}>
+            {stats.accidentTypeTop5.length > 0 ? stats.accidentTypeTop5.map((item) => (
+              <div key={item.name}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4, gap: 8 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}</span>
+                  <span>{item.count}</span>
+                </div>
+                <div style={{ height: 12, background: "#f5f5f5", borderRadius: 6, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${(item.count / maxAccidentCount) * 100}%`,
+                      height: "100%",
+                      background: "#1677ff",
+                      borderRadius: 6,
+                    }}
+                  />
+                </div>
+              </div>
+            )) : <div style={{ color: "#999", fontSize: 12 }}>暂无事故类型数据</div>}
+          </div>
         </div>
       </div>
       {/* Summary row */}

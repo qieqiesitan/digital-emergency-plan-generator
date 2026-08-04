@@ -21,6 +21,7 @@ export interface PlanCreate {
   plan_type: PlanType;
   title: string;
   accident_type?: string | null;
+  style_preference?: Record<string, unknown> | null;
 }
 
 export interface PlanUpdate {
@@ -85,6 +86,7 @@ export interface PlanVersion {
   version_number: number;
   created_by: "auto" | "manual";
   description: string | null;
+  is_current?: boolean;
   created_at: string;
 }
 
@@ -137,7 +139,7 @@ export interface GenerateBatchRequest {
   section_keys?: string[] | null;
 }
 
-export type SSEEventType = "chunk" | "done" | "error" | "progress" | "section_done" | "batch_done";
+export type SSEEventType = "chunk" | "done" | "error" | "progress" | "section_done" | "batch_done" | "token" | "chapter_start" | "chapter_end" | "complete";
 
 export interface SSEEvent {
   type: SSEEventType;
@@ -148,4 +150,8 @@ export interface SSEEvent {
   total?: number;
   completed?: number;
   failed?: number;
+  chapter?: string;
+  token?: string;
+  chunk?: string;
+  chapters?: Array<{ key: string; title: string; content: string }>;
 }

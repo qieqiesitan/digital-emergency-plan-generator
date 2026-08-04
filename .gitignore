@@ -29,6 +29,9 @@ build/
 .codegraph/
 graphify-out/
 
+# 视觉头脑风暴伴侣
+.superpowers/
+
 # 测试产物
 screenshots/
 test-results/

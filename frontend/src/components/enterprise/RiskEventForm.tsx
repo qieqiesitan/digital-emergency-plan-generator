@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   Drawer, Form, Input, Select, Button, Segmented, Radio,
-  Space, Tag, message, Divider,
+  Space, Tag, message, Divider, Modal, List, Alert,
 } from "antd";
 import { RobotOutlined } from "@ant-design/icons";
 import { computeRiskLS, computeRiskLEC, getCellClass, ACCIDENT_TYPES, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
@@ -81,10 +81,24 @@ interface Props {
   initialValues?: RiskEventFormValues;
   enterpriseId: string;
   defaultMethodType?: MethodType;
+  zoneName?: string;
+  objectName?: string;
+  unitName?: string;
+}
+
+interface AISuggestItem {
+  accident_type: string;
+  description?: string;
+  trigger_conditions?: string;
+  consequences?: string;
+  method_type?: string;
+  suggested_params?: Record<string, number>;
+  reasoning?: string;
 }
 
 export default function RiskEventForm({
   open, onClose, onSubmit, initialValues, enterpriseId, defaultMethodType,
+  zoneName, objectName, unitName,
 }: Props) {
   const [form] = Form.useForm<RiskEventFormValues>();
   const [methodType, setMethodType] = useState<MethodTypeKey>(
@@ -96,6 +110,8 @@ export default function RiskEventForm({
   const [lecE, setLecE] = useState<number>(3);
   const [lecC, setLecC] = useState<number>(7);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiResults, setAiResults] = useState<AISuggestItem[]>([]);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
 
   const riskResult = useMemo(() => {
     if (methodType === "LS" || methodType === "COAL_LS") {
@@ -135,32 +151,18 @@ export default function RiskEventForm({
   const handleAISuggest = async () => {
     const base = form.getFieldsValue();
     setAiLoading(true);
+    setAiResults([]);
     try {
       const results = await aiSuggestEvents(enterpriseId, {
-        context: {
-          accident_type: base.accident_type,
-          description: base.description,
-          trigger_conditions: base.trigger_conditions,
-          consequences: base.consequences,
-          method_type: methodType,
-        },
+        unit_name: unitName || "",
+        unit_type: "",
+        object_name: objectName || "",
+        zone_name: zoneName || "",
+        enterprise_info: { accident_type: base.accident_type },
       });
       if (results && results.length > 0) {
-        const first = results[0] as Record<string, unknown>;
-        form.setFieldsValue({
-          accident_type: (first.accident_type as string) ?? base.accident_type,
-          description: (first.description as string) ?? base.description,
-          trigger_conditions: (first.trigger_conditions as string) ?? base.trigger_conditions,
-          consequences: (first.consequences as string) ?? base.consequences,
-          method_type: (first.method_type as string) ?? methodType,
-        });
-        if (first.method_params) {
-          const mp = first.method_params as Record<string, number>;
-          if (mp.L !== undefined) { setLValue(mp.L); setSValue(mp.S ?? 1); }
-          if (mp.E !== undefined) { setLecL(mp.L ?? 1); setLecE(mp.E ?? 3); setLecC(mp.C ?? 7); }
-          form.setFieldsValue({ method_params: mp });
-        }
-        message.success("AI 分析完成，已自动填入");
+        setAiResults(results as unknown as AISuggestItem[]);
+        setAiModalOpen(true);
       } else {
         message.info("AI 未返回建议");
       }
@@ -169,6 +171,24 @@ export default function RiskEventForm({
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const handleAcceptAI = (item: AISuggestItem) => {
+    form.setFieldsValue({
+      accident_type: item.accident_type,
+      description: item.description || "",
+      trigger_conditions: item.trigger_conditions || "",
+      consequences: item.consequences || "",
+      method_type: item.method_type || methodType,
+    });
+    if (item.suggested_params) {
+      const mp = item.suggested_params;
+      if (mp.L !== undefined) { setLValue(mp.L); setSValue(mp.S ?? 1); }
+      if (mp.E !== undefined) { setLecL(mp.L ?? 1); setLecE(mp.E ?? 3); setLecC(mp.C ?? 7); }
+      form.setFieldsValue({ method_params: mp });
+    }
+    setAiModalOpen(false);
+    message.success("已填入所选建议");
   };
 
   const handleFinish = (values: RiskEventFormValues) => {
@@ -188,7 +208,7 @@ export default function RiskEventForm({
     });
   };
 
-  return (
+  return (<>
     <Drawer
       title={initialValues ? "编辑风险事件" : "新增风险事件"}
       open={open}
@@ -496,6 +516,19 @@ export default function RiskEventForm({
           </>
         )}
 
+        {methodType === "LEC" && riskResult && (
+          <div>
+            <Divider plain style={{ fontSize: 13 }}>LEC 风险区间</Divider>
+            <div style={{ marginBottom: 8, fontSize: 12, color: "#666" }}>你的风险值 D 所在位置：</div>
+            <div style={{ position: "relative", height: 32, background: "linear-gradient(to right, #52c41a, #fadb14, #fa8c16, #ff4d4f)", borderRadius: 6, overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, width: 0, height: 0, borderLeft: "8px solid transparent", borderRight: "8px solid transparent", borderTop: "8px solid #000", left: `${Math.min(100, (Math.round(lecL * lecE * lecC) / 500) * 100)}%`, transform: "translateX(-50%)", zIndex: 2 }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#999", marginTop: 4 }}>
+              <span>0 (低)</span><span>70 (一般)</span><span>160 (较大)</span><span>320 (重大)</span>
+            </div>
+          </div>
+        )}
+
         {methodType === "DIRECT" && directLevel?.level && (
           <>
             <Divider  plain style={{ fontSize: 13 }}>判定结果</Divider>
@@ -510,5 +543,37 @@ export default function RiskEventForm({
         </Form.Item>
       </Form>
     </Drawer>
-  );
+
+    <Modal
+      title="AI 风险事件建议"
+      open={aiModalOpen}
+      onCancel={() => setAiModalOpen(false)}
+      footer={<Button onClick={() => setAiModalOpen(false)}>关闭</Button>}
+      width={640}
+    >
+      <Alert type="info" showIcon message="以下为 AI 分析建议，请逐一审查后采纳，不会自动覆盖已填写内容" style={{ marginBottom: 16 }} />
+      <List
+        dataSource={aiResults}
+        renderItem={(item, idx) => (
+          <List.Item
+            key={idx}
+            actions={[<Button key="accept" type="primary" size="small" onClick={() => handleAcceptAI(item)}>采纳</Button>]}
+          >
+            <List.Item.Meta
+              title={<Space>{item.accident_type}{item.method_type && <Tag>{item.method_type}</Tag>}</Space>}
+              description={
+                <div>
+                  {item.description && <p style={{ margin: "4px 0" }}>描述：{item.description}</p>}
+                  {item.trigger_conditions && <p style={{ margin: "4px 0" }}>触发条件：{item.trigger_conditions}</p>}
+                  {item.consequences && <p style={{ margin: "4px 0" }}>后果：{item.consequences}</p>}
+                  {item.reasoning && <p style={{ margin: "4px 0", color: "#1677ff" }}>理由：{item.reasoning}</p>}
+                </div>
+              }
+            />
+          </List.Item>
+        )}
+        locale={{ emptyText: "暂无建议" }}
+      />
+    </Modal>
+  </>);
 }

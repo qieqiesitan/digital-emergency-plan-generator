@@ -1,27 +1,28 @@
- import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
  import { useNavigate } from "react-router-dom";
- import { Button, Spin, Empty, Space, Drawer, message, Modal } from "antd";
- import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined } from "@ant-design/icons";
- import { useQuery, useQueryClient } from "@tanstack/react-query";
- import { getFullHierarchy, createZone, createObject, createUnit, createEvent, createMeasure } from "@/services/riskManagementService";
- import RiskHierarchyTree from "@/components/enterprise/RiskHierarchyTree";
+import { App as AntApp, Button, Spin, Empty, Space, Tag } from "antd";
+import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined } from "@ant-design/icons";
+import { useQuery } from "@tanstack/react-query";
+import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure } from "@/services/riskManagementService";
+import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
+import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent, HierarchyMeasure } from "@/types/riskManagement";
  import RiskZoneForm from "@/components/enterprise/RiskZoneForm";
  import RiskObjectForm from "@/components/enterprise/RiskObjectForm";
  import RiskUnitForm from "@/components/enterprise/RiskUnitForm";
- import RiskEventForm from "@/components/enterprise/RiskEventForm";
- import RiskMeasureForm from "@/components/enterprise/RiskMeasureForm";
- import RiskSmartGuideModal from "@/components/enterprise/RiskSmartGuideModal";
- import type { HierarchyZone, RiskZoneCreate, RiskObjectCreate, RiskUnitCreate, RiskEventCreate, RiskMeasureCreate } from "@/types/riskManagement";
- 
- interface Props { enterpriseId: string; floorPlanUrl?: string | null; }
+import RiskEventForm from "@/components/enterprise/RiskEventForm";
+import RiskMeasureForm from "@/components/enterprise/RiskMeasureForm";
+import RiskSmartGuideModal from "@/components/enterprise/RiskSmartGuideModal";
+import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+
+interface Props { enterpriseId: string; floorPlanUrl?: string | null; }
  
  type FormType = "zone" | "object" | "unit" | "event" | "measure" | null;
  
- interface FormState { type: FormType; open: boolean; parentId?: string; parentType?: string; initialValues?: any; }
+interface FormState { type: FormType; open: boolean; id?: string; parentId?: string; parentType?: string; initialValues?: any; }
  
- export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props) {
-   const navigate = useNavigate();
-   const queryClient = useQueryClient();
+export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props) {
+  const navigate = useNavigate();
+  const { modal, message: antMessage } = AntApp.useApp();
  
    const { data: hierarchy = [], isLoading, refetch } = useQuery({ queryKey: ["risk-hierarchy", enterpriseId], queryFn: () => getFullHierarchy(enterpriseId) });
  
@@ -30,82 +31,188 @@
    const [smartGuideOpen, setSmartGuideOpen] = useState(false);
    const [zones, setZones] = useState<{ id: string; name: string }[]>([]);
  
-   // Refresh zone list for object form dropdown
-   const refreshZones = useCallback(() => {
-     if (hierarchy) setZones(hierarchy.map(z => ({ id: z.id, name: z.name })));
-   }, [hierarchy]);
- 
-   // Handle tree node action (add/edit/delete from RiskHierarchyTree)
-   const handleTreeAction = useCallback((action: string, meta: { id: string; type: string; name: string }) => {
-     switch (action) {
-       case "add-zone":
-         setForm({ type: "zone", open: true });
-         break;
-       case "add-object":
-         setForm({ type: "object", open: true, parentId: meta.id, parentType: "zone" });
-         break;
-       case "add-unit":
-         setForm({ type: "unit", open: true, parentId: meta.id, parentType: "object" });
-         break;
-       case "add-event":
-         setForm({ type: "event", open: true, parentId: meta.id, parentType: meta.type === "unit" ? "unit" : "object" });
-         break;
-       case "add-measure":
-         setForm({ type: "measure", open: true, parentId: meta.id, parentType: "event" });
-         break;
-       case "edit-zone":
-       case "edit-object":
-       case "edit-unit":
-       case "edit-event":
-       case "edit-measure":
-         message.info(`编辑功能开发中: ${meta.name}`);
-         break;
-       case "delete-zone":
-         Modal.confirm({ title: `确认删除分区「${meta.name}」？`, content: "将级联删除该分区下所有对象、单元、事件和措施", onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/zones/${meta.id}`, { method: "DELETE" }); refetch(); } });
-         break;
-       case "delete-object":
-         Modal.confirm({ title: `确认删除对象「${meta.name}」？`, content: "将级联删除该对象下所有单元、事件和措施", onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/objects/${meta.id}`, { method: "DELETE" }); refetch(); } });
-         break;
-       case "delete-unit":
-         Modal.confirm({ title: `确认删除单元「${meta.name}」？`, content: "将级联删除该单元下所有事件和措施", onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/objects/placeholder/units/${meta.id}`, { method: "DELETE" }); refetch(); } });
-         break;
-       case "delete-event":
-         Modal.confirm({ title: `确认删除事件「${meta.name}」？`, onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/events/${meta.id}`, { method: "DELETE" }); refetch(); } });
-         break;
-       case "delete-measure":
-         Modal.confirm({ title: `确认删除措施「${meta.name}」？`, onOk: async () => { await fetch(`/api/v1/enterprises/${enterpriseId}/risk-management/events/${meta.id}/measures`, { method: "DELETE" }); refetch(); } });
-         break;
-       default:
-         message.info(`${action}: ${meta.name}`);
-     }
-   }, [enterpriseId, refetch]);
+  // Refresh zone list for object form dropdown
+  useEffect(() => {
+    setZones(hierarchy.map(z => ({ id: z.id, name: z.name })));
+  }, [hierarchy]);
+
+  const hierarchyMap = useMemo(() => {
+    const map: Record<string, {
+      zone: HierarchyZone | null;
+      object: HierarchyObject | null;
+      unit: HierarchyUnit | null;
+      event: HierarchyEvent | null;
+      measure: HierarchyMeasure | null;
+    }> = {};
+    for (const z of hierarchy) {
+      map[z.id] = { zone: z, object: null, unit: null, event: null, measure: null };
+      for (const o of z.objects || []) {
+        map[o.id] = { zone: z, object: o, unit: null, event: null, measure: null };
+        for (const u of o.units || []) {
+          map[u.id] = { zone: z, object: o, unit: u, event: null, measure: null };
+          for (const ev of u.events || []) {
+            map[ev.id] = { zone: z, object: o, unit: u, event: ev, measure: null };
+            for (const m of ev.measures || []) {
+              map[m.id] = { zone: z, object: o, unit: u, event: ev, measure: m };
+            }
+          }
+        }
+        for (const ev of o.events || []) {
+          if (!map[ev.id]) map[ev.id] = { zone: z, object: o, unit: null, event: ev, measure: null };
+          for (const m of ev.measures || []) {
+            map[m.id] = { zone: z, object: o, unit: null, event: ev, measure: m };
+          }
+        }
+      }
+    }
+    return map;
+  }, [hierarchy]);
+
+  const confirmDelete = useCallback((meta: TreeNodeMeta) => {
+    const typeLabels: Record<TreeNodeMeta["type"], string> = {
+      zone: "分区",
+      object: "对象",
+      unit: "单元",
+      event: "事件",
+      measure: "措施",
+    };
+    const contents: Record<TreeNodeMeta["type"], string> = {
+      zone: "将级联删除该分区下所有对象、单元、事件和措施",
+      object: "将级联删除该对象下所有单元、事件和措施",
+      unit: "将级联删除该单元下所有事件和措施",
+      event: "将级联删除该事件下所有措施",
+      measure: "仅删除该措施",
+    };
+    modal.confirm({
+      title: `确认删除${typeLabels[meta.type]}「${meta.name}」？`,
+      content: contents[meta.type],
+      onOk: async () => {
+        switch (meta.type) {
+          case "zone": await deleteZone(enterpriseId, meta.id); break;
+          case "object": await deleteObject(enterpriseId, meta.id); break;
+          case "unit": await deleteUnit(enterpriseId, meta.parentId || "", meta.id); break;
+          case "event": await deleteEvent(enterpriseId, meta.id); break;
+          case "measure": await deleteMeasure(enterpriseId, meta.parentId || "", meta.id); break;
+        }
+        refetch();
+      },
+    });
+  }, [enterpriseId, refetch]);
+
+  // Handle tree node action (add/edit/delete from RiskHierarchyTree)
+  const handleTreeAction = useCallback((action: string, meta: TreeNodeMeta) => {
+    switch (action) {
+      case "add-zone":
+        setForm({ type: "zone", open: true });
+        break;
+      case "add-object":
+        setForm({ type: "object", open: true, parentId: meta.id, parentType: "zone", initialValues: { zone_id: meta.id } });
+        break;
+      case "add-unit":
+        setForm({ type: "unit", open: true, parentId: meta.id, parentType: "object" });
+        break;
+      case "add-event":
+        setForm({ type: "event", open: true, parentId: meta.id, parentType: meta.type === "unit" ? "unit" : "object" });
+        break;
+      case "add-measure":
+        setForm({ type: "measure", open: true, parentId: meta.id, parentType: "event" });
+        break;
+      case "edit":
+        setForm({
+          type: meta.type as FormType,
+          open: true,
+          id: meta.id,
+          parentId: meta.parentId,
+          parentType: meta.parentType,
+          initialValues:
+            meta.type === "zone" ? { name: meta.name }
+            : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
+            : meta.type === "unit" ? { name: meta.name }
+            : meta.type === "event" ? { accident_type: meta.name }
+            : { description: meta.name },
+        });
+        break;
+      case "delete":
+        confirmDelete(meta);
+        break;
+      case "edit-zone":
+      case "edit-object":
+      case "edit-unit":
+      case "edit-event":
+      case "edit-measure":
+        setForm({
+          type: meta.type as FormType,
+          open: true,
+          id: meta.id,
+          parentId: meta.parentId,
+          parentType: meta.parentType,
+          initialValues:
+            meta.type === "zone" ? { name: meta.name }
+            : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
+            : meta.type === "unit" ? { name: meta.name }
+            : meta.type === "event" ? { accident_type: meta.name }
+            : { description: meta.name },
+        });
+        break;
+      case "delete-zone":
+      case "delete-object":
+      case "delete-unit":
+      case "delete-event":
+      case "delete-measure":
+        confirmDelete(meta);
+        break;
+      default:
+        antMessage.info(`${action}: ${meta.name}`);
+    }
+  }, [confirmDelete]);
  
    // Handle form submit
    const handleFormSubmit = useCallback(async (values: any) => {
      try {
-       switch (form.type) {
-         case "zone":
-           await createZone(enterpriseId, { name: values.name, description: values.description || "" });
-           break;
-         case "object":
-           await createObject(enterpriseId, { zone_id: form.parentId, name: values.name, category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
-           break;
-         case "unit":
-           await createUnit(enterpriseId, form.parentId || "", { object_id: form.parentId || "", name: values.name, unit_type: values.unit_type || "", description: values.description || "" });
-           break;
-         case "event":
-           await createEvent(enterpriseId, form.parentId || "", { accident_type: values.accident_type, description: values.description || "", method_type: values.method_type || "LS", method_params: values.method_params || {} });
-           break;
-         case "measure":
-           await createMeasure(enterpriseId, form.parentId || "", { event_id: form.parentId || "", measure_category: values.measure_category, description: values.description || "", check_items: values.check_items || [] });
-           break;
-       }
-       message.success("创建成功");
-       setForm({ type: null, open: false });
-       refetch();
-       refreshZones();
-     } catch (e: any) { message.error("创建失败: " + (e?.message || "未知错误")); }
-   }, [enterpriseId, form, refetch, refreshZones]);
+      switch (form.type) {
+        case "zone":
+          if (form.id) {
+            await updateZone(enterpriseId, form.id, { name: values.name, description: values.description || "" });
+          } else {
+            await createZone(enterpriseId, { name: values.name, description: values.description || "" });
+          }
+          break;
+        case "object":
+          if (form.id) {
+            await updateObject(enterpriseId, form.id, { name: values.name, category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
+          } else {
+            await createObject(enterpriseId, { zone_id: form.parentId, name: values.name, category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
+          }
+          break;
+        case "unit":
+          if (form.id) {
+            await updateUnit(enterpriseId, form.parentId || "", form.id, { name: values.name, unit_type: values.unit_type || "", description: values.description || "" });
+          } else {
+          await createUnit(enterpriseId, form.parentId || "", { name: values.name, unit_type: values.unit_type || "", description: values.description || "" });
+          }
+          break;
+        case "event": {
+          const eventPayload = { accident_type: values.accident_type, description: values.description || "", method_type: values.method_type || "LS", method_params: values.method_params || {} };
+          if (form.id) {
+            await updateEvent(enterpriseId, form.id, eventPayload);
+          } else {
+            await createEvent(enterpriseId, form.parentId || "", { ...eventPayload, ...(form.parentType === "object" ? { object_id: form.parentId } : { unit_id: form.parentId }) });
+          }
+          break;
+        }
+        case "measure":
+          if (form.id) {
+            await updateMeasure(enterpriseId, form.parentId || "", form.id, { measure_category: values.measure_category, description: values.description || "", check_items: values.check_items || [] });
+          } else {
+          await createMeasure(enterpriseId, form.parentId || "", { measure_category: values.measure_category, description: values.description || "", check_items: values.check_items || [] });
+          }
+          break;
+      }
+      antMessage.success(form.id ? "保存成功" : "创建成功");
+      setForm({ type: null, open: false });
+      refetch();
+    } catch (e: any) { antMessage.error("创建失败: " + (e?.message || "未知错误")); }
+   }, [enterpriseId, form, refetch]);
  
    if (isLoading) return <Spin size="large" />;
  
@@ -124,16 +231,37 @@
  
        {/* RIGHT: Detail Panel */}
        <div style={{ width: 300, background: "#fff", borderRadius: 8, padding: 16, boxShadow: "0 2px 8px rgba(0,0,0,.08)", overflow: "auto" }}>
-         <h4 style={{ fontSize: 14, marginBottom: 12 }}>📌 节点详情</h4>
-         {selectedNode ? <div><p>名称: {selectedNode.name}</p><p>类型: {selectedNode.type}</p><p>ID: {selectedNode.id?.slice(0, 8)}...</p></div> : <p style={{ color: "#8c8c8c", fontSize: 13 }}>点击层级树中的节点查看详情</p>}
+        <h4 style={{ fontSize: 14, marginBottom: 12 }}>📌 节点详情</h4>
+        {selectedNode ? (() => {
+          const info = hierarchyMap[selectedNode.id] || {};
+          return (
+            <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+              <p><strong>{selectedNode.name}</strong></p>
+              {info.zone && info.zone.id !== selectedNode.id && <p>分区：{info.zone.name}</p>}
+              {info.object && info.object.id !== selectedNode.id && <p>对象：{info.object.name}</p>}
+              {info.unit && info.unit.id !== selectedNode.id && <p>单元：{info.unit.name}</p>}
+              {info.event && info.event.id !== selectedNode.id && <p>事故类型：{info.event.accident_type}</p>}
+              {info.event?.risk_level && <p>风险等级：<Tag color={RISK_LEVEL_COLORS[info.event.risk_level]}>{info.event.risk_level}</Tag></p>}
+              {info.event?.risk_score && <p>风险分值：{info.event.risk_score}</p>}
+              {info.event?.description && <p style={{ color: "#666" }}>{info.event.description}</p>}
+              {info.measure && <p>措施类别：{info.measure.measure_category}</p>}
+              {info.measure?.status && <p>状态：{info.measure.status}</p>}
+              {info.object?.category && <p>类别：{info.object.category}</p>}
+              {info.unit?.unit_type && <p>类型：{info.unit.unit_type}</p>}
+            </div>
+          );
+        })() : <p style={{ color: "#8c8c8c", fontSize: 13 }}>点击层级树中的节点查看详情</p>}
        </div>
  
        {/* FORMS */}
-       {form.type === "zone" && <RiskZoneForm open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} floorPlanUrl={floorPlanUrl || undefined} />}
-       {form.type === "object" && <RiskObjectForm open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} zones={zones} />}
-       {form.type === "unit" && <RiskUnitForm open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} />}
-       {form.type === "event" && <RiskEventForm open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} enterpriseId={enterpriseId} />}
-       {form.type === "measure" && <RiskMeasureForm open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} enterpriseId={enterpriseId} />}
+       {form.type === "zone" && <RiskZoneForm key={`zone-${form.id || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} floorPlanUrl={floorPlanUrl || undefined} />}
+       {form.type === "object" && <RiskObjectForm key={`object-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} isEdit={!!form.id} zones={zones} />}
+       {form.type === "unit" && <RiskUnitForm key={`unit-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} />}
+       {form.type === "event" && (() => {
+         const pInfo = hierarchyMap[form.parentId || ""] || {};
+         return <RiskEventForm key={`event-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} zoneName={pInfo.zone?.name} objectName={pInfo.object?.name} unitName={pInfo.unit?.name} />;
+       })()}
+       {form.type === "measure" && <RiskMeasureForm key={`measure-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} />}
  
        {/* SMART GUIDE MODAL */}
        <RiskSmartGuideModal open={smartGuideOpen} onClose={() => setSmartGuideOpen(false)} onRefresh={refetch} enterpriseId={enterpriseId} />
