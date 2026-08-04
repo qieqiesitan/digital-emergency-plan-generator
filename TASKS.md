@@ -1,13 +1,14 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：视觉伴侣原型已推送，等待用户查看并选择绘图形态
+- 正在做什么：回答“风险源”与“风险分级管控”在系统企业信息中的关系及替代性
 - 刚完成的动作：
-  - 已确认现有实现：risk_zones.floor_plan_polygon 字段、RiskZoneForm 多边形绘制弹窗、FloorPlanPicker、RiskOverviewPage 占位热区
-  - 已确认断点：RiskManagementTab 提交 zone 时未传 floor_plan_polygon；HierarchyZone 响应不含 polygon/坐标；RiskOverviewPage 的 FloorPlanHeatmap 只是卡片占位
-  - 已确认前端已有 leaflet / react-leaflet，后端已有 JSONB polygon 与对象 location_x/y
-  - .gitignore 增加 .superpowers/，用于持久化视觉头脑风暴原型
-  - 视觉伴侣服务器已启动：http://localhost:53823/
-  - 已写入绘图形态选择页：.superpowers/brainstorm/41760-1785836802/content/drawing-options.html
-- 下一步：根据用户对 A/B/C 的选择继续澄清交互边界
+  - 已读取 TASKS.md 与 AGENTS.md
+  - 已运行 git save，保存点 e9a34d1
+  - 已用 graphify query 查询，并读取新五层模型、上下文构建器、前端标签页和迁移端点
+  - 已确认 Web 企业详情页同时存在“风险源”Tab 与“风险分级管控”Tab
+  - 已确认旧 risk_sources CRUD 仍可用，移动端/仪表盘/chat 仍读旧表；风险评估主流程已改为 build_risk_management_context，但前置检查仍查旧表
+- 下一步：已无未完成分析步骤，准备输出结论并做最终快照
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
-  - 工作区有大量既有改动（非本次任务产生），只修改了 TASKS.md 和 .gitignore
+  - 本任务为只读分析，不修改业务代码
+  - 结论要点：概念上不可替代；设计上旧 risk_sources 被新五层模型替代；当前代码/UI 仍是新旧并存，需迁移后旧数据才进入新体系
+  - 相关文件：backend/app/models/enterprise.py、backend/app/models/risk_management.py、backend/app/services/risk_context_builder.py、backend/app/routers/risk_management.py、frontend/src/pages/Enterprise/EnterpriseDetailPage.tsx
