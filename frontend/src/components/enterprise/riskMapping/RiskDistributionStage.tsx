@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Stage, Layer, Line, Circle, Text as KonvaText, Image as KonvaImage } from "react-konva";
 import { Spin } from "antd";
@@ -30,6 +30,9 @@ export default function RiskDistributionStage({
     enabled: !!enterpriseId,
   });
   const [loadedImage, setLoadedImage] = useState<LoadedImage | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [contentBounds, setContentBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const floor = data?.floors[0];
   const floorPlanUrl = floor?.floor_plan_url ?? null;
 
@@ -43,16 +46,88 @@ export default function RiskDistributionStage({
     };
   }, [floorPlanUrl]);
 
-  if (isLoading) return <Spin style={{ display: "block", margin: "60px auto" }} />;
-  if (!data) return null;
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const updateSize = () => {
+      setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const image = loadedImage && loadedImage.url === floorPlanUrl ? loadedImage.image : null;
   const width = floor?.canvas_width || (image ? image.naturalWidth : DEFAULT_WIDTH);
   const height = floor?.canvas_height || (image ? image.naturalHeight : DEFAULT_HEIGHT);
 
+  useEffect(() => {
+    if (!data) return;
+    if (image) {
+      setContentBounds({ x: 0, y: 0, width, height });
+      return;
+    }
+    const rawPoints: Array<[number, number]> = [];
+    for (const zone of data.zones) {
+      for (const polygon of zone.floor_plan_polygon?.polygons || []) {
+        for (const p of polygon.points) rawPoints.push([p.x, p.y]);
+      }
+    }
+    for (const p of data.riskPoints) {
+      if (p.location_x != null && p.location_y != null) rawPoints.push([p.location_x, p.location_y]);
+    }
+    for (const t of data.texts) rawPoints.push([t.x, t.y]);
+    if (!rawPoints.length) {
+      setContentBounds({ x: 0, y: 0, width, height });
+      return;
+    }
+    const xs = rawPoints.map(p => p[0]);
+    const ys = rawPoints.map(p => p[1]);
+    const minX = Math.max(0, Math.min(...xs));
+    const minY = Math.max(0, Math.min(...ys));
+    const maxX = Math.min(100, Math.max(...xs));
+    const maxY = Math.min(100, Math.max(...ys));
+    setContentBounds({
+      x: toCanvasX(minX, width),
+      y: toCanvasY(minY, height),
+      width: Math.max(toCanvasX(maxX, width) - toCanvasX(minX, width), 1),
+      height: Math.max(toCanvasY(maxY, height) - toCanvasY(minY, height), 1),
+    });
+  }, [data, image, width, height]);
+
+  const viewTransform = useMemo(() => {
+    if (!containerSize.width || !containerSize.height || !contentBounds) {
+      return { scale: 1, x: 0, y: 0 };
+    }
+    const scale = Math.min(
+      containerSize.width / contentBounds.width,
+      containerSize.height / contentBounds.height,
+      2,
+    );
+    const x = (containerSize.width - contentBounds.width * scale) / 2 - contentBounds.x * scale;
+    const y = (containerSize.height - contentBounds.height * scale) / 2 - contentBounds.y * scale;
+    return { scale, x, y };
+  }, [containerSize, contentBounds]);
+
+  if (isLoading) return <Spin style={{ display: "block", margin: "60px auto" }} />;
+  if (!data) return null;
+
   return (
-    <div style={{ width: "100%", height: "100%", overflow: "hidden", background: "#fafafa" }}>
-      <Stage width={width} height={height} style={{ maxWidth: "100%", maxHeight: "100%" }}>
+    <div
+      ref={containerRef}
+      data-testid="risk-distribution-stage"
+      data-fit-scale={viewTransform.scale}
+      style={{ width: "100%", height: "100%", overflow: "hidden", background: "#fafafa", position: "relative" }}
+    >
+      <Stage
+        width={containerSize.width || width}
+        height={containerSize.height || height}
+        scaleX={viewTransform.scale}
+        scaleY={viewTransform.scale}
+        x={viewTransform.x}
+        y={viewTransform.y}
+      >
         <Layer>
           {image && <KonvaImage image={image} x={0} y={0} width={width} height={height} />}
           {data.zones.map(z =>

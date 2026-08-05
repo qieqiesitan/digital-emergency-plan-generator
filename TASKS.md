@@ -1,4 +1,27 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-05）：可视化总览总平图自动适配完成，并已同步本地 Docker
+- 刚完成的动作：
+  - `RiskDistributionStage` 不再固定使用 1200x900 Stage，改为跟随容器尺寸并使用 `ResizeObserver` 自动重算
+  - 根据底图或分区/风险点/文字内容计算画布内容边界，自动缩放并居中，保证有内容的部分完整显示
+  - 新增总览 E2E：用 mock 楼层/分区/总览数据验证总平图容器渲染与适配比例
+  - Docker：重建 frontend/shuzihuayuan，移动端镜像包含最新 dist；生产构建使用 Node 22
+- 验证结果：
+  - 前端 tsc 通过；vitest 34 passed
+  - 本地 Playwright 9 passed；Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright 9 passed
+  - Node 22 生产构建通过（PWA 正常生成）
+- 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-05）：系统性代码质量审查（冗余代码 + 过度设计），只审不改
+- 刚完成的动作：
+  - 全仓扫描 backend（142 py）+ frontend（212 ts/tsx）：AST 未使用导入 0；eslint src 307 errors（103 unused-vars、60 any、30 ts-nocheck/ts-ignore、24 set-state-in-effect、28 react-refresh 等）
+  - 确认 generation.py L1115-1595 四组路由（generate_batch/stop/batch_background/section）为第二份逐行相同副本 ≈470 行死代码（Starlette 先注册先匹配，底部副本永不生效）
+  - 确认跨文件重复：`_decrypt_api_key` 6 处（generation 已委托 llm_client，其余 5 处重实现 AES）、`_call_llm(_nonstream)` 5 处共约 260 行（llm_client.llm_chat_completion 已具备）、`_md_to_html` 3-4 处、`_get_ai_config` 3 处
+  - 确认死代码：useAutoSave/useDebounce/LoadingSpinner/useConfirmDelete（0 引用）、web_search.py（仅测试引用）、report_utils.py（0 引用）、regulations/cross_ref.py（0 引用）、seed_prompts.py（8 个 code 全部与 seed_prompts_full.py 重叠）、scripts/_dispatch_orig.py（与 chat_dispatch.py 872/876 行相同）
+  - 依赖：idb-keyval 0 引用可删；qiankun/vite-plugin-qiankun 仅 vite.config 出现、main.tsx 无生命周期导出（推测性）；framer-motion 放 devDependencies 但被 mobile 生产代码引用
+  - 前端风险矩阵重复：riskMatrix.ts（低=#1890ff）vs riskMethodEngine.ts（低=#52c41a）颜色不一致；色板全仓 6+ 处定义
+  - 仓库卫生：git 跟踪 43MB chroma sqlite3 + 20 个 backend scripts/archive/_*.py（1257 行）+ 根目录 _*.py（712 行）+ 多份 task*/code-review*.txt 与 frontend 日志/测试脚本
+- 下一步：输出审查报告；修复优先级见报告（建议先删 generation.py 重复块 + 合并 LLM 调用 + 启用 noUnusedLocals/eslint 门禁）
+- 关键上下文：未修改任何代码；工作区另有用户未提交改动（RiskDistributionStage.tsx、chroma.sqlite3）
 - 正在做什么（2026-08-05）：四色分布图工作台绘图交互修复完成，并已同步本地 Docker
 - 刚完成的动作：
   - 钢笔重做为 PS/即时设计式贝塞尔路径：单击创建锚点，按住左键拖出控制手柄，平滑曲线实时预览

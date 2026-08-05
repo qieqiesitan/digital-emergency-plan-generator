@@ -14,6 +14,8 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 
 const ENTERPRISE_ID = "e2e-risk-mapping-enterprise";
 const FLOOR_ID = "floor-1";
+const OVERVIEW_ENTERPRISE_ID = "e2e-risk-overview-enterprise";
+const OVERVIEW_FLOOR_ID = "overview-floor-1";
 
 // mock 数据结构与后端 schema 对齐（backend/app/schemas/risk_management.py）：
 // FloorResponse 含 created_at；WorkbenchResponse 无 pending_regions。
@@ -44,6 +46,56 @@ const WORKBENCH_SNAPSHOT = {
     risk_points: [],
     texts: [],
   },
+};
+
+const OVERVIEW_FLOOR = {
+  id: OVERVIEW_FLOOR_ID,
+  enterprise_id: OVERVIEW_ENTERPRISE_ID,
+  name: "一层",
+  sort_order: 0,
+  floor_plan_url: null,
+  description: null,
+  canvas_width: 1200,
+  canvas_height: 900,
+  canvas_texts: [],
+  is_default: true,
+  zone_count: 1,
+  risk_point_count: 0,
+  created_at: "2026-08-05T00:00:00+08:00",
+  updated_at: "2026-08-05T00:00:00+08:00",
+};
+
+const OVERVIEW_ZONE = {
+  id: "overview-zone-1",
+  enterprise_id: OVERVIEW_ENTERPRISE_ID,
+  floor_id: OVERVIEW_FLOOR_ID,
+  floor_name: "一层",
+  name: "生产车间",
+  description: null,
+  sort_order: 0,
+  floor_plan_polygon: {
+    version: 2,
+    color_source: "auto",
+    color: null,
+    polygons: [
+      {
+        id: "overview-polygon-1",
+        label: "生产车间",
+        points: [
+          { x: 10, y: 20 },
+          { x: 40, y: 20 },
+          { x: 40, y: 50 },
+          { x: 10, y: 50 },
+        ],
+      },
+    ],
+  },
+  max_risk_level: "较大",
+  effective_color: "#fa8c16",
+  object_count: 0,
+  created_at: "2026-08-05T00:00:00+08:00",
+  updated_at: "2026-08-05T00:00:00+08:00",
+  objects: [],
 };
 
 const BATCH_SAVE_RESPONSE = {
@@ -154,6 +206,71 @@ async function mockWorkbenchApis(page: Page, options: MockOptions = {}) {
     await route.fulfill(
       json(404, { code: 404, message: "not found", detail: "e2e mock: unmatched /api/* request" }),
     );
+  });
+}
+
+async function mockOverviewApis(page: Page) {
+  const json = (status: number, body: unknown) => ({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(body),
+  });
+  await page.route("**/api/**", async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    const method = request.method();
+    if (path === "/api/v1/auth/login" && method === "POST") {
+      await route.fulfill(json(200, TOKEN_RESPONSE));
+      return;
+    }
+    if (path === "/api/v1/users/me" && method === "GET") {
+      await route.fulfill(json(200, { code: 0, message: "ok", data: USER }));
+      return;
+    }
+    if (path === "/api/v1/roles/my-menus" && method === "GET") {
+      await route.fulfill(json(200, { code: 0, message: "ok", data: [] }));
+      return;
+    }
+    if (path === "/api/v1/enterprises" && method === "GET" && url.searchParams.has("page")) {
+      await route.fulfill(
+        json(200, {
+          code: 0,
+          message: "ok",
+          data: {
+            items: [{ id: OVERVIEW_ENTERPRISE_ID, name: "总览测试企业", address: null, industry: null }],
+            total: 1,
+            page: 1,
+            page_size: 100,
+          },
+        }),
+      );
+      return;
+    }
+    if (path === `/api/v1/enterprises/${OVERVIEW_ENTERPRISE_ID}/risk-management/floors` && method === "GET") {
+      await route.fulfill(json(200, { code: 0, message: "ok", data: [OVERVIEW_FLOOR] }));
+      return;
+    }
+    if (path === `/api/v1/enterprises/${OVERVIEW_ENTERPRISE_ID}/risk-management/hierarchy` && method === "GET") {
+      await route.fulfill(json(200, { code: 0, message: "ok", data: [OVERVIEW_ZONE] }));
+      return;
+    }
+    if (path === `/api/v1/enterprises/${OVERVIEW_ENTERPRISE_ID}/risk-management/overview` && method === "GET") {
+      await route.fulfill(
+        json(200, {
+          code: 0,
+          message: "ok",
+          data: {
+            floor: OVERVIEW_FLOOR,
+            zones: [OVERVIEW_ZONE],
+            risk_points: [],
+            texts: [],
+          },
+        }),
+      );
+      return;
+    }
+    await route.fulfill(json(404, { code: 404, message: "not found" }));
   });
 }
 
@@ -353,5 +470,23 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await page.mouse.up();
     await page.keyboard.up("Space");
     await expect(wrapper).not.toHaveAttribute("data-view-x", "0");
+  });
+
+  test("可视化总览总平图自动适配容器", async ({ page }) => {
+    await mockOverviewApis(page);
+    await page.goto("/login");
+    await page.getByPlaceholder("邮箱").fill("qa_e2e_test@test.com");
+    await page.getByPlaceholder("密码").fill("test123456");
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/(dashboard|enterprises)/, { timeout: 10000 });
+    await page.goto(`/enterprises/${OVERVIEW_ENTERPRISE_ID}/risk-overview`);
+
+    const stage = page.locator('[data-testid="risk-distribution-stage"]');
+    await expect(stage).toBeVisible({ timeout: 15000 });
+    const scale = Number(await stage.getAttribute("data-fit-scale"));
+    expect(Number.isFinite(scale)).toBe(true);
+    expect(scale).toBeGreaterThan(0);
+    expect(scale).toBeLessThanOrEqual(2);
+    await expect(stage.locator("canvas").first()).toBeVisible();
   });
 });
