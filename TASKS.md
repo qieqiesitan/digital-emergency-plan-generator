@@ -1,6 +1,11 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：已补充四色分布图设计文档边界，等待用户确认是否提交或生成实施计划
+- 正在做什么：四色分布图正式实施计划已完成，等待用户选择执行方式
 - 刚完成的动作：
+  - 已创建 docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md（约 2800 行）
+  - 已按 writing-plans 自检：任务分解、文件清单、代码要点、测试命令、AC 映射、发布前置条件
+  - 已补齐楼层 CRUD/上传、批量保存并发、级联删除、旧 CRUD 兼容、前端 Store/画布/总览联动细节
+  - 已通过占位符扫描和 git diff --check；计划文件尚未提交
+  - 已确认工作区状态：TASKS.md 已修改，实施计划文件为未跟踪新文件
   - 已补充设计文档 4.7 删除与级联规则、批量保存 floor_updated_at 并发检测、平面图上传契约、旧 CRUD 兼容规则
   - 已同步更新前端类型、错误码、AC-20/21/22、实施顺序、受影响文件、风险与关键决策
   - 已通过 rg 一致性检查，确认无残留 CASCADE 描述；工作区仅修改 TASKS.md 和规格文档
@@ -46,7 +51,7 @@
   - 三个子智能体已并行返回：后端数据/API、前端工作台/总览、测试与实施顺序
   - 已整合并写入 docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md
   - 已通过独立审查智能体复审，修复 client_id 映射、updated_at、OverviewResponse、迁移 SQL、外键约束等契约问题
-- 下一步：等用户确认提交规格文档，或继续生成实施计划
+- 下一步：等用户选择实施计划执行方式：子代理驱动（推荐）或内联执行
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
   - 已提交：docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md
