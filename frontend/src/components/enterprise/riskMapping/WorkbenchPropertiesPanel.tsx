@@ -17,22 +17,29 @@ export default function WorkbenchPropertiesPanel() {
 
   const updateZone = (patch: Partial<WorkbenchZone>) => {
     if (!zone) return;
-    setSnapshot({ zones: zones.map(z => (z.id === zone.id ? { ...z, ...patch } : z)) });
     commit();
+    setSnapshot({ zones: zones.map(z => (z.id === zone.id ? { ...z, ...patch } : z)) });
   };
 
   const bindFirstPending = () => {
     if (!zone || !pendingRegions.length) return;
     const region = pendingRegions[0];
     const polygon = zone.floor_plan_polygon || { version: 2, color_source: "auto" as const, color: null, polygons: [] };
-    updateZone({
-      floor_plan_polygon: {
-        ...polygon,
-        polygons: [...polygon.polygons, { id: region.id, label: `${zone.name}-区域${polygon.polygons.length + 1}`, points: region.points }],
-      },
-    });
-    setSnapshot({ pendingRegions: pendingRegions.slice(1) });
     commit();
+    setSnapshot({
+      zones: zones.map(z =>
+        z.id === zone.id
+          ? {
+              ...z,
+              floor_plan_polygon: {
+                ...polygon,
+                polygons: [...polygon.polygons, { id: region.id, label: `${zone.name}-区域${polygon.polygons.length + 1}`, points: region.points }],
+              },
+            }
+          : z,
+      ),
+      pendingRegions: pendingRegions.slice(1),
+    });
   };
 
   const addText = () => {
@@ -47,8 +54,8 @@ export default function WorkbenchPropertiesPanel() {
       rotation: 0,
       sort_order: texts.length,
     };
-    setSnapshot({ texts: [...texts, item] });
     commit();
+    setSnapshot({ texts: [...texts, item] });
     setTextContent("");
   };
 
@@ -104,15 +111,8 @@ export default function WorkbenchPropertiesPanel() {
             style={{ marginTop: 8 }}
             icon={<DeleteOutlined />}
             onClick={() => {
-              const isPersisted = !zone.id.startsWith("new-zone-");
-              useRiskMappingWorkbenchStore.setState({
-                zones: zones.filter(z => z.id !== zone.id),
-                selectedZoneId: null,
-                deletedZoneIds: isPersisted
-                  ? [...useRiskMappingWorkbenchStore.getState().deletedZoneIds, zone.id]
-                  : useRiskMappingWorkbenchStore.getState().deletedZoneIds,
-              });
               commit();
+              useRiskMappingWorkbenchStore.getState().deleteZone(zone.id);
             }}
           >
             删除分区
@@ -129,11 +129,8 @@ export default function WorkbenchPropertiesPanel() {
               type="text"
               icon={<DeleteOutlined />}
               onClick={() => {
-                setSnapshot({
-                  riskPoints: riskPoints.filter(item => item.id !== p.id),
-                  deletedRiskPointIds: [...useRiskMappingWorkbenchStore.getState().deletedRiskPointIds, p.id],
-                });
                 commit();
+                useRiskMappingWorkbenchStore.getState().deleteRiskPoint(p.id);
               }}
             />
           </div>
@@ -144,8 +141,8 @@ export default function WorkbenchPropertiesPanel() {
             placeholder="绑定分区"
             options={zones.map(z => ({ value: z.id, label: z.name }))}
             onChange={zone_id => {
-              setSnapshot({ riskPoints: riskPoints.map(item => (item.id === p.id ? { ...item, zone_id } : item)) });
               commit();
+              setSnapshot({ riskPoints: riskPoints.map(item => (item.id === p.id ? { ...item, zone_id } : item)) });
             }}
           />
         </div>

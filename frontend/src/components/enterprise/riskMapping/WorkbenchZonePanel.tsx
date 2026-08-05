@@ -27,8 +27,8 @@ export default function WorkbenchZonePanel() {
       updated_at: new Date().toISOString(),
       objects: [],
     };
-    setState({ zones: [...zones, zone], selectedZoneId: zone.id });
     commit();
+    setState({ zones: [...zones, zone], selectedZoneId: zone.id });
   };
 
   return (
@@ -63,15 +63,8 @@ export default function WorkbenchZonePanel() {
                 icon={<DeleteOutlined />}
                 onClick={e => {
                   e.stopPropagation();
-                  const isPersisted = !z.id.startsWith("new-zone-");
-                  setState({
-                    zones: zones.filter(item => item.id !== z.id),
-                    selectedZoneId: null,
-                    deletedZoneIds: isPersisted
-                      ? [...useRiskMappingWorkbenchStore.getState().deletedZoneIds, z.id]
-                      : useRiskMappingWorkbenchStore.getState().deletedZoneIds,
-                  });
                   commit();
+                  useRiskMappingWorkbenchStore.getState().deleteZone(z.id);
                 }}
               />
             </div>

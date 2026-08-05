@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Stage, Layer, Image as KonvaImage, Line, Rect, Text as KonvaText } from "react-konva";
+import type { KonvaEventObject } from "konva/lib/Node";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import { pointsToKonva, toCanvasX, toCanvasY, toPercent } from "@/utils/riskMappingGeometry";
 import type { RiskPolygonPoint, RiskCanvasText } from "@/types/riskMappingWorkbench";
@@ -8,6 +9,11 @@ import WorkbenchRiskPointLayer from "./WorkbenchRiskPointLayer";
 
 const STAGE_WIDTH = 1200;
 const STAGE_HEIGHT = 900;
+
+interface LoadedImage {
+  url: string;
+  image: HTMLImageElement;
+}
 
 const samePoint = (a: RiskPolygonPoint, b: RiskPolygonPoint) => a.x === b.x && a.y === b.y;
 
@@ -32,26 +38,28 @@ export default function WorkbenchCanvas() {
   const [draftPoints, setDraftPoints] = useState<RiskPolygonPoint[]>([]);
   const [draftStart, setDraftStart] = useState<RiskPolygonPoint | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [loadedImage, setLoadedImage] = useState<LoadedImage | null>(null);
 
   useEffect(() => {
-    if (!floor?.floor_plan_url) {
-      setImage(null);
-      return;
-    }
+    const url = floor?.floor_plan_url;
+    if (!url) return;
     const img = new window.Image();
-    img.onload = () => setImage(img);
-    img.src = floor.floor_plan_url;
+    img.onload = () => setLoadedImage({ url, image: img });
+    img.src = url;
     return () => {
       img.onload = null;
     };
   }, [floor?.floor_plan_url]);
 
-  const pointFromEvent = (e: any): RiskPolygonPoint => {
+  const image = loadedImage && loadedImage.url === floor?.floor_plan_url ? loadedImage.image : null;
+  const canvasWidth = floor?.canvas_width || (image ? image.naturalWidth : STAGE_WIDTH);
+  const canvasHeight = floor?.canvas_height || (image ? image.naturalHeight : STAGE_HEIGHT);
+
+  const pointFromEvent = (e: KonvaEventObject<MouseEvent>): RiskPolygonPoint => {
     const stage = e.target.getStage?.() ?? null;
     const pos = stage?.getPointerPosition?.() ?? null;
-    const rawX = pos ? toPercent(pos.x, STAGE_WIDTH) : toPercent(e.evt.offsetX ?? 0, STAGE_WIDTH);
-    const rawY = pos ? toPercent(pos.y, STAGE_HEIGHT) : toPercent(e.evt.offsetY ?? 0, STAGE_HEIGHT);
+    const rawX = pos ? toPercent(pos.x, canvasWidth) : toPercent(e.evt.offsetX ?? 0, canvasWidth);
+    const rawY = pos ? toPercent(pos.y, canvasHeight) : toPercent(e.evt.offsetY ?? 0, canvasHeight);
     const rounded = (v: number) => (snapEnabled ? Math.round(v / 5) * 5 : Math.round(v * 100) / 100);
     return { x: Math.min(100, Math.max(0, rounded(rawX))), y: Math.min(100, Math.max(0, rounded(rawY))) };
   };
@@ -63,11 +71,11 @@ export default function WorkbenchCanvas() {
       points,
       created_at: new Date().toISOString(),
     };
-    setSnapshot({ pendingRegions: [...useRiskMappingWorkbenchStore.getState().pendingRegions, region] });
     commit();
+    setSnapshot({ pendingRegions: [...useRiskMappingWorkbenchStore.getState().pendingRegions, region] });
   };
 
-  const handleClick = (e: any) => {
+  const handleClick = (e: KonvaEventObject<MouseEvent>) => {
     if (tool === "select" || tool === "freehand") return;
     const p = pointFromEvent(e);
     if (tool === "rect") {
@@ -102,8 +110,8 @@ export default function WorkbenchCanvas() {
         updated_at: new Date().toISOString(),
         unit_count: 0,
       };
-      setSnapshot({ riskPoints: [...useRiskMappingWorkbenchStore.getState().riskPoints, riskPoint] });
       commit();
+      setSnapshot({ riskPoints: [...useRiskMappingWorkbenchStore.getState().riskPoints, riskPoint] });
       return;
     }
     if (tool === "text") {
@@ -117,8 +125,8 @@ export default function WorkbenchCanvas() {
         rotation: 0,
         sort_order: texts.length,
       };
-      setSnapshot({ texts: [...useRiskMappingWorkbenchStore.getState().texts, item] });
       commit();
+      setSnapshot({ texts: [...useRiskMappingWorkbenchStore.getState().texts, item] });
     }
   };
 
@@ -132,14 +140,14 @@ export default function WorkbenchCanvas() {
     setIsDrawing(false);
   };
 
-  const handleMouseDown = (e: any) => {
+  const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
     if (tool === "freehand") {
       setIsDrawing(true);
       setDraftPoints([pointFromEvent(e)]);
     }
   };
 
-  const handleMouseMove = (e: any) => {
+  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
     if (tool === "freehand" && isDrawing) {
       setDraftPoints(prev => [...prev, pointFromEvent(e)]);
     }
@@ -158,8 +166,8 @@ export default function WorkbenchCanvas() {
 
   return (
     <Stage
-      width={STAGE_WIDTH}
-      height={STAGE_HEIGHT}
+      width={canvasWidth}
+      height={canvasHeight}
       style={{ maxWidth: "100%", maxHeight: "100%" }}
       onClick={handleClick}
       onDblClick={finishDrawing}
@@ -168,19 +176,19 @@ export default function WorkbenchCanvas() {
       onMouseUp={handleMouseUp}
     >
       <Layer>
-        {image && <KonvaImage image={image} x={0} y={0} width={STAGE_WIDTH} height={STAGE_HEIGHT} />}
+        {image && <KonvaImage image={image} x={0} y={0} width={canvasWidth} height={canvasHeight} />}
         {gridEnabled &&
-          Array.from({ length: 13 }, (_, i) => (
-            <Line key={`gv-${i}`} points={[i * 100, 0, i * 100, STAGE_HEIGHT]} stroke="#e8e8e8" strokeWidth={1} />
+          Array.from({ length: Math.floor(canvasWidth / 100) + 1 }, (_, i) => (
+            <Line key={`gv-${i}`} points={[i * 100, 0, i * 100, canvasHeight]} stroke="#e8e8e8" strokeWidth={1} />
           ))}
         {gridEnabled &&
-          Array.from({ length: 10 }, (_, i) => (
-            <Line key={`gh-${i}`} points={[0, i * 100, STAGE_WIDTH, i * 100]} stroke="#e8e8e8" strokeWidth={1} />
+          Array.from({ length: Math.floor(canvasHeight / 100) + 1 }, (_, i) => (
+            <Line key={`gh-${i}`} points={[0, i * 100, canvasWidth, i * 100]} stroke="#e8e8e8" strokeWidth={1} />
           ))}
         {pendingRegions.map(r => (
           <Line
             key={r.id}
-            points={pointsToKonva(r.points, STAGE_WIDTH, STAGE_HEIGHT)}
+            points={pointsToKonva(r.points, canvasWidth, canvasHeight)}
             closed
             stroke="#fa8c16"
             dash={[6, 4]}
@@ -189,8 +197,8 @@ export default function WorkbenchCanvas() {
         ))}
         {draftStart && (
           <Rect
-            x={toCanvasX(draftStart.x, STAGE_WIDTH)}
-            y={toCanvasY(draftStart.y, STAGE_HEIGHT)}
+            x={toCanvasX(draftStart.x, canvasWidth)}
+            y={toCanvasY(draftStart.y, canvasHeight)}
             width={100}
             height={100}
             dash={[4, 4]}
@@ -199,7 +207,7 @@ export default function WorkbenchCanvas() {
         )}
         {draftPoints.length > 0 && (
           <Line
-            points={pointsToKonva(draftPoints, STAGE_WIDTH, STAGE_HEIGHT)}
+            points={pointsToKonva(draftPoints, canvasWidth, canvasHeight)}
             closed={tool === "polygon"}
             stroke="#1677ff"
             dash={[4, 4]}
@@ -210,7 +218,7 @@ export default function WorkbenchCanvas() {
           (z.floor_plan_polygon?.polygons || []).map(p => (
             <Line
               key={p.id}
-              points={pointsToKonva(p.points, STAGE_WIDTH, STAGE_HEIGHT)}
+              points={pointsToKonva(p.points, canvasWidth, canvasHeight)}
               closed
               fill={z.effective_color || "#d9d9d9"}
               opacity={0.35}
@@ -223,8 +231,8 @@ export default function WorkbenchCanvas() {
         {texts.map(t => (
           <KonvaText
             key={t.id}
-            x={toCanvasX(t.x, STAGE_WIDTH)}
-            y={toCanvasY(t.y, STAGE_HEIGHT)}
+            x={toCanvasX(t.x, canvasWidth)}
+            y={toCanvasY(t.y, canvasHeight)}
             text={t.content}
             fontSize={t.font_size}
             fill={t.color}

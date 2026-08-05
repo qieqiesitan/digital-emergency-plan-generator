@@ -26,10 +26,14 @@ interface WorkbenchState extends WorkbenchDomainState {
   snapEnabled: boolean;
   guideEnabled: boolean;
   dirty: boolean;
+  savedFingerprint: string | null;
   past: WorkbenchDomainState[];
   future: WorkbenchDomainState[];
   setSnapshot: (data: Partial<WorkbenchDomainState>) => void;
   commit: () => void;
+  markSaved: () => void;
+  deleteZone: (zoneId: string) => void;
+  deleteRiskPoint: (pointId: string) => void;
   reset: () => void;
 }
 
@@ -49,6 +53,7 @@ const initial = {
   snapEnabled: true,
   guideEnabled: true,
   dirty: false,
+  savedFingerprint: null,
   past: [],
   future: [],
 };
@@ -64,6 +69,21 @@ const snapshotOf = (state: WorkbenchDomainState): WorkbenchDomainState => ({
   deletedRiskPointIds: state.deletedRiskPointIds,
 });
 
+const canonicalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value !== null && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = canonicalize((value as Record<string, unknown>)[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+};
+
+const fingerprintOf = (state: WorkbenchDomainState) => JSON.stringify(canonicalize(snapshotOf(state)));
+
 export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) => ({
   ...initial,
   setSnapshot: (data) => set({ ...data }),
@@ -71,13 +91,46 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
     const state = get();
     set({ past: [...state.past.slice(-49), snapshotOf(state)], future: [], dirty: true });
   },
+  markSaved: () => {
+    const state = get();
+    set({ dirty: false, savedFingerprint: fingerprintOf(state) });
+  },
+  deleteZone: (zoneId) => {
+    const state = get();
+    if (!state.zones.some(z => z.id === zoneId)) return;
+    const isPersisted = !zoneId.startsWith("new-zone-");
+    const orphanPoints = state.riskPoints.filter(p => p.zone_id === zoneId);
+    const deletedRiskPointIds = isPersisted
+      ? [...state.deletedRiskPointIds, ...orphanPoints.filter(p => !p.id.startsWith("new-point-")).map(p => p.id)]
+      : state.deletedRiskPointIds;
+    set({
+      zones: state.zones.filter(z => z.id !== zoneId),
+      riskPoints: state.riskPoints.filter(p => p.zone_id !== zoneId),
+      selectedZoneId: state.selectedZoneId === zoneId ? null : state.selectedZoneId,
+      deletedZoneIds: isPersisted
+        ? [...state.deletedZoneIds, zoneId]
+        : state.deletedZoneIds,
+      deletedRiskPointIds,
+    });
+  },
+  deleteRiskPoint: (pointId) => {
+    const state = get();
+    if (!state.riskPoints.some(p => p.id === pointId)) return;
+    const isPersisted = !pointId.startsWith("new-point-");
+    set({
+      riskPoints: state.riskPoints.filter(p => p.id !== pointId),
+      deletedRiskPointIds: isPersisted
+        ? [...state.deletedRiskPointIds, pointId]
+        : state.deletedRiskPointIds,
+    });
+  },
   reset: () => set({ ...initial }),
 }));
 
 export const undo = () => useRiskMappingWorkbenchStore.setState(state => {
   if (!state.past.length) return state;
   const previous = state.past[state.past.length - 1];
-  return {
+  const restored = {
     ...previous,
     selectedZoneId: state.selectedZoneId,
     selectedRegionId: state.selectedRegionId,
@@ -85,16 +138,19 @@ export const undo = () => useRiskMappingWorkbenchStore.setState(state => {
     gridEnabled: state.gridEnabled,
     snapEnabled: state.snapEnabled,
     guideEnabled: state.guideEnabled,
+  };
+  return {
+    ...restored,
     past: state.past.slice(0, -1),
     future: [snapshotOf(state), ...state.future],
-    dirty: true,
+    dirty: state.savedFingerprint === null || fingerprintOf(restored) !== state.savedFingerprint,
   };
 });
 
 export const redo = () => useRiskMappingWorkbenchStore.setState(state => {
   if (!state.future.length) return state;
   const next = state.future[0];
-  return {
+  const restored = {
     ...next,
     selectedZoneId: state.selectedZoneId,
     selectedRegionId: state.selectedRegionId,
@@ -102,8 +158,11 @@ export const redo = () => useRiskMappingWorkbenchStore.setState(state => {
     gridEnabled: state.gridEnabled,
     snapEnabled: state.snapEnabled,
     guideEnabled: state.guideEnabled,
+  };
+  return {
+    ...restored,
     past: [...state.past, snapshotOf(state)],
     future: state.future.slice(1),
-    dirty: true,
+    dirty: state.savedFingerprint === null || fingerprintOf(restored) !== state.savedFingerprint,
   };
 });

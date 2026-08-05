@@ -36,6 +36,11 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
     queryClient.invalidateQueries({ queryKey: ["risk-workbench", enterpriseId] });
   };
 
+  const switchFloor = (floorId: string) => {
+    setState({ currentFloorId: floorId, dirty: false, deletedZoneIds: [], deletedRiskPointIds: [] });
+    queryClient.invalidateQueries({ queryKey: ["risk-workbench", enterpriseId] });
+  };
+
   const submit = async () => {
     if (!name.trim()) return;
     try {
@@ -53,7 +58,7 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
     }
   };
 
-  const removeFloor = async (floorId: string) => {
+  const doRemoveFloor = async (floorId: string) => {
     try {
       await deleteEnterpriseFloor(enterpriseId, floorId);
       const remaining = floors.filter(f => f.id !== floorId);
@@ -66,6 +71,21 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
     }
   };
 
+  const removeFloor = async (floorId: string) => {
+    if (useRiskMappingWorkbenchStore.getState().dirty) {
+      Modal.confirm({
+        title: "删除楼层并放弃未保存的改动",
+        content: "当前楼层存在未保存的改动，删除楼层后这些改动将一并丢失，且无法撤销。是否继续删除？",
+        okText: "删除楼层",
+        okButtonProps: { danger: true },
+        cancelText: "取消",
+        onOk: () => doRemoveFloor(floorId),
+      });
+      return;
+    }
+    await doRemoveFloor(floorId);
+  };
+
   return (
     <Space wrap>
       <Select
@@ -74,8 +94,19 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
         value={currentFloorId || undefined}
         options={floors.map(f => ({ label: f.name, value: f.id }))}
         onChange={id => {
-          setState({ currentFloorId: id, dirty: false, deletedZoneIds: [], deletedRiskPointIds: [] });
-          queryClient.invalidateQueries({ queryKey: ["risk-workbench", enterpriseId] });
+          if (id === currentFloorId) return;
+          if (useRiskMappingWorkbenchStore.getState().dirty) {
+            Modal.confirm({
+              title: "切换楼层",
+              content: "当前楼层存在未保存的改动，切换后将丢失这些改动，且无法撤销。是否继续切换？",
+              okText: "切换并放弃改动",
+              okButtonProps: { danger: true },
+              cancelText: "取消",
+              onOk: () => switchFloor(id),
+            });
+            return;
+          }
+          switchFloor(id);
         }}
       />
       <Button

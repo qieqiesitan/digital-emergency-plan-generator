@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect } from "vitest";
 import { useRiskMappingWorkbenchStore, undo, redo } from "./riskMappingWorkbenchStore";
 import type { EnterpriseFloor, WorkbenchZone } from "@/types/riskMappingWorkbench";
+import type { RiskObject } from "@/types/riskManagement";
 import {
   toPercent,
   toCanvasX,
@@ -38,18 +39,38 @@ const makeZone = (id: string): WorkbenchZone => ({
   updated_at: "2026-01-01T00:00:00Z",
 });
 
+const makeRiskPoint = (id: string): RiskObject => ({
+  id,
+  enterprise_id: "e1",
+  zone_id: null,
+  floor_id: "f1",
+  name: `P${id}`,
+  category: null,
+  location: null,
+  location_x: 50,
+  location_y: 50,
+  description: null,
+  image_url: null,
+  is_risk_point: true,
+  sort_order: 0,
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+  unit_count: 0,
+});
+
 describe("riskMappingWorkbenchStore", () => {
   beforeEach(() => {
     useRiskMappingWorkbenchStore.getState().reset();
   });
 
-  it("commit marks dirty and pushes a domain-only snapshot", () => {
+  it("commit-then-setSnapshot pushes the pre-change domain snapshot", () => {
     const store = useRiskMappingWorkbenchStore;
     store.setState({ tool: "polygon", selectedZoneId: "z1", dirty: false });
-    store.getState().setSnapshot({ zones: [makeZone("a")] });
     store.getState().commit();
+    store.getState().setSnapshot({ zones: [makeZone("a")] });
     const state = store.getState();
     expect(state.dirty).toBe(true);
+    expect(state.zones).toEqual([makeZone("a")]);
     expect(state.past).toHaveLength(1);
     expect(Object.keys(state.past[0]).sort()).toEqual([
       "currentFloorId",
@@ -61,15 +82,16 @@ describe("riskMappingWorkbenchStore", () => {
       "texts",
       "zones",
     ]);
-    expect(state.past[0].zones).toEqual([makeZone("a")]);
+    expect(state.past[0].zones).toEqual([]);
   });
 
   it("undo restores domain fields while preserving UI state", () => {
     const store = useRiskMappingWorkbenchStore;
     store.setState({ tool: "polygon", selectedZoneId: "z-sel", gridEnabled: false, snapEnabled: false, guideEnabled: false });
-    store.getState().setSnapshot({ floors: [makeFloor("a")], currentFloorId: "a", zones: [makeZone("a")] });
     store.getState().commit();
+    store.getState().setSnapshot({ floors: [makeFloor("a")], currentFloorId: "a", zones: [makeZone("a")] });
     store.setState({ tool: "select", selectedZoneId: null, gridEnabled: true, snapEnabled: true, guideEnabled: true });
+    store.getState().commit();
     store.getState().setSnapshot({ floors: [makeFloor("b")], currentFloorId: "b", zones: [makeZone("b")] });
 
     undo();
@@ -83,7 +105,7 @@ describe("riskMappingWorkbenchStore", () => {
     expect(state.gridEnabled).toBe(true);
     expect(state.snapEnabled).toBe(true);
     expect(state.guideEnabled).toBe(true);
-    expect(state.past).toHaveLength(0);
+    expect(state.past).toHaveLength(1);
     expect(state.future).toHaveLength(1);
     expect(state.dirty).toBe(true);
   });
@@ -91,6 +113,7 @@ describe("riskMappingWorkbenchStore", () => {
   it("redo replays the next domain snapshot and keeps UI state", () => {
     const store = useRiskMappingWorkbenchStore;
     store.setState({ tool: "polygon", selectedZoneId: "z-sel" });
+    store.getState().commit();
     store.getState().setSnapshot({ zones: [makeZone("a")] });
     store.getState().commit();
     store.getState().setSnapshot({ zones: [makeZone("b")] });
@@ -102,47 +125,149 @@ describe("riskMappingWorkbenchStore", () => {
     expect(state.zones).toEqual([makeZone("b")]);
     expect(state.tool).toBe("polygon");
     expect(state.selectedZoneId).toBe("z-sel");
-    expect(state.past).toHaveLength(1);
+    expect(state.past).toHaveLength(2);
     expect(state.future).toHaveLength(0);
   });
 
   it("a new commit after undo clears the future stack", () => {
     const store = useRiskMappingWorkbenchStore;
+    store.getState().commit();
     store.getState().setSnapshot({ zones: [makeZone("a")] });
     store.getState().commit();
     store.getState().setSnapshot({ zones: [makeZone("b")] });
     undo();
     expect(store.getState().future).toHaveLength(1);
 
-    store.getState().setSnapshot({ zones: [makeZone("c")] });
     store.getState().commit();
+    store.getState().setSnapshot({ zones: [makeZone("c")] });
     expect(store.getState().future).toHaveLength(0);
-    expect(store.getState().past).toHaveLength(1);
+    expect(store.getState().past).toHaveLength(2);
   });
 
   it("caps history at 50 snapshots", () => {
     const store = useRiskMappingWorkbenchStore;
     for (let i = 0; i < 60; i++) {
-      store.getState().setSnapshot({ zones: [makeZone(`z${i}`)] });
       store.getState().commit();
+      store.getState().setSnapshot({ zones: [makeZone(`z${i}`)] });
     }
     const state = store.getState();
     expect(state.past).toHaveLength(50);
-    expect(state.past[49].zones[0].id).toBe("z59");
+    expect(state.past[49].zones[0].id).toBe("z58");
     expect(state.future).toHaveLength(0);
   });
 
   it("keeps dirty true across commit, undo and redo", () => {
     const store = useRiskMappingWorkbenchStore;
     store.setState({ dirty: false });
-    store.getState().setSnapshot({ zones: [makeZone("a")] });
     store.getState().commit();
+    store.getState().setSnapshot({ zones: [makeZone("a")] });
     expect(store.getState().dirty).toBe(true);
+    store.getState().commit();
     store.getState().setSnapshot({ zones: [makeZone("b")] });
     undo();
     expect(store.getState().dirty).toBe(true);
     redo();
     expect(store.getState().dirty).toBe(true);
+  });
+
+  it("undo reverts the actual component call sequence (commit then setSnapshot)", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.getState().commit();
+    store.getState().setSnapshot({
+      pendingRegions: [
+        {
+          id: "pending-1",
+          floor_id: "f1",
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 10, y: 10 },
+          ],
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+    expect(store.getState().pendingRegions).toHaveLength(1);
+
+    undo();
+    expect(store.getState().pendingRegions).toHaveLength(0);
+
+    redo();
+    expect(store.getState().pendingRegions).toHaveLength(1);
+  });
+
+  it("undo back to the saved snapshot clears dirty, redo marks it again", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.getState().setSnapshot({ zones: [makeZone("a")] });
+    store.getState().markSaved();
+    expect(store.getState().dirty).toBe(false);
+
+    store.getState().commit();
+    store.getState().setSnapshot({ zones: [makeZone("b")] });
+    expect(store.getState().dirty).toBe(true);
+
+    undo();
+    expect(store.getState().zones).toEqual([makeZone("a")]);
+    expect(store.getState().dirty).toBe(false);
+
+    redo();
+    expect(store.getState().zones).toEqual([makeZone("b")]);
+    expect(store.getState().dirty).toBe(true);
+  });
+
+  it("deleteZone removes risk points under the zone and enqueues persisted ids only", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({
+      zones: [makeZone("z-persisted"), makeZone("z-new")],
+      riskPoints: [
+        { ...makeRiskPoint("p-persisted"), zone_id: "z-persisted" },
+        { ...makeRiskPoint("new-point-2"), zone_id: "z-persisted" },
+        { ...makeRiskPoint("p-other"), zone_id: "z-new" },
+      ],
+      deletedZoneIds: [],
+      deletedRiskPointIds: [],
+    });
+
+    store.getState().deleteZone("z-persisted");
+
+    const state = store.getState();
+    expect(state.zones.map(z => z.id)).toEqual(["z-new"]);
+    expect(state.riskPoints.map(p => p.id)).toEqual(["p-other"]);
+    expect(state.deletedZoneIds).toEqual(["z-persisted"]);
+    expect(state.deletedRiskPointIds).toEqual(["p-persisted"]);
+    expect(state.deletedRiskPointIds).not.toContain("new-point-2");
+  });
+
+  it("deleteZone for a new zone never enqueues deletion ids", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({
+      zones: [makeZone("new-zone-1")],
+      riskPoints: [{ ...makeRiskPoint("new-point-1"), zone_id: "new-zone-1" }],
+      deletedZoneIds: [],
+      deletedRiskPointIds: [],
+    });
+
+    store.getState().deleteZone("new-zone-1");
+
+    const state = store.getState();
+    expect(state.zones).toEqual([]);
+    expect(state.riskPoints).toEqual([]);
+    expect(state.deletedZoneIds).toEqual([]);
+    expect(state.deletedRiskPointIds).toEqual([]);
+  });
+
+  it("deleteRiskPoint skips the deleted queue for new-point client ids", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({
+      riskPoints: [makeRiskPoint("new-point-1"), makeRiskPoint("p-persisted")],
+      deletedRiskPointIds: [],
+    });
+
+    store.getState().deleteRiskPoint("new-point-1");
+    expect(store.getState().deletedRiskPointIds).toEqual([]);
+
+    store.getState().deleteRiskPoint("p-persisted");
+    expect(store.getState().deletedRiskPointIds).toEqual(["p-persisted"]);
   });
 });
 

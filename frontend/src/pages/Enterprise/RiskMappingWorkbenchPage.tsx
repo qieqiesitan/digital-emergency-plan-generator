@@ -41,7 +41,7 @@ export default function RiskMappingWorkbenchPage() {
         deletedRiskPointIds: [],
         deletedZoneIds: [],
       });
-      useRiskMappingWorkbenchStore.setState({ dirty: false });
+      useRiskMappingWorkbenchStore.getState().markSaved();
     }
   }, [data, setSnapshot]);
 
@@ -121,7 +121,7 @@ export default function RiskMappingWorkbenchPage() {
         deletedRiskPointIds: [],
         deletedZoneIds: [],
       });
-      useRiskMappingWorkbenchStore.setState({ dirty: false });
+      useRiskMappingWorkbenchStore.getState().markSaved();
       message.success("保存成功");
       queryClient.invalidateQueries({ queryKey: ["risk-hierarchy", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["risk-overview", enterpriseId] });
