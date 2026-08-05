@@ -127,8 +127,8 @@ class RiskMeasureResponse(BaseModel): id: str; event_id: str; measure_category: 
 class HierarchyMeasureResponse(BaseModel): id: str; measure_category: str; measure_type: str | None; description: str; status: str; check_items: list[dict]; model_config = {"from_attributes": True}
 class HierarchyEventResponse(BaseModel): id: str; accident_type: str; description: str | None; risk_level: str | None; risk_score: str | None; method_type: str; method_params: dict; measures: list[HierarchyMeasureResponse] = []; model_config = {"from_attributes": True}
 class HierarchyUnitResponse(BaseModel): id: str; name: str; unit_type: str | None; description: str | None; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
-class HierarchyObjectResponse(BaseModel): id: str; name: str; category: str | None; is_risk_point: bool; units: list[HierarchyUnitResponse] = []; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
-class HierarchyZoneResponse(BaseModel): id: str; name: str; description: str | None; objects: list[HierarchyObjectResponse] = []; model_config = {"from_attributes": True}
+class HierarchyObjectResponse(BaseModel): id: str; name: str; category: str | None; is_risk_point: bool; floor_id: str | None = None; location_x: float | None = None; location_y: float | None = None; units: list[HierarchyUnitResponse] = []; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
+class HierarchyZoneResponse(BaseModel): id: str; floor_id: str | None = None; floor_name: str | None = None; name: str; description: str | None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None; max_risk_level: str | None = None; effective_color: str | None = None; objects: list[HierarchyObjectResponse] = []; model_config = {"from_attributes": True}
 
 class MigrationPreviewItem(BaseModel): source_id: str; source_name: str; suggested_zone: str = ""; suggested_object: str = ""; suggested_events: list[dict] = []
 class MigrationPreviewResponse(BaseModel): items: list[MigrationPreviewItem]; total: int

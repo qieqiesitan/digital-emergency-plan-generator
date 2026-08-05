@@ -1,4 +1,5 @@
 import json, os, logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update
@@ -9,11 +10,11 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.enterprise import Enterprise, EnterpriseFloor, RiskSource
 from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
-from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse)
+from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse)
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
-from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2
+from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url
 from app.config import settings
 logger = logging.getLogger(__name__)
@@ -214,6 +215,214 @@ async def preview_method(body: MethodPreviewRequest, enterprise_id: str, current
     r = compute_risk(m.method_type, body.params, m.config)
     return ApiResponse(data=MethodPreviewResponse(risk_level=r.risk_level, risk_score=r.risk_score, action=r.action, deadline=r.deadline))
 
+# ── Workbench ──
+def _same_ts(a, b) -> bool:
+    """比较两个时间戳的绝对时刻（自动归一化时区与 datetime/字符串类型）。"""
+    if not a or not b:
+        return not a and not b
+
+    def parse(v):
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00")).astimezone(timezone.utc)
+    return parse(a) == parse(b)
+
+
+def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
+    """将分区 ORM 对象规范化为工作台/总览响应，补齐楼层名、多边形 v2、风险等级与有效色。"""
+    resp = RiskZoneResponse.model_validate(z)
+    resp.floor_name = floor.name
+    resp.max_risk_level = max_risk_level(z)
+    normalized = normalize_polygon(z.floor_plan_polygon, z.name)
+    resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
+    resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
+    resp.object_count = len(z.objects or [])
+    return WorkbenchZone(
+        id=resp.id,
+        enterprise_id=resp.enterprise_id,
+        floor_id=resp.floor_id,
+        floor_name=resp.floor_name,
+        name=resp.name,
+        description=resp.description,
+        sort_order=resp.sort_order,
+        floor_plan_polygon=resp.floor_plan_polygon,
+        max_risk_level=resp.max_risk_level,
+        effective_color=resp.effective_color,
+        object_count=resp.object_count,
+        created_at=resp.created_at,
+        updated_at=resp.updated_at,
+        objects=[RiskObjectResponse.model_validate(o) for o in (z.objects or [])],
+    )
+
+
+@router.get("/workbench", response_model=ApiResponse[WorkbenchResponse])
+async def load_workbench(enterprise_id: str, floor_id: str | None = Query(None), current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = await _default_floor(db, enterprise_id)
+    if not floor_id:
+        floor_id = floor.id
+    current = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not current:
+        raise HTTPException(404, "楼层不存在")
+    await db.commit()
+    floors = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id).order_by(EnterpriseFloor.sort_order))).scalars().all()
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id, RiskZone.floor_id == floor_id)
+        .options(
+            selectinload(RiskZone.objects).selectinload(RiskObject.events),
+            selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events),
+        ).order_by(RiskZone.sort_order)
+    )).scalars().all()
+    risk_points = (await db.execute(
+        select(RiskObject).where(RiskObject.enterprise_id == enterprise_id, RiskObject.floor_id == floor_id, RiskObject.is_risk_point.is_(True))
+    )).scalars().all()
+    return ApiResponse(data=WorkbenchResponse(
+        floors=[await _floor_response(db, f) for f in floors],
+        current_floor_id=current.id,
+        zones=[_to_workbench_zone(z, current) for z in zones],
+        risk_points=[RiskObjectResponse.model_validate(o) for o in risk_points],
+        texts=current.canvas_texts or [],
+    ))
+
+
+@router.post("/workbench/batch-save", response_model=ApiResponse[BatchSaveResponse])
+async def batch_save_workbench(body: BatchSaveRequest, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(
+        select(EnterpriseFloor).where(EnterpriseFloor.id == body.floor_id, EnterpriseFloor.enterprise_id == enterprise_id).with_for_update()
+    )).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, detail={"code": "FLOOR_NOT_FOUND", "message": "楼层不存在"})
+    if not _same_ts(floor.updated_at, body.floor_updated_at):
+        raise HTTPException(409, detail={"code": "SAVE_CONFLICT", "message": "楼层数据已变更，请刷新"})
+
+    client_ids = [z.client_id for z in body.zones if z.client_id] + [r.client_id for r in body.risk_points if r.client_id]
+    if len(client_ids) != len(set(client_ids)):
+        raise HTTPException(422, detail={"code": "INVALID_PAYLOAD", "message": "client_id 重复"})
+
+    existing_zones = {z.id: z for z in (await db.execute(select(RiskZone).where(RiskZone.floor_id == floor.id).with_for_update())).scalars()}
+    existing_points = {o.id: o for o in (await db.execute(select(RiskObject).where(RiskObject.floor_id == floor.id, RiskObject.is_risk_point.is_(True)).with_for_update())).scalars()}
+
+    submitted_zone_ids = {item.zone_id for item in body.zones if item.zone_id}
+    missing_zone_ids = set(existing_zones) - submitted_zone_ids - set(body.deleted_zone_ids)
+    if missing_zone_ids:
+        raise HTTPException(422, detail={"code": "ZONE_NOT_BOUND", "message": "当前楼层存在缺失分区", "data": {"missing_zone_ids": sorted(missing_zone_ids)}})
+
+    created_zone_map: dict[str, str] = {}
+    for item in body.zones:
+        polygon_errors = validate_polygon_v2(item.floor_plan_polygon.model_dump())
+        if polygon_errors:
+            raise HTTPException(422, detail={"code": "POLYGON_INVALID", "message": "；".join(polygon_errors)})
+        if item.zone_id:
+            zone = existing_zones.get(item.zone_id)
+            if not zone:
+                raise HTTPException(404, detail={"code": "ZONE_NOT_FOUND", "message": "分区不存在"})
+            if not _same_ts(zone.updated_at, item.updated_at):
+                raise HTTPException(409, detail={"code": "SAVE_CONFLICT", "message": "分区已变更，请刷新"})
+            zone.name = item.name or zone.name
+            zone.description = item.description
+            zone.sort_order = item.sort_order
+            zone.floor_plan_polygon = item.floor_plan_polygon.model_dump()
+        else:
+            if not item.client_id:
+                raise HTTPException(422, detail={"code": "INVALID_PAYLOAD", "message": "新建分区必须提供 client_id"})
+            zone = RiskZone(
+                enterprise_id=enterprise_id,
+                floor_id=floor.id,
+                name=item.name or "",
+                description=item.description,
+                sort_order=item.sort_order,
+                floor_plan_polygon=item.floor_plan_polygon.model_dump(),
+            )
+            db.add(zone)
+            await db.flush()
+            created_zone_map[item.client_id] = zone.id
+
+    created_risk_point_map: dict[str, str] = {}
+    for item in body.risk_points:
+        if item.zone_id and item.zone_client_id:
+            raise HTTPException(422, detail={"code": "INVALID_PAYLOAD", "message": "zone_id 与 zone_client_id 不允许同时提供"})
+        target_zone_id = item.zone_id or created_zone_map.get(item.zone_client_id or "")
+        if not target_zone_id:
+            raise HTTPException(422, detail={"code": "ZONE_NOT_FOUND", "message": "风险点必须绑定分区"})
+        if item.id:
+            point = existing_points.get(item.id)
+            if not point:
+                raise HTTPException(404, detail={"code": "RISK_POINT_NOT_FOUND", "message": "风险点不存在"})
+            if not _same_ts(point.updated_at, item.updated_at):
+                raise HTTPException(409, detail={"code": "SAVE_CONFLICT", "message": "风险点已变更，请刷新"})
+            point.zone_id = target_zone_id
+            point.floor_id = floor.id
+            point.location_x = item.location_x
+            point.location_y = item.location_y
+            point.name = item.name or point.name
+            point.category = item.category
+            point.description = item.description
+        else:
+            if not item.client_id:
+                raise HTTPException(422, detail={"code": "INVALID_PAYLOAD", "message": "新建风险点必须提供 client_id"})
+            point = RiskObject(
+                enterprise_id=enterprise_id,
+                zone_id=target_zone_id,
+                floor_id=floor.id,
+                name=item.name or "",
+                category=item.category,
+                description=item.description,
+                location_x=item.location_x,
+                location_y=item.location_y,
+                is_risk_point=True,
+            )
+            db.add(point)
+            await db.flush()
+            created_risk_point_map[item.client_id] = point.id
+
+    for pid in body.deleted_risk_point_ids:
+        point = existing_points.get(pid)
+        if point:
+            await db.delete(point)
+
+    for zid in body.deleted_zone_ids:
+        zone = existing_zones.get(zid)
+        if not zone:
+            continue
+        counts = await cascade_counts(db, zid)
+        if counts["object_count"] and zid not in body.confirm_cascade_zone_ids:
+            raise HTTPException(409, detail={"code": "CASCADE_CONFIRM_REQUIRED", "message": "删除分区需要确认", "data": counts})
+        await db.delete(zone)
+
+    floor.canvas_texts = [t.model_dump() for t in body.texts]
+    await db.commit()
+
+    saved_zones = (await db.execute(select(RiskZone).where(RiskZone.floor_id == floor.id).order_by(RiskZone.sort_order))).scalars().all()
+    saved_points = (await db.execute(select(RiskObject).where(RiskObject.floor_id == floor.id, RiskObject.is_risk_point.is_(True)))).scalars().all()
+    await db.refresh(floor)
+    return ApiResponse(data=BatchSaveResponse(
+        floor=await _floor_response(db, floor),
+        zones=[RiskZoneResponse.model_validate(z) for z in saved_zones],
+        risk_points=[RiskObjectResponse.model_validate(o) for o in saved_points],
+        texts=floor.canvas_texts or [],
+        created_zone_map=created_zone_map,
+        created_risk_point_map=created_risk_point_map,
+    ), message="保存成功")
+
+
+@router.get("/overview", response_model=ApiResponse[OverviewResponse])
+async def get_overview(enterprise_id: str, floor_id: str | None = Query(None), current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    default = await _default_floor(db, enterprise_id)
+    if not floor_id:
+        current = default
+    else:
+        current = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+        if not current:
+            raise HTTPException(404, "楼层不存在")
+    await db.commit()
+    zones = (await db.execute(select(RiskZone).where(RiskZone.floor_id == current.id).options(selectinload(RiskZone.objects)))).scalars().all()
+    points = (await db.execute(select(RiskObject).where(RiskObject.floor_id == current.id, RiskObject.is_risk_point.is_(True)))).scalars().all()
+    return ApiResponse(data=OverviewResponse(
+        floor=await _floor_response(db, current),
+        zones=[_to_workbench_zone(z, current) for z in zones],
+        risk_points=[RiskObjectResponse.model_validate(o) for o in points],
+    ))
+
 # ── Zones ──
 @router.get("/zones", response_model=ApiResponse[list[RiskZoneResponse]])
 async def list_zones(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
@@ -284,7 +493,17 @@ async def list_objects(enterprise_id: str, zone_id: str|None=None, is_risk_point
 @router.post("/objects", response_model=ApiResponse[RiskObjectResponse], status_code=201)
 async def create_object(body: RiskObjectCreate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    o = RiskObject(enterprise_id=enterprise_id, **body.model_dump(exclude_unset=True))
+    floor_id = body.floor_id
+    if body.zone_id:
+        zone = (await db.execute(select(RiskZone).where(RiskZone.id == body.zone_id, RiskZone.enterprise_id == enterprise_id))).scalar_one_or_none()
+        if not zone:
+            raise HTTPException(404, "分区不存在")
+        if floor_id and floor_id != zone.floor_id:
+            raise HTTPException(422, detail={"code": "ZONE_FLOOR_MISMATCH", "message": "分区与风险点楼层不一致"})
+        floor_id = zone.floor_id
+    if body.is_risk_point and (not body.zone_id or body.location_x is None or body.location_y is None):
+        raise HTTPException(422, detail={"code": "RISK_POINT_INVALID", "message": "风险点必须绑定分区和坐标"})
+    o = RiskObject(enterprise_id=enterprise_id, floor_id=floor_id, **body.model_dump(exclude_unset=True, exclude={"floor_id"}))
     db.add(o)
     await db.commit()
     await db.refresh(o)
@@ -442,10 +661,29 @@ async def delete_measure(event_id: str, measure_id: str, enterprise_id: str, cur
 
 # ── Hierarchy ──
 @router.get("/hierarchy", response_model=ApiResponse[list[HierarchyZoneResponse]])
-async def get_hierarchy(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    zones = (await db.execute(select(RiskZone).where(RiskZone.enterprise_id==enterprise_id).options(selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures), selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures)).order_by(RiskZone.sort_order))).scalars().all()
-    return ApiResponse(data=[HierarchyZoneResponse.model_validate(z) for z in zones])
+    default = await _default_floor(db, enterprise_id)
+    if not floor_id:
+        floor_id = default.id
+    else:
+        floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+        if not floor:
+            raise HTTPException(404, "楼层不存在")
+    await db.commit()
+    floors = {f.id: f for f in (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id))).scalars().all()}
+    zones = (await db.execute(select(RiskZone).where(RiskZone.enterprise_id==enterprise_id, RiskZone.floor_id==floor_id).options(selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures), selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures)).order_by(RiskZone.sort_order))).scalars().all()
+    out = []
+    for z in zones:
+        resp = HierarchyZoneResponse.model_validate(z)
+        f = floors.get(z.floor_id)
+        resp.floor_name = f.name if f else None
+        normalized = normalize_polygon(z.floor_plan_polygon, z.name)
+        resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
+        resp.max_risk_level = max_risk_level(z)
+        resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
+        out.append(resp)
+    return ApiResponse(data=out)
 
 # ── AI endpoints ──
 @router.post("/ai/suggest-objects")
