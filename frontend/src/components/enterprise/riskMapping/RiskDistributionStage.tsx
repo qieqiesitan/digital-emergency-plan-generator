@@ -34,10 +34,7 @@ export default function RiskDistributionStage({
   const floorPlanUrl = floor?.floor_plan_url ?? null;
 
   useEffect(() => {
-    if (!floorPlanUrl) {
-      setLoadedImage(null);
-      return;
-    }
+    if (!floorPlanUrl) return;
     const img = new window.Image();
     img.onload = () => setLoadedImage({ url: floorPlanUrl, image: img });
     img.src = floorPlanUrl;

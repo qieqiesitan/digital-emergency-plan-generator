@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
-import { Drawer, Form, Input, Button, Modal, Space, message } from "antd";
+import { Drawer, Form, Input, Button, Modal, Space } from "antd";
 import { EnvironmentOutlined, DeleteOutlined } from "@ant-design/icons";
+import { mergeEditedPolygon } from "@/utils/zoneSubmit";
 
 interface PolygonPoint { x: number; y: number }
 
@@ -27,26 +28,20 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
   const [form] = Form.useForm<RiskZoneFormValues>();
   const [polygonOpen, setPolygonOpen] = useState(false);
   const [polygonPoints, setPolygonPoints] = useState<PolygonPoint[]>([]);
+  const [existingRegionCount, setExistingRegionCount] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const handleOpen = () => {
     const existing = form.getFieldValue("floor_plan_polygon");
     setPolygonPoints(existing?.polygons?.[0]?.points ?? (existing as { points?: PolygonPoint[] } | undefined)?.points ?? []);
+    setExistingRegionCount(existing?.polygons?.length ?? 0);
     setPolygonOpen(true);
   };
 
   const handlePolygonConfirm = () => {
+    const existing = form.getFieldValue("floor_plan_polygon");
     form.setFieldsValue({
-      floor_plan_polygon: {
-        version: 2,
-        color_source: "auto",
-        color: null,
-        polygons: [{
-          id: crypto.randomUUID(),
-          label: form.getFieldValue("name") || "未命名区域",
-          points: polygonPoints,
-        }],
-      },
+      floor_plan_polygon: mergeEditedPolygon(existing, form.getFieldValue("name"), polygonPoints),
     });
     setPolygonOpen(false);
   };
@@ -215,6 +210,11 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
             ? "请点击平面图添加多边形顶点（至少3个点）"
             : `已标记 ${polygonPoints.length} 个顶点${polygonPoints.length < 3 ? "（至少需要3个点才能形成区域）" : ""}`}
         </div>
+        {existingRegionCount > 1 && (
+          <div style={{ color: "#faad14", fontSize: 12, marginTop: 4 }}>
+            该分区包含 {existingRegionCount} 个区域，本次仅更新当前编辑区域，其余区域将保留。
+          </div>
+        )}
       </Modal>
     </>
   );

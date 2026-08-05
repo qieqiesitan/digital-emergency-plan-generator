@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, Segmented, Button, Tree, Tag, Spin, Space, Empty, Select } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
@@ -22,33 +22,42 @@ export default function RiskOverviewPage() {
   const [treeSelectedKeys, setTreeSelectedKeys] = useState<React.Key[]>([]);
   const [floorId, setFloorId] = useState<string | undefined>(undefined);
 
-  const { data: zones = [], isLoading } = useQuery({ queryKey: ["risk-hierarchy", enterpriseId], queryFn: () => getFullHierarchy(enterpriseId!), enabled: !!enterpriseId });
-
   const { data: floors = [] } = useQuery({
     queryKey: ["risk-floors", enterpriseId],
     queryFn: () => listEnterpriseFloors(enterpriseId!),
     enabled: !!enterpriseId,
   });
 
-  // 默认选中默认楼层，供只读分布图与楼层选择器联动
-  useEffect(() => {
-    if (!floorId && floors.length) {
-      const def = floors.find(f => f.is_default) ?? floors[0];
-      if (def) setFloorId(def.id);
-    }
-  }, [floors, floorId]);
+  // 当前生效楼层：用户显式选择优先，否则回退默认楼层（派生值，避免 effect 内 setState）
+  const effectiveFloorId = useMemo(() => {
+    if (floorId) return floorId;
+    const def = floors.find(f => f.is_default) ?? floors[0];
+    return def?.id;
+  }, [floorId, floors]);
+
+  const { data: zones = [], isLoading } = useQuery({
+    queryKey: ["risk-hierarchy", enterpriseId, effectiveFloorId],
+    queryFn: () => getFullHierarchy(enterpriseId!, effectiveFloorId),
+    enabled: !!enterpriseId,
+  });
 
   // 点击分布图分区 → 联动层级树与拓扑高亮
   const handleZoneClick = (zoneId: string) => {
-    setHighlightZone(zoneId);
-    setTreeSelectedKeys([zoneId]);
+    setHighlightZone(prev => (prev === zoneId ? null : zoneId));
+    setTreeSelectedKeys(prev => (prev.includes(zoneId) ? [] : [zoneId]));
+  };
+
+  // 切换楼层 → 树与分布图数据按新楼层刷新，并清理旧楼层的选中/高亮残留
+  const handleFloorChange = (value: string) => {
+    setFloorId(value);
+    setHighlightZone(null);
+    setTreeSelectedKeys([]);
   };
 
   // Build compact tree
   const treeData = useMemo(() => zones.map(z => ({ title: <span>🏭 {z.name} {getMaxLevel(z) !== "低" && <Tag color={RISK_LEVEL_COLORS[getMaxLevel(z)]}>{getMaxLevel(z)}</Tag>}</span>, key: z.id, children: z.objects?.map(o => ({ title: <span>📦 {o.name}{o.is_risk_point ? " ◆" : ""}</span>, key: o.id, children: [...(o.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[e.risk_level||"低"]}>{e.risk_level||"?"}</Tag></span>, key: e.id, isLeaf: true })), ...(o.units||[]).map(u => ({ title: <span>⚙ {u.name}</span>, key: u.id, children: (u.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[e.risk_level||"低"]}>{e.risk_level||"?"}</Tag></span>, key: e.id, isLeaf: true })) }))] })) || [] })), [zones]);
 
   if (isLoading) return <Spin size="large" style={{ display: "block", margin: "100px auto" }} />;
-  if (!zones.length) return <Empty description="暂无风险管控数据" />;
 
   const gridStyle: React.CSSProperties = viewMode === "quad" ? { display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 16, height: "calc(100vh - 140px)" } : viewMode === "floorplan" ? { display: "grid", gridTemplateColumns: "1fr", gridTemplateRows: "60% 40%", gap: 16, height: "calc(100vh - 140px)" } : { display: "grid", gridTemplateColumns: "40% 1fr", gridTemplateRows: "1fr", gap: 16, height: "calc(100vh - 140px)" };
 
@@ -57,45 +66,52 @@ export default function RiskOverviewPage() {
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
         <Select
-          value={floorId}
+          value={effectiveFloorId}
           placeholder="选择楼层"
           style={{ width: 180 }}
           options={floors.map(f => ({ label: f.name, value: f.id }))}
-          onChange={setFloorId}
+          onChange={handleFloorChange}
         />
         <Segmented options={[{ label: "四象限", value: "quad" }, { label: "平面图优先", value: "floorplan" }, { label: "数据优先", value: "data" }]} value={viewMode} onChange={v => setViewMode(v as ViewMode)} />
       </Space>
-      <div style={gridStyle}>
-        {/* Q1: Floor Plan Heatmap */}
-        <Card size="small" title="① 厂区平面图热区" style={{ overflow: "hidden" }}>
-          <RiskDistributionStage floorId={floorId} highlightZone={highlightZone} onZoneClick={handleZoneClick} />
-        </Card>
-        {/* Q2: Risk Matrix */}
-        <Card size="small" title="② 风险矩阵热力图"><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} /></Card>
-        {/* Q3: Stats */}
-        {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计"><RiskOverviewStats zones={zones} /></Card>}
-        {/* Q4: Tree/Topology */}
-        <Card size="small" title={<Space><span>④</span><Segmented size="small" options={[{ label: "层级树", value: "tree" }, { label: "管控拓扑图", value: "topology" }]} value={rightView} onChange={v => { setRightView(v as "tree" | "topology"); localStorage.setItem("risk-overview-right", v as string); }} /></Space>}>
-          {rightView === "tree" ? (
-            <Tree
-              treeData={treeData}
-              defaultExpandAll
-              blockNode
-              selectedKeys={treeSelectedKeys}
-              style={{ maxHeight: "calc(100% - 30px)", overflow: "auto" }}
-              onSelect={(keys) => {
-                setTreeSelectedKeys(keys);
-                if (keys[0]) {
-                  const zone = zones.find(z => z.id === keys[0] || z.objects?.some(o => o.id === keys[0]));
-                  if (zone) setHighlightZone(zone.id);
-                }
-              }}
-            />
-          ) : (
-            <TopologySVG zones={zones} highlightZone={highlightZone} />
-          )}
-        </Card>
-      </div>
+      {zones.length === 0 ? (
+        <Empty
+          description={floors.length ? "当前楼层暂无风险管控数据，请切换楼层查看" : "暂无风险管控数据"}
+          style={{ marginTop: 80 }}
+        />
+      ) : (
+        <div style={gridStyle}>
+          {/* Q1: Floor Plan Heatmap */}
+          <Card size="small" title="① 厂区平面图热区" style={{ overflow: "hidden" }}>
+            <RiskDistributionStage floorId={effectiveFloorId} highlightZone={highlightZone} onZoneClick={handleZoneClick} />
+          </Card>
+          {/* Q2: Risk Matrix */}
+          <Card size="small" title="② 风险矩阵热力图"><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} /></Card>
+          {/* Q3: Stats */}
+          {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计"><RiskOverviewStats zones={zones} /></Card>}
+          {/* Q4: Tree/Topology */}
+          <Card size="small" title={<Space><span>④</span><Segmented size="small" options={[{ label: "层级树", value: "tree" }, { label: "管控拓扑图", value: "topology" }]} value={rightView} onChange={v => { setRightView(v as "tree" | "topology"); localStorage.setItem("risk-overview-right", v as string); }} /></Space>}>
+            {rightView === "tree" ? (
+              <Tree
+                treeData={treeData}
+                defaultExpandAll
+                blockNode
+                selectedKeys={treeSelectedKeys}
+                style={{ maxHeight: "calc(100% - 30px)", overflow: "auto" }}
+                onSelect={(keys) => {
+                  setTreeSelectedKeys(keys);
+                  if (keys[0]) {
+                    const zone = zones.find(z => z.id === keys[0] || z.objects?.some(o => o.id === keys[0]));
+                    if (zone) setHighlightZone(zone.id);
+                  }
+                }}
+              />
+            ) : (
+              <TopologySVG zones={zones} highlightZone={highlightZone} />
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

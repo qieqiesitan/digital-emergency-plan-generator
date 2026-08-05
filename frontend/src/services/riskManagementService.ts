@@ -41,7 +41,8 @@ export const createMeasure = (eid: string, evid: string, data: RiskMeasureCreate
 export const updateMeasure = (eid: string, evid: string, mid: string, data: Partial<RiskMeasureCreate & { status: string }>) => api.put<ApiResponse<RiskMeasure>>(`${BASE(eid)}/events/${evid}/measures/${mid}`, data).then(r => r.data.data);
 export const deleteMeasure = (eid: string, evid: string, mid: string) => api.delete(`${BASE(eid)}/events/${evid}/measures/${mid}`);
 
-export const getFullHierarchy = (eid: string) => api.get<ApiResponse<HierarchyZone[]>>(`${BASE(eid)}/hierarchy`).then(r => r.data.data);
+export const getFullHierarchy = (eid: string, floorId?: string) =>
+  api.get<ApiResponse<HierarchyZone[]>>(`${BASE(eid)}/hierarchy`, { params: floorId ? { floor_id: floorId } : {} }).then(r => r.data.data);
 
 export const aiSuggestObjects = (eid: string, data: { zone_name: string; zone_desc: string; enterprise_info: Record<string, unknown>; existing_names: string[] }) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/suggest-objects`, data).then(r => r.data.data);
 export const aiSuggestEvents = (eid: string, data: Record<string, unknown>) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/suggest-events`, data).then(r => r.data.data);
