@@ -1,8 +1,12 @@
 from datetime import datetime, timezone
 
+import pytest
+from pydantic import ValidationError
+
 from app.routers.risk_management import _same_ts
 from app.schemas.risk_management import (
     BatchSaveRequest,
+    BatchSaveRiskPointItem,
     BatchSaveZoneItem,
     HierarchyZoneResponse,
     RiskPolygon,
@@ -48,6 +52,26 @@ def test_batch_save_schema_accepts_new_zone_with_client_id():
     )
     assert payload.zones[0].client_id == "zone-client-1"
     assert payload.zones[0].zone_id is None
+
+
+def test_batch_save_risk_point_accepts_boundary_coordinates():
+    item = BatchSaveRiskPointItem(location_x=0, location_y=100)
+    assert item.location_x == 0
+    assert item.location_y == 100
+
+
+def test_batch_save_risk_point_rejects_out_of_range_coordinates():
+    with pytest.raises(ValidationError):
+        BatchSaveRiskPointItem(location_x=150, location_y=50)
+    with pytest.raises(ValidationError):
+        BatchSaveRiskPointItem(location_x=10, location_y=-1)
+
+
+def test_batch_save_risk_point_rejects_non_finite_coordinates():
+    with pytest.raises(ValidationError):
+        BatchSaveRiskPointItem(location_x=float("nan"), location_y=50)
+    with pytest.raises(ValidationError):
+        BatchSaveRiskPointItem(location_x=10, location_y=float("inf"))
 
 
 def test_hierarchy_zone_response_extends_floor_fields():

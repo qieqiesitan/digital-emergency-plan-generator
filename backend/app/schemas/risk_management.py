@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, date
 from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -104,7 +105,28 @@ class RiskObjectUpdate(BaseModel):
 class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; floor_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; updated_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
 
 class BatchSaveZoneItem(BaseModel): client_id: str | None = None; zone_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int = 0; updated_at: DatetimeStr | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon
-class BatchSaveRiskPointItem(BaseModel): client_id: str | None = None; id: str | None = None; name: str | None = None; category: str | None = None; description: str | None = None; zone_id: str | None = None; zone_client_id: str | None = None; floor_id: str | None = None; location_x: float; location_y: float; updated_at: DatetimeStr | None = None
+class BatchSaveRiskPointItem(BaseModel):
+    client_id: str | None = None
+    id: str | None = None
+    name: str | None = None
+    category: str | None = None
+    description: str | None = None
+    zone_id: str | None = None
+    zone_client_id: str | None = None
+    floor_id: str | None = None
+    location_x: float
+    location_y: float
+    updated_at: DatetimeStr | None = None
+
+    @field_validator("location_x", "location_y")
+    @classmethod
+    def check_point_coordinate(cls, v: float):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or math.isnan(v) or math.isinf(v):
+            raise ValueError("坐标必须是 0-100 范围内的有限数值")
+        if not (0 <= v <= 100):
+            raise ValueError("坐标必须是 0-100 范围内的有限数值")
+        return v
+
 class BatchSaveRequest(BaseModel): floor_id: str; floor_updated_at: DatetimeStr; zones: list[BatchSaveZoneItem]; risk_points: list[BatchSaveRiskPointItem] = []; deleted_risk_point_ids: list[str] = []; deleted_zone_ids: list[str] = []; confirm_cascade_zone_ids: list[str] = []; texts: list[RiskCanvasText] = []
 class BatchSaveResponse(BaseModel): floor: FloorResponse; zones: list[RiskZoneResponse]; risk_points: list[RiskObjectResponse]; texts: list[RiskCanvasText]; created_zone_map: dict[str, str] = {}; created_risk_point_map: dict[str, str] = {}
 

@@ -1,4 +1,4 @@
-import json, os, logging
+import json, math, os, logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -226,6 +226,13 @@ def _same_ts(a, b) -> bool:
     return parse(a) == parse(b)
 
 
+def _validate_point_range(x, y) -> None:
+    """风险点坐标必须是 0-100 范围内的有限数值，否则抛 422 POINT_OUT_OF_RANGE。"""
+    for v in (x, y):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or math.isnan(v) or math.isinf(v) or not (0 <= v <= 100):
+            raise HTTPException(422, detail={"code": "POINT_OUT_OF_RANGE", "message": "风险点坐标必须是 0-100 范围内的有限数值"})
+
+
 def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
     """将分区 ORM 对象规范化为工作台/总览响应，补齐楼层名、多边形 v2、风险等级与有效色。"""
     resp = RiskZoneResponse.model_validate(z)
@@ -340,6 +347,17 @@ async def batch_save_workbench(body: BatchSaveRequest, enterprise_id: str, curre
     for item in body.risk_points:
         if item.zone_id and item.zone_client_id:
             raise HTTPException(422, detail={"code": "INVALID_PAYLOAD", "message": "zone_id 与 zone_client_id 不允许同时提供"})
+        _validate_point_range(item.location_x, item.location_y)
+        if item.zone_id:
+            bound_zone = (await db.execute(
+                select(RiskZone.id).where(
+                    RiskZone.id == item.zone_id,
+                    RiskZone.floor_id == floor.id,
+                    RiskZone.enterprise_id == enterprise_id,
+                )
+            )).scalar_one_or_none()
+            if not bound_zone:
+                raise HTTPException(422, detail={"code": "ZONE_FLOOR_MISMATCH", "message": "风险点绑定的分区不属于当前楼层或当前企业"})
         target_zone_id = item.zone_id or created_zone_map.get(item.zone_client_id or "")
         if not target_zone_id:
             raise HTTPException(422, detail={"code": "ZONE_NOT_FOUND", "message": "风险点必须绑定分区"})

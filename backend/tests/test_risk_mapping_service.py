@@ -1,14 +1,23 @@
 import asyncio
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.models.enterprise import EnterpriseFloor
 from app.models.risk_management import RiskZone
-from app.routers.risk_management import create_zone, delete_floor, update_zone
-from app.schemas.risk_management import RiskObjectUpdate, RiskZoneCreate, RiskZoneFloorPlanPolygon, RiskZoneUpdate
+from app.routers.risk_management import batch_save_workbench, create_zone, delete_floor, update_zone
+from app.schemas.risk_management import (
+    BatchSaveRequest,
+    BatchSaveRiskPointItem,
+    BatchSaveZoneItem,
+    RiskObjectUpdate,
+    RiskZoneCreate,
+    RiskZoneFloorPlanPolygon,
+    RiskZoneUpdate,
+)
 from app.services.risk_mapping_service import (
     effective_color,
     ensure_default_floor,
@@ -185,6 +194,26 @@ def _scalar_count(n):
     return m
 
 
+def _floor_result(floor):
+    return MagicMock(scalar_one_or_none=MagicMock(return_value=floor))
+
+
+def _scalars_result(items):
+    m = MagicMock()
+    m.scalars.return_value = items
+    return m
+
+
+def _scalars_all_result(items):
+    m = MagicMock()
+    m.scalars.return_value.all.return_value = items
+    return m
+
+
+def _none_result():
+    return MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+
+
 def _make_zone(**overrides):
     values = dict(
         id="zone-1",
@@ -197,6 +226,27 @@ def _make_zone(**overrides):
     )
     values.update(overrides)
     return RiskZone(**values)
+
+
+def _make_floor(**overrides):
+    values = dict(
+        id="floor-1",
+        enterprise_id="e-1",
+        name="一层",
+        sort_order=0,
+        is_default=False,
+        canvas_texts=[],
+        created_at=datetime(2026, 8, 4, 2, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 8, 4, 2, 0, tzinfo=timezone.utc),
+    )
+    values.update(overrides)
+    return EnterpriseFloor(**values)
+
+
+def _batch_body(**overrides):
+    values = dict(floor_id="floor-1", floor_updated_at="2026-08-04T10:00:00+08:00", zones=[])
+    values.update(overrides)
+    return BatchSaveRequest(**values)
 
 
 @pytest.mark.asyncio
@@ -289,3 +339,188 @@ async def test_delete_default_floor_blocked():
     with pytest.raises(HTTPException) as exc_info:
         await delete_floor("floor-1", "e-1", MagicMock(id="u-1"), db)
     assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_batch_save_rejects_risk_point_bound_to_zone_of_other_floor():
+    db = AsyncMock()
+    floor = _make_floor()
+    point = MagicMock(id="rp-1")
+    db.execute.side_effect = [
+        _ent_result(),
+        _floor_result(floor),
+        _scalars_result([]),      # existing_zones
+        _scalars_result([point]), # existing_points
+        _none_result(),           # 分区归属校验：目标分区不在当前楼层/企业
+    ]
+    body = _batch_body(risk_points=[BatchSaveRiskPointItem(
+        id="rp-1",
+        name="跨楼层风险点",
+        zone_id="zone-other-floor",
+        location_x=10,
+        location_y=20,
+    )])
+
+    with pytest.raises(HTTPException) as exc_info:
+        await batch_save_workbench(body, "e-1", MagicMock(id="u-1"), db)
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail["code"] == "ZONE_FLOOR_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_batch_save_accepts_risk_point_bound_to_current_floor_zone():
+    db = AsyncMock()
+    floor = _make_floor()
+    point = MagicMock(id="rp-1", updated_at=datetime(2026, 8, 4, 2, 0, tzinfo=timezone.utc))
+    db.execute.side_effect = [
+        _ent_result(),
+        _floor_result(floor),
+        _scalars_result([]),                       # existing_zones
+        _scalars_result([point]),                  # existing_points
+        MagicMock(scalar_one_or_none=MagicMock(return_value=MagicMock(id="zone-1"))),  # 归属校验通过
+        _scalars_all_result([]),                   # saved_zones
+        _scalars_all_result([]),                   # saved_points
+        _scalar_count(0),                          # zone_count
+        _scalar_count(0),                          # risk_point_count
+    ]
+    body = _batch_body(risk_points=[BatchSaveRiskPointItem(
+        id="rp-1",
+        name="同楼层风险点",
+        zone_id="zone-1",
+        location_x=10,
+        location_y=20,
+        updated_at="2026-08-04T10:00:00+08:00",
+    )])
+
+    resp = await batch_save_workbench(body, "e-1", MagicMock(id="u-1"), db)
+
+    assert resp.message == "保存成功"
+    assert point.zone_id == "zone-1"
+    assert point.floor_id == "floor-1"
+
+
+@pytest.mark.parametrize("bad", [150.0, -1.0, float("nan"), float("inf")])
+@pytest.mark.asyncio
+async def test_batch_save_rejects_out_of_range_point_coordinates(bad):
+    db = AsyncMock()
+    floor = _make_floor()
+    db.execute.side_effect = [
+        _ent_result(),
+        _floor_result(floor),
+        _scalars_result([]),
+        _scalars_result([]),
+    ]
+    item = BatchSaveRiskPointItem.model_construct(
+        client_id="rp-new-1",
+        id=None,
+        name="越界风险点",
+        category=None,
+        description=None,
+        zone_id="zone-1",
+        zone_client_id=None,
+        floor_id=None,
+        location_x=bad,
+        location_y=50.0,
+        updated_at=None,
+    )
+    body = _batch_body(risk_points=[item])
+
+    with pytest.raises(HTTPException) as exc_info:
+        await batch_save_workbench(body, "e-1", MagicMock(id="u-1"), db)
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail["code"] == "POINT_OUT_OF_RANGE"
+
+
+@pytest.mark.asyncio
+async def test_batch_save_rejects_duplicate_client_id():
+    db = AsyncMock()
+    floor = _make_floor()
+    db.execute.side_effect = [
+        _ent_result(),
+        _floor_result(floor),
+    ]
+    polygon = RiskZoneFloorPlanPolygon.model_validate({
+        "version": 2,
+        "color_source": "auto",
+        "polygons": [{"id": "p1", "points": _points3()}],
+    })
+    body = _batch_body(zones=[
+        BatchSaveZoneItem(client_id="dup-1", floor_plan_polygon=polygon),
+        BatchSaveZoneItem(client_id="dup-1", floor_plan_polygon=polygon),
+    ])
+
+    with pytest.raises(HTTPException) as exc_info:
+        await batch_save_workbench(body, "e-1", MagicMock(id="u-1"), db)
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail["code"] == "INVALID_PAYLOAD"
+
+
+@pytest.mark.asyncio
+async def test_batch_save_rejects_missing_zone():
+    db = AsyncMock()
+    floor = _make_floor()
+    db.execute.side_effect = [
+        _ent_result(),
+        _floor_result(floor),
+        _scalars_result([MagicMock(id="zone-1")]),  # existing_zones
+        _scalars_result([]),                        # existing_points
+    ]
+    body = _batch_body()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await batch_save_workbench(body, "e-1", MagicMock(id="u-1"), db)
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail["code"] == "ZONE_NOT_BOUND"
+    assert exc_info.value.detail["data"]["missing_zone_ids"] == ["zone-1"]
+
+
+@pytest.mark.asyncio
+async def test_batch_save_requires_cascade_confirmation_for_zone_with_objects():
+    db = AsyncMock()
+    floor = _make_floor()
+    db.execute.side_effect = [
+        _ent_result(),
+        _floor_result(floor),
+        _scalars_result([MagicMock(id="zone-1")]),  # existing_zones
+        _scalars_result([]),                        # existing_points
+    ]
+    body = _batch_body(deleted_zone_ids=["zone-1"])
+    counts = {"object_count": 2, "unit_count": 0, "event_count": 0, "measure_count": 0}
+
+    with patch("app.routers.risk_management.cascade_counts", new=AsyncMock(return_value=counts)):
+        with pytest.raises(HTTPException) as exc_info:
+            await batch_save_workbench(body, "e-1", MagicMock(id="u-1"), db)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["code"] == "CASCADE_CONFIRM_REQUIRED"
+    assert exc_info.value.detail["data"]["object_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_batch_save_confirmed_cascade_deletes_zone():
+    db = AsyncMock()
+    floor = _make_floor()
+    zone = MagicMock(id="zone-1")
+    db.execute.side_effect = [
+        _ent_result(),
+        _floor_result(floor),
+        _scalars_result([zone]),    # existing_zones
+        _scalars_result([]),        # existing_points
+        _scalars_all_result([]),    # saved_zones
+        _scalars_all_result([]),    # saved_points
+        _scalar_count(0),           # zone_count
+        _scalar_count(0),           # risk_point_count
+    ]
+    body = _batch_body(deleted_zone_ids=["zone-1"], confirm_cascade_zone_ids=["zone-1"])
+    counts = {"object_count": 2, "unit_count": 0, "event_count": 0, "measure_count": 0}
+
+    with patch("app.routers.risk_management.cascade_counts", new=AsyncMock(return_value=counts)):
+        resp = await batch_save_workbench(body, "e-1", MagicMock(id="u-1"), db)
+
+    assert resp.message == "保存成功"
+    db.delete.assert_awaited_once_with(zone)
+    db.commit.assert_awaited_once()
