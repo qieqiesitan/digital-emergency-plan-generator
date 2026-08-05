@@ -2,7 +2,7 @@ from typing import Any
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.risk_management import RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
-from app.models.enterprise import EnterpriseFloor
+from app.models.enterprise import Enterprise, EnterpriseFloor
 
 LEVEL_ORDER = {"未评估": 0, "低": 1, "一般": 2, "较大": 3, "重大": 4}
 LEVEL_COLORS = {
@@ -33,24 +33,41 @@ def normalize_polygon(raw: dict | None, zone_name: str = "") -> dict | None:
 
 
 def validate_polygon_v2(polygon: dict | None) -> list[str]:
+    """防御性校验 v2 多边形结构，畸形输入一律返回错误列表而非抛异常。"""
     errors: list[str] = []
     if not polygon:
         return ["floor_plan_polygon 不能为空"]
+    if not isinstance(polygon, dict):
+        errors.append("floor_plan_polygon 必须为对象")
+        return errors
     if polygon.get("version") != 2:
         errors.append("version 必须为 2")
     if polygon.get("color_source") not in ("auto", "manual"):
         errors.append("color_source 必须为 auto 或 manual")
     if polygon.get("color_source") == "manual" and not isinstance(polygon.get("color"), str):
         errors.append("manual 模式必须提供 color")
-    polygons = polygon.get("polygons") or []
-    if not isinstance(polygons, list) or not polygons:
+    polygons = polygon.get("polygons")
+    if not isinstance(polygons, list):
+        errors.append("polygons 必须为非空数组")
+        return errors
+    if not polygons:
         errors.append("polygons 不能为空")
+        return errors
     ids = []
     for p in polygons:
-        pts = p.get("points") or []
+        if not isinstance(p, dict):
+            errors.append("区域必须是对象")
+            continue
+        pts = p.get("points")
+        if not isinstance(pts, list):
+            errors.append("每个区域至少 3 个顶点")
+            continue
         if len(pts) < 3:
             errors.append("每个区域至少 3 个顶点")
         for pt in pts:
+            if not isinstance(pt, dict):
+                errors.append("坐标必须是数值")
+                continue
             if not isinstance(pt.get("x"), (int, float)) or not isinstance(pt.get("y"), (int, float)):
                 errors.append("坐标必须是数值")
             elif not (0 <= pt["x"] <= 100 and 0 <= pt["y"] <= 100):
@@ -87,11 +104,12 @@ async def ensure_default_floor(db: AsyncSession, enterprise_id: str) -> Enterpri
     )).scalar_one_or_none()
     if floor:
         return floor
+    enterprise = await db.get(Enterprise, enterprise_id)
     floor = EnterpriseFloor(
         enterprise_id=enterprise_id,
         name="默认总图",
         sort_order=0,
-        floor_plan_url=None,
+        floor_plan_url=enterprise.floor_plan_url if enterprise else None,
         is_default=True,
     )
     db.add(floor)

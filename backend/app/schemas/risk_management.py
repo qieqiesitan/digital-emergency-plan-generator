@@ -1,6 +1,6 @@
 from datetime import datetime, date
-from typing import Optional
-from pydantic import BaseModel, field_validator, model_validator
+from typing import Any, Literal, Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.common import DatetimeStr
 
 class MethodCreate(BaseModel): method_type: str; name: str; description: str = ""; config: dict = {}
@@ -22,8 +22,42 @@ class RiskPolygonPoint(BaseModel):
             raise ValueError("坐标范围 0-100")
         return v
 
-class RiskPolygon(BaseModel): id: str; label: str | None = None; points: list[RiskPolygonPoint]
-class RiskZoneFloorPlanPolygon(BaseModel): version: int = 2; color_source: str; color: str | None = None; polygons: list[RiskPolygon]
+class RiskPolygon(BaseModel):
+    id: str
+    label: str | None = None
+    points: list[RiskPolygonPoint] = Field(min_length=3)
+
+class RiskZoneFloorPlanPolygon(BaseModel):
+    version: Literal[2] = 2
+    color_source: Literal["auto", "manual"]
+    color: str | None = None
+    polygons: list[RiskPolygon] = Field(min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy(cls, data: Any):
+        """兼容旧前端 {points: [...]} 结构，自动归一化为 v2。"""
+        if isinstance(data, dict) and data.get("points") is not None and data.get("polygons") is None:
+            return {
+                "version": 2,
+                "color_source": "auto",
+                "color": None,
+                "polygons": [{
+                    "id": data.get("id") or "legacy-polygon",
+                    "label": data.get("label"),
+                    "points": data.get("points"),
+                }],
+            }
+        return data
+
+    @model_validator(mode="after")
+    def validate_v2_rules(self):
+        if self.color_source == "manual" and not isinstance(self.color, str):
+            raise ValueError("manual 模式必须提供 color")
+        ids = [p.id for p in self.polygons]
+        if len(ids) != len(set(ids)):
+            raise ValueError("polygons.id 不能重复")
+        return self
 class RiskCanvasText(BaseModel): id: str; content: str; x: float; y: float; font_size: int = 14; color: str = "#333333"; rotation: int = 0; sort_order: int = 0
 
 class RiskZoneCreate(BaseModel): floor_id: str | None = None; name: str; description: str | None = None; sort_order: int = 0; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None
@@ -49,7 +83,24 @@ class RiskObjectCreate(BaseModel):
             raise ValueError("风险点必须绑定分区和坐标")
         return self
 
-class RiskObjectUpdate(BaseModel): zone_id: str | None = None; floor_id: str | None = None; name: str | None = None; category: str | None = None; location: str | None = None; location_x: float | None = None; location_y: float | None = None; description: str | None = None; image_url: str | None = None; is_risk_point: bool | None = None; sort_order: int | None = None
+class RiskObjectUpdate(BaseModel):
+    zone_id: str | None = None
+    floor_id: str | None = None
+    name: str | None = None
+    category: str | None = None
+    location: str | None = None
+    location_x: float | None = None
+    location_y: float | None = None
+    description: str | None = None
+    image_url: str | None = None
+    is_risk_point: bool | None = None
+    sort_order: int | None = None
+
+    @model_validator(mode="after")
+    def validate_risk_point(self):
+        if self.is_risk_point is True and (not self.zone_id or self.location_x is None or self.location_y is None):
+            raise ValueError("风险点必须绑定分区和坐标")
+        return self
 class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; floor_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; updated_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
 
 class BatchSaveZoneItem(BaseModel): client_id: str | None = None; zone_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int = 0; updated_at: DatetimeStr | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon
