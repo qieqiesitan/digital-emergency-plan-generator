@@ -8,6 +8,8 @@ import {
   toCanvasY,
   pointsToKonva,
   circlePoints,
+  ellipsePoints,
+  polygonCentroid,
   quadraticCurvePoints,
   polygonArea,
   validatePolygon,
@@ -425,6 +427,24 @@ describe("riskMappingGeometry", () => {
     expect(Math.abs(points[0].y - points[359].y)).toBeLessThan(0.5);
     expect(points.every(p => p.x >= 30 && p.x <= 70 && p.y >= 30 && p.y <= 70)).toBe(true);
     expect(validatePolygon(points)).toBeNull();
+  });
+
+  it("builds an aspect-correct ellipse approximation for non-square canvases", () => {
+    const points = ellipsePoints({ x: 50, y: 50 }, 20, 12, 72);
+    expect(points).toHaveLength(72);
+    expect(points[0]).toEqual({ x: 70, y: 50 });
+    expect(Math.min(...points.map(p => p.x))).toBeCloseTo(30);
+    expect(Math.min(...points.map(p => p.y))).toBeCloseTo(38);
+    expect(validatePolygon(points)).toBeNull();
+  });
+
+  it("computes the average centroid of a polygon", () => {
+    expect(polygonCentroid([
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ])).toEqual({ x: 5, y: 5 });
   });
 
   it("builds a quadratic curve approximation with endpoints preserved", () => {

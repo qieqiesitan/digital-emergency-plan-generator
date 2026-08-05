@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Stage,
   Layer,
@@ -14,8 +14,9 @@ import { DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import {
   clampPoint,
-  circlePoints,
+  ellipsePoints,
   pointsToKonva,
+  polygonCentroid,
   toCanvasX,
   toCanvasY,
   toPercent,
@@ -85,6 +86,12 @@ export default function WorkbenchCanvas() {
   const [editColor, setEditColor] = useState("#333333");
   const zoneDragOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
   const pendingDragOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
+  const spacePressedRef = useRef(false);
+  const panStartRef = useRef<{ x: number; y: number; viewX: number; viewY: number } | null>(null);
+  const isPanningRef = useRef(false);
+  const penDraggedRef = useRef(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [spacePressed, setSpacePressed] = useState(false);
 
   useEffect(() => {
     const url = floor?.floor_plan_url;
@@ -109,6 +116,11 @@ export default function WorkbenchCanvas() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "Space" && !isEditableTarget(document.activeElement)) {
+        event.preventDefault();
+        spacePressedRef.current = true;
+        setSpacePressed(true);
+      }
       if (event.key === "Escape") {
         setDraftPoints([]);
         setDraftCursor(null);
@@ -127,8 +139,51 @@ export default function WorkbenchCanvas() {
         useRiskMappingWorkbenchStore.getState().deleteSelected();
       }
     };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        spacePressedRef.current = false;
+        setSpacePressed(false);
+      }
+    };
+    const onWindowMouseMove = (event: MouseEvent) => {
+      if (!isPanningRef.current || !panStartRef.current) return;
+      const origin = panStartRef.current;
+      setState({
+        viewX: origin.viewX + event.clientX - origin.x,
+        viewY: origin.viewY + event.clientY - origin.y,
+      });
+    };
+    const onWindowMouseUp = () => {
+      if (isPanningRef.current) {
+        isPanningRef.current = false;
+        setIsPanning(false);
+        panStartRef.current = null;
+      }
+    };
+    const onWindowMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const canvasContainer = document.querySelector('[data-testid="workbench-canvas"]');
+      if (!target || !canvasContainer?.contains(target)) return;
+      if (event.button === 2 || (event.button === 0 && spacePressedRef.current)) {
+        event.preventDefault();
+        const view = useRiskMappingWorkbenchStore.getState();
+        panStartRef.current = { x: event.clientX, y: event.clientY, viewX: view.viewX, viewY: view.viewY };
+        isPanningRef.current = true;
+        setIsPanning(true);
+      }
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("mousedown", onWindowMouseDown);
+    window.addEventListener("mousemove", onWindowMouseMove);
+    window.addEventListener("mouseup", onWindowMouseUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("mousedown", onWindowMouseDown);
+      window.removeEventListener("mousemove", onWindowMouseMove);
+      window.removeEventListener("mouseup", onWindowMouseUp);
+    };
   }, [setState]);
 
   const image = loadedImage && loadedImage.url === floor?.floor_plan_url ? loadedImage.image : null;
@@ -230,6 +285,14 @@ export default function WorkbenchCanvas() {
   };
 
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+    if (e.evt.button === 2 || (e.evt.button === 0 && spacePressedRef.current)) {
+      e.evt.preventDefault();
+      const view = useRiskMappingWorkbenchStore.getState();
+      panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY, viewX: view.viewX, viewY: view.viewY };
+      isPanningRef.current = true;
+      setIsPanning(true);
+      return;
+    }
     if (e.evt.detail > 1) return;
     if (tool === "rect" || tool === "circle") {
       const p = pointFromEvent(e);
@@ -238,8 +301,16 @@ export default function WorkbenchCanvas() {
       setDraftEnd(p);
       return;
     }
-    if (tool === "polygon" || (tool === "pen" && !e.evt.shiftKey)) {
+    if (tool === "polygon") {
       setDraftPoints(prev => [...prev, pointFromEvent(e)]);
+      return;
+    }
+    if (tool === "pen") {
+      const p = pointFromEvent(e);
+      setIsDrawing(true);
+      penDraggedRef.current = false;
+      setDraftStart(p);
+      setDraftEnd(p);
       return;
     }
     if (tool === "freehand") {
@@ -247,16 +318,10 @@ export default function WorkbenchCanvas() {
       setDraftPoints([pointFromEvent(e)]);
       return;
     }
-    if (tool === "pen" && e.evt.shiftKey) {
-      const p = pointFromEvent(e);
-      setDraftStart(draftPoints[draftPoints.length - 1] ?? p);
-      setDraftEnd(p);
-      setIsDrawing(true);
-      setDraftPoints(prev => [...prev, p]);
-    }
   };
 
   const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+    if (isPanningRef.current) return;
     const p = pointFromEvent(e);
     if ((tool === "rect" || tool === "circle") && isDrawing) {
       setDraftEnd(p);
@@ -266,16 +331,28 @@ export default function WorkbenchCanvas() {
       setDraftPoints(prev => [...prev, p]);
       return;
     }
-    if (tool === "pen" && isDrawing && e.evt.shiftKey) {
-      setDraftPoints(prev => [...prev, p]);
+    if (tool === "pen" && isDrawing) {
+      if (draftStart && Math.hypot(p.x - draftStart.x, p.y - draftStart.y) > 0.3) {
+        penDraggedRef.current = true;
+      }
+      if (penDraggedRef.current) {
+        setDraftPoints(prev => [...prev, p]);
+      }
+      setDraftEnd(p);
       return;
     }
-    if ((tool === "polygon" || tool === "pen") && draftPoints.length > 0) {
+    if ((tool === "polygon" || tool === "pen") && draftPoints.length > 0 && !isDrawing) {
       setDraftCursor(p);
     }
   };
 
   const handleMouseUp = () => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      setIsPanning(false);
+      panStartRef.current = null;
+      return;
+    }
     if (tool === "rect" && isDrawing) {
       if (draftStart && draftEnd) {
         const x1 = Math.min(draftStart.x, draftEnd.x);
@@ -298,8 +375,19 @@ export default function WorkbenchCanvas() {
     }
     if (tool === "circle" && isDrawing) {
       if (draftStart && draftEnd) {
-        const radius = Math.hypot(draftEnd.x - draftStart.x, draftEnd.y - draftStart.y);
-        if (radius > 0.1) addPending(circlePoints(draftStart, radius));
+        const radius = Math.hypot(
+          toCanvasX(draftEnd.x, canvasWidth) - toCanvasX(draftStart.x, canvasWidth),
+          toCanvasY(draftEnd.y, canvasHeight) - toCanvasY(draftStart.y, canvasHeight),
+        );
+        if (radius > 0.1) {
+          addPending(
+            ellipsePoints(
+              draftStart,
+              (radius / canvasWidth) * 100,
+              (radius / canvasHeight) * 100,
+            ),
+          );
+        }
       }
       setDraftStart(null);
       setDraftEnd(null);
@@ -316,12 +404,13 @@ export default function WorkbenchCanvas() {
       return;
     }
     if (tool === "pen" && isDrawing) {
-      if (draftPointsRef.current.length >= 3) {
-        finishDrawing();
-      } else {
-        setDraftPoints([]);
-        setIsDrawing(false);
+      if (!penDraggedRef.current && draftStart) {
+        setDraftPoints(prev => [...prev, draftStart]);
       }
+      penDraggedRef.current = false;
+      setIsDrawing(false);
+      setDraftStart(null);
+      setDraftEnd(null);
     }
   };
 
@@ -353,7 +442,20 @@ export default function WorkbenchCanvas() {
         data-testid="workbench-canvas"
         data-draft-count={draftPoints.length}
         data-tool={tool}
+        data-space={spacePressed}
+        data-view-x={viewX}
+        data-view-y={viewY}
+        data-view-scale={viewScale}
         style={{ height: "100%" }}
+        onMouseDownCapture={e => {
+          if (e.button === 2 || (e.button === 0 && spacePressedRef.current)) {
+            e.preventDefault();
+            const view = useRiskMappingWorkbenchStore.getState();
+            panStartRef.current = { x: e.clientX, y: e.clientY, viewX: view.viewX, viewY: view.viewY };
+            isPanningRef.current = true;
+            setIsPanning(true);
+          }
+        }}
       >
         <Stage
           width={canvasWidth}
@@ -362,7 +464,11 @@ export default function WorkbenchCanvas() {
           scaleY={viewScale}
           x={viewX}
           y={viewY}
-          style={{ maxWidth: "100%", maxHeight: "100%", cursor: tool === "select" ? "default" : "crosshair" }}
+          style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            cursor: isPanning || spacePressedRef.current ? "grabbing" : tool === "select" ? "default" : "crosshair",
+          }}
           onClick={handleClick}
           onDblClick={() => {
             if (tool === "polygon" || tool === "pen") finishDrawing();
@@ -371,9 +477,19 @@ export default function WorkbenchCanvas() {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onWheel={handleWheel}
+          onContextMenu={e => e.evt.preventDefault()}
         >
           <Layer>
-            {image && <KonvaImage image={image} x={0} y={0} width={canvasWidth} height={canvasHeight} />}
+            {image && (
+              <KonvaImage
+                image={image}
+                x={0}
+                y={0}
+                width={canvasWidth}
+                height={canvasHeight}
+                opacity={0.55}
+              />
+            )}
             {gridEnabled &&
               Array.from({ length: Math.floor(canvasWidth / 100) + 1 }, (_, i) => (
                 <Line key={`gv-${i}`} points={[i * 100, 0, i * 100, canvasHeight]} stroke="#e8e8e8" strokeWidth={1} />
@@ -471,47 +587,65 @@ export default function WorkbenchCanvas() {
               (z.floor_plan_polygon?.polygons || []).map(p => {
                 const regionId = `zone:${z.id}:${p.id}`;
                 const selected = selectedRegionId === regionId;
+                const centroid = polygonCentroid(p.points);
                 return (
-                  <Line
+                  <Fragment
                     key={regionId}
-                    points={pointsToKonva(p.points, canvasWidth, canvasHeight)}
-                    closed
-                    fill={z.effective_color || "#d9d9d9"}
-                    opacity={0.35}
-                    stroke={selected ? "#1677ff" : z.effective_color || "#d9d9d9"}
-                    strokeWidth={selected ? 3 : 2}
-                    draggable={tool === "select"}
-                    onClick={e => {
-                      e.cancelBubble = true;
-                      setState({ selectedRegionId: regionId, selectedRiskPointId: null, selectedTextId: null });
-                    }}
-                    onDragStart={() => {
-                      zoneDragOriginRef.current.set(`${z.id}:${p.id}`, p.points);
-                    }}
-                    onDragEnd={e => {
-                      const origin = zoneDragOriginRef.current.get(`${z.id}:${p.id}`) ?? p.points;
-                      const dx = (e.target.x() / canvasWidth) * 100;
-                      const dy = (e.target.y() / canvasHeight) * 100;
-                      const moved = origin.map(pt => clampPoint({ x: pt.x + dx, y: pt.y + dy }));
-                      zoneDragOriginRef.current.delete(`${z.id}:${p.id}`);
-                      e.target.position({ x: 0, y: 0 });
-                      commit();
-                      setSnapshot({
-                        zones: useRiskMappingWorkbenchStore.getState().zones.map(item => {
-                          if (item.id !== z.id || !item.floor_plan_polygon) return item;
-                          return {
-                            ...item,
-                            floor_plan_polygon: {
-                              ...item.floor_plan_polygon,
-                              polygons: item.floor_plan_polygon.polygons.map(pp =>
-                                pp.id === p.id ? { ...pp, points: moved } : pp,
-                              ),
-                            },
-                          };
-                        }),
-                      });
-                    }}
-                  />
+                  >
+                    <Line
+                      points={pointsToKonva(p.points, canvasWidth, canvasHeight)}
+                      closed
+                      fill={z.effective_color || "#d9d9d9"}
+                      opacity={0.22}
+                      stroke={selected ? "#1677ff" : "#ffffff"}
+                      strokeWidth={selected ? 3.5 : 2.5}
+                      draggable={tool === "select"}
+                      onClick={e => {
+                        e.cancelBubble = true;
+                        setState({ selectedRegionId: regionId, selectedRiskPointId: null, selectedTextId: null });
+                      }}
+                      onDragStart={() => {
+                        zoneDragOriginRef.current.set(`${z.id}:${p.id}`, p.points);
+                      }}
+                      onDragEnd={e => {
+                        const origin = zoneDragOriginRef.current.get(`${z.id}:${p.id}`) ?? p.points;
+                        const dx = (e.target.x() / canvasWidth) * 100;
+                        const dy = (e.target.y() / canvasHeight) * 100;
+                        const moved = origin.map(pt => clampPoint({ x: pt.x + dx, y: pt.y + dy }));
+                        zoneDragOriginRef.current.delete(`${z.id}:${p.id}`);
+                        e.target.position({ x: 0, y: 0 });
+                        commit();
+                        setSnapshot({
+                          zones: useRiskMappingWorkbenchStore.getState().zones.map(item => {
+                            if (item.id !== z.id || !item.floor_plan_polygon) return item;
+                            return {
+                              ...item,
+                              floor_plan_polygon: {
+                                ...item.floor_plan_polygon,
+                                polygons: item.floor_plan_polygon.polygons.map(pp =>
+                                  pp.id === p.id ? { ...pp, points: moved } : pp,
+                                ),
+                              },
+                            };
+                          }),
+                        });
+                      }}
+                    />
+                    <KonvaText
+                      x={toCanvasX(centroid.x, canvasWidth)}
+                      y={toCanvasY(centroid.y, canvasHeight)}
+                      text={z.name}
+                      fontSize={14}
+                      fontStyle="bold"
+                      fill="#1f2937"
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      align="center"
+                      offsetX={z.name.length * 7}
+                      offsetY={7}
+                      listening={false}
+                    />
+                  </Fragment>
                 );
               }),
             )}

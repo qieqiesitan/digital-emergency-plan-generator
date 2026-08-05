@@ -12,14 +12,31 @@ export const clampPoint = (p: RiskPolygonPoint): RiskPolygonPoint => ({
 export const pointsToKonva = (points: RiskPolygonPoint[], width = 1200, height = 900) =>
   points.flatMap(p => [toCanvasX(p.x, width), toCanvasY(p.y, height)]);
 
-export const circlePoints = (center: RiskPolygonPoint, radius: number, segments = 48): RiskPolygonPoint[] =>
+export const ellipsePoints = (
+  center: RiskPolygonPoint,
+  radiusX: number,
+  radiusY: number,
+  segments = 48,
+): RiskPolygonPoint[] =>
   Array.from({ length: segments }, (_, i) => {
     const angle = (Math.PI * 2 * i) / segments;
     return clampPoint({
-      x: center.x + Math.cos(angle) * radius,
-      y: center.y + Math.sin(angle) * radius,
+      x: center.x + Math.cos(angle) * radiusX,
+      y: center.y + Math.sin(angle) * radiusY,
     });
   });
+
+export const circlePoints = (center: RiskPolygonPoint, radius: number, segments = 48): RiskPolygonPoint[] =>
+  ellipsePoints(center, radius, radius, segments);
+
+export const polygonCentroid = (points: RiskPolygonPoint[]): RiskPolygonPoint => {
+  if (!points.length) return { x: 50, y: 50 };
+  const sum = points.reduce(
+    (acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }),
+    { x: 0, y: 0 },
+  );
+  return { x: sum.x / points.length, y: sum.y / points.length };
+};
 
 export const quadraticCurvePoints = (
   start: RiskPolygonPoint,

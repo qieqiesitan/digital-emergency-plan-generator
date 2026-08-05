@@ -44,7 +44,6 @@ export default function WorkbenchPropertiesPanel() {
         };
       })()
     : null;
-  const selectedRiskPoint = riskPoints.find(p => p.id === selectedRiskPointId) ?? null;
   const selectedText = texts.find(t => t.id === selectedTextId) ?? null;
 
   useEffect(() => {
@@ -312,72 +311,6 @@ export default function WorkbenchPropertiesPanel() {
       )}
 
       <h4 style={{ fontSize: 14, marginTop: 16 }}>风险点</h4>
-      {selectedRiskPoint && pointDraft && (
-        <div style={{ border: "1px solid #1677ff", borderRadius: 6, padding: 8, marginBottom: 8 }}>
-          <Input
-            value={pointDraft.name}
-            onChange={e => setPointDraft({ ...pointDraft, name: e.target.value })}
-            placeholder="风险点名称"
-          />
-          <Input
-            style={{ marginTop: 6 }}
-            value={pointDraft.category || ""}
-            onChange={e => setPointDraft({ ...pointDraft, category: e.target.value })}
-            placeholder="类别"
-          />
-          <Input
-            style={{ marginTop: 6 }}
-            value={pointDraft.location || ""}
-            onChange={e => setPointDraft({ ...pointDraft, location: e.target.value })}
-            placeholder="位置描述"
-          />
-          <Input.TextArea
-            style={{ marginTop: 6 }}
-            rows={2}
-            value={pointDraft.description || ""}
-            onChange={e => setPointDraft({ ...pointDraft, description: e.target.value })}
-            placeholder="说明"
-          />
-          <Space.Compact style={{ width: "100%", marginTop: 6 }}>
-            <InputNumber
-              style={{ width: "50%" }}
-              min={0}
-              max={100}
-              value={pointDraft.location_x ?? 50}
-              onChange={v => setPointDraft({ ...pointDraft, location_x: v ?? 50 })}
-            />
-            <InputNumber
-              style={{ width: "50%" }}
-              min={0}
-              max={100}
-              value={pointDraft.location_y ?? 50}
-              onChange={v => setPointDraft({ ...pointDraft, location_y: v ?? 50 })}
-            />
-          </Space.Compact>
-          <Select
-            style={{ width: "100%", marginTop: 6 }}
-            placeholder="绑定分区"
-            value={pointDraft.zone_id || undefined}
-            options={zones.map(z => ({ value: z.id, label: z.name }))}
-            onChange={zone_id => setPointDraft({ ...pointDraft, zone_id })}
-          />
-          <Button block type="primary" style={{ marginTop: 6 }} onClick={saveRiskPoint}>
-            保存风险点
-          </Button>
-          <Button
-            danger
-            block
-            style={{ marginTop: 6 }}
-            icon={<DeleteOutlined />}
-            onClick={() => {
-              commit();
-              useRiskMappingWorkbenchStore.getState().deleteRiskPoint(selectedRiskPoint.id);
-            }}
-          >
-            删除风险点
-          </Button>
-        </div>
-      )}
       {riskPoints.map(p => (
         <div
           key={p.id}
@@ -403,6 +336,72 @@ export default function WorkbenchPropertiesPanel() {
               }}
             />
           </div>
+          {selectedRiskPointId === p.id && pointDraft && (
+            <div style={{ borderTop: "1px solid #e8e8e8", marginTop: 6, paddingTop: 6 }}>
+              <Input
+                value={pointDraft.name}
+                onChange={e => setPointDraft({ ...pointDraft, name: e.target.value })}
+                placeholder="风险点名称"
+              />
+              <Input
+                style={{ marginTop: 6 }}
+                value={pointDraft.category || ""}
+                onChange={e => setPointDraft({ ...pointDraft, category: e.target.value })}
+                placeholder="类别"
+              />
+              <Input
+                style={{ marginTop: 6 }}
+                value={pointDraft.location || ""}
+                onChange={e => setPointDraft({ ...pointDraft, location: e.target.value })}
+                placeholder="位置描述"
+              />
+              <Input.TextArea
+                style={{ marginTop: 6 }}
+                rows={2}
+                value={pointDraft.description || ""}
+                onChange={e => setPointDraft({ ...pointDraft, description: e.target.value })}
+                placeholder="说明"
+              />
+              <Space.Compact style={{ width: "100%", marginTop: 6 }}>
+                <InputNumber
+                  style={{ width: "50%" }}
+                  min={0}
+                  max={100}
+                  value={pointDraft.location_x ?? 50}
+                  onChange={v => setPointDraft({ ...pointDraft, location_x: v ?? 50 })}
+                />
+                <InputNumber
+                  style={{ width: "50%" }}
+                  min={0}
+                  max={100}
+                  value={pointDraft.location_y ?? 50}
+                  onChange={v => setPointDraft({ ...pointDraft, location_y: v ?? 50 })}
+                />
+              </Space.Compact>
+              <Select
+                style={{ width: "100%", marginTop: 6 }}
+                placeholder="绑定分区"
+                value={pointDraft.zone_id || undefined}
+                options={zones.map(z => ({ value: z.id, label: z.name }))}
+                onChange={zone_id => setPointDraft({ ...pointDraft, zone_id })}
+              />
+              <Button block type="primary" style={{ marginTop: 6 }} onClick={saveRiskPoint}>
+                保存风险点
+              </Button>
+              <Button
+                danger
+                block
+                style={{ marginTop: 6 }}
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  commit();
+                  useRiskMappingWorkbenchStore.getState().deleteRiskPoint(p.id);
+                }}
+              >
+                删除风险点
+              </Button>
+            </div>
+          )}
         </div>
       ))}
 

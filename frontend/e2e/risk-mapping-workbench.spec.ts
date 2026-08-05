@@ -285,6 +285,26 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
   });
 
+  test("钢笔点击顶点后拖拽曲线，Enter 闭合生成待绑定区域", async ({ page }) => {
+    await mockWorkbenchApis(page);
+    await loginAndOpenWorkbench(page);
+
+    await page.getByRole("button", { name: "钢笔" }).click();
+    const canvas = page.locator('[data-testid="workbench-canvas"] canvas').first();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("canvas bounding box unavailable");
+    await page.mouse.click(box.x + box.width * 0.18, box.y + box.height * 0.18);
+    await page.waitForTimeout(500);
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.22);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.34, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
+  });
+
   test("风险点工具点击后进入属性编辑状态", async ({ page }) => {
     await mockWorkbenchApis(page);
     await loginAndOpenWorkbench(page);
@@ -309,5 +329,27 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await expect(page.getByRole("button", { name: "放大" })).toBeVisible();
     await expect(page.getByRole("button", { name: "缩小" })).toBeVisible();
     await expect(page.getByRole("button", { name: "重置缩放" })).toBeVisible();
+
+    const canvas = page.locator('[data-testid="workbench-canvas"] canvas').first();
+    const wrapper = page.locator('[data-testid="workbench-canvas"]');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("canvas bounding box unavailable");
+    const oldX = await wrapper.getAttribute("data-view-x");
+    await page.mouse.move(box.x + box.width * 0.18, box.y + box.height * 0.14);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move(box.x + box.width * 0.34, box.y + box.height * 0.22, { steps: 5 });
+    await page.mouse.up({ button: "right" });
+    await expect(wrapper).not.toHaveAttribute("data-view-x", oldX ?? "");
+
+    await page.getByRole("button", { name: "重置缩放" }).click();
+    await expect(wrapper).toHaveAttribute("data-view-x", "0");
+    await page.keyboard.down("Space");
+    await expect(wrapper).toHaveAttribute("data-space", "true");
+    await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.16);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.36, box.y + box.height * 0.24, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up("Space");
+    await expect(wrapper).not.toHaveAttribute("data-view-x", "0");
   });
 });
