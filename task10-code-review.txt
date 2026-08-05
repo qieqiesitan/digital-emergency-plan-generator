@@ -1,0 +1,46 @@
+审查完成。以下为提交 6d79bad 与 8873122（任务 10“总览联动与旧入口兼容”）的代码质量审查报告。
+
+## 验证结果
+
+- `git show 6d79bad 8873122` + 当前文件逐一核对（共 8 个前端文件，两提交均未触碰后端）
+- `npx tsc -b`：通过
+- `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：22 passed（3 + 19）
+- `npx eslint`（8 个修改文件）：13 errors，其中 2 个为本次新增，11 个为父提交已存在（EnterpriseDetailPage 10 个、RiskZoneForm 1 个）
+- `git show --check` / `git diff --check`：无空白或冲突标记问题
+
+## 优点
+
+- buildZonePayload 的“省略语义”设计正确：`undefined`/`null` 均省略字段，直接修复了 6d79bad 里 `?? null` 会把旧多边形清空的问题，且 3 个单测覆盖了三种分支（带多边形/不带/显式 null）。
+- TreeNodeMeta → 树编辑 → 表单 initialValues → payload 的透传链路完整，旧入口编辑分区不再丢多边形，这正是 8873122 的修复目标，实现干净。
+- RiskDistributionStage 与工作台共用同一套百分比坐标（pointsToKonva / toCanvasX / toCanvasY），渲染口径一致；图片加载带 url 匹配防串图、高亮/分区/风险点/文字图层齐全。
+- 默认楼层回退链路合理：EnterpriseDetailPage 优先取默认楼层平面图、无则回退企业字段，兼容迁移前数据。
+- 类型安全总体扎实：tsc 通过；ZoneFormValues 收窄后依赖 `as MethodType`/`as MeasureCategory` 等显式转换；`initialValues?: any` 有 eslint-disable 及中文理由；useCallback 依赖数组补齐 modal/antMessage。
+
+## 问题
+
+### 关键
+
+1. [RiskZoneForm.tsx:38](<C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/RiskZoneForm.tsx:38>) `handlePolygonConfirm` 会把整个 `floor_plan_polygon` 替换为单一新多边形，且硬编码 `color_source: "auto"`、`color: null`。后果：一个多区域分区（规格明确“一个分区多个区域”）经旧入口编辑并点“确定”后，其余区域被静默删除；手动颜色覆盖也被重置。而 handleOpen 只加载 `polygons[0]`，界面上完全看不出还有其它区域，属于用户不知情的数据丢失风险。建议：确认时保留未编辑的其它 polygons（只替换当前编辑目标），并在多区域场景提示“将保留其余区域”；颜色建议沿用原值而非强制 auto。
+
+### 重要
+
+2. 总览页树与楼层不联动：[RiskOverviewPage.tsx](<C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskOverviewPage.tsx:29>) 的 `getFullHierarchy` 不传 floor_id，后端只返回默认楼层数据；楼层切换后分布图展示其它楼层，但树仍是默认楼层，点击非默认楼层分区时 `treeSelectedKeys` 里是树中不存在的 key，树无选中、树→图高亮也失效。建议给 `getFullHierarchy` 增加 floor_id 参数，按当前楼层过滤树数据。
+
+3. 默认楼层无分区时整个总览被空态拦截：[RiskOverviewPage.tsx:51](<C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskOverviewPage.tsx:51>) `if (!zones.length) return <Empty>` 在楼层选择器之前执行。默认楼层为空但其它楼层有分区时，用户连楼层选择器都看不到，无法切到有数据的楼层。建议把空态判断下放到当前楼层数据，或在空态页保留楼层切换。
+
+4. 本次新增 2 个 eslint 错误（门禁不绿）：
+   - [RiskDistributionStage.tsx:38](<C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/riskMapping/RiskDistributionStage.tsx:38>) `react-hooks/set-state-in-effect`：effect 内同步 `setLoadedImage(null)`
+   - [RiskOverviewPage.tsx:37](<C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskOverviewPage.tsx:37>) `react-hooks/set-state-in-effect`：effect 内同步 `setFloorId(def.id)`
+   建议改为派生状态，或将默认楼层初始化挪到 floors 查询的 onSuccess / 初次渲染派生，避免级联渲染并恢复 lint 通过。
+
+### 次要
+
+5. 点击已高亮分区不再取消高亮（旧 FloorPlanHeatmap 支持 toggle），且切换楼层后 `highlightZone`/`treeSelectedKeys` 不清理，可能残留旧楼层选中态。
+6. 两个被修改文件残留 11 个既有 lint 错误（EnterpriseDetailPage 的未用导入与 any、RiskZoneForm 的未用 `message`），非本次引入，但既然动了这些文件，顺手清理成本很低。
+7. RiskDistributionStage 图片加载未处理 onerror、未 abort 旧请求，加载失败时静默空白；另注意图片 URL 变化时序下 setLoadedImage 仍会以旧 url 触发一次多余渲染（有 url 守卫，仅效率问题）。
+8. floors 列表为空但 overview 无 floor_id 请求时，后端会自动创建默认楼层，前端 floors 查询不会刷新，Select 与分布图可能短暂不一致。
+9. `crypto.randomUUID()` 仅安全上下文可用（本项目 https/localhost 均满足，仅提示）。
+
+## 结论
+
+不通过。修复方向明确：先处理关键问题 1（旧入口编辑不得静默丢弃多区域/手动颜色），再补树与楼层联动和空态楼层切换（问题 2、3），最后消除 2 个新 eslint 错误；修复后建议补一条 RiskZoneForm 多区域编辑的测试。其余为可选打磨项。按用户要求本次未修改任何文件、未提交。

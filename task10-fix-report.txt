@@ -1,0 +1,35 @@
+## 状态
+
+✅ 已完成并提交独立 commit `8873122`（message 与要求一字不差）：`fix(risk-mapping): preserve zone polygons when editing from legacy form`。仅包含 4 个前端文件；TASKS.md、计划文件、后端文件均未改动。
+
+## 根因与修复
+
+规格审查问题 1 属实：`RiskManagementTab.tsx` 的 `updateZone` 显式传 `floor_plan_polygon: values.floor_plan_polygon ?? null`，旧表单编辑时未绘制 → 发送 null → 后端 `update_zone` 对 `exclude_unset` 中含显式 null 的字段执行 `setattr(z, "floor_plan_polygon", None)`，清空工作台已画的多边形（回归于 6d79bad）。
+
+修复（对应审查建议第 1、2 条）：
+
+1. **条件携带**：新增 [zoneSubmit.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/zoneSubmit.ts) 的 `buildZonePayload`，仅当用户实际提交了 `floor_plan_polygon`（truthy）时才写入 payload；编辑/创建共用，未绘制时字段被省略，后端保留原有多边形。
+2. **编辑预填**：[RiskHierarchyTree.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/RiskHierarchyTree.tsx) 的 `TreeNodeMeta` 增加 `floor_plan_polygon` 并透传；[RiskManagementTab.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskManagementTab.tsx) 两个编辑分支的 `initialValues` 预填该值，旧表单打开后区域不丢，绘制弹窗也能回显已有顶点。
+3. RiskZoneForm.tsx 无需改动：`handleOpen` 已读取隐藏字段 `floor_plan_polygon` 回显，预填后保存会原样带回。
+
+## 修改文件
+
+- `frontend/src/pages/Enterprise/RiskManagementTab.tsx`：zone 提交走 `buildZonePayload`；编辑预填 polygon；顺带将 `zones` 由 state+effect 改为 useMemo，`handleFormSubmit`/`catch` 去除 `any`，补齐 hooks 依赖，使 eslint 达标。
+- `frontend/src/components/enterprise/RiskHierarchyTree.tsx`：`TreeNodeMeta` + 树数据透传 `floor_plan_polygon`。
+- `frontend/src/utils/zoneSubmit.ts`（新增）：多边形条件携带的纯函数。
+- `frontend/src/utils/zoneSubmit.test.ts`（新增）：3 个回归用例（已绘制携带 / 未绘制省略 / null 省略）。
+
+## 测试结果
+
+- `cd frontend && npx tsc -b`：✅ 通过，0 错误
+- `npx vitest run src/store/riskMappingWorkbenchStore.test.ts`：✅ 19 passed（要求项）
+- 新增回归测试 `npx vitest run src/utils/zoneSubmit.test.ts`：✅ 3 passed（共 22 passed）
+- `npx eslint`（4 个修改文件）：✅ 0 error、0 warning
+- `git diff --check`：无空白/冲突标记
+
+## 自审
+
+- 按 systematic-debugging 完成根因调查（后端 `update_zone` 行为已核对）；按 TDD 先写失败测试（红灯 `buildZonePayload is not a function`）再实现（绿灯）。
+- 与范围说明的差异需说明：为满足「eslint 0 error」，处理了 RiskManagementTab 中既有 5 个 eslint error（3 处 `any`、1 处 effect 内 setState、1 处我引入的 react-refresh 导出限制），其中 `initialValues` 因各表单 values 类型未导出而保留 1 处带说明的 `eslint-disable`；另新增 2 个前端文件（纯函数 util + 测试）以支撑可测试性与 react-refresh 规范，均未触碰范围外功能文件。
+- 数据流核对：编辑未绘制 → payload 无 polygon 字段 → 后端 `exclude_unset` 保留原值；编辑已绘制 → v2 多边形原样提交；预填后打开绘制弹窗可回显既有顶点。
+- 工作区遗留：`task10-report.txt`、`task10-spec-review.txt`、`task9-report.txt` 为父任务未跟踪文件，未纳入本次 commit。

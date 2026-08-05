@@ -1,0 +1,30 @@
+任务 9 已收尾完成并提交独立 commit。汇报如下：
+
+## 执行报告
+
+**计划：** docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md 任务 9（绑定、属性、文字与保存）
+**分支：** codex/protego-integration
+**Commit：** `31208a6` — feat(risk-mapping): complete binding, properties, text editing, and save polish（6 个文件，+317/−57）
+
+### 修改文件（全部在允许清单内）
+
+- [WorkbenchCanvas.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx)：文字双击弹出编辑弹窗（内容/字号 8–72/颜色），可删除；分区多边形与待绑定区域在「选择」工具下可拖拽，onDragEnd 按百分比位移回写 store（坐标 clamp 到 0–100）；rect 改为按下起点→鼠标移动实时预览→松开成形的拖拽流程；`guideEnabled` 开关渲染画布中心水平/垂直虚线辅助线；新建 ID 改走模块级 `nextLocalId`（规避 react-hooks/purity 报错）
+- [riskMappingWorkbenchStore.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.ts)：`markSaved` 同时重置 `past`/`future` 历史栈
+- [RiskMappingWorkbenchPage.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskMappingWorkbenchPage.tsx)：保存遇 `pendingRegions` 时改为弹出待绑定区域清单并阻止保存（原仅 message.error）
+- [WorkbenchPropertiesPanel.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/riskMapping/WorkbenchPropertiesPanel.tsx)：文字标注列表支持逐条删除，显示对应字号与颜色
+- [EnterpriseFloorManager.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/EnterpriseFloorManager.tsx)：新建/编辑楼层、上传平面图在存在未保存改动时弹确认（删除与切换此前已有），避免静默覆盖
+- [riskMappingWorkbenchStore.test.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.test.ts)：新增 2 个 markSaved 清空历史栈用例
+
+### 测试结果（均为本次新鲜运行）
+
+| 命令 | 结果 |
+|---|---|
+| `cd frontend && npx tsc -b` | ✅ exit 0 |
+| `npx vitest run src/store/riskMappingWorkbenchStore.test.ts` | ✅ 19 passed（原 17 + 新增 2） |
+| `npx eslint`（6 个修改文件） | ✅ 0 errors |
+
+补充说明：全量 `npx vitest run` 会误收集 3 个非单测文件（Playwright e2e 规格 ×2、根目录散落的 `risk-ui-fixes.test.mjs`）而失败，属仓库既有配置问题，与本次改动无关，未触碰这些文件。
+
+### 自审
+
+逐项核对任务要求：文字双击编辑/删除 ✅；分区多边形拖拽回写并保存 ✅；rect 实时预览 ✅；辅助线基础行为 ✅；楼层编辑/上传/删除未保存确认 ✅；保存成功后清空历史栈（markSaved 重置 past/future）✅；测试补充且原 17 个保持通过 ✅。已按铁律执行 `git save`（4ec2023）、`codegraph sync`、`graphify update`（17411 节点）。未修改 TASKS.md、计划文件与后端文件——因用户明确要求不改 TASKS.md，本次未按惯例更新快照，特此说明。

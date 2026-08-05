@@ -1,0 +1,32 @@
+复审完成，验证命令与重点链路均已核对。结论如下。
+
+## ✅ 通过
+
+**验证命令（按要求执行）**
+
+- `cd frontend && npx tsc -b`：✅ 通过，0 错误
+- `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：✅ 2 个文件 22 个用例全部通过（zoneSubmit 3 + riskMappingWorkbenchStore 19）
+- `git diff --check 8873122^ 8873122`：无空白/冲突标记；两个测试文件均已被 git 跟踪，验证结果不依赖未提交改动
+
+**四个重点逐项核对**
+
+1. **buildZonePayload 条件携带** ✅
+   [zoneSubmit.ts](/C:/Users/55061/Documents/数字化预案自动生成%202/frontend/src/utils/zoneSubmit.ts) 仅在 `values.floor_plan_polygon` 为 truthy 时写入 payload，未绘制或显式 null 时字段被省略。新增 3 个回归用例精确覆盖「已绘制携带 / 未绘制省略 / null 省略」三态。
+
+2. **RiskHierarchyTree 透传 floor_plan_polygon** ✅
+   `TreeNodeMeta` 增加 `floor_plan_polygon` 字段，zone 节点构建时透传 `z.floor_plan_polygon`。后端 `/hierarchy`（risk_management.py:681-702）对多边形归一化后返回，`HierarchyZone` 前端类型含该字段，链路完整。
+
+3. **RiskManagementTab 编辑预填** ✅
+   `edit` 与 `edit-zone` 两个分支的 `initialValues` 均预填 `{ name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined }`。RiskZoneForm 的隐藏 `floor_plan_polygon` 字段随 initialValues 持有原值，`handleOpen` 可回显已有顶点，未重绘时保存原样带回。
+
+4. **后端语义配合（根因闭环）** ✅
+   `update_zone` / `create_zone` 均用 `model_dump(exclude_unset=True)`——字段省略即不覆盖、保留原值；此前旧入口显式发 `null` 才导致清空。修复后旧表单编辑不再发送 null，多边形保留；创建无绘制时省略字段，后端默认 null，语义正确。
+
+**非阻塞备注（均为既有行为，非本次提交引入，不影响通过）**
+
+- [仅供参考] 编辑已有多边形时，表单外仍显示「当前: 未标注」，打开绘制弹窗后才会回显顶点（`polygonPoints` 仅 `handleOpen` 时初始化）；数据不受影响，仅文案误导。
+- [仅供参考] 打开绘制弹窗后直接点「确定」（0 顶点）会提交 `points: []`，后端 `min_length=3` 校验会拒绝保存；建议后续加「不足 3 点禁止确定」防护。
+- [仅供参考] 旧表单重绘固定写 `color_source: "auto"`，会覆盖工作台设置的 manual 颜色；属既有设计，可留意。
+- [仅供参考] 新增单元测试仅覆盖 `buildZonePayload` 纯函数；树透传与表单预填链路为人工核对，无组件级测试。
+
+结论：修复提交 8873122 对规格审查问题（旧入口编辑分区清空多边形）做了根因闭环修复，改动聚焦、类型安全、测试有效，可以继续推进。
