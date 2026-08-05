@@ -1,0 +1,36 @@
+复审完成，全程未修改任何文件、未提交。汇报如下。
+
+---
+
+## 代码质量复审：提交 397bec8（任务 4 修复）
+
+**审查范围**：`git diff 615109d 397bec8`（含中间提交 e29e6e8 的前端文件）；本次修复提交 `git show 397bec8` 仅 4 个后端文件，+304/−5；重点核对跨楼层绑定校验、坐标范围校验、POINT_OUT_OF_RANGE、新增测试；运行三个指定测试文件 → **56 passed**（上轮 43 → 56，新增 13 个）；`git show --check` / `git diff --check` 均无错误。
+
+### 优点
+
+1. 跨楼层/跨企业绑定校验按上轮建议精确落地：风险点带 `zone_id` 时以 `floor_id == 当前楼层` + `enterprise_id == 当前企业` 查询校验，不满足返回 422 `ZONE_FLOOR_MISMATCH`（[risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/routers/risk_management.py:352)），新建分区经 `created_zone_map` 天然限在本楼层，路径无漏洞。
+2. 坐标校验双层防御：Schema 层 field_validator 拒绝越界/NaN/Inf/bool（[risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/schemas/risk_management.py:122)）+ 路由层 `_validate_point_range` 返回 `POINT_OUT_OF_RANGE`（[risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/routers/risk_management.py:229)），边界值 0/100 放行、150/−1/NaN/Inf 拒绝。
+3. 测试显著补强且质量高：service 层 10 个批量保存路径测试（跨楼层拒绝/放行、越界坐标 4 参数化、client_id 重复、`ZONE_NOT_BOUND`、级联确认、级联删除提交，[test_risk_mapping_service.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/tests/test_risk_mapping_service.py:345)）+ workbench 层 3 个 Schema 测试（[test_risk_mapping_workbench.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/tests/test_risk_mapping_workbench.py:57)），上轮「无端到端测试」的意见已实质解决。
+4. 提交边界干净：修复只动后端 4 个文件，无无关改动，`git diff --check` 通过。
+
+### 问题
+
+#### 关键
+
+无。上轮唯一「必须修复」项（风险点可绑定其它楼层/企业分区）已修复并有正反两条测试。
+
+#### 重要
+
+1. **[建议修改] `POINT_OUT_OF_RANGE` 在真实 HTTP 路径不可达，契约与实现错位**：Schema 校验在 FastAPI 请求体解析阶段就拦截越界坐标，返回的是 pydantic 标准 422（`detail` 为错误列表、无 `code` 字段）；路由层 `_validate_point_range` 的 `POINT_OUT_OF_RANGE` 只有测试用 `model_construct` 绕过校验才能触发，线上请求永远不会走到（main.py 无自定义异常处理器，已确认）。而规格 5.7 明确把 `POINT_OUT_OF_RANGE` 列为契约错误码，多边形走的是「Schema 宽松 + 路由返回 `POLYGON_INVALID`」模式，两者口径不一致。建议二选一：去掉 Schema 的范围校验（保留类型/有限性），让路由层统一返回 `POINT_OUT_OF_RANGE`，与多边形一致；或删除路由层死代码并在规格中注明越界坐标返回标准 422。数据安全层面已保证（越界坐标无法持久化），属契约保真问题。
+
+#### 次要
+
+2. **[仅供参考] bool 坐标静默转 1.0/0.0**：实测 `location_x=True` 被 pydantic 强转为 1.0 通过校验，Schema 与路由的 `isinstance(v, bool)` 检查均不生效（validator 收到的是已强转值）。因 0/1 本身在 0-100 内，无实际危害，但该检查属死代码。
+3. **[仅供参考] 正向映射路径无测试**：`zone_client_id → 新建分区 → 风险点绑定` 的成功闭环仍未覆盖；上轮要求的「client_id 重复、缺失分区、跨楼层被拒」均已覆盖，仅此正向路径缺失。
+4. **[仅供参考] 绑定校验为逐点 N+1 查询**：`existing_zones` 已按当前楼层锁查询，可直接复用判断 `item.zone_id in existing_zones`，避免每个风险点多一条 SQL；当前数据规模可接受。
+
+上轮其余「仅供参考」项（`_same_ts` naive 语义、GET 写副作用、`floor_id` 字段被忽略、删除不存在风险点静默跳过）维持原状，均非阻塞。
+
+### 结论
+
+**通过**。上轮唯一的「必须修复」已按建议精确修复并测试覆盖；「建议修改」的坐标范围校验与端到端测试已实质落地。残留的 `POINT_OUT_OF_RANGE` 真实路径不可达属契约保真问题，不影响本次合入，建议后续按多边形模式对齐（Schema 与路由二选一）后清理死代码。

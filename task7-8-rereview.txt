@@ -1,0 +1,34 @@
+复审完成。以下为任务 7+8 修复提交 f229b88（范围 e29e6e8→f229b88，含 savepoint 21ebca2 与伴随提交 397bec8）的代码质量复审报告。本次仅审查，未修改任何文件、未提交；工作区仅有两个先前遗留的未跟踪 txt（task4-fix-report.txt、task7-8-fix-report.txt），非本次产生。
+
+## 优点
+
+- 六个重点全部对症修复，且新增 5 个回归测试护航：真实组件调用序列的 undo 测试、undo 回退到保存点后 dirty 清零、deleteZone 持久化/新建两分支、deleteRiskPoint 跳过 new-point 语义。
+- 撤销时序修复方式干净：`commit()` 语义翻转为「变更前快照」，10 余处组件调用点统一改为先 `commit` 后 `setSnapshot`/`setState`，无残留旧时序；`bindFirstPending` 顺带合并为单次原子提交（上轮第 7 条一并解决）。
+- 删除分区前后端契约闭环：`deleteZone` 移除分区下风险点并仅将持久化 ID 入队；后端先执行 `deleted_risk_point_ids` 再删分区，级联计数归零，不会触发 `CASCADE_CONFIRM_REQUIRED`。
+- 画布尺寸全面跟随 `canvas_width/canvas_height`（Stage、网格、坐标换算、底图、风险点图层），且上传接口落库图片自然宽高，正常流程无拉伸。
+- 楼层切换/删除在 `dirty` 时均弹 Modal.confirm，取消不改状态；`undo`/`redo` 用 `savedFingerprint` 指纹比较判定 dirty。
+- 事件类型清理（`KonvaEventObject`）、图片加载带 url 校验防楼层切换串图。
+- 验证全绿：`npx tsc -b` 通过；`npx vitest run src/store/riskMappingWorkbenchStore.test.ts` 17/17 通过（原 12 项 + 5 项新回归）；`npx eslint` 8 个修改文件 0 错误；`git diff --check` 无空白问题。后端伴随改动（`POINT_OUT_OF_RANGE`/`ZONE_FLOOR_MISMATCH` 校验）已静态核对，未跑 pytest（按你的要求只跑前端三项）。
+
+## 问题
+
+### 关键
+
+无。上一轮 2 个必须修复项均已解决：
+- 撤销时序：store 快照语义 + 组件调用顺序 + 回归测试三者一致，undo 不再「按一下无效果」。
+- 删除分区风险点清理：孤儿风险点随分区删除并正确入队/丢弃，持久化与新建 ID 语义正确，不再破坏保存。
+
+### 重要
+
+无阻塞本轮结论的遗留项。一处同类残留建议下轮处理：楼层平面图上传或编辑楼层名称也会 invalidate 工作台查询并重载数据，加载 effect 会整体覆盖未保存改动且无确认（与上轮第 3 条同一数据丢失类，但上轮只点名了切换/删除，二者已补确认；上传/改名路径既有存在、非本次回归）。另外 `switchFloor` 清 `dirty` 时不更新 `savedFingerprint`，切换后到新数据到达前存在短暂指纹错位窗口，数据到达后 `markSaved` 会校正，影响很小。
+
+### 次要
+
+- 新建分区（`new-zone-*`）下若绑定了已持久化风险点，删除该新建分区会静默丢弃该点且不入 `deletedRiskPointIds`：保存后下次加载风险点会重新出现、绑定丢失（极窄边界场景）。建议删除新建分区时对其中已持久化风险点改为解绑（`zone_id=null`）而非移除。
+- 画布尺寸遗留：无 `canvas_width/height` 的旧楼层（有图）时，WorkbenchCanvas 回退图片自然尺寸而 WorkbenchRiskPointLayer 回退 1200×900，风险点坐标会错位；显式 canvas 尺寸与图片比例不一致时底图仍会被拉伸。正常上传流程不受影响。
+- `deleteZone`/`deleteRiskPoint` 本身不写历史，依赖调用方先 `commit` 的约定（当前两处调用点均正确，属可维护性提示）。
+- 上轮「其余可留待任务 9 迭代」的项未处理，符合预期：分区多边形 `draggable` 无 `onDragEnd` 持久化、rect 预览固定 100×100、`guideEnabled` 无行为、文字双击占位、`apiErrorMessage` 重复。
+
+## 结论
+
+**通过**。六个重点核对项（撤销时序、删除分区风险点清理、楼层切换确认、新建风险点删除语义、画布尺寸、dirty 指纹）均已落实修复并有测试覆盖，tsc、vitest 17/17、eslint、diff --check 全部通过；未发现问题会阻塞合并。次要遗留项不属本轮范围，建议在任务 9 迭代或单独补丁中处理。
