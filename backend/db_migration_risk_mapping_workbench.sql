@@ -69,11 +69,10 @@ WHERE ef.enterprise_id = rz.enterprise_id
   AND rz.floor_id IS NULL;
 
 UPDATE risk_objects ro
-SET floor_id = COALESCE(rz.floor_id, ef.id)
-FROM risk_zones rz, enterprise_floors ef
+SET floor_id = rz.floor_id
+FROM risk_zones rz
 WHERE rz.id = ro.zone_id
-  AND ef.enterprise_id = ro.enterprise_id
-  AND ef.is_default = true
+  AND rz.enterprise_id = ro.enterprise_id
   AND ro.floor_id IS NULL;
 
 ALTER TABLE risk_zones ALTER COLUMN floor_id SET NOT NULL;
@@ -113,18 +112,11 @@ BEGIN
     END IF;
 END $$;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'fk_risk_objects_zone'
-          AND conrelid = 'risk_objects'::regclass
-    ) THEN
-        ALTER TABLE risk_objects
-            ADD CONSTRAINT fk_risk_objects_zone
-            FOREIGN KEY (zone_id) REFERENCES risk_zones(id) ON DELETE RESTRICT;
-    END IF;
-END $$;
+ALTER TABLE risk_objects DROP CONSTRAINT IF EXISTS fk_risk_objects_zone;
+
+ALTER TABLE risk_objects
+    ADD CONSTRAINT fk_risk_objects_zone
+    FOREIGN KEY (zone_id) REFERENCES risk_zones(id) ON DELETE RESTRICT;
 
 CREATE INDEX IF NOT EXISTS idx_rz_floor ON risk_zones(floor_id);
 CREATE INDEX IF NOT EXISTS idx_ro_floor ON risk_objects(floor_id);
