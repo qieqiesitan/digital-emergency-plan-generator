@@ -49,3 +49,16 @@ export const aiSuggestMeasures = (eid: string, data: Record<string, unknown>) =>
 export const aiSmartGuide = (eid: string, description: string) => api.post<ApiResponse<{ hierarchy: SmartGuideZone[]; summary: Record<string, unknown> }>>(`${BASE(eid)}/ai/smart-guide`, { description }).then(r => r.data.data);
 export const aiAnalyzeFloorPlan = (eid: string, enterprise_info: Record<string, unknown>) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/analyze-floor-plan`, { enterprise_info }).then(r => r.data.data);
 export const aiMigratePreview = (eid: string) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/migrate-preview`).then(r => r.data.data);
+
+export const getRiskMappingOverview = (eid: string, floorId?: string) =>
+  api.get<ApiResponse<import("@/types/riskMappingWorkbench").RawOverviewResponse>>(`${BASE(eid)}/overview`, { params: floorId ? { floor_id: floorId } : {} }).then(r => {
+    const d = r.data.data;
+    return {
+      floors: [d.floor],
+      currentFloorId: d.floor.id,
+      zones: d.zones,
+      riskPoints: d.risk_points,
+      texts: d.floor.canvas_texts,
+      pendingRegions: [],
+    };
+  });

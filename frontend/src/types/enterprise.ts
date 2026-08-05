@@ -97,3 +97,6 @@ export interface EnterpriseUpdate extends Partial<EnterpriseCreate> {
   gis_lat?: number | null;
   gis_lng?: number | null;
 }
+
+// 楼层相关字段（四色分布图工作台；类型定义见 riskMappingWorkbench.ts）
+export type { EnterpriseFloor } from "./riskMappingWorkbench";

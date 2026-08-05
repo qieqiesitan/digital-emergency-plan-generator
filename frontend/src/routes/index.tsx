@@ -27,6 +27,7 @@ import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigati
 import RiskOverviewPage from "@/pages/Enterprise/RiskOverviewPage";
 import RiskMethodListPage from "@/pages/Enterprise/RiskMethodListPage";
 import RiskMethodEditorPage from "@/pages/Enterprise/RiskMethodEditorPage";
+import RiskMappingWorkbenchPage from "@/pages/Enterprise/RiskMappingWorkbenchPage";
 import ChatPage from "@/pages/Chat";
 
 function MobileRedirect() {
@@ -47,6 +48,7 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-overview", element: <RiskOverviewPage /> },
   { path: "/enterprises/:id/risk-methods", element: <RiskMethodListPage /> },
   { path: "/enterprises/:id/risk-methods/:methodId", element: <RiskMethodEditorPage /> },
+  { path: "/enterprises/:id/risk-mapping-workbench", element: <RiskMappingWorkbenchPage /> },
   { path: "/plans", element: <PlanCardsPage /> },
   { path: "/plans/all", element: <PlanListPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
