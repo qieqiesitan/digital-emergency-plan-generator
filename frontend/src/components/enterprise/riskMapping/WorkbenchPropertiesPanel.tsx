@@ -153,8 +153,30 @@ export default function WorkbenchPropertiesPanel() {
         <Button icon={<PlusOutlined />} onClick={addText} />
       </Space.Compact>
       {texts.map(t => (
-        <div key={t.id} style={{ fontSize: 12, marginTop: 4 }}>
-          {t.content}
+        <div
+          key={t.id}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginTop: 4 }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: t.color,
+              fontSize: t.font_size,
+            }}
+          >
+            {t.content}
+          </span>
+          <Button
+            size="small"
+            type="text"
+            icon={<DeleteOutlined />}
+            onClick={() => {
+              commit();
+              setSnapshot({ texts: texts.filter(item => item.id !== t.id) });
+            }}
+          />
         </div>
       ))}
     </div>

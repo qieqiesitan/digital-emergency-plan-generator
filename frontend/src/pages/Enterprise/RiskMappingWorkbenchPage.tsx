@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Spin, Space, Button, message } from "antd";
+import { Spin, Space, Button, Modal, message } from "antd";
 import { SaveOutlined, UndoOutlined, RedoOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -50,7 +50,19 @@ export default function RiskMappingWorkbenchPage() {
     const floor = state.floors.find(f => f.id === state.currentFloorId);
     if (!floor) return;
     if (state.pendingRegions.length) {
-      message.error("存在待绑定区域，请先绑定");
+      Modal.warning({
+        title: "存在待绑定区域",
+        content: (
+          <div>
+            <p>以下区域尚未绑定到分区，请先在右侧属性面板选择分区并点击「绑定待处理区域」：</p>
+            <ul>
+              {state.pendingRegions.map(r => (
+                <li key={r.id}>未绑定区域 · {r.points.length} 个顶点</li>
+              ))}
+            </ul>
+          </div>
+        ),
+      });
       return;
     }
     if (state.zones.some(z => !z.floor_plan_polygon?.polygons.length)) {

@@ -22,6 +22,7 @@ const apiErrorMessage = (e: unknown, fallback: string) => {
 export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId: string }) {
   const queryClient = useQueryClient();
   const currentFloorId = useRiskMappingWorkbenchStore(s => s.currentFloorId);
+  const dirty = useRiskMappingWorkbenchStore(s => s.dirty);
   const setState = useRiskMappingWorkbenchStore.setState;
   const { data: floors = [] } = useQuery({
     queryKey: ["risk-floors", enterpriseId],
@@ -43,19 +44,35 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
 
   const submit = async () => {
     if (!name.trim()) return;
-    try {
-      if (editId) {
-        await updateEnterpriseFloor(enterpriseId, editId, { name: name.trim() });
-      } else {
-        await createEnterpriseFloor(enterpriseId, { name: name.trim(), sort_order: floors.length });
+    const doSubmit = async () => {
+      try {
+        if (editId) {
+          await updateEnterpriseFloor(enterpriseId, editId, { name: name.trim() });
+        } else {
+          await createEnterpriseFloor(enterpriseId, { name: name.trim(), sort_order: floors.length });
+        }
+        setModalOpen(false);
+        setName("");
+        setEditId(null);
+        refresh();
+      } catch (e) {
+        message.error(apiErrorMessage(e, "保存楼层失败"));
       }
-      setModalOpen(false);
-      setName("");
-      setEditId(null);
-      refresh();
-    } catch (e) {
-      message.error(apiErrorMessage(e, "保存楼层失败"));
+    };
+    if (dirty) {
+      Modal.confirm({
+        title: editId ? "编辑楼层并放弃未保存的改动" : "新建楼层并刷新当前数据",
+        content: editId
+          ? "当前楼层存在未保存的改动，编辑楼层后将刷新工作台数据，未保存改动将丢失。是否继续？"
+          : "当前楼层存在未保存的改动，新建楼层后将刷新工作台数据，未保存改动将丢失。是否继续？",
+        okText: "继续",
+        okButtonProps: { danger: true },
+        cancelText: "取消",
+        onOk: () => doSubmit(),
+      });
+      return;
     }
+    await doSubmit();
   };
 
   const doRemoveFloor = async (floorId: string) => {
@@ -152,14 +169,28 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
             onError?.(new Error("请先选择楼层"));
             return;
           }
-          try {
-            await uploadEnterpriseFloorPlan(enterpriseId, current.id, file as File);
-            message.success("平面图上传成功");
-            refresh();
-            onSuccess?.(null);
-          } catch (e) {
-            onError?.(e as Error);
+          const perform = async () => {
+            try {
+              await uploadEnterpriseFloorPlan(enterpriseId, current.id, file as File);
+              message.success("平面图上传成功");
+              refresh();
+              onSuccess?.(null);
+            } catch (e) {
+              onError?.(e as Error);
+            }
+          };
+          if (dirty) {
+            Modal.confirm({
+              title: "上传平面图并放弃未保存的改动",
+              content: "当前楼层存在未保存的改动，上传平面图后将刷新楼层数据，未保存改动将丢失。是否继续上传？",
+              okText: "继续上传",
+              okButtonProps: { danger: true },
+              cancelText: "取消",
+              onOk: () => perform(),
+            });
+            return;
           }
+          await perform();
         }}
       >
         <Button icon={<UploadOutlined />}>上传当前楼层平面图</Button>

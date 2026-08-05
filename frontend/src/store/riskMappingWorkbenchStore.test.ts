@@ -269,6 +269,42 @@ describe("riskMappingWorkbenchStore", () => {
     store.getState().deleteRiskPoint("p-persisted");
     expect(store.getState().deletedRiskPointIds).toEqual(["p-persisted"]);
   });
+
+  it("markSaved clears both past and future history stacks", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.getState().commit();
+    store.getState().setSnapshot({ zones: [makeZone("a")] });
+    store.getState().commit();
+    store.getState().setSnapshot({ zones: [makeZone("b")] });
+    expect(store.getState().past.length).toBeGreaterThan(0);
+
+    store.getState().setSnapshot({ zones: [makeZone("c")] });
+    store.getState().markSaved();
+
+    const state = store.getState();
+    expect(state.dirty).toBe(false);
+    expect(state.past).toEqual([]);
+    expect(state.future).toEqual([]);
+
+    undo();
+    expect(store.getState().zones.map(z => z.id)).toEqual(["c"]);
+    redo();
+    expect(store.getState().zones.map(z => z.id)).toEqual(["c"]);
+  });
+
+  it("markSaved clears the future stack populated by undo", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.getState().commit();
+    store.getState().setSnapshot({ zones: [makeZone("a")] });
+    undo();
+    expect(store.getState().future.length).toBeGreaterThan(0);
+
+    store.getState().markSaved();
+
+    expect(store.getState().past).toEqual([]);
+    expect(store.getState().future).toEqual([]);
+    expect(store.getState().dirty).toBe(false);
+  });
 });
 
 describe("riskMappingGeometry", () => {

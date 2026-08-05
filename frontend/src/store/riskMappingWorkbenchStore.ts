@@ -93,7 +93,7 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
   },
   markSaved: () => {
     const state = get();
-    set({ dirty: false, savedFingerprint: fingerprintOf(state) });
+    set({ dirty: false, savedFingerprint: fingerprintOf(state), past: [], future: [] });
   },
   deleteZone: (zoneId) => {
     const state = get();
