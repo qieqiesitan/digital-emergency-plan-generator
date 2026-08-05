@@ -1,0 +1,29 @@
+复审完成。汇报如下：
+
+## 复审结论
+
+审查对象：修复提交 `f011b09`（`git diff e424fa4 f011b09`，后端 3 个文件 +224/−11），对照上一轮审查意见（`task2-code-review.txt`）逐条核验，并运行 `backend/.venv\Scripts\python.exe -m pytest backend/tests/test_risk_mapping_service.py backend/tests/test_risk_mapping_migration.py -v`：**33 passed**（服务 21 + 迁移 12）。全程未修改代码、未提交。
+
+## 优点
+
+- 上一轮 1 项关键 + 4 项重要问题全部对症修复，且修复方式与意见建议一致（isinstance 拦截、Literal 收紧、pre-validator 归一化、after-validator 补 Update 校验）。
+- 修复提交范围干净：仅 3 个任务 2 文件，未混入前端/计划/TASKS.md 改动；`git diff --check` 无空白或冲突标记。
+- 测试配套扎实：从上一轮 3 个测试扩到 21 个服务测试，畸形输入（非 dict、polygons 非 list、区域项非 dict、points 非 list、点非 dict）、legacy 归一化（含嵌入 RiskZoneCreate）、Literal 拒绝非法值、manual 缺 color、空 polygons/少于 3 点/重复 id、Update 风险点校验、默认楼层 URL 复用均有断言，且全部通过。
+- Schema 与服务端校验错误语义对齐（版本、颜色源、manual 颜色、区域数、点数、id 唯一），避免了两套口径漂移。
+
+## 问题
+
+关键（必须修复）：无。
+
+重要（建议尽快修复）：
+1. `ensure_default_floor` 与计划路由的 `_default_floor` 仍是两处实现（[计划文件](</C:/Users/55061/Documents/数字化预案自动生成 2/docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md:795>) 第 795 行等 4 处调用）；`validate_polygon_v2` 目前全仓库无任何业务调用点，仅被测试引用。二者应在任务 3 实现工作台路由时统一接线，否则本提交的加固不会在真实路径生效。修复报告已如实标注此遗留，属预期移交，不算本次缺陷。
+2. 并发首访竞态（上一轮第 9 条）未处理：默认楼层 `is_default` 无唯一约束，并发请求可能各建一个。已确认属任务 3 路由层串行化或加唯一约束的范围，本次修复不背锅但需跟进。
+
+次要（建议修改）：
+3. 风险点坐标范围校验不一致：`RiskPolygonPoint` 与 `validate_polygon_v2` 都限制 0–100，但 `RiskObjectCreate/RiskObjectUpdate` 的 `location_x/location_y` 仅校验非 None，未限范围。
+4. `validate_polygon_v2` 的重复 id 检查用 `p.get("id")` 收拢 None，缺失 id 的多个区域会误报"id 重复"；`bool` 作为 int 子类可通过坐标数值校验。均为极端边界，实际路径经 Pydantic 后不会触发。
+5. 上一轮第 7/8/10 条（`Field(default_factory=list)`、单行类过长、`RiskZoneResponse.floor_id` 类型、历史提交噪音）保持原状，均不影响本修复通过。
+
+## 结论
+
+**通过**。f011b09 完整解决了上一轮复审的全部关键与重要问题，验证逻辑正确、测试覆盖充分且 33 项全绿，遗留项均明确移交任务 3，不阻塞任务 2 闭环。

@@ -1,0 +1,41 @@
+审查完成。以下为提交 2d4fc07（任务 5“前端类型、服务与路由”）的代码质量审查报告。
+
+## 验证情况
+
+- `git show 2d4fc07`：7 个文件，+214/-4；`git show --check` 无空白或冲突标记错误。
+- `npx tsc -b`（按要求运行）：当前工作区**不通过**，但唯一报错是未跟踪文件 `frontend/src/store/riskMappingWorkbenchStore.test.ts`（任务 6 进行中产物，`vitest` 未安装，`Cannot find module 'vitest'`），与本提交无关；提交自身 7 个文件无任何类型错误。
+- ESLint（针对提交涉及的 6 个源文件）：新引入 1 个 error；`routes/index.tsx` 的 react-refresh error 经父版本复测为既有问题，非本提交引入。
+
+## 优点
+
+1. 类型与后端契约高度一致：对照设计规格 5.2/5.3/5.6 及后端 Schema（`FloorResponse`、`WorkbenchResponse`、`OverviewResponse`、`BatchSaveRequest`），字段名、必填性、v2 polygon 结构与 snake_case 命名逐一吻合。
+2. 修正了实施计划中的 bug：计划原文写的是 `d.pendingRegions ?? []`（字段不存在），提交改为 `d.pending_regions ?? []` 并保留可选兜底，说明执行时有实际核对。
+3. 服务封装遵循现有模式：`BASE(eid)` 前缀、`.then(r => r.data.data)` 解包、delete 不解包，与 `riskManagementService` 既有写法一致；`RawWorkbenchSnapshot`（raw）与 `WorkbenchSnapshot`（camelCase）分离设计清晰。
+4. 路由路径与规格一致（`/enterprises/:id/risk-mapping-workbench`），占位页 3 行、符合任务 5 定位（任务 7 替换）。
+5. 文件体量合理（最大 [riskMappingWorkbench.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskMappingWorkbench.ts) 119 行），无过度膨胀。
+
+## 问题
+
+### 关键
+
+无。
+
+### 重要
+
+1. **未使用导入（提交新引入的 ESLint error）**：[riskMappingWorkbenchService.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskMappingWorkbenchService.ts:3) 导入了 `RawOverviewResponse` 但从未使用，`@typescript-eslint/no-unused-vars` 直接报 error。该类型实际只在 [riskManagementService.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskManagementService.ts:54) 通过内联 `import()` 使用。建议删除此导入（一行修复）。
+2. **Create 类型未随后端/规格同步扩展**：[riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:33) 的 `RiskZoneCreate` 仍为旧 `{ points: [...] }` 且无 `floor_id`，`RiskObjectCreate` 同样缺 `floor_id`。规格 5.4 明确要求 Create 支持 `floor_id` 与 v2 polygon，且后端 Schema（`RiskZoneCreate.floor_id`、`RiskZoneFloorPlanPolygon`）已实现。后续工作台新建分区/风险点将无法用类型安全的方式表达请求，建议本次补齐。
+3. **BatchSave 类型未实现规格要求的判别联合**：[riskMappingWorkbench.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskMappingWorkbench.ts:80) 的 `BatchSaveZoneItem` / `BatchSaveRiskPointItem` 全部字段可选。规格明确“在实现时应使用 discriminated union 约束‘新建必填 client_id/name’与‘既有必填 id/updated_at’”，当前形态允许前端构造非法请求（如新建不填 client_id、既有不填 updated_at）。
+4. **Hierarchy 类型超前于后端契约**：[riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:67) 的 `HierarchyObject`/`HierarchyZone` 将 `floor_id`、`floor_name`、`floor_plan_polygon`、`max_risk_level`、`effective_color`、`location_x/y` 声明为必填，但当前后端 `HierarchyZoneResponse`/`HierarchyObjectResponse`（backend/app/schemas/risk_management.py:130-131）尚无这些字段，运行时将为 undefined。需与后端任务对齐后再被消费，避免“类型说必有、数据说没有”的假安全。
+
+### 次要
+
+1. 同一语义字段两处类型漂移：[riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:27) 的 `RiskZone.max_risk_level` 用 `string`，而 `WorkbenchZone` 用 `RiskLevel` 联合类型；v2 polygon 结构也在 riskManagement.ts 内联复制，未复用 `RiskZoneFloorPlanPolygon`/`ColorSource`。建议统一引用，防漂移。
+2. [riskMappingWorkbench.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskMappingWorkbench.ts:51) 共 5 处用 `import("@/types/riskManagement").RiskObject[]` 内联动态导入；两文件之间实际无循环依赖，改为常规 `import type` 可读性更好。
+3. `getRiskMappingOverview`（[riskManagementService.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskManagementService.ts:53)）返回值未显式标注 `WorkbenchSnapshot`，且 `texts: d.floor.canvas_texts` 依赖后端 Overview 返回 `canvas_texts`（规格 5.5 示例未含该字段），属契约敏感点，建议与任务 3 明确对齐。
+4. `EnterpriseFloor` 前端类型缺 `created_at`（后端 `FloorResponse` 有），为类型子集；[enterprise.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/enterprise.ts:102) 的 `EnterpriseFloor` 重导出目前无消费者，属预留出口，影响小。
+
+## 结论
+
+**不通过。**
+
+提交主体质量良好（契约对齐度高、服务封装规范、修正了计划中的字段 bug、无类型错误），但存在 1 个由本提交引入的 ESLint error，以及 2 个规格显式要求未落实（Create 类型扩展、BatchSave 判别联合），另有 1 项 Hierarchy 类型超前于后端契约。以上均为低成本修复，建议修复重要问题后复审。另提醒：当前工作区 `tsc -b` 被任务 6 的未跟踪测试文件（缺 vitest）阻塞，需在后续任务中处理。

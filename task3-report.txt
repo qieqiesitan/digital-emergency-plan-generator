@@ -1,0 +1,35 @@
+## 执行报告
+
+**状态：任务 3 已完成并提交（commit `e44e126`），未执行 git finish/推送。**
+
+### 修改文件（共 7 个，均已提交）
+
+新建：
+- [floor_plan_storage_service.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/services/floor_plan_storage_service.py)：平面图校验（PNG/JPEG/WebP、20MB、12000px）、存储、替换、删除
+- [enterprise_cleanup_service.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/services/enterprise_cleanup_service.py)：企业风险分级数据级联清理 + 完整删除
+- [test_floor_plan_upload.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_floor_plan_upload.py)：上传契约测试（拒非图片 + 有效 PNG 存取/删除）
+- [test_risk_mapping_cascade.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_cascade.py)：清理服务导入测试
+
+修改：
+- [risk_management.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py)：新增 Floors CRUD（GET/POST/PUT/DELETE /floors、POST /floors/{id}/plan）；zones create/update 接入多边形校验
+- [enterprises.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/enterprises.py)：DELETE 改为调用 `delete_enterprise_complete`
+- [requirements.txt](C:/Users/55061/Documents/数字化预案自动生成 2/backend/requirements.txt)：追加 Pillow、pytest、pytest-asyncio（已装入 backend/.venv）
+
+### 移交项落实
+
+1. **统一 ensure_default_floor**：计划里的本地 `_default_floor` 重复实现已删除，改为包装 `app.services.risk_mapping_service.ensure_default_floor`。
+2. **zones 多边形校验**：`create_zone`/`update_zone` 写路径调用 `validate_polygon_v2`，校验失败返回 422 `{"code": "POLYGON_INVALID", "message": "..."}`。
+3. **并发防重**：默认楼层创建依赖 `uq_ef_default_per_enterprise` 唯一索引，`IntegrityError` 时回滚事务并回退查询复用已存在楼层。
+
+### 测试结果
+
+`cd backend && .venv\Scripts\python.exe -m pytest tests/test_floor_plan_upload.py tests/test_risk_mapping_cascade.py tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py -v`
+
+**36 passed in 0.85s**（上传 2 + 级联 1 + 服务 21 + 迁移 12），退出码 0。另已通过路由/服务导入检查与 `py_compile`。
+
+### 自审
+
+- 与计划的两处有意差异（均保持计划意图）：`test_reject_non_image` 为 async 测试，补了 `@pytest.mark.asyncio` 以适配 pytest-asyncio strict 模式；`create_floor` 将“首个楼层自动成为默认”显式写入 `values["is_default"]=True`，修正计划代码中 `model_dump(exclude_unset=True)` 不会携带后赋值字段的问题。
+- 清理服务删除顺序与 DB 外键语义一致（unit/event/measure 为 CASCADE，zone/floor/enterprise_floors 为 RESTRICT，先删 measures→events→units→objects→zones→floors 再删企业）。
+- `git diff --check` 无空白错误；暂存仅本任务 7 个文件，TASKS.md、计划文件、前端文件及任务 1/2 文件均未改动；测试产生的临时目录已清理。
+- 未执行 `git finish`/推送。已知遗留：zones 创建仍缺 floor_id 默认回填（属任务 4 范围，TASKS.md 中已登记的中间态回归）。

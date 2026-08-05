@@ -1,0 +1,23 @@
+## 审查结论
+
+审查基准：`docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md` 任务 5（第 1348–1618 行）；提交 `2d4fc07`；当前 HEAD 前端文件与该提交一致（`git log 2d4fc07..HEAD` 无相关路径改动，`f011b09` 仅涉及后端）。
+
+### 验证结果
+
+- `cd frontend && npx tsc -b`：✅ 通过（exit 0，无输出）。
+- 提交包含计划 5.1–5.4 的全部内容：`riskMappingWorkbench.ts` 16 个类型/接口逐字一致；`riskMappingWorkbenchService.ts` 7 个函数与计划一致；`riskManagement.ts` 的 RiskZone/RiskObject/HierarchyObject/HierarchyZone 扩展逐字一致；`riskManagementService.ts:53` 的 `getRiskMappingOverview` 与计划一致；`routes/index.tsx:30,51` 的 import 与路由一致；commit message 与 5.6 完全一致。
+- 一处优于计划的修正：计划 5.2 片段写的是 `d.pendingRegions`（与 `RawWorkbenchSnapshot.pending_regions` 字段不符），实现改为 `d.pending_regions ?? []`（[riskMappingWorkbenchService.ts:14](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskMappingWorkbenchService.ts:14)），是正确的。
+
+### ❌ 发现问题（均为轻微，无 [必须修复] 项）
+
+1. **[建议修改] 计划外新增占位页文件** — 创建了 [RiskMappingWorkbenchPage.tsx:1](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskMappingWorkbenchPage.tsx:1)（3 行占位组件），不在任务 5 文件清单内（该文件按计划属任务 7「页面壳」）。原因是计划 5.4 的路由 import 要求该文件存在、5.5 构建才能通过，属于对计划内部矛盾的必要补救，但严格超出了任务 5 范围；任务 7 必须整体替换该占位页，存在被遗漏的风险，建议在任务 7 的提交中显式覆盖并核对。
+
+2. **[仅供参考] enterprise.ts 新增转发导出未被使用** — [enterprise.ts:102](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/enterprise.ts:102) `export type { EnterpriseFloor } from "./riskMappingWorkbench";`。计划只把 enterprise.ts 列为待修改文件（第 1354 行「扩展楼层相关字段」），未给出具体内容；当前全仓无任何消费方（rg 仅命中定义处），属于无实际用途的额外实现，建议后续使用到或删除。
+
+3. **[仅供参考] 未使用的类型导入** — [riskMappingWorkbenchService.ts:3](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskMappingWorkbenchService.ts:3) 的 `RawOverviewResponse` 未在本文件使用；但该导入与计划 5.2 原文逐字一致（属计划自身的冗余），且 `tsconfig.app.json` `noUnusedLocals: false`，编译通过，不视为实现错误。
+
+### 总结
+
+无缺失需求；所有规格代码均按计划实现并通过类型编译；三处发现均为轻微的多余实现/死代码，其中占位页为计划缺口下的合理补救。建议由任务 7 覆盖占位页、由任务 10 起消费 `EnterpriseFloor` 转发导出后，即可视为完全合规。
+
+（说明：按要求未修改任何文件、未提交；工作区状态与审查前一致，仅存在审查前已有的 TASKS.md 修改与 task2 相关未跟踪文件。）

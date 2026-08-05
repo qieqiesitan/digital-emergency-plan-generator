@@ -1,6 +1,19 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：任务 1 已闭环；并行执行后端任务 2 与前端任务 5
+- 正在做什么：任务 2 闭环、任务 5 规格通过；并行执行后端任务 3、前端任务 6、任务 5 质量审查
 - 刚完成的动作：
+  - 任务 2 提交 e424fa4 + 修复 f011b09，规格与质量复审通过（33 passed）
+  - 任务 5 已提交 2d4fc07，规格审查通过，tsc -b 通过
+  - 前端任务 5 曾多次超时，已由主控完成构建验证并提交，占位页将在任务 7 替换
+  - 已并行启动：任务 3（Floors/上传/清理）、任务 6（Store/几何）、任务 5 代码质量审查
+  - 复审 f011b09（git diff e424fa4 f011b09 + git show f011b09）：6 个重点全部核对应症
+    - validate_polygon_v2 畸形输入加固（非 dict/list/点 均返回错误列表不再抛异常）
+    - ensure_default_floor 复用 enterprises.floor_plan_url（db.get Enterprise）
+    - RiskObjectUpdate 补 is_risk_point=True 校验（与 Create 口径一致）
+    - RiskZoneFloorPlanPolygon pre-validator 归一化 legacy {points:[...]}
+    - Schema 收紧：version/color_source 用 Literal、polygons/points min_length、manual 必填 color、id 去重
+    - 测试：venv pytest 两个测试文件 33 passed（服务 21 + 迁移 12），git diff --check 无错误
+  - 遗留（供任务 3）：ensure_default_floor 并发首访竞态、服务 ensure_default_floor 与计划路由 _default_floor 重复实现需合并；validate_polygon_v2 尚无路由调用点
+  - 复审未修改任何文件；TASKS.md 与 task2-*.txt 未跟踪文件保持原状
   - 任务 1 提交 d417f12 + 质量修复 8719355，规格审查与代码质量复审均通过
   - 已登记已知中间态回归：在任务 2/3 完成前不要单独执行迁移；否则 POST /zones 缺 floor_id、DELETE /enterprises 受 RESTRICT 阻塞
   - 已切换到双流并行：后端流任务 2（服务/Schema），前端流任务 5（类型/服务/路由），文件不重叠
@@ -75,6 +88,36 @@
   - VM：hostname ecs-devstage-desktop-0759，Huawei Cloud EulerOS 2.0 aarch64，4 vCPU / 7GiB / 49G（已用 16%）
   - VM home 含 ~/emergency-plan（backend/frontend/docker-compose.yml/TASKS.md 等，疑似本项目的云端副本）与空的 ~/workspace
   - 隧道保持运行；停止命令：Stop-Process -Id 25132
+- 旁路任务续：云主机系统已全部跑起来并验证（2026-08-05）
+  - VM 侧服务：PostgreSQL 5432（原生）、backend uvicorn 8000（systemd emergency-plan.service，开机自启）、frontend Vite 5173（nohup，日志 ~/emergency-plan/frontend_dev.log）、mobile 8080（nohup，日志 ~/emergency-plan/mobile_server.log）
+  - 已 patch VM 的 frontend/server.py：DIST_DIR 由硬编码 /app/dist 改为相对脚本目录，原生运行 8080 移动端（可逆，仅改 VM 副本）
+  - serveo 公网隧道（systemd serveo-tunnel.service，开机自启）→ https://3084131c526d3c59-113-47-13-190.serveousercontent.com（本机验证 / 与 /m.html 均 200）
+  - 本机新增 hdspace 隧道 PID 27608：15173→5173、18000→8000、18080→8080，curl 均 200（本机 8000/5173 被本地项目占用，故用 15xxx/18xxx）
+  - 注意：Vite/mobile 为 nohup 启动，重启 VM 后需手动拉起；后端/DB/serveo 走 systemd 自启
+- 旁路任务续：阿里云域名 chengleiai.com 已确认可用（2026-08-05）
+  - 域名在阿里云购买，DNS 托管在 Cloudflare（NS: igor/mariah.ns.cloudflare.com），根域/www/api 无记录，demo 子域有记录
+  - 云主机 cloudflared.service（systemd 自启，远程托管隧道，token 模式）健康运行：三节点 lax01/lax05/lax11 已注册，precheck 全 PASS
+  - 隧道入口配置：demo.chengleiai.com → http://localhost:8000（由 CF 后台远程托管配置）
+  - 实测：https://demo.chengleiai.com / 200（title=frontend）、/m.html 200、/docs 200、/api/v1/enterprises 401（需登录，链路通）
+  - 注意：demo.chengleiai.com 走 CF 洛杉矶节点，首请求 1~6s 延迟；serveo 隧道（3084131c526d3c59-113-47-13-190.serveousercontent.com）现已冗余，保留未动
+- 旁路任务续：备份点盘点完成，待用户确认部署版本（2026-08-05）
+  - Git 保存点：80+ 个 [savepoint] 提交（2026-07-17~08-05），最近 04f3ba9
+  - 分支：master=3061dfe(07-04, 被 codex 分支完全包含)、codex/protego-integration=e424fa4(08-05, 领先 master 82)、origin/master=gitee/master=dcbea44(06-29, 最后推送)、origin/codex 落后 72
+  - 推荐稳定点：9608ea7（2026-08-04 21:00 保存点，risk-mapping workbench 迁移前，含 7 月风险管理模块全部功能）
+  - HEAD e424fa4 不稳定：workbench 任务 1-2 已提交但引入 floor_id NOT NULL 已知中间态回归；前端任务 5 未提交
+  - VM 现状：代码/DB 均为 6 月状态（只有 risk_sources 表）；部署 9608ea7 需补 db_migration_risk_overhaul.sql + add_style_preference.sql，先 pg_dump 备份
+  - dist 不进 Git，部署需在 VM 上 npm run build；服务端口不变（8000），域名隧道无需改动
+- 旁路任务续：9608ea7 已部署到云主机并验证通过（2026-08-05 16:00）
+  - 备份：~/backups/emergency-plan-src-20260805.tar.gz（旧源码）+ emergency-plan-db-20260805.dump（DB）；旧代码保留在 ~/emergency-plan-old 可回滚
+  - 传输：scp/SFTP 走 hdspace 隧道会卡死，改用本地 gzip（47.6MB）+ ssh stdin 流式传输，MD5 校验一致
+  - 代码：git archive 9608ea7 解压到 ~/emergency-plan（保留 exports/uploads 运行数据）
+  - 依赖：前端 npm install 737 包；后端因代码要求 Python≥3.10，编译安装 Python 3.12.10 到 /usr/local/python3.12，创建 backend/.venv 装齐依赖（chromadb 1.5.9、networkx 3.6.1、PyMuPDF、cairosvg 等）
+  - systemd emergency-plan.service 已改为使用 .venv 的 uvicorn（PATH+ExecStart）
+  - DB：已应用 db_migration_risk_overhaul.sql + db_migration_add_style_preference.sql，启动 create_all + seed_configs（sys_config 5 行）；现有 25 张表
+  - 前端：npm run build 成功（含 PWA/m.html），dist 由后端托管
+  - 部署副本两处小修补（文档已记录）：main.py /icons 挂载加 isdir 判断（9608ea7 无 public/icons 目录，否则启动崩溃）；server.py DIST_DIR 改相对路径
+  - 验证：8000/5173/8080 均监听；OpenAPI 135 条路由（含 risk-management 全套）；风险接口未登录返回 401 JSON；公网 demo.chengleiai.com / /m.html / /docs 均 200；日志自 15:48 启动后无 error/traceback
+  - 待办注意：playwright 浏览器未安装（PDF/导出如需浏览器渲染需 .venv/bin/playwright install chromium）；Vite/mobile 为 nohup 启动，重启 VM 需手动拉起
 - 下一步：后端任务 2 与前端任务 5 并行完成后，依次执行任务 3/4、前端任务 6/7/8/9/10，最后任务 11
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2

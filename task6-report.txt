@@ -1,0 +1,26 @@
+任务 6 已完成并提交，验证全部通过。
+
+## 状态
+
+已完成 commit `5b7e845`（`feat(risk-mapping): add workbench store and geometry helpers`），未执行 git finish/推送，TASKS.md 与计划文件未改动。
+
+## 修改文件（5 个）
+
+- [riskMappingGeometry.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/riskMappingGeometry.ts)：`toPercent`、`toCanvasX/Y`、`clampPoint`、`pointsToKonva`、`polygonArea`、`validatePolygon`、`simplifyPolygon`
+- [riskMappingWorkbenchStore.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.ts)：floors/currentFloorId/zones/riskPoints/texts/pendingRegions/deletedZoneIds/deletedRiskPointIds/selectedZoneId/selectedRegionId/tool/gridEnabled/snapEnabled/guideEnabled/dirty/past/future + setSnapshot/commit/reset + 导出 undo/redo，历史上限 50
+- [riskMappingWorkbenchStore.test.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.test.ts)：Store 提交/历史测试 + 几何工具覆盖
+- [package.json](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/package.json)：新增 `"test": "vitest run"` 与 `vitest@^3.2.7`（兼容项目 Vite 5.4）
+- package-lock.json：仅新增 vitest 依赖树（33 个包）
+
+## 测试结果
+
+- `cd frontend && npx vitest run src/store/riskMappingWorkbenchStore.test.ts`：**1 个文件、5 个测试全部通过**（1 个 Store + 4 个几何）
+- `npx tsc -b`：通过，无类型错误
+- 全仓无其他 vitest 测试文件（现有 e2e 为 Playwright，不受影响）
+
+## 自审
+
+- 严格按计划 6.1–6.5 实现；需求中的 `selected`、`grid/snap/guide` 按计划落地为 `selectedZoneId/selectedRegionId`、`gridEnabled/snapEnabled/guideEnabled`，`undo/redo` 以 store 模块导出函数形式提供（任务 9 将直接复用）
+- 提交仅含 5 个目标文件，未触碰 TASKS.md、计划文件、后端文件及任务 5 已提交文件；工作区剩余改动均为此前遗留
+- 两点说明：① 按项目铁律应先 `git save`，但该脚本会 `git add -A` 连带提交主控明确要求保持未提交的 TASKS.md，故跳过并仅精确暂存本次文件；② 计划测试仅有 1 个 Store 用例，我补充了 4 个几何用例以覆盖必需函数，属无害增强
+- 下一步建议：任务 7 可直接从该 store 导入 `useRiskMappingWorkbenchStore`、`undo`/`redo` 及几何工具

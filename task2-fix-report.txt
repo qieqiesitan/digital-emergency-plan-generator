@@ -1,0 +1,28 @@
+修复完成并已提交。汇报如下：
+
+## 状态
+
+任务 2 质量审查意见已全部处理，提交为独立 commit `f011b09 fix(risk-mapping): harden polygon validation and schema compatibility`（仅含 3 个范围文件）。未修改 TASKS.md、前端文件、计划文件，未执行 git finish/推送。
+
+## 修改文件
+
+- [backend/app/services/risk_mapping_service.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/services/risk_mapping_service.py)
+  - `validate_polygon_v2` 加固：polygon 非 dict、polygons 非 list、区域项非 dict、points 非 list、点非 dict 均返回错误列表，不再抛 AttributeError/TypeError。
+  - `ensure_default_floor` 通过 `db.get(Enterprise, enterprise_id)` 读取企业，创建默认楼层时复用 `enterprises.floor_plan_url`，不再硬编码 `None`。
+- [backend/app/schemas/risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/schemas/risk_management.py)
+  - `RiskZoneFloorPlanPolygon` 增加 pre-validator，旧结构 `{"points":[...]}` 自动归一化为 v2（id/label 透传，缺省 id 用 `legacy-polygon`），兼容旧前端 `RiskZoneForm` 提交。
+  - Schema 收紧：`version: Literal[2]`、`color_source: Literal["auto","manual"]`、manual 必须有 color、`polygons` 至少 1 个区域（`min_length=1`）、每个区域至少 3 个点（`min_length=3`）、多边形 id 不重复（after-validator）。
+  - `RiskObjectUpdate` 增加 after-validator：`is_risk_point=True` 时缺 `zone_id`/`location_x`/`location_y` 抛 ValidationError（与 Create 口径一致，0 坐标合法）。
+- [backend/tests/test_risk_mapping_service.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_service.py)：新增 18 个测试，覆盖畸形输入、legacy 归一化（含嵌入 RiskZoneCreate）、非法 version/color_source、manual 缺 color、空 polygons/少于 3 点/重复 id、Update 风险点校验、默认楼层 URL 复用。
+- `backend/tests/test_risk_mapping_migration.py` 未改动（迁移 SQL 无变化，现有断言继续通过，无需补回归）。
+
+## 测试结果
+
+`cd backend && .venv\Scripts\python.exe -m pytest tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py -v`：**33 passed**（服务 21 + 迁移 12）。`git diff --check` 无空白/冲突标记。全量后端测试仅剩 2 个既有环境报错（web_search/autofill 缺 `scrapling` 模块），与本次改动无关。
+
+## 自审
+
+- 8 项修复要求逐条对照完成，服务端校验与 Schema 校验口径一致（同样的错误语义：版本、颜色源、manual 颜色、区域数、点数、id 唯一）。
+- 提交内容仅 3 个范围文件（224 insertions / 11 deletions）；工作区剩余的 TASKS.md 改动与 3 个 review txt 未跟踪文件均为既有状态，未触碰。
+- 一个实现细节说明：`ensure_default_floor` 的测试用 `asyncio.run` 而非 pytest-asyncio（venv 未安装该插件）；期间发现 Python 3.12 下 AsyncMock 子属性也是 AsyncMock 导致未 await coroutine 被返回，已通过显式 `MagicMock` 返回值修正测试。
+- 遗留提醒（超出本任务范围，供任务 3 参考）：审查意见第 9 条"并发首访默认楼层竞态"需路由层串行化或加唯一约束；`validate_polygon_v2` 目前尚无路由调用点，任务 3 应保证 batch-save 与 zones create/update 都走统一校验。

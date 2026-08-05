@@ -1,0 +1,69 @@
+审查完成。已按 `git show e424fa4` 与 `git diff 8719355 e424fa4` 核对实际变更（e424fa4 仅 3 个文件：schemas +60、新增服务 123 行、新增测试 23 行），并对照规格文档、计划文档、现有项目模式，运行了测试（3 passed）与边界用例复现。全程未修改任何文件。
+
+## 审查范围说明
+
+`git diff 8719355 e424fa4` 额外包含 savepoint 04f3ba9 卷进的 TASKS.md 与任务 1 的 5 个审查报告 txt（code-review1.txt 等），这些不是任务 2 的代码变更；e424fa4 本身只改任务 2 的 3 个文件，范围干净。
+
+## 优点
+
+- 纯函数划分清晰：`normalize_polygon` / `validate_polygon_v2` / `effective_color` / `max_risk_level` 均无副作用，DB 访问收敛在 `ensure_default_floor` / `cascade_counts`，符合「后端服务纯函数与 Schema」的任务定位。
+- 常量与规格一致：`LEVEL_ORDER`、`LEVEL_COLORS` 与规格 4.5 的等级排序和色值完全对应；`max_risk_level` 的实现（对象及其单元下事件取最高等级）与规格 4.5 一致。
+- Pydantic 用法正确：`field_validator` 坐标范围、`model_validator(mode="after")` 风险点校验、复用 `DatetimeStr`、`from_attributes` 均沿用现有模式。
+- 范围克制、无越界重构；甚至把计划中函数内的 `from sqlalchemy import or_` 提升到了模块顶部，比计划代码更干净。
+- 门禁通过：venv 下 3 个测试全通过，`git diff --check` 无空白或冲突标记。
+
+## 问题
+
+### 关键（必须修复）
+
+1. `validate_polygon_v2` 对畸形输入抛异常而非返回错误列表
+
+[risk_mapping_service.py](<C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/services/risk_mapping_service.py:45>)
+
+第 45–58 行：当 `polygons` 不是 list（如 dict 或 int）时，第 46 行已判定非 list 并追加错误，但第 49 行仍进入 `for p in polygons:`——dict 迭代出字符串 key，`p.get("points")` 直接 `AttributeError`；int 则 `TypeError`。`points` 非 list 时同理（第 53–54 行）。
+
+已实测复现：
+
+```python
+validate_polygon_v2({"version": 2, "color_source": "auto",
+                     "polygons": {"a": {"points": [...]}}})
+# -> AttributeError: 'str' object has no attribute 'get'
+```
+
+该校验函数是防御性纯函数，畸形 DB JSONB 或恶意请求应得到错误列表而非 500。虽然计划调用路径先经 Pydantic `model_dump` 不会触发，但函数契约就是「接受任意 raw dict 并返回错误列表」，应在迭代前用 `isinstance` 拦截，并为该场景补测试。
+
+### 重要（建议尽快修复）
+
+2. `ensure_default_floor` 未满足规格「复用 enterprises.floor_plan_url」
+
+规格 5.3/6.1 明确要求：企业无楼层时首次访问自动创建默认楼层，并复用 `enterprises.floor_plan_url`。当前实现硬编码 `floor_plan_url=None` 且未读取 Enterprise。此外，计划路由（步骤 3.3）另有同名 `_default_floor`，本服务版本在计划中未被任何路由引用——同一行为两处实现、且两处都漏了规格要求。建议合并为单一实现并补上 `floor_plan_url` 复用。
+
+3. `RiskObjectUpdate` 缺少 `is_risk_point=true` 校验
+
+[risk_management.py](<C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/schemas/risk_management.py:52>)
+
+规格 5.4 要求 Create **或 Update** 设置 `is_risk_point=true` 时必须提供 `zone_id`、`location_x`、`location_y`，否则返回 `RISK_POINT_INVALID`。本次只在 Create 加了 `model_validator`（第 46–50 行），Update 没有——已实测 `RiskObjectUpdate(name="x", is_risk_point=True)` 可通过。若任务 3 路由不补检查，PUT 把对象改成风险点即可绕过约束。建议给 Update 加 after validator（仅当 `is_risk_point` 为 True 时校验）。
+
+4. 旧前端 legacy `floor_plan_polygon` 写兼容被 Schema 类型化阻断
+
+[risk_management.py](<C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/schemas/risk_management.py:26>)
+
+规格 5.4 承诺「旧前端继续提交 floor_plan_polygon 时，后端统一归一化为 v2」。但 `RiskZoneCreate.floor_plan_polygon` 改为强类型 `RiskZoneFloorPlanPolygon` 后，已实测提交旧结构 `{"points": [...]}` 直接 422（缺 `color_source` / `polygons`）。归一化目前只存在于读路径（workbench GET）和迁移 SQL，计划中 `create_zone` 也没有归一化入口。需要与团队确认旧前端是否仍会写入 legacy 结构；若会，应在 Schema 加 pre-validator 归一化，或保持 `dict` 类型由路由归一化。
+
+5. Schema 与服务端校验重复且不完整
+
+[risk_management.py](<C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/schemas/risk_management.py:26>)
+
+`version: int = 2` 实测可接受 `version=1`；`color_source: str` 实测可接受任意值（"hack" 通过）；manual 缺 color、polygons 少于 3 点、polygon id 重复均不在 Schema 层校验。batch-save 路径靠 `validate_polygon_v2` 兜底，但 zones create/update 路径按计划不会调用它，两套校验口径会漂移。建议用 `Literal[2]`、`Literal["auto", "manual"]` 收紧 Schema，并保证所有写路径统一走同一套校验。
+
+### 次要（建议修改）
+
+6. 测试覆盖不足：`max_risk_level`、`ensure_default_floor`、`cascade_counts` 三个 SQLAlchemy 服务函数零测试；新增的 Pydantic 校验（`check_range`、`validate_risk_point`、`RiskZoneFloorPlanPolygon` 结构）无直接测试；`normalize_polygon` 只测 legacy 分支、`validate_polygon_v2` 只测坐标错误分支、`effective_color` 只测 manual 分支。问题 1 的畸形输入恰好未被测试覆盖，这类用例建议随修复一起补上。
+7. 可变默认值：`canvas_texts=[]`、`risk_points=[]`、`objects=[]` 等直接给 list 默认值（Pydantic v2 会深拷贝，无运行时 bug），但建议统一改用 `Field(default_factory=list)`，避免误读。
+8. 风格一致性：schemas 文件单行/多行混用，新增的 `FloorResponse` 等单行类近 600 字符，可读性差；`risk_mapping_service.py` 缺模块级 docstring（仓库其他服务均有）；`effective_color` 的 `dict | Any | None` 中 `Any` 使前面类型冗余；`RiskZoneResponse.floor_id: str | None` 与模型 NOT NULL 不一致，可写死为 `str`。
+9. 并发首访竞态：`ensure_default_floor` 无幂等保护，两个并发请求可能各建一个默认楼层（`is_default` 无唯一约束），建议由任务 3 路由统一串行化或加唯一约束。
+10. 提交范围噪音：savepoint 04f3ba9 把任务 1 的审查报告 txt 卷进了提交历史，最终推送/PR 前建议归档或清理。
+
+## 结论
+
+整体实现忠实于计划，模块划分、命名、常量口径与范围控制都很好，作为任务 2 的阶段性提交质量良好；但存在 1 个必须修复的校验函数崩溃（畸形输入）、4 项规格符合性缺口（默认楼层复用、Update 风险点校验、legacy 写兼容、Schema 校验收紧）以及测试覆盖不足。建议处理顺序：先修 `validate_polygon_v2` 并补畸形输入测试 → 合并 `ensure_default_floor` 与路由 `_default_floor` 并补 `floor_plan_url` 复用 → 给 `RiskObjectUpdate` 补 `is_risk_point` 校验 → 在任务 3 路由实现前确认 legacy 写路径与 Schema `Literal` 收紧方案。

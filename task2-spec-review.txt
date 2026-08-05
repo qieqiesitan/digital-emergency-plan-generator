@@ -1,0 +1,24 @@
+审查完成。以下为独立核对结论（未采信实现者报告，全部基于 `git show e424fa4` 与当前文件验证）。
+
+## ✅ 符合规格
+
+任务 2 与计划完全匹配，无缺失需求、无多余实现、无理解偏差。提交 `e424fa4` 恰好包含计划指定的 3 个文件（`backend/app/services/risk_mapping_service.py`、`backend/app/schemas/risk_management.py`、`backend/tests/test_risk_mapping_service.py`），commit message 与步骤 2.5 一致，且这三个文件工作区与提交无差异。
+
+**步骤 2.1 服务文件** — [risk_mapping_service.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/services/risk_mapping_service.py)
+- `LEVEL_ORDER`/`LEVEL_COLORS` 常量（:7-14）、`normalize_polygon`（:17-32）、`validate_polygon_v2`（:35-61）、`effective_color`（:64-68）、`max_risk_level`（:71-81）、`ensure_default_floor`（:84-99）、`cascade_counts`（:102-123）全部存在，逻辑与计划代码逐行一致。
+
+**步骤 2.2 Schema** — [risk_management.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/schemas/risk_management.py)
+- `FloorCreate/Update/Response`（:10-12，含 zone_count、risk_point_count、from_attributes）
+- `RiskPolygonPoint` 0-100 范围校验（:14-23）、`RiskPolygon`（:25）、`RiskZoneFloorPlanPolygon`（:26）、`RiskCanvasText`（:27）
+- 扩展的 `RiskZoneCreate/Update/Response`（:29-31，含 floor_id、floor_name、max_risk_level、effective_color）
+- `RiskObjectCreate` 多行类体 + 「风险点必须绑定分区和坐标」model_validator（:33-50），`RiskObjectUpdate/Response` 含 floor_id（:52-53）
+- `BatchSaveZoneItem/RiskPointItem/Request/Response`（:55-58）、`WorkbenchZone/WorkbenchResponse/OverviewResponse`（:60-62）字段与计划逐一相符
+- 原有 RiskUnit/RiskEvent/RiskMeasure 等 Schema 未受影响（:64-127）
+
+**步骤 2.3 测试** — [test_risk_mapping_service.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_service.py) 3 个用例与计划一致（:4-23）。
+
+**步骤 2.4 测试验证** — 我已实际运行 `pytest tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py -v`：15 passed（新服务测试 3/3，任务 1 迁移测试 12/12，无回归）。Schema 与服务模块导入冒烟通过。
+
+**唯一差异（无功能影响）**：计划的 `cascade_counts` 示例在函数体内 `from sqlalchemy import or_`，实际实现把 `or_` 提到了模块顶部导入（[risk_mapping_service.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/services/risk_mapping_service.py:2)），行为等价，不构成偏离。
+
+**备注**：工作区另有未跟踪的 `task2-report.txt`（实现者自审报告）及任务 5 的前端文件，均不在本提交范围内；按你的要求本次未修改任何文件、未提交。
