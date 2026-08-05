@@ -1,4 +1,4 @@
-﻿import React, { Suspense } from "react";
+import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";

@@ -1,5 +1,5 @@
-﻿import React from "react";
-import { ChevronRight, Building2, Trash2 } from "lucide-react";
+import React from "react";
+import { ChevronRight, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Badge from "@/mobile/components/ui/Badge";
 

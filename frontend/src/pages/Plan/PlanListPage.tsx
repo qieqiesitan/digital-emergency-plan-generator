@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Table, Tabs, Radio, Input, Button, Space, Progress, message } from "antd";
-import { PlusOutlined, BankOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listPlans, deletePlan } from "@/services/planService";
 import { getEnterprise } from "@/services/enterpriseService";

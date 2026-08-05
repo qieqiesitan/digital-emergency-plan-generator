@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
-type InputType = "text" | "email" | "password" | "number" | "tel" | "search";
-
 interface InputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size" | "onChange" | "value"> {
   label?: string;

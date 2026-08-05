@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Card, Col, Row, Input, Select, Button, Space, Spin, Empty } from "antd";
 import {
   BankOutlined,
-  FileTextOutlined,
   PlusOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,

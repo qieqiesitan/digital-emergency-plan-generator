@@ -1,9 +1,9 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Modal, Button, Input, Select, InputNumber, Space, message, Card } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateSurrounding } from "@/services/enterpriseService";
-import type { SurroundingInfo, NearbyUnit, SensitiveTarget } from "@/types/enterprise";
+import type { SurroundingInfo } from "@/types/enterprise";
 
 interface Props {
   enterpriseId: string;

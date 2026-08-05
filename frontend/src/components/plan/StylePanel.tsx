@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Segmented, Space, Typography } from "antd";
-import { ThunderboltOutlined, BulbOutlined, SettingOutlined } from "@ant-design/icons";
+import { BulbOutlined, SettingOutlined } from "@ant-design/icons";
 
 const { Text, Title } = Typography;
 

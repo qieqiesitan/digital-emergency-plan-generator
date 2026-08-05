@@ -3,13 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 import json
-from typing import Optional
-import httpx
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
 from pydantic import BaseModel
 from app.models.enterprise import AIConfig
-from app.config import settings
+from app.services.llm_client import llm_text_completion
 from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise
 from app.models.hazardous_chemicals import HazardousChemical
@@ -23,49 +19,6 @@ from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
 router = APIRouter(prefix="/enterprises", tags=["Hazardous Chemicals"])
 
 # ?? AI helpers ??
-def _decrypt_api_key(hex_str: str) -> str:
-    key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-    cipher = AES.new(key, AES.MODE_ECB)
-    return unpad(cipher.decrypt(bytes.fromhex(hex_str)), 16).decode()
-
-
-async def _call_llm_nonstream(messages: list[dict], ai_config: AIConfig) -> str:
-    try:
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
-    except Exception:
-        raise HTTPException(500, "AI ????????")
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-    payload = {
-        "model": ai_config.model_name,
-        "messages": messages,
-        "temperature": ai_config.temperature,
-        "max_tokens": ai_config.max_tokens,
-        "top_p": ai_config.top_p,
-        "stream": False,
-    }
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{base}/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            if resp.status_code != 200:
-                if resp.status_code == 401:
-                    raise HTTPException(500, "AI API Key ?????????????????? AI ??")
-                raise HTTPException(500, f"AI ????: HTTP {resp.status_code}")
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(502, f"AI 服务连接失败: {str(e)}")
-
-
 async def _get_enterprise(enterprise_id: str, user_id: str, db: AsyncSession) -> Enterprise:
     result = await db.execute(
         select(Enterprise).where(
@@ -275,7 +228,7 @@ async def get_chemical_ai_questions(
 ??? JSON????????"""
 
     try:
-        raw = await _call_llm_nonstream(
+        raw = await llm_text_completion(
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             ai_config,
         )
@@ -378,7 +331,7 @@ async def generate_chemicals_ai(
 ??? JSON????????"""
 
     try:
-        raw = await _call_llm_nonstream(
+        raw = await llm_text_completion(
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             ai_config,
         )

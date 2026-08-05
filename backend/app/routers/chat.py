@@ -3,14 +3,13 @@
 import json, logging, re
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.database import get_db, async_session
-from app.models.user import User
 from app.models.enterprise import AIConfig
 from app.models.chat import ChatConversation, ChatMessage
 from app.dependencies import get_current_user
 from app.services.llm_client import decrypt_api_key
+from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import render_mermaid_svg
 from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
 from app.services.chat_dispatch import dispatch
@@ -171,10 +170,8 @@ async def _render_mermaid_blocks(md_text: str) -> str:
 
 async def _md_to_html(md_text: str) -> str:
     """Markdown → HTML（含 Mermaid 渲染）"""
-    import markdown as md_lib
-    import markdown as md_lib
     html = await _render_mermaid_blocks(md_text)
-    return md_lib.markdown(html, extensions=["tables", "fenced_code"], output_format="html5")
+    return md_to_html(html, output_format="html5")
 
 
 # _sse → sse_line (移入 services/sse_utils.py)

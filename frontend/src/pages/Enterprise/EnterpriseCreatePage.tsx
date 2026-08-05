@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Form, Input, Select, AutoComplete, InputNumber, Button, Card, message, Upload, Space, DatePicker, Collapse } from "antd";
+import { Form, Input, Select, AutoComplete, InputNumber, Button, Card, message, Space, DatePicker, Collapse } from "antd";
 import { UploadOutlined, EnvironmentOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createEnterprise, autofillEnterprise } from "@/services/enterpriseService";

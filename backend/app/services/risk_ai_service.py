@@ -9,71 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException
 from app.models.enterprise import AIConfig
-from app.config import settings
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
-import httpx
+from app.services.llm_client import llm_text_completion
 
 logger = logging.getLogger(__name__)
-
-
-def _decrypt_api_key(hex_str: str) -> str:
-    """AES-256 ECB 解密 API Key — 与 generation.py 保持一致。"""
-    key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-    cipher = AES.new(key, AES.MODE_ECB)
-    return unpad(cipher.decrypt(bytes.fromhex(hex_str)), 16).decode()
-
-
-async def _call_llm(messages: list[dict], ai_config: AIConfig) -> str:
-    """非流式 LLM 调用，60s 超时。
-
-    Args:
-        messages: OpenAI 格式的消息列表 [{"role":"system","content":"..."}, ...]
-        ai_config: 用户的 AI 配置（含加密 API Key）
-
-    Returns:
-        AI 返回的文本内容
-
-    Raises:
-        HTTPException(500/502/504): 调用失败、连接失败或超时
-    """
-    try:
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
-    except Exception:
-        raise HTTPException(500, "AI 配置密钥解密失败")
-
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-
-    payload = {
-        "model": ai_config.model_name,
-        "messages": messages,
-        "temperature": ai_config.temperature,
-        "max_tokens": ai_config.max_tokens,
-        "top_p": ai_config.top_p,
-        "stream": False,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{base}/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            if resp.status_code != 200:
-                raise HTTPException(500, f"AI 调用失败: HTTP {resp.status_code}")
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-    except httpx.TimeoutException:
-        raise HTTPException(504, "AI 响应超时（60s），请稍后重试")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(502, f"AI 服务连接失败: {str(e)}")
 
 
 async def _get_ai_config(user_id: str, db: AsyncSession) -> AIConfig:
@@ -234,7 +172,7 @@ async def suggest_objects(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await _call_llm(messages, ai_config)
+    raw = await llm_text_completion(messages, ai_config, timeout=60)
     data = _parse_ai_json(raw)
     return data.get("objects", [])
 
@@ -289,7 +227,7 @@ async def suggest_events(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await _call_llm(messages, ai_config)
+    raw = await llm_text_completion(messages, ai_config, timeout=60)
     data = _parse_ai_json(raw)
     return data.get("events", [])
 
@@ -339,7 +277,7 @@ async def suggest_measures(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await _call_llm(messages, ai_config)
+    raw = await llm_text_completion(messages, ai_config, timeout=60)
     data = _parse_ai_json(raw)
     return data.get("measures", [])
 
@@ -388,7 +326,7 @@ async def smart_guide(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await _call_llm(messages, ai_config)
+    raw = await llm_text_completion(messages, ai_config, timeout=60)
     data = _parse_ai_json(raw)
     return _normalize_smart_guide_hierarchy(data)
 
@@ -418,7 +356,7 @@ async def analyze_floor_plan(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await _call_llm(messages, ai_config)
+    raw = await llm_text_completion(messages, ai_config, timeout=60)
     data = _parse_ai_json(raw)
     return data.get("zones", [])
 
@@ -450,6 +388,6 @@ async def migrate_preview(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await _call_llm(messages, ai_config)
+    raw = await llm_text_completion(messages, ai_config, timeout=60)
     data = _parse_ai_json(raw)
     return data.get("mappings", [])

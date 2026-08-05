@@ -17,8 +17,9 @@ from app.services.external_file_store import download_external_files
 from app.services.external_service import notify_callback
 from app.routers.generation import (
     _build_section_prompt, _stream_llm, _collect_enterprise_data,
-    _enrich_with_reports, _md_to_html, _pre_render_mermaid_svgs,
+    _enrich_with_reports, _pre_render_mermaid_svgs,
 )
+from app.services.markdown_utils import md_to_html
 from app.services.prompt_cache import ensure_loaded
 from app.services.docx_template import generate_plan_docx
 
@@ -111,7 +112,7 @@ async def _run_generation_then_callback(
                                                previous_context=None)
                 try:
                     full = await _stream_llm(prompt, ai_config, plan_type)
-                    s.content = _md_to_html(full); s.ai_generated = True
+                    s.content = md_to_html(full, normalize=True); s.ai_generated = True
                     await db.commit(); completed += 1
                     task_info["progress"] = int(completed / total * 90)
                 except Exception as e:

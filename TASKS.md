@@ -1,4 +1,35 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-05 深夜）：按审查建议完成代码质量清理并已验证，待提交
+- 刚完成的动作（核心 5 项）：
+  - ① generation.py 删除 L1115-1595 四组重复路由副本（1739→983 行）；顺带清掉未使用的 settings/httpx/markdown/re/AES 等 import
+  - ② LLM 调用收敛：新增 llm_client.llm_text_completion（500/502/504 错误映射），5 个文件删除各自 `_decrypt_api_key`+`_call_llm(_nonstream)`（hazardous_chemicals/resources_ext/risk_sources_ext/surrounding_ai/risk_ai_service）；risk_ai_service 保持 60s 超时
+  - ③ 新增 services/markdown_utils.py（含 split/normalize/table 修复），generation/chat/resource_investigation/risk_assessment/external 统一走 md_to_html；`_sse` 收敛到 sse_utils.sse_event
+  - ④ 死代码删除：cross_ref.py、web_search.py+test、report_utils.py、_gen_bg.py、seed_prompts.py（8 个 code 均与 seed_prompts_full 重叠）、scripts/_dispatch_orig.py、前端 useAutoSave/useDebounce/LoadingSpinner/useConfirmDelete/riskMatrix.ts
+  - ⑤ 依赖与静态检查：移除 idb-keyval；framer-motion 移入 dependencies；tsconfig 开 noUnusedLocals 并清理 25 个文件未使用 import；prompt_cache 缓存键统一 snake_case、删除 FALLBACK_SYSTEM_PROMPT 重复文本
+- 验证结果（全部本人重跑）：
+  - backend：`python -m pytest -q --ignore tests/test_autofill_research.py --ignore _docker_test.py` → 66 passed；app import OK（198 routes）；git diff --check 干净
+  - frontend：`npx tsc -b` exit 0（noUnusedLocals 生效）；vitest zoneSubmit+store 34 passed；`node@22 vite build` 成功（PWA 正常）
+  - eslint src：307→304 errors（剩余 66 unused-vars 多在 ts-nocheck 文件、60 any、30 ban-ts-comment 等，留待专项）
+- 明确未做（需用户决策）：
+  - @ts-nocheck 30 个文件未移除：探针实测移除后 tsc 报 154 错误，含真实缺陷（PlanEditorScreen 引用不存在的 saveVersionMut、多屏事件处理把 string 当 event 读 .target、Toast 参数个数不符、TabBar items 类型不匹配等），建议作为独立 bugfix 迭代
+  - qiankun 保留：业务中台接入资料/接入规范.md 明确要求微前端生命周期，属未完成集成点而非死代码
+  - 仓库卫生（archive/根目录 _*.py/日志/43MB chroma sqlite）未清理，仍待确认
+- 正在做什么（2026-08-05 23:03）：graphify 增量更新图谱（用户指令「更新图谱」），沿用 skill 的 `--update` 流程
+- 刚完成的动作：
+  - 已读 TASKS.md 与 graphify SKILL.md + references/update.md
+  - 确认已有 graphify-out/graph.json（基线 2026-08-05 17:02，17158 节点）与 .graphify_python
+  - detect_incremental：171 个新/改文件（code 101 + document 70）+ 6 个删除；detect/AST/缓存检查已跑完（23:00-23:01）
+  - 已按 skill 派发 2 个语义抽取 chunk 子智能体（/root/graphify_probe/graphify_chunk_01/02），运行中
+- 下一步：等 chunk 子智能体返回 → 合并语义+AST → build_merge 剪除 6 个删除 → Steps 4-9（聚类/报告/HTML/清单）→ 输出图谱差异摘要
+- 关键上下文：工作区仅 TASKS.md、chroma.sqlite3 已修改，backup/risk-mapping-pre-migration-20260805.sql 未跟踪；分支 codex/protego-integration，HEAD=79db993；`--update` 流程见 .agents/skills/graphify/references/update.md
+- 正在做什么（2026-08-05 会话启动）：子智能体会话启动，读取 TASKS.md 与工作区状态，等待任务下发
+- 刚完成的动作：
+  - 读取 TASKS.md：最近完成项为「可视化总览总平图自动适配」（已同步本地 Docker）；此前为代码质量审查（只审不改）与任务 11 E2E 收尾
+  - git status：分支 codex/protego-integration（领先 origin 101）；工作区仅 backend/app/regulations/data/chroma_db/chroma.sqlite3 已修改，backup/risk-mapping-pre-migration-20260805.sql 未跟踪
+  - 确认无活动 goal，本次会话尚无具体任务指令
+  - 会话启动复核（2026-08-05）：再次读取 TASKS.md 与 git status，与上方快照完全一致；HEAD=79db993（feat(risk-mapping): auto-fit overview floor plan to container）
+- 下一步：等待父任务/用户指令后继续
+- 关键上下文：项目根 C:\Users\55061\Documents\数字化预案自动生成 2；当前入口 前端 http://localhost:5173、后端 http://localhost:8000、移动端 http://localhost:8082
 - 正在做什么（2026-08-05）：可视化总览总平图自动适配完成，并已同步本地 Docker
 - 刚完成的动作：
   - `RiskDistributionStage` 不再固定使用 1200x900 Stage，改为跟随容器尺寸并使用 `ResizeObserver` 自动重算

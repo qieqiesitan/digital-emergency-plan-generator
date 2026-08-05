@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Input, Button, Typography, Spin, message, Popconfirm } from "antd";
-import { SendOutlined, RobotOutlined, UserOutlined, PlusOutlined, DeleteOutlined, MessageOutlined, CloseOutlined } from "@ant-design/icons";
+import { SendOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, MessageOutlined, CloseOutlined } from "@ant-design/icons";
 import {
   sendChatMessage,
   fetchConversations,

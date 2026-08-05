@@ -1,9 +1,8 @@
-import json, os, re, markdown, asyncio, logging
+import json, os, re, logging
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 from app.database import get_db, async_session
@@ -14,10 +13,11 @@ from app.schemas.risk_assessment import (
     RiskAssessmentGenerateRequest,
     RiskAssessmentReportResponse,
     RiskAssessmentPreviewResponse,
-    RiskAssessmentSummary,
 )
 from app.schemas.common import ApiResponse
-from app.routers.generation import _decrypt_api_key, _stream_llm
+from app.services.llm_client import decrypt_api_key
+from app.services.markdown_utils import md_to_html
+from app.services.sse_utils import sse_event
 from app.services.risk_assessment_service import (
     CHAPTER_DEFINITIONS as RA_CHAPTER_DEFINITIONS,
 )
@@ -32,23 +32,6 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Risk Assessment"])
-
-
-def _md_to_html(text: str) -> str:
-    """Convert markdown/text to HTML, preserving embedded HTML tables."""
-    if not text:
-        return text
-    # If content is already HTML (starts with <), return as-is
-    if text.strip().startswith("<"):
-        return text
-    # Use markdown with html support to preserve embedded HTML tables
-    return markdown.markdown(
-        text,
-        extensions=["tables", "fenced_code"],
-        output_format="html5",
-    )
-
-
 
 
 def _html_table_to_docx(doc, html_table: str):
@@ -185,11 +168,6 @@ def _render_content_to_docx(doc, content: str):
                 else:
                     doc.add_paragraph(line)
 
-def _sse(event_type: str, **kwargs) -> str:
-    obj = {"type": event_type, **kwargs}
-    return json.dumps(obj, ensure_ascii=False)
-
-
 # ---- LLM streaming utilities (used by both risk_assessment and resource_investigation) ----
 
 async def _stream_llm_with_messages(messages: list[dict], ai_config: AIConfig) -> str:
@@ -201,7 +179,7 @@ async def _stream_llm_with_messages(messages: list[dict], ai_config: AIConfig) -
 
 async def _stream_llm_with_messages_chunked(messages: list[dict], ai_config: AIConfig):
     try:
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+        api_key = decrypt_api_key(ai_config.api_key_encrypted)
     except Exception:
         raise HTTPException(500, "AI config key decryption failed")
     base = ai_config.base_url or {
@@ -318,7 +296,7 @@ async def preview_risk_assessment(
     if not report:
         raise HTTPException(404, "未找到已完成的风险评估报告")
 
-    html = _md_to_html(_clean_for_docx(report.content))
+    html = md_to_html(_clean_for_docx(report.content), output_format="html5")
     return ApiResponse(data=RiskAssessmentPreviewResponse(
         report_id=report.id, title=report.title, html=html
     ))
@@ -471,12 +449,12 @@ async def generate_risk_assessment(
         try:
             chapter_keys = get_chapter_keys()
             total = len(chapter_keys)
-            yield _sse("progress", message=f"开始逐章生成风险评估报告（共{total}章）...",
+            yield sse_event("progress", message=f"开始逐章生成风险评估报告（共{total}章）...",
                        current=0, total=total)
 
             for i, ck in enumerate(chapter_keys):
                 ctitle = get_chapter_title(ck)
-                yield _sse("progress",
+                yield sse_event("progress",
                            message=f"正在生成「{ctitle}」（{i+1}/{total}）",
                            current=i+1, total=total, section_key=ck)
 
@@ -492,13 +470,13 @@ async def generate_risk_assessment(
                 ch_content = ""
                 async for chunk_content in _stream_llm_with_messages_chunked(messages, ai_config):
                     ch_content += chunk_content
-                    yield _sse("chunk", content=chunk_content, section_key=ck)
+                    yield sse_event("chunk", content=chunk_content, section_key=ck)
 
                 chapter_contents.append({
                     "key": ck, "title": ctitle, "content": ch_content,
                 })
                 full_content += f"\n\n{ctitle}\n\n{ch_content}"
-                yield _sse("section_done", section_key=ck,
+                yield sse_event("section_done", section_key=ck,
                            message=f"「{ctitle}」生成完成",
                            completed=i+1, total=total)
 
@@ -529,7 +507,7 @@ async def generate_risk_assessment(
                     await bg_db.commit()
 
             import json as _json
-            yield _sse("batch_done", report_id=report.id,
+            yield sse_event("batch_done", report_id=report.id,
                        message=f"报告生成完成，共{total}章",
                        completed=total, total=total,
                        chapters=_json.dumps(chapters_json, ensure_ascii=False))
@@ -544,7 +522,7 @@ async def generate_risk_assessment(
                     bg_report.status = "draft"
                     bg_report.content = full_content
                     await bg_db.commit()
-            yield _sse("error", message=str(e))
+            yield sse_event("error", message=str(e))
     return EventSourceResponse(event_generator())
 
 

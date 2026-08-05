@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
   ChevronRight, CheckCircle, Circle,
-  Sparkles, AlertCircle, GitBranch, Download,
+  Sparkles, AlertCircle,
 } from "lucide-react";
 
 export interface ChapterNode {

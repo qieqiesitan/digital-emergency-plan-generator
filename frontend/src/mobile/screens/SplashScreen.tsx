@@ -1,7 +1,6 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import Spinner from "@/mobile/components/ui/Spinner";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import { AlertCircle } from "lucide-react";
 import Button from "@/mobile/components/ui/Button";
@@ -9,7 +8,7 @@ import Button from "@/mobile/components/ui/Button";
 export default function SplashScreen() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
-  const [showBrand, setShowBrand] = useState(true);
+  const [showBrand] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

@@ -1,10 +1,8 @@
-﻿import json
+import json
 
 import io
 
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from fastapi.responses import StreamingResponse
 # Note: risk_sources endpoints are deprecated. Use /enterprises/{id}/risk-management/* instead.
@@ -21,27 +19,18 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from Crypto.Cipher import AES
-
-from Crypto.Util.Padding import pad, unpad
-
-import httpx
-
-
 
 from app.database import get_db
 
-from app.models.user import User
-
 from app.models.enterprise import Enterprise, RiskSource, AIConfig
+
+from app.services.llm_client import llm_text_completion
 
 from app.schemas.risk_source import RiskSourceCreate, RiskSourceResponse
 
 from app.schemas.common import ApiResponse
 
 from app.dependencies import get_current_user
-
-from app.config import settings
 
 
 
@@ -92,95 +81,6 @@ def _cats_to_str(categories: list[str] | None) -> str:
 
 
 # --- AI helpers ---
-
-def _decrypt_api_key(hex_str: str) -> str:
-
-    key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-
-    cipher = AES.new(key, AES.MODE_ECB)
-
-    return unpad(cipher.decrypt(bytes.fromhex(hex_str)), 16).decode()
-
-
-
-PRESET_RISK_CATEGORIES = [
-
-    "火灾", "爆炸", "触电", "中毒窒息", "机械伤害",
-
-    "高处坠落", "物体打击", "车辆伤害", "淹溺", "坍塌",
-
-    "锅炉爆炸", "容器爆炸",
-
-]
-
-
-
-async def _call_llm_nonstream(messages: list[dict], ai_config: AIConfig) -> str:
-
-    try:
-
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
-
-    except Exception:
-
-        raise HTTPException(500, "AI 配置密钥解密失败")
-
-    base = ai_config.base_url or {
-
-        "openai": "https://api.openai.com/v1",
-
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-
-        "deepseek": "https://api.deepseek.com/v1",
-
-    }.get(ai_config.provider, "")
-
-    payload = {
-
-        "model": ai_config.model_name,
-
-        "messages": messages,
-
-        "temperature": ai_config.temperature,
-
-        "max_tokens": ai_config.max_tokens,
-
-        "top_p": ai_config.top_p,
-
-        "stream": False,
-
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-
-            resp = await client.post(
-
-                f"{base}/chat/completions",
-
-                json=payload,
-
-                headers={"Authorization": f"Bearer {api_key}"},
-
-            )
-
-            if resp.status_code != 200:
-
-                if resp.status_code == 401:
-
-                    raise HTTPException(500, "AI API Key 无效或已过期，请在系统设置中重新配置 AI 模型")
-
-                raise HTTPException(500, f"AI 调用失败: HTTP {resp.status_code}")
-
-            data = resp.json()
-
-            return data["choices"][0]["message"]["content"]
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(502, f"AI 服务连接失败: {str(e)}")
-
-
 
 async def _get_enterprise_data(enterprise_id: str, user_id: str, db: AsyncSession) -> dict:
 
@@ -632,7 +532,7 @@ async def get_risk_ai_questions(
 
     try:
 
-        raw = await _call_llm_nonstream(
+        raw = await llm_text_completion(
 
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
 
@@ -808,7 +708,7 @@ async def generate_risk_sources_ai(
 
     try:
 
-        raw = await _call_llm_nonstream(
+        raw = await llm_text_completion(
 
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
 
@@ -927,4 +827,3 @@ async def batch_create_risk_sources(
 
 
     return ApiResponse(data=[RiskSourceResponse.model_validate(r) for r in created])
-

@@ -22,16 +22,6 @@ function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[], g
 
       const isGenerating = generatingKeys?.has(tpl.key) ?? false;
 
-      let iconStr = "";
-      if (hasContent) {
-        iconStr = "✓ ";
-      } else if (isGenerating) {
-        iconStr = "⏳ ";
-      } else if (isRequired) {
-        iconStr = "! ";
-      }
-
-      const aiIcon = tpl.ai_generatable ? " 🤖" : "";
 
       return {
         key: tpl.key,

@@ -1,8 +1,7 @@
-import json, os, markdown, logging
+import json, os, logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 from app.database import get_db, async_session
@@ -15,6 +14,8 @@ from app.schemas.resource_investigation import (
     ResourceInvestigationPreviewResponse,
 )
 from app.schemas.common import ApiResponse
+from app.services.markdown_utils import md_to_html
+from app.services.sse_utils import sse_event
 from app.services.resource_investigation_service import (
     CHAPTER_DEFINITIONS as RI_CHAPTER_DEFINITIONS,
     build_resource_investigation_context,
@@ -24,23 +25,10 @@ from app.services.resource_investigation_service import (
     _get_ri_system_prompt,
 )
 from app.config import settings
-from app.routers.risk_assessment import _stream_llm_with_system, _stream_llm_with_messages_chunked, _clean_for_docx
+from app.routers.risk_assessment import _stream_llm_with_messages_chunked, _clean_for_docx
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Resource Investigation"])
-
-
-def _md_to_html(text: str) -> str:
-    if not text or text.strip().startswith("<"):
-        return text
-    return markdown.markdown(text, extensions=["tables", "fenced_code"])
-
-
-
-
-def _sse(event_type: str, **kwargs) -> str:
-    obj = {"type": event_type, **kwargs}
-    return json.dumps(obj, ensure_ascii=False)
 
 
 @router.get("/{enterprise_id}/resource-investigation")
@@ -133,7 +121,7 @@ async def preview_resource_investigation(
     if not report:
         raise HTTPException(404, "未找到报告")
 
-    html = _md_to_html(_clean_for_docx(report.content))
+    html = md_to_html(_clean_for_docx(report.content))
     return ApiResponse(
         data=ResourceInvestigationPreviewResponse(
             report_id=report.id,
@@ -316,12 +304,12 @@ async def generate_resource_investigation(
         try:
             chapter_keys = get_chapter_keys()
             total = len(chapter_keys)
-            yield _sse("progress", message=f"开始逐章生成应急资源调查报告（共{total}章）...",
+            yield sse_event("progress", message=f"开始逐章生成应急资源调查报告（共{total}章）...",
                        current=0, total=total)
 
             for i, ck in enumerate(chapter_keys):
                 ctitle = get_chapter_title(ck)
-                yield _sse("progress",
+                yield sse_event("progress",
                            message=f"正在生成「{ctitle}」（{i+1}/{total}）",
                            current=i+1, total=total, section_key=ck)
 
@@ -337,13 +325,13 @@ async def generate_resource_investigation(
                 ch_content = ""
                 async for chunk_content in _stream_llm_with_messages_chunked(messages, ai_config):
                     ch_content += chunk_content
-                    yield _sse("chunk", content=chunk_content, section_key=ck)
+                    yield sse_event("chunk", content=chunk_content, section_key=ck)
 
                 chapter_contents.append({
                     "key": ck, "title": ctitle, "content": ch_content,
                 })
                 full_content += f"\n\n{ctitle}\n\n{ch_content}"
-                yield _sse("section_done", section_key=ck,
+                yield sse_event("section_done", section_key=ck,
                            message=f"「{ctitle}」生成完成",
                            completed=i+1, total=total)
 
@@ -378,7 +366,7 @@ async def generate_resource_investigation(
                     await bg_db.commit()
 
             import json as _json
-            yield _sse("batch_done", report_id=report.id,
+            yield sse_event("batch_done", report_id=report.id,
                        message=f"报告生成完成，共{total}章",
                        completed=total, total=total,
                        chapters=_json.dumps(chapters_json, ensure_ascii=False))
@@ -396,7 +384,7 @@ async def generate_resource_investigation(
                     bg_report.status = "draft"
                     bg_report.content = full_content
                     await bg_db.commit()
-            yield _sse("error", message=str(e))
+            yield sse_event("error", message=str(e))
 
     return EventSourceResponse(event_generator())
 
@@ -433,7 +421,6 @@ async def merge_resource_investigation(
     # Chapters come as JSON string in custom_instruction or as a separate field
     # We accept them via request body extension: chapters field
     import json as _json
-    from fastapi import Body
     chapters_data = request.custom_instruction  # The frontend sends chapters here
 
     report = (

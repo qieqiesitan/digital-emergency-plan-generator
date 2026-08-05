@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Tabs, Button, message, Space, Spin, Timeline, Select, Modal } from "antd";
+import { Tabs, Button, message, Space, Spin, Timeline, Modal } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RegulationList } from "@/components/regulation/RegulationList";

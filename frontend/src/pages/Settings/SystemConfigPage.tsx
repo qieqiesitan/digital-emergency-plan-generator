@@ -8,7 +8,7 @@ import {
   setConfig,
   deleteConfig,
 } from "@/services/configService";
-import type { SystemConfig, ConfigSetRequest } from "@/services/configService";
+import type { SystemConfig } from "@/services/configService";
 import { PageHeader } from "@/components/common/PageHeader";
 
 export default function SystemConfigPage() {

@@ -1,7 +1,6 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Bold, Italic, Heading, List,
-  Link, Undo, Redo,
+  Undo, Redo,
 } from "lucide-react";
 
 interface EditorToolbarProps {

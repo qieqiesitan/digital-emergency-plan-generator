@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Tabs, Card, Descriptions, Button, Spin, Table, Collapse, Space, message, Image, Badge } from "antd";
-import { EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { Tabs, Card, Descriptions, Button, Spin, Table, Collapse, Image, Badge } from "antd";
+import { EditOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEnterprise } from "@/services/enterpriseService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import { PageHeader } from "@/components/common/PageHeader";
-import { RiskLevelTag } from "@/components/enterprise/RiskLevelTag";
 import { formatDate } from "@/utils/formatters";
-import { PRESET_EMERGENCY_GROUPS } from "@/utils/constants";
 import OrgStructureEditor from "@/components/enterprise/OrgStructureEditor";
 import RiskSourceForm from "@/components/enterprise/RiskSourceForm";
 import EmergencyResourceForm from "@/components/enterprise/EmergencyResourceForm";
@@ -18,8 +16,6 @@ import ResourceInvestigationTab from "@/pages/Enterprise/ResourceInvestigationTa
 import HazardousChemicalsTab from "@/pages/Enterprise/HazardousChemicalsTab";
 import RiskManagementTab from "./RiskManagementTab";
 import type { OrgGroup, SurroundingInfo } from "@/types/enterprise";
-import type { RiskSource } from "@/types/riskSource";
-import type { EmergencyResource } from "@/types/emergencyResource";
 
 const ROLE_LABELS: Record<string, string> = { chief: "总指挥", deputy: "副总指挥", leader: "组长", member: "成员" };
 

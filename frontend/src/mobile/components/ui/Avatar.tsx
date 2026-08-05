@@ -1,4 +1,3 @@
-﻿import React from "react";
 import { User } from "lucide-react";
 
 type AvatarSize = "sm" | "md" | "lg";

@@ -1,4 +1,3 @@
-﻿import React from "react";
 
 type SkeletonVariant = "text" | "circle" | "card" | "list-item";
 

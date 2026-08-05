@@ -12,6 +12,7 @@ from typing import AsyncGenerator
 import httpx
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
+from fastapi import HTTPException
 
 from app.config import settings
 from app.models.enterprise import AIConfig
@@ -131,3 +132,37 @@ async def llm_collect_all(
     """便捷函数：非流式调用并直接返回文本内容。"""
     data = await llm_chat_completion(messages, ai_config, stream=False, timeout=timeout)
     return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+
+async def llm_text_completion(
+    messages: list[dict],
+    ai_config: AIConfig,
+    timeout: int = 120,
+) -> str:
+    """非流式 LLM 调用并返回文本内容，错误统一映射为 HTTPException。
+
+    此前各路由各自实现了 `_call_llm(_nonstream)`（解密 + base_url + payload +
+    错误映射），此处收敛为单一实现：
+    - 解密失败 → 500
+    - 非 200 → 500（401 附带重新配置提示）
+    - 超时 → 504
+    - 其他连接失败 → 502
+    """
+    try:
+        decrypt_api_key(ai_config.api_key_encrypted)  # 提前触发解密失败，映射为 500
+    except Exception:
+        raise HTTPException(500, "AI 配置密钥解密失败")
+    try:
+        data = await llm_chat_completion(messages, ai_config, stream=False, timeout=timeout)
+        return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    except httpx.TimeoutException:
+        raise HTTPException(504, f"AI 响应超时（{timeout}s），请稍后重试")
+    except HTTPException:
+        raise
+    except Exception as e:
+        msg = str(e)
+        if msg.startswith("AI调用失败: 401"):
+            raise HTTPException(500, "AI API Key 无效或已过期，请在系统设置中重新配置 AI 模型")
+        if msg.startswith("AI调用失败"):
+            raise HTTPException(500, msg)
+        raise HTTPException(502, f"AI 服务连接失败: {msg}")

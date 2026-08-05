@@ -1,4 +1,4 @@
-﻿import json
+import json
 
 import io
 
@@ -18,25 +18,18 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from Crypto.Cipher import AES
-
-from Crypto.Util.Padding import unpad
-
-import httpx
-
-
 
 from app.database import get_db
 
 from app.models.enterprise import Enterprise, EmergencyResource, AIConfig
+
+from app.services.llm_client import llm_text_completion
 
 from app.schemas.emergency_resource import EmergencyResourceCreate, EmergencyResourceResponse
 
 from app.schemas.common import ApiResponse
 
 from app.dependencies import get_current_user
-
-from app.config import settings
 
 
 
@@ -59,83 +52,6 @@ PRESET_EXTERNAL_CATEGORIES = [
 ]
 
 ALL_RESOURCE_CATEGORIES = PRESET_INTERNAL_CATEGORIES + PRESET_EXTERNAL_CATEGORIES
-
-
-
-def _decrypt_api_key(hex_str: str) -> str:
-
-    key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-
-    cipher = AES.new(key, AES.MODE_ECB)
-
-    return unpad(cipher.decrypt(bytes.fromhex(hex_str)), 16).decode()
-
-
-
-async def _call_llm_nonstream(messages: list[dict], ai_config: AIConfig) -> str:
-
-    try:
-
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
-
-    except Exception:
-
-        raise HTTPException(500, "AI 配置密钥解密失败")
-
-    base = ai_config.base_url or {
-
-        "openai": "https://api.openai.com/v1",
-
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-
-        "deepseek": "https://api.deepseek.com/v1",
-
-    }.get(ai_config.provider, "")
-
-    payload = {
-
-        "model": ai_config.model_name,
-
-        "messages": messages,
-
-        "temperature": ai_config.temperature,
-
-        "max_tokens": ai_config.max_tokens,
-
-        "top_p": ai_config.top_p,
-
-        "stream": False,
-
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-
-            resp = await client.post(
-
-                f"{base}/chat/completions",
-
-                json=payload,
-
-                headers={"Authorization": f"Bearer {api_key}"},
-
-            )
-
-            if resp.status_code != 200:
-
-                if resp.status_code == 401:
-
-                    raise HTTPException(500, "AI API Key 无效或已过期，请在系统设置中重新配置 AI 模型")
-
-                raise HTTPException(500, f"AI 调用失败: HTTP {resp.status_code}")
-
-            data = resp.json()
-
-            return data["choices"][0]["message"]["content"]
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(502, f"AI 服务连接失败: {str(e)}")
 
 
 
@@ -574,7 +490,7 @@ async def get_resource_ai_questions(
 
     try:
 
-        raw = await _call_llm_nonstream(
+        raw = await llm_text_completion(
 
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
 
@@ -788,7 +704,7 @@ async def generate_resources_ai(
 
     try:
 
-        raw = await _call_llm_nonstream(
+        raw = await llm_text_completion(
 
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
 
@@ -887,4 +803,3 @@ async def batch_create_resources(
 
 
     return ApiResponse(data=[EmergencyResourceResponse.model_validate(r) for r in created])
-

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Input, Space, Typography, List, Tag } from "antd";
+import { Button, Input, Space, Typography, List } from "antd";
 import { UndoOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
