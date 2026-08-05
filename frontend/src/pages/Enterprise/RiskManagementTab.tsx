@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
  import { useNavigate } from "react-router-dom";
 import { App as AntApp, Button, Spin, Empty, Space, Tag } from "antd";
-import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined } from "@ant-design/icons";
+import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure } from "@/services/riskManagementService";
 import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
@@ -172,9 +172,9 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
       switch (form.type) {
         case "zone":
           if (form.id) {
-            await updateZone(enterpriseId, form.id, { name: values.name, description: values.description || "" });
+            await updateZone(enterpriseId, form.id, { name: values.name, description: values.description || "", floor_plan_polygon: values.floor_plan_polygon ?? null });
           } else {
-            await createZone(enterpriseId, { name: values.name, description: values.description || "" });
+            await createZone(enterpriseId, { name: values.name, description: values.description || "", floor_plan_polygon: values.floor_plan_polygon ?? null });
           }
           break;
         case "object":
@@ -224,6 +224,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
            <Button icon={<PlusOutlined />} onClick={() => setForm({ type: "zone", open: true })}>添加分区</Button>
            <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
            <Button icon={<BarChartOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-overview`)}>📊 可视化总览</Button>
+           <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-mapping-workbench`)}>四色分布图工作台</Button>
            <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
          </Space>
          {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}

@@ -4,6 +4,7 @@ import { Tabs, Card, Descriptions, Button, Spin, Table, Collapse, Space, message
 import { EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEnterprise } from "@/services/enterpriseService";
+import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { RiskLevelTag } from "@/components/enterprise/RiskLevelTag";
 import { formatDate } from "@/utils/formatters";
@@ -35,10 +36,19 @@ export default function EnterpriseDetailPage() {
     enabled: !!id,
   });
 
+  const { data: floors } = useQuery({
+    queryKey: ["enterprise-floors", id],
+    queryFn: () => listEnterpriseFloors(id!),
+    enabled: !!id,
+  });
+
   if (isLoading) return <Spin size="large" />;
   if (!enterprise) return <div>企业不存在</div>;
 
   const orgGroups: OrgGroup[] = enterprise.org_structure || [];
+  // 优先使用默认楼层平面图，接口未就绪/无默认楼层时回退企业字段
+  const defaultFloor = floors?.find(f => f.is_default);
+  const floorPlanUrl = defaultFloor?.floor_plan_url ?? enterprise.floor_plan_url;
   const surroundingInfo: SurroundingInfo = enterprise.surrounding_info || {
     nearby_units: [],
     sensitive_targets: [],
@@ -193,7 +203,7 @@ export default function EnterpriseDetailPage() {
     {
       key: "risk-management",
       label: "风险分级管控",
-      children: <RiskManagementTab enterpriseId={id!} floorPlanUrl={enterprise.floor_plan_url} />,
+      children: <RiskManagementTab enterpriseId={id!} floorPlanUrl={floorPlanUrl} />,
     },
   ];
 

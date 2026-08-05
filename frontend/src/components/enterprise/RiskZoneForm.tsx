@@ -7,7 +7,12 @@ interface PolygonPoint { x: number; y: number }
 interface RiskZoneFormValues {
   name: string;
   description?: string;
-  floor_plan_polygon?: { points: PolygonPoint[] };
+  floor_plan_polygon?: {
+    version: 2;
+    color_source: "auto" | "manual";
+    color: string | null;
+    polygons: { id: string; label?: string; points: PolygonPoint[] }[];
+  };
 }
 
 interface Props {
@@ -26,12 +31,23 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
 
   const handleOpen = () => {
     const existing = form.getFieldValue("floor_plan_polygon");
-    setPolygonPoints(existing?.points ?? []);
+    setPolygonPoints(existing?.polygons?.[0]?.points ?? (existing as { points?: PolygonPoint[] } | undefined)?.points ?? []);
     setPolygonOpen(true);
   };
 
   const handlePolygonConfirm = () => {
-    form.setFieldsValue({ floor_plan_polygon: { points: polygonPoints } });
+    form.setFieldsValue({
+      floor_plan_polygon: {
+        version: 2,
+        color_source: "auto",
+        color: null,
+        polygons: [{
+          id: crypto.randomUUID(),
+          label: form.getFieldValue("name") || "未命名区域",
+          points: polygonPoints,
+        }],
+      },
+    });
     setPolygonOpen(false);
   };
 
