@@ -285,7 +285,7 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
   });
 
-  test("钢笔点击顶点后拖拽曲线，Enter 闭合生成待绑定区域", async ({ page }) => {
+  test("钢笔点击顶点后拖拽曲线，双击起点闭合生成待绑定区域", async ({ page }) => {
     await mockWorkbenchApis(page);
     await loginAndOpenWorkbench(page);
 
@@ -302,7 +302,7 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await page.waitForTimeout(300);
     await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.42);
     await page.waitForTimeout(500);
-    await page.keyboard.press("Enter");
+    await page.mouse.dblclick(box.x + box.width * 0.18, box.y + box.height * 0.18);
 
     await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
   });

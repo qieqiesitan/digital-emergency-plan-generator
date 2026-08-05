@@ -132,6 +132,7 @@ export default function WorkbenchCanvas() {
   const panStartRef = useRef<{ x: number; y: number; viewX: number; viewY: number } | null>(null);
   const isPanningRef = useRef(false);
   const penDraggedRef = useRef(false);
+  const penCloseCandidateRef = useRef(false);
   const [isPanning, setIsPanning] = useState(false);
   const [spacePressed, setSpacePressed] = useState(false);
 
@@ -157,6 +158,7 @@ export default function WorkbenchCanvas() {
     if (tool !== "pen") {
       setPenAnchors([]);
       setPenActive(null);
+      penCloseCandidateRef.current = false;
     }
   }, [tool]);
 
@@ -172,6 +174,7 @@ export default function WorkbenchCanvas() {
         setDraftCursor(null);
         setDraftStart(null);
         setDraftEnd(null);
+        penCloseCandidateRef.current = false;
         setPenAnchors([]);
         setPenActive(null);
         setIsDrawing(false);
@@ -338,6 +341,7 @@ export default function WorkbenchCanvas() {
     setDraftEnd(null);
     setPenAnchors([]);
     setPenActive(null);
+    penCloseCandidateRef.current = false;
     setIsDrawing(false);
   };
 
@@ -364,6 +368,19 @@ export default function WorkbenchCanvas() {
     }
     if (tool === "pen") {
       const p = pointFromEvent(e);
+      const nearFirst =
+        penAnchors.length >= 3 &&
+        Math.hypot(p.x - penAnchors[0].point.x, p.y - penAnchors[0].point.y) <= 3;
+      const nearLast =
+        penAnchors.length >= 3 &&
+        Math.hypot(
+          p.x - penAnchors[penAnchors.length - 1].point.x,
+          p.y - penAnchors[penAnchors.length - 1].point.y,
+        ) <= 3;
+      if (nearFirst || nearLast) {
+        penCloseCandidateRef.current = true;
+        return;
+      }
       setIsDrawing(true);
       penDraggedRef.current = false;
       setPenActive({ point: p, handle: null });
@@ -410,6 +427,11 @@ export default function WorkbenchCanvas() {
       isPanningRef.current = false;
       setIsPanning(false);
       panStartRef.current = null;
+      return;
+    }
+    if (tool === "pen" && penCloseCandidateRef.current) {
+      penCloseCandidateRef.current = false;
+      finishDrawing();
       return;
     }
     if (tool === "rect" && isDrawing) {
@@ -694,6 +716,7 @@ export default function WorkbenchCanvas() {
                       fill="#1677ff"
                       stroke="#fff"
                       strokeWidth={2}
+                      listening={false}
                     />
                     {anchor.handle && (
                       <KonvaCircle
@@ -703,6 +726,7 @@ export default function WorkbenchCanvas() {
                         fill="#8b5cf6"
                         stroke="#fff"
                         strokeWidth={1.5}
+                        listening={false}
                       />
                     )}
                   </Fragment>
@@ -725,6 +749,7 @@ export default function WorkbenchCanvas() {
                       fill="#1677ff"
                       stroke="#fff"
                       strokeWidth={2}
+                      listening={false}
                     />
                     {penActive.handle && (
                       <KonvaCircle
@@ -734,6 +759,7 @@ export default function WorkbenchCanvas() {
                         fill="#8b5cf6"
                         stroke="#fff"
                         strokeWidth={1.5}
+                        listening={false}
                       />
                     )}
                   </>
