@@ -13,6 +13,8 @@ from app.models.enterprise import (
 from app.models.risk_assessment import RiskAssessmentReport
 from app.models.resource_investigation import ResourceInvestigationReport
 from app.services.enterprise_autofill import autofill
+from app.services.enterprise_cleanup_service import delete_enterprise_complete
+from app.services.floor_plan_storage_service import remove_enterprise_uploads
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
@@ -72,7 +74,7 @@ async def _verify_enterprise_ownership(db, user, enterprise_id):
     )).scalar_one_or_none()
     if not ent:
         raise _ErrorDict({"error": "企业不存在或无权访问", "verified": False})
-    return True
+    return ent
 
 
 # Generic CRUD helpers (list, create, update, delete)
@@ -359,7 +361,14 @@ async def _update_enterprise(db, user, args):
 
 async def _delete_enterprise(db, user, args):
     try:
-        return await _generic_delete(db, user, args, _ENT_CFG)
+        enterprise_id = args.get("enterprise_id", "")
+        if not enterprise_id:
+            return {"error": "请提供 enterprise_id", "verified": False}
+        ent = await _verify_enterprise_ownership(db, user, enterprise_id)
+        counts = await delete_enterprise_complete(db, enterprise_id)
+        await db.commit()
+        remove_enterprise_uploads(enterprise_id)
+        return {"message": f"企业「{ent.name}」已删除", "deleted_counts": counts, "verified": True}
     except _ErrorDict as e:
         return e.data
 

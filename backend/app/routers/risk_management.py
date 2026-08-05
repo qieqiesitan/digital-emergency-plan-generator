@@ -14,7 +14,7 @@ from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
 from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2
-from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan
+from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url
 from app.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises/{enterprise_id}/risk-management", tags=["Risk Management"])
@@ -52,6 +52,16 @@ async def _floor_response(db: AsyncSession, floor: EnterpriseFloor) -> FloorResp
     resp.risk_point_count = risk_point_count
     return resp
 
+async def _resolve_zone_floor(db: AsyncSession, enterprise_id: str, floor_id: str | None) -> str:
+    """分区 floor_id 缺省时解析企业默认楼层；显式传入时校验楼层属于该企业。"""
+    if not floor_id:
+        floor = await _default_floor(db, enterprise_id)
+        return floor.id
+    floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    return floor.id
+
 @router.get("/floors", response_model=ApiResponse[list[FloorResponse]])
 async def list_floors(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
@@ -67,6 +77,8 @@ async def create_floor(body: FloorCreate, enterprise_id: str, current_user=Depen
     if exists:
         raise HTTPException(409, "楼层名称已存在")
     values = body.model_dump(exclude_unset=True)
+    if "floor_plan_url" in values:
+        values["floor_plan_url"] = normalize_floor_plan_url(values["floor_plan_url"])
     if not body.is_default:
         has_default = (await db.execute(select(func.count(EnterpriseFloor.id)).where(EnterpriseFloor.enterprise_id == enterprise_id, EnterpriseFloor.is_default.is_(True)))).scalar() or 0
         if has_default == 0:
@@ -92,6 +104,8 @@ async def update_floor(floor_id: str, body: FloorUpdate, enterprise_id: str, cur
     if body.is_default:
         await db.execute(update(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id).values(is_default=False))
     for k, v in body.model_dump(exclude_unset=True).items():
+        if k == "floor_plan_url":
+            v = normalize_floor_plan_url(v)
         setattr(floor, k, v)
     if floor.is_default and floor.floor_plan_url:
         ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one()
@@ -110,11 +124,14 @@ async def delete_floor(floor_id: str, enterprise_id: str, current_user=Depends(g
     object_count = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.floor_id == floor_id))).scalar() or 0
     if zone_count or object_count:
         raise HTTPException(409, "楼层存在分区或风险对象，不允许删除")
-    if floor.is_default and (await db.execute(select(func.count(EnterpriseFloor.id)).where(EnterpriseFloor.enterprise_id == enterprise_id))).scalar() == 1:
-        raise HTTPException(409, "唯一默认楼层不可删除")
+    if floor.is_default:
+        raise HTTPException(409, "默认楼层不可直接删除，请先设置新的默认楼层")
+    old_url = floor.floor_plan_url
     await db.delete(floor)
     await db.commit()
-    return ApiResponse(message="已删除")
+    remove_floor_plan(old_url)
+    remove_floor_plan_dir(enterprise_id, floor_id)
+    return ApiResponse(data=None, message="已删除")
 
 @router.post("/floors/{floor_id}/plan", response_model=ApiResponse[FloorResponse])
 async def upload_floor_plan(floor_id: str, enterprise_id: str, file: UploadFile = File(...), current_user=Depends(get_current_user), db=Depends(get_db)):
@@ -176,7 +193,7 @@ async def delete_method(method_id: str, enterprise_id: str, current_user=Depends
     if m.is_system: raise HTTPException(403, "系统方法不可删除")
     await db.delete(m)
     await db.commit()
-    return ApiResponse(message="已删除")
+    return ApiResponse(data=None, message="已删除")
 
 @router.post("/methods/{method_id}/duplicate", response_model=ApiResponse[MethodResponse], status_code=201)
 async def duplicate_method(method_id: str, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
@@ -212,7 +229,9 @@ async def list_zones(enterprise_id: str, current_user=Depends(get_current_user),
 async def create_zone(body: RiskZoneCreate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
     _validate_zone_polygon(body.floor_plan_polygon)
-    z = RiskZone(enterprise_id=enterprise_id, **body.model_dump(exclude_unset=True))
+    values = body.model_dump(exclude_unset=True)
+    values["floor_id"] = await _resolve_zone_floor(db, enterprise_id, values.get("floor_id"))
+    z = RiskZone(enterprise_id=enterprise_id, **values)
     db.add(z)
     await db.commit()
     await db.refresh(z)
@@ -224,7 +243,17 @@ async def update_zone(zone_id: str, body: RiskZoneUpdate, enterprise_id: str, cu
     _validate_zone_polygon(body.floor_plan_polygon)
     z = (await db.execute(select(RiskZone).where(RiskZone.id==zone_id, RiskZone.enterprise_id==enterprise_id))).scalar_one_or_none()
     if not z: raise HTTPException(404, "分区不存在")
-    for k, v in body.model_dump(exclude_unset=True).items(): setattr(z, k, v)
+    updates = body.model_dump(exclude_unset=True)
+    new_floor_id = updates.get("floor_id")
+    if new_floor_id is not None:
+        new_floor_id = await _resolve_zone_floor(db, enterprise_id, new_floor_id)
+        if new_floor_id != z.floor_id:
+            await db.execute(update(RiskObject).where(RiskObject.zone_id == zone_id).values(floor_id=new_floor_id))
+            z.floor_id = new_floor_id
+    for k, v in updates.items():
+        if k == "floor_id":
+            continue
+        setattr(z, k, v)
     await db.commit(); await db.refresh(z)
     return ApiResponse(data=RiskZoneResponse.model_validate(z))
 
@@ -277,7 +306,7 @@ async def delete_object(object_id: str, enterprise_id: str, current_user=Depends
     if not o: raise HTTPException(404, "对象不存在")
     await db.delete(o)
     await db.commit()
-    return ApiResponse(message="已删除对象及其下级数据")
+    return ApiResponse(data=None, message="已删除对象及其下级数据")
 
 # ── Units ──
 @router.get("/objects/{object_id}/units", response_model=ApiResponse[list[RiskUnitResponse]])
@@ -315,7 +344,7 @@ async def delete_unit(object_id: str, unit_id: str, enterprise_id: str, current_
     if not u: raise HTTPException(404, "单元不存在")
     await db.delete(u)
     await db.commit()
-    return ApiResponse(message="已删除单元及其下级数据")
+    return ApiResponse(data=None, message="已删除单元及其下级数据")
 
 # ── Events (with auto-rating) ──
 @router.post("/units/{unit_id}/events", response_model=ApiResponse[RiskEventResponse], status_code=201)
@@ -364,7 +393,7 @@ async def delete_event(event_id: str, enterprise_id: str, current_user=Depends(g
     if not ev: raise HTTPException(404, "事件不存在")
     await db.delete(ev)
     await db.commit()
-    return ApiResponse(message="已删除事件及其下级数据")
+    return ApiResponse(data=None, message="已删除事件及其下级数据")
 
 @router.post("/events/{event_id}/recalc", response_model=ApiResponse[RiskEventResponse])
 async def recalc_event(event_id: str, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
@@ -409,7 +438,7 @@ async def delete_measure(event_id: str, measure_id: str, enterprise_id: str, cur
     if not m: raise HTTPException(404, "措施不存在")
     await db.delete(m)
     await db.commit()
-    return ApiResponse(message="已删除措施")
+    return ApiResponse(data=None, message="已删除措施")
 
 # ── Hierarchy ──
 @router.get("/hierarchy", response_model=ApiResponse[list[HierarchyZoneResponse]])
@@ -484,12 +513,13 @@ async def execute_migration(body: MigrationExecuteRequest, enterprise_id: str, c
         on = mp.get("object_name", src.name)
         zone = (await db.execute(select(RiskZone).where(RiskZone.enterprise_id==enterprise_id, RiskZone.name==zn))).scalar_one_or_none()
         if not zone:
-            zone = RiskZone(enterprise_id=enterprise_id, name=zn); db.add(zone); await db.flush()
-        obj = RiskObject(enterprise_id=enterprise_id, zone_id=zone.id, name=on, category=src.categories, location=src.location, description=src.description or "")
+            floor_id = await _resolve_zone_floor(db, enterprise_id, None)
+            zone = RiskZone(enterprise_id=enterprise_id, floor_id=floor_id, name=zn); db.add(zone); await db.flush()
+        obj = RiskObject(enterprise_id=enterprise_id, zone_id=zone.id, floor_id=zone.floor_id, name=on, category=src.categories, location=src.location, description=src.description or "")
         db.add(obj); await db.flush()
         params = mp.get("method_params",{})
         rating = compute_risk("LS", params if params else {"l":3,"s":3})
         ev = RiskEvent(object_id=obj.id, accident_type=mp.get("accident_type","火灾"), method_type="LS", method_params=params, risk_level=rating.risk_level, risk_score=rating.risk_score)
         db.add(ev); src.migrated = True
     await db.commit()
-    return ApiResponse(message=f"已迁移 {len(body.mappings)} 条数据")
+    return ApiResponse(data=None, message=f"已迁移 {len(body.mappings)} 条数据")

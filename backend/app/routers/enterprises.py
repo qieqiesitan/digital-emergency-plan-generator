@@ -9,6 +9,7 @@ from app.schemas.enterprise import EnterpriseCreate, EnterpriseUpdate, Enterpris
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
 from app.dependencies import get_current_user
 from app.services.enterprise_cleanup_service import delete_enterprise_complete
+from app.services.floor_plan_storage_service import remove_enterprise_uploads
 
 router = APIRouter(prefix="/enterprises", tags=["Enterprises"])
 
@@ -166,7 +167,8 @@ async def delete_enterprise(enterprise_id: str, current_user: User = Depends(get
     result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id))
     e = result.scalar_one_or_none()
     if not e: raise HTTPException(status_code=404, detail="企业不存在")
-    await delete_enterprise_complete(db, enterprise_id)
+    counts = await delete_enterprise_complete(db, enterprise_id)
     await db.commit()
-    return {"code": 0, "message": "已删除"}
+    remove_enterprise_uploads(enterprise_id)
+    return ApiResponse(data=counts, message="已删除")
 
