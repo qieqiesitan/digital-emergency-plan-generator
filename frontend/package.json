@@ -28,6 +28,7 @@
     "axios": "^1.17.0",
     "dayjs": "^1.11.21",
     "dompurify": "^3.4.8",
+    "konva": "^10.3.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.17.0",
     "markdown-it": "^14.2.0",
@@ -36,6 +37,7 @@
     "qiankun": "^2.10.16",
     "react": "~19.2.6",
     "react-dom": "~19.2.6",
+    "react-konva": "^19.2.5",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "~7.17.0"
   },

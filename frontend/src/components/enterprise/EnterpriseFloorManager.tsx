@@ -1,0 +1,146 @@
+import { useState } from "react";
+import { Button, Input, Modal, Popconfirm, Select, Space, Upload, message } from "antd";
+import { DeleteOutlined, EditOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  listEnterpriseFloors,
+  createEnterpriseFloor,
+  updateEnterpriseFloor,
+  deleteEnterpriseFloor,
+  uploadEnterpriseFloorPlan,
+} from "@/services/riskMappingWorkbenchService";
+import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
+
+const apiErrorMessage = (e: unknown, fallback: string) => {
+  const err = e as { response?: { data?: { detail?: unknown } } };
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  const msg = (detail as { message?: string } | undefined)?.message;
+  return msg || fallback;
+};
+
+export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId: string }) {
+  const queryClient = useQueryClient();
+  const currentFloorId = useRiskMappingWorkbenchStore(s => s.currentFloorId);
+  const setState = useRiskMappingWorkbenchStore.setState;
+  const { data: floors = [] } = useQuery({
+    queryKey: ["risk-floors", enterpriseId],
+    queryFn: () => listEnterpriseFloors(enterpriseId),
+  });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["risk-floors", enterpriseId] });
+    queryClient.invalidateQueries({ queryKey: ["risk-workbench", enterpriseId] });
+  };
+
+  const submit = async () => {
+    if (!name.trim()) return;
+    try {
+      if (editId) {
+        await updateEnterpriseFloor(enterpriseId, editId, { name: name.trim() });
+      } else {
+        await createEnterpriseFloor(enterpriseId, { name: name.trim(), sort_order: floors.length });
+      }
+      setModalOpen(false);
+      setName("");
+      setEditId(null);
+      refresh();
+    } catch (e) {
+      message.error(apiErrorMessage(e, "保存楼层失败"));
+    }
+  };
+
+  const removeFloor = async (floorId: string) => {
+    try {
+      await deleteEnterpriseFloor(enterpriseId, floorId);
+      const remaining = floors.filter(f => f.id !== floorId);
+      if (currentFloorId === floorId) {
+        setState({ currentFloorId: remaining[0]?.id ?? "", dirty: false, deletedZoneIds: [], deletedRiskPointIds: [] });
+      }
+      refresh();
+    } catch (e) {
+      message.error(apiErrorMessage(e, "删除楼层失败（楼层下存在分区或风险点时不可删除）"));
+    }
+  };
+
+  return (
+    <Space wrap>
+      <Select
+        style={{ width: 160 }}
+        placeholder="选择楼层"
+        value={currentFloorId || undefined}
+        options={floors.map(f => ({ label: f.name, value: f.id }))}
+        onChange={id => {
+          setState({ currentFloorId: id, dirty: false, deletedZoneIds: [], deletedRiskPointIds: [] });
+          queryClient.invalidateQueries({ queryKey: ["risk-workbench", enterpriseId] });
+        }}
+      />
+      <Button
+        icon={<PlusOutlined />}
+        onClick={() => {
+          setEditId(null);
+          setName("");
+          setModalOpen(true);
+        }}
+      >
+        新建楼层
+      </Button>
+      <Button
+        icon={<EditOutlined />}
+        disabled={!currentFloorId}
+        onClick={() => {
+          const floor = floors.find(f => f.id === currentFloorId);
+          if (!floor) return;
+          setEditId(floor.id);
+          setName(floor.name);
+          setModalOpen(true);
+        }}
+      >
+        编辑楼层
+      </Button>
+      <Popconfirm
+        title="删除当前楼层"
+        description="删除后无法恢复；楼层下存在分区或风险点时将被拒绝。"
+        disabled={!currentFloorId}
+        onConfirm={() => removeFloor(currentFloorId)}
+      >
+        <Button danger icon={<DeleteOutlined />} disabled={!currentFloorId}>
+          删除楼层
+        </Button>
+      </Popconfirm>
+      <Upload
+        accept="image/png,image/jpeg,image/webp"
+        showUploadList={false}
+        customRequest={async ({ file, onSuccess, onError }) => {
+          const activeFloorId = useRiskMappingWorkbenchStore.getState().currentFloorId;
+          const current = floors.find(f => f.id === activeFloorId) || floors[0];
+          if (!current) {
+            onError?.(new Error("请先选择楼层"));
+            return;
+          }
+          try {
+            await uploadEnterpriseFloorPlan(enterpriseId, current.id, file as File);
+            message.success("平面图上传成功");
+            refresh();
+            onSuccess?.(null);
+          } catch (e) {
+            onError?.(e as Error);
+          }
+        }}
+      >
+        <Button icon={<UploadOutlined />}>上传当前楼层平面图</Button>
+      </Upload>
+      <Modal
+        title={editId ? "编辑楼层" : "新建楼层"}
+        open={modalOpen}
+        onOk={submit}
+        onCancel={() => setModalOpen(false)}
+      >
+        <Input value={name} onChange={e => setName(e.target.value)} placeholder="楼层名称，如一层" />
+      </Modal>
+    </Space>
+  );
+}
