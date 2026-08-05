@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
  import { useNavigate } from "react-router-dom";
 import { App as AntApp, Button, Spin, Empty, Space, Tag } from "antd";
 import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure } from "@/services/riskManagementService";
 import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
-import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent, HierarchyMeasure } from "@/types/riskManagement";
+import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent, HierarchyMeasure, CheckItem, RiskZoneFloorPlanPolygon, MethodType, MeasureCategory } from "@/types/riskManagement";
+import { buildZonePayload } from "@/utils/zoneSubmit";
  import RiskZoneForm from "@/components/enterprise/RiskZoneForm";
  import RiskObjectForm from "@/components/enterprise/RiskObjectForm";
  import RiskUnitForm from "@/components/enterprise/RiskUnitForm";
@@ -18,7 +19,29 @@ interface Props { enterpriseId: string; floorPlanUrl?: string | null; }
  
  type FormType = "zone" | "object" | "unit" | "event" | "measure" | null;
  
-interface FormState { type: FormType; open: boolean; id?: string; parentId?: string; parentType?: string; initialValues?: any; }
+interface FormState {
+  type: FormType;
+  open: boolean;
+  id?: string;
+  parentId?: string;
+  parentType?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 表单组件各自定义未导出的 values 类型，跨表单分发时用 any 保持兼容
+  initialValues?: any;
+}
+
+interface ZoneFormValues {
+  name?: string;
+  description?: string;
+  floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
+  category?: string;
+  is_risk_point?: boolean;
+  unit_type?: string;
+  accident_type?: string;
+  method_type?: string;
+  method_params?: Record<string, number>;
+  measure_category?: string;
+  check_items?: CheckItem[];
+}
  
 export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props) {
   const navigate = useNavigate();
@@ -29,12 +52,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
    const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; name: string } | null>(null);
    const [form, setForm] = useState<FormState>({ type: null, open: false });
    const [smartGuideOpen, setSmartGuideOpen] = useState(false);
-   const [zones, setZones] = useState<{ id: string; name: string }[]>([]);
- 
-  // Refresh zone list for object form dropdown
-  useEffect(() => {
-    setZones(hierarchy.map(z => ({ id: z.id, name: z.name })));
-  }, [hierarchy]);
+  const zones = useMemo(() => hierarchy.map(z => ({ id: z.id, name: z.name })), [hierarchy]);
 
   const hierarchyMap = useMemo(() => {
     const map: Record<string, {
@@ -97,7 +115,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
         refetch();
       },
     });
-  }, [enterpriseId, refetch]);
+  }, [enterpriseId, refetch, modal]);
 
   // Handle tree node action (add/edit/delete from RiskHierarchyTree)
   const handleTreeAction = useCallback((action: string, meta: TreeNodeMeta) => {
@@ -125,7 +143,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           parentId: meta.parentId,
           parentType: meta.parentType,
           initialValues:
-            meta.type === "zone" ? { name: meta.name }
+            meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined }
             : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
             : meta.type === "unit" ? { name: meta.name }
             : meta.type === "event" ? { accident_type: meta.name }
@@ -147,7 +165,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           parentId: meta.parentId,
           parentType: meta.parentType,
           initialValues:
-            meta.type === "zone" ? { name: meta.name }
+            meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined }
             : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
             : meta.type === "unit" ? { name: meta.name }
             : meta.type === "event" ? { accident_type: meta.name }
@@ -164,35 +182,37 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
       default:
         antMessage.info(`${action}: ${meta.name}`);
     }
-  }, [confirmDelete]);
+  }, [confirmDelete, antMessage]);
  
    // Handle form submit
-   const handleFormSubmit = useCallback(async (values: any) => {
+   const handleFormSubmit = useCallback(async (values: ZoneFormValues) => {
      try {
       switch (form.type) {
-        case "zone":
+        case "zone": {
+          const zonePayload = buildZonePayload(values);
           if (form.id) {
-            await updateZone(enterpriseId, form.id, { name: values.name, description: values.description || "", floor_plan_polygon: values.floor_plan_polygon ?? null });
+            await updateZone(enterpriseId, form.id, zonePayload);
           } else {
-            await createZone(enterpriseId, { name: values.name, description: values.description || "", floor_plan_polygon: values.floor_plan_polygon ?? null });
+            await createZone(enterpriseId, zonePayload);
           }
           break;
+        }
         case "object":
           if (form.id) {
-            await updateObject(enterpriseId, form.id, { name: values.name, category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
+            await updateObject(enterpriseId, form.id, { name: values.name || "", category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
           } else {
-            await createObject(enterpriseId, { zone_id: form.parentId, name: values.name, category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
+            await createObject(enterpriseId, { zone_id: form.parentId, name: values.name || "", category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
           }
           break;
         case "unit":
           if (form.id) {
-            await updateUnit(enterpriseId, form.parentId || "", form.id, { name: values.name, unit_type: values.unit_type || "", description: values.description || "" });
+            await updateUnit(enterpriseId, form.parentId || "", form.id, { name: values.name || "", unit_type: values.unit_type || "", description: values.description || "" });
           } else {
-          await createUnit(enterpriseId, form.parentId || "", { name: values.name, unit_type: values.unit_type || "", description: values.description || "" });
+          await createUnit(enterpriseId, form.parentId || "", { name: values.name || "", unit_type: values.unit_type || "", description: values.description || "" });
           }
           break;
         case "event": {
-          const eventPayload = { accident_type: values.accident_type, description: values.description || "", method_type: values.method_type || "LS", method_params: values.method_params || {} };
+          const eventPayload = { accident_type: values.accident_type || "", description: values.description || "", method_type: (values.method_type || "LS") as MethodType, method_params: values.method_params || {} };
           if (form.id) {
             await updateEvent(enterpriseId, form.id, eventPayload);
           } else {
@@ -202,17 +222,17 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
         }
         case "measure":
           if (form.id) {
-            await updateMeasure(enterpriseId, form.parentId || "", form.id, { measure_category: values.measure_category, description: values.description || "", check_items: values.check_items || [] });
+            await updateMeasure(enterpriseId, form.parentId || "", form.id, { measure_category: values.measure_category as MeasureCategory, description: values.description || "", check_items: values.check_items || [] });
           } else {
-          await createMeasure(enterpriseId, form.parentId || "", { measure_category: values.measure_category, description: values.description || "", check_items: values.check_items || [] });
+          await createMeasure(enterpriseId, form.parentId || "", { measure_category: values.measure_category as MeasureCategory, description: values.description || "", check_items: values.check_items || [] });
           }
           break;
       }
       antMessage.success(form.id ? "保存成功" : "创建成功");
       setForm({ type: null, open: false });
       refetch();
-    } catch (e: any) { antMessage.error("创建失败: " + (e?.message || "未知错误")); }
-   }, [enterpriseId, form, refetch]);
+    } catch (e: unknown) { antMessage.error("创建失败: " + (e instanceof Error ? e.message : "未知错误")); }
+   }, [enterpriseId, form, refetch, antMessage]);
  
    if (isLoading) return <Spin size="large" />;
  

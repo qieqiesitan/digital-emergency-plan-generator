@@ -13,6 +13,7 @@ import type {
   HierarchyUnit,
   HierarchyEvent,
   HierarchyMeasure,
+  RiskZoneFloorPlanPolygon,
 } from "@/types/riskManagement";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 
@@ -22,6 +23,7 @@ export interface TreeNodeMeta {
   id: string;
   type: "zone" | "object" | "unit" | "event" | "measure";
   name: string;
+  floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
   parentId?: string;
   parentType?: "zone" | "object" | "unit" | "event";
 }
@@ -278,6 +280,7 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
           id: z.id,
           type: "zone" as const,
           name: z.name,
+          floor_plan_polygon: z.floor_plan_polygon,
       },
       _riskLevel: null,
       _childCount: childNodes.length,
