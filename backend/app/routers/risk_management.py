@@ -1,17 +1,20 @@
 import json, os, logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.models.enterprise import Enterprise, RiskSource
+from app.models.enterprise import Enterprise, EnterpriseFloor, RiskSource
 from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
-from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse)
+from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse)
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
+from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2
+from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan
 from app.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises/{enterprise_id}/risk-management", tags=["Risk Management"])
@@ -23,6 +26,114 @@ async def _get_ent(eid: str, uid: str, db: AsyncSession):
     ent = result.scalar_one_or_none()
     if not ent: raise HTTPException(404, "企业不存在")
     return ent
+
+def _validate_zone_polygon(polygon) -> None:
+    if polygon is None:
+        return
+    data = polygon.model_dump() if hasattr(polygon, "model_dump") else polygon
+    errors = validate_polygon_v2(data)
+    if errors:
+        raise HTTPException(status_code=422, detail={"code": "POLYGON_INVALID", "message": "；".join(errors)})
+
+# ── Floors ──
+async def _default_floor(db: AsyncSession, enterprise_id: str) -> EnterpriseFloor:
+    """获取或创建默认楼层；并发首访依赖 enterprise_floors 唯一索引防重，冲突时回滚后回退查询。"""
+    try:
+        return await ensure_default_floor(db, enterprise_id)
+    except IntegrityError:
+        await db.rollback()
+        return await ensure_default_floor(db, enterprise_id)
+
+async def _floor_response(db: AsyncSession, floor: EnterpriseFloor) -> FloorResponse:
+    zone_count = (await db.execute(select(func.count(RiskZone.id)).where(RiskZone.floor_id == floor.id))).scalar() or 0
+    risk_point_count = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.floor_id == floor.id, RiskObject.is_risk_point.is_(True)))).scalar() or 0
+    resp = FloorResponse.model_validate(floor)
+    resp.zone_count = zone_count
+    resp.risk_point_count = risk_point_count
+    return resp
+
+@router.get("/floors", response_model=ApiResponse[list[FloorResponse]])
+async def list_floors(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    await _default_floor(db, enterprise_id)
+    await db.commit()
+    floors = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id).order_by(EnterpriseFloor.sort_order))).scalars().all()
+    return ApiResponse(data=[await _floor_response(db, f) for f in floors])
+
+@router.post("/floors", response_model=ApiResponse[FloorResponse], status_code=201)
+async def create_floor(body: FloorCreate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    exists = (await db.execute(select(EnterpriseFloor.id).where(EnterpriseFloor.enterprise_id == enterprise_id, EnterpriseFloor.name == body.name))).first()
+    if exists:
+        raise HTTPException(409, "楼层名称已存在")
+    values = body.model_dump(exclude_unset=True)
+    if not body.is_default:
+        has_default = (await db.execute(select(func.count(EnterpriseFloor.id)).where(EnterpriseFloor.enterprise_id == enterprise_id, EnterpriseFloor.is_default.is_(True)))).scalar() or 0
+        if has_default == 0:
+            values["is_default"] = True
+    if values.get("is_default"):
+        await db.execute(update(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id).values(is_default=False))
+    floor = EnterpriseFloor(enterprise_id=enterprise_id, **values)
+    db.add(floor)
+    await db.commit()
+    await db.refresh(floor)
+    return ApiResponse(data=await _floor_response(db, floor))
+
+@router.put("/floors/{floor_id}", response_model=ApiResponse[FloorResponse])
+async def update_floor(floor_id: str, body: FloorUpdate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    if body.is_default is False and floor.is_default:
+        default_count = (await db.execute(select(func.count(EnterpriseFloor.id)).where(EnterpriseFloor.enterprise_id == enterprise_id, EnterpriseFloor.is_default.is_(True)))).scalar() or 0
+        if default_count <= 1:
+            raise HTTPException(409, "企业必须保留一个默认楼层")
+    if body.is_default:
+        await db.execute(update(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id).values(is_default=False))
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(floor, k, v)
+    if floor.is_default and floor.floor_plan_url:
+        ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one()
+        ent.floor_plan_url = floor.floor_plan_url
+    await db.commit()
+    await db.refresh(floor)
+    return ApiResponse(data=await _floor_response(db, floor))
+
+@router.delete("/floors/{floor_id}")
+async def delete_floor(floor_id: str, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    zone_count = (await db.execute(select(func.count(RiskZone.id)).where(RiskZone.floor_id == floor_id))).scalar() or 0
+    object_count = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.floor_id == floor_id))).scalar() or 0
+    if zone_count or object_count:
+        raise HTTPException(409, "楼层存在分区或风险对象，不允许删除")
+    if floor.is_default and (await db.execute(select(func.count(EnterpriseFloor.id)).where(EnterpriseFloor.enterprise_id == enterprise_id))).scalar() == 1:
+        raise HTTPException(409, "唯一默认楼层不可删除")
+    await db.delete(floor)
+    await db.commit()
+    return ApiResponse(message="已删除")
+
+@router.post("/floors/{floor_id}/plan", response_model=ApiResponse[FloorResponse])
+async def upload_floor_plan(floor_id: str, enterprise_id: str, file: UploadFile = File(...), current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    old_url = floor.floor_plan_url
+    url, width, height = await save_floor_plan(enterprise_id, floor_id, file)
+    floor.floor_plan_url = url
+    floor.canvas_width = width
+    floor.canvas_height = height
+    if floor.is_default:
+        ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one()
+        ent.floor_plan_url = url
+    await db.commit()
+    remove_floor_plan(old_url)
+    await db.refresh(floor)
+    return ApiResponse(data=await _floor_response(db, floor))
 
 # ── Methods ──
 @router.get("/methods", response_model=ApiResponse[list[MethodResponse]])
@@ -100,6 +211,7 @@ async def list_zones(enterprise_id: str, current_user=Depends(get_current_user),
 @router.post("/zones", response_model=ApiResponse[RiskZoneResponse], status_code=201)
 async def create_zone(body: RiskZoneCreate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
+    _validate_zone_polygon(body.floor_plan_polygon)
     z = RiskZone(enterprise_id=enterprise_id, **body.model_dump(exclude_unset=True))
     db.add(z)
     await db.commit()
@@ -109,6 +221,7 @@ async def create_zone(body: RiskZoneCreate, enterprise_id: str, current_user=Dep
 @router.put("/zones/{zone_id}", response_model=ApiResponse[RiskZoneResponse])
 async def update_zone(zone_id: str, body: RiskZoneUpdate, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
+    _validate_zone_polygon(body.floor_plan_polygon)
     z = (await db.execute(select(RiskZone).where(RiskZone.id==zone_id, RiskZone.enterprise_id==enterprise_id))).scalar_one_or_none()
     if not z: raise HTTPException(404, "分区不存在")
     for k, v in body.model_dump(exclude_unset=True).items(): setattr(z, k, v)
