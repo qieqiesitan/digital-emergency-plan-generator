@@ -53,6 +53,26 @@ export const quadraticCurvePoints = (
     });
   });
 
+export const cubicBezierPoints = (
+  start: RiskPolygonPoint,
+  control1: RiskPolygonPoint,
+  control2: RiskPolygonPoint,
+  end: RiskPolygonPoint,
+  segments = 20,
+): RiskPolygonPoint[] =>
+  Array.from({ length: segments + 1 }, (_, i) => {
+    const t = i / segments;
+    const inv = 1 - t;
+    const a = inv * inv * inv;
+    const b = 3 * inv * inv * t;
+    const c = 3 * inv * t * t;
+    const d = t * t * t;
+    return clampPoint({
+      x: a * start.x + b * control1.x + c * control2.x + d * end.x,
+      y: a * start.y + b * control1.y + c * control2.y + d * end.y,
+    });
+  });
+
 export const polygonArea = (points: RiskPolygonPoint[]) => {
   let area = 0;
   for (let i = 0; i < points.length; i++) {

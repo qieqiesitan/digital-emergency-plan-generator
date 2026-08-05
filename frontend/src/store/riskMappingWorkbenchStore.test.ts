@@ -8,6 +8,7 @@ import {
   toCanvasY,
   pointsToKonva,
   circlePoints,
+  cubicBezierPoints,
   ellipsePoints,
   polygonCentroid,
   quadraticCurvePoints,
@@ -454,6 +455,20 @@ describe("riskMappingGeometry", () => {
     expect(points[10]).toEqual({ x: 100, y: 0 });
     expect(points[5].y).toBeGreaterThan(0);
     expect(points.every(p => p.x >= 0 && p.x <= 100)).toBe(true);
+  });
+
+  it("builds a cubic bezier approximation with endpoints preserved", () => {
+    const points = cubicBezierPoints(
+      { x: 0, y: 0 },
+      { x: 30, y: 60 },
+      { x: 70, y: 60 },
+      { x: 100, y: 0 },
+      12,
+    );
+    expect(points).toHaveLength(13);
+    expect(points[0]).toEqual({ x: 0, y: 0 });
+    expect(points[12]).toEqual({ x: 100, y: 0 });
+    expect(points[6].y).toBeGreaterThan(20);
   });
 
   it("validates polygon requirements", () => {

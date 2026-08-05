@@ -14,6 +14,7 @@ import { DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import {
   clampPoint,
+  cubicBezierPoints,
   ellipsePoints,
   pointsToKonva,
   polygonCentroid,
@@ -33,6 +34,11 @@ interface LoadedImage {
   image: HTMLImageElement;
 }
 
+interface PenAnchor {
+  point: RiskPolygonPoint;
+  handle: RiskPolygonPoint | null;
+}
+
 const samePoint = (a: RiskPolygonPoint, b: RiskPolygonPoint) => a.x === b.x && a.y === b.y;
 
 const dedupeTail = (points: RiskPolygonPoint[]) => {
@@ -42,6 +48,29 @@ const dedupeTail = (points: RiskPolygonPoint[]) => {
 };
 
 const nextLocalId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const mirrorHandle = (point: RiskPolygonPoint, handle: RiskPolygonPoint): RiskPolygonPoint => ({
+  x: point.x * 2 - handle.x,
+  y: point.y * 2 - handle.y,
+});
+
+const samplePenAnchors = (anchors: PenAnchor[], closed = false): RiskPolygonPoint[] | null => {
+  if (anchors.length < 2) return null;
+  const points: RiskPolygonPoint[] = [anchors[0].point];
+  const appendSegment = (start: PenAnchor, end: PenAnchor) => {
+    const cp1 = start.handle ?? start.point;
+    const cp2 = end.handle ? mirrorHandle(end.point, end.handle) : end.point;
+    const sampled = cubicBezierPoints(start.point, cp1, cp2, end.point, 24).slice(1);
+    points.push(...sampled);
+  };
+  for (let i = 0; i < anchors.length - 1; i++) {
+    appendSegment(anchors[i], anchors[i + 1]);
+  }
+  if (closed && anchors.length >= 3) {
+    appendSegment(anchors[anchors.length - 1], anchors[0]);
+  }
+  return points;
+};
 
 const isEditableTarget = (target: Element | null) => {
   if (!target) return false;
@@ -74,6 +103,19 @@ export default function WorkbenchCanvas() {
     const value = typeof next === "function" ? next(draftPointsRef.current) : next;
     draftPointsRef.current = value;
     setDraftPointsState(value);
+  };
+  const [penAnchors, setPenAnchorsState] = useState<PenAnchor[]>([]);
+  const penAnchorsRef = useRef<PenAnchor[]>([]);
+  const setPenAnchors = (next: PenAnchor[] | ((prev: PenAnchor[]) => PenAnchor[])) => {
+    const value = typeof next === "function" ? next(penAnchorsRef.current) : next;
+    penAnchorsRef.current = value;
+    setPenAnchorsState(value);
+  };
+  const [penActive, setPenActiveState] = useState<PenAnchor | null>(null);
+  const penActiveRef = useRef<PenAnchor | null>(null);
+  const setPenActive = (next: PenAnchor | null) => {
+    penActiveRef.current = next;
+    setPenActiveState(next);
   };
   const [draftCursor, setDraftCursor] = useState<RiskPolygonPoint | null>(null);
   const [draftStart, setDraftStart] = useState<RiskPolygonPoint | null>(null);
@@ -112,6 +154,10 @@ export default function WorkbenchCanvas() {
       setDraftEnd(null);
       setIsDrawing(false);
     }
+    if (tool !== "pen") {
+      setPenAnchors([]);
+      setPenActive(null);
+    }
   }, [tool]);
 
   useEffect(() => {
@@ -126,6 +172,8 @@ export default function WorkbenchCanvas() {
         setDraftCursor(null);
         setDraftStart(null);
         setDraftEnd(null);
+        setPenAnchors([]);
+        setPenActive(null);
         setIsDrawing(false);
         setState({ selectedRegionId: null, selectedRiskPointId: null, selectedTextId: null });
         return;
@@ -172,17 +220,20 @@ export default function WorkbenchCanvas() {
         setIsPanning(true);
       }
     };
+    const onFinishDrawing = () => finishDrawing();
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("mousedown", onWindowMouseDown);
     window.addEventListener("mousemove", onWindowMouseMove);
     window.addEventListener("mouseup", onWindowMouseUp);
+    window.addEventListener("risk-mapping:finish-drawing", onFinishDrawing);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("mousedown", onWindowMouseDown);
       window.removeEventListener("mousemove", onWindowMouseMove);
       window.removeEventListener("mouseup", onWindowMouseUp);
+      window.removeEventListener("risk-mapping:finish-drawing", onFinishDrawing);
     };
   }, [setState]);
 
@@ -273,14 +324,20 @@ export default function WorkbenchCanvas() {
 
   const finishDrawing = () => {
     const activeTool = useRiskMappingWorkbenchStore.getState().tool;
-    if (activeTool === "polygon" || activeTool === "pen" || activeTool === "freehand") {
+    if (activeTool === "polygon" || activeTool === "freehand") {
       const cleaned = dedupeTail(draftPointsRef.current);
       if (cleaned.length >= 3) addPending(cleaned);
+    }
+    if (activeTool === "pen") {
+      const sampled = samplePenAnchors(penAnchorsRef.current, true);
+      if (sampled && sampled.length >= 3) addPending(sampled);
     }
     setDraftPoints([]);
     setDraftCursor(null);
     setDraftStart(null);
     setDraftEnd(null);
+    setPenAnchors([]);
+    setPenActive(null);
     setIsDrawing(false);
   };
 
@@ -309,8 +366,7 @@ export default function WorkbenchCanvas() {
       const p = pointFromEvent(e);
       setIsDrawing(true);
       penDraggedRef.current = false;
-      setDraftStart(p);
-      setDraftEnd(p);
+      setPenActive({ point: p, handle: null });
       return;
     }
     if (tool === "freehand") {
@@ -332,16 +388,19 @@ export default function WorkbenchCanvas() {
       return;
     }
     if (tool === "pen" && isDrawing) {
-      if (draftStart && Math.hypot(p.x - draftStart.x, p.y - draftStart.y) > 0.3) {
-        penDraggedRef.current = true;
+      if (penActiveRef.current) {
+        const active = penActiveRef.current;
+        if (Math.hypot(p.x - active.point.x, p.y - active.point.y) > 0.2) {
+          penDraggedRef.current = true;
+        }
+        setPenActive({ point: active.point, handle: penDraggedRef.current ? p : null });
       }
-      if (penDraggedRef.current) {
-        setDraftPoints(prev => [...prev, p]);
-      }
-      setDraftEnd(p);
       return;
     }
-    if ((tool === "polygon" || tool === "pen") && draftPoints.length > 0 && !isDrawing) {
+    if (tool === "polygon" && draftPoints.length > 0 && !isDrawing) {
+      setDraftCursor(p);
+    }
+    if (tool === "pen" && penAnchors.length > 0 && !isDrawing) {
       setDraftCursor(p);
     }
   };
@@ -404,10 +463,9 @@ export default function WorkbenchCanvas() {
       return;
     }
     if (tool === "pen" && isDrawing) {
-      if (!penDraggedRef.current && draftStart) {
-        setDraftPoints(prev => [...prev, draftStart]);
-      }
+      if (penActiveRef.current) setPenAnchors(prev => [...prev, penActiveRef.current!]);
       penDraggedRef.current = false;
+      setPenActive(null);
       setIsDrawing(false);
       setDraftStart(null);
       setDraftEnd(null);
@@ -435,6 +493,13 @@ export default function WorkbenchCanvas() {
   };
 
   const editingText = editingTextId ? texts.find(t => t.id === editingTextId) : null;
+  const penPathPoints = samplePenAnchors(penAnchors);
+  const penPreviewAnchors = penActive ? [...penAnchors, penActive] : penAnchors;
+  const penPreviewPoints = penActive ? samplePenAnchors(penPreviewAnchors) : null;
+  const penCursorPreview =
+    !penActive && draftCursor && penAnchors.length > 0
+      ? samplePenAnchors([penAnchors[penAnchors.length - 1], { point: draftCursor, handle: null }])
+      : null;
 
   return (
     <>
@@ -583,11 +648,106 @@ export default function WorkbenchCanvas() {
                 strokeWidth={1}
               />
             ))}
+            {tool === "pen" && (
+              <>
+                {penPathPoints && (
+                  <Line
+                    points={pointsToKonva(penPathPoints, canvasWidth, canvasHeight)}
+                    stroke="#1677ff"
+                    strokeWidth={2}
+                    listening={false}
+                  />
+                )}
+                {penPreviewPoints && (
+                  <Line
+                    points={pointsToKonva(penPreviewPoints, canvasWidth, canvasHeight)}
+                    stroke="#1677ff"
+                    dash={[4, 4]}
+                    strokeWidth={2}
+                    listening={false}
+                  />
+                )}
+                {penCursorPreview && (
+                  <Line
+                    points={pointsToKonva(penCursorPreview, canvasWidth, canvasHeight)}
+                    stroke="#8b5cf6"
+                    dash={[4, 4]}
+                    strokeWidth={1.5}
+                    listening={false}
+                  />
+                )}
+                {penAnchors.map((anchor, index) => (
+                  <Fragment key={`anchor-${index}`}>
+                    {anchor.handle && (
+                      <Line
+                        points={pointsToKonva([anchor.point, anchor.handle], canvasWidth, canvasHeight)}
+                        stroke="#8b5cf6"
+                        dash={[4, 4]}
+                        strokeWidth={1.5}
+                        listening={false}
+                      />
+                    )}
+                    <KonvaCircle
+                      x={toCanvasX(anchor.point.x, canvasWidth)}
+                      y={toCanvasY(anchor.point.y, canvasHeight)}
+                      radius={4}
+                      fill="#1677ff"
+                      stroke="#fff"
+                      strokeWidth={2}
+                    />
+                    {anchor.handle && (
+                      <KonvaCircle
+                        x={toCanvasX(anchor.handle.x, canvasWidth)}
+                        y={toCanvasY(anchor.handle.y, canvasHeight)}
+                        radius={3}
+                        fill="#8b5cf6"
+                        stroke="#fff"
+                        strokeWidth={1.5}
+                      />
+                    )}
+                  </Fragment>
+                ))}
+                {penActive && (
+                  <>
+                    {penActive.handle && (
+                      <Line
+                        points={pointsToKonva([penActive.point, penActive.handle], canvasWidth, canvasHeight)}
+                        stroke="#8b5cf6"
+                        dash={[4, 4]}
+                        strokeWidth={1.5}
+                        listening={false}
+                      />
+                    )}
+                    <KonvaCircle
+                      x={toCanvasX(penActive.point.x, canvasWidth)}
+                      y={toCanvasY(penActive.point.y, canvasHeight)}
+                      radius={4}
+                      fill="#1677ff"
+                      stroke="#fff"
+                      strokeWidth={2}
+                    />
+                    {penActive.handle && (
+                      <KonvaCircle
+                        x={toCanvasX(penActive.handle.x, canvasWidth)}
+                        y={toCanvasY(penActive.handle.y, canvasHeight)}
+                        radius={3}
+                        fill="#8b5cf6"
+                        stroke="#fff"
+                        strokeWidth={1.5}
+                      />
+                    )}
+                  </>
+                )}
+              </>
+            )}
             {zones.map(z =>
               (z.floor_plan_polygon?.polygons || []).map(p => {
                 const regionId = `zone:${z.id}:${p.id}`;
                 const selected = selectedRegionId === regionId;
                 const centroid = polygonCentroid(p.points);
+                const labelWidth = z.name.length * 14 + 12;
+                const labelX = toCanvasX(centroid.x, canvasWidth) - labelWidth / 2;
+                const labelY = toCanvasY(centroid.y, canvasHeight) - 12;
                 return (
                   <Fragment
                     key={regionId}
@@ -631,18 +791,26 @@ export default function WorkbenchCanvas() {
                         });
                       }}
                     />
+                    <Rect
+                      x={labelX}
+                      y={labelY}
+                      width={labelWidth}
+                      height={24}
+                      fill="rgba(17,24,39,0.72)"
+                      cornerRadius={4}
+                      listening={false}
+                    />
                     <KonvaText
-                      x={toCanvasX(centroid.x, canvasWidth)}
-                      y={toCanvasY(centroid.y, canvasHeight)}
+                      x={labelX}
+                      y={labelY}
                       text={z.name}
                       fontSize={14}
                       fontStyle="bold"
-                      fill="#1f2937"
-                      stroke="#ffffff"
-                      strokeWidth={2}
+                      fill="#ffffff"
                       align="center"
-                      offsetX={z.name.length * 7}
-                      offsetY={7}
+                      width={labelWidth}
+                      height={24}
+                      verticalAlign="middle"
                       listening={false}
                     />
                   </Fragment>

@@ -300,6 +300,8 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.34, { steps: 8 });
     await page.mouse.up();
     await page.waitForTimeout(300);
+    await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.42);
+    await page.waitForTimeout(500);
     await page.keyboard.press("Enter");
 
     await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
