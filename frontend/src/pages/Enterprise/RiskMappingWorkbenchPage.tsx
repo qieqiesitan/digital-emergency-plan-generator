@@ -157,9 +157,15 @@ export default function RiskMappingWorkbenchPage() {
       <Space wrap>
         <EnterpriseFloorManager enterpriseId={enterpriseId!} />
         <WorkbenchToolbar />
-        <Button icon={<UndoOutlined />} onClick={undo} />
-        <Button icon={<RedoOutlined />} onClick={redo} />
-        <Button type="primary" icon={<SaveOutlined />} disabled={!dirty} onClick={onSave}>
+        <Button aria-label="撤销" icon={<UndoOutlined />} onClick={undo} />
+        <Button aria-label="重做" icon={<RedoOutlined />} onClick={redo} />
+        <Button
+          aria-label="保存工作台"
+          type="primary"
+          icon={<SaveOutlined />}
+          disabled={!dirty}
+          onClick={onSave}
+        >
           保存
         </Button>
       </Space>

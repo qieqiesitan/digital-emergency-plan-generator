@@ -29,6 +29,7 @@ export default function WorkbenchToolbar() {
       {TOOLS.map(item => (
         <Tooltip key={item.value} title={item.label}>
           <Button
+            aria-label={item.label}
             icon={item.icon}
             type={tool === item.value ? "primary" : "default"}
             onClick={() => useRiskMappingWorkbenchStore.setState({ tool: item.value })}
@@ -60,7 +61,11 @@ export default function WorkbenchToolbar() {
         <span style={{ fontSize: 12 }}>辅助线</span>
       </Space>
       <Tooltip title="取消绘制（回到选择）">
-        <Button icon={<AimOutlined />} onClick={() => useRiskMappingWorkbenchStore.setState({ tool: "select" })} />
+        <Button
+          aria-label="取消绘制"
+          icon={<AimOutlined />}
+          onClick={() => useRiskMappingWorkbenchStore.setState({ tool: "select" })}
+        />
       </Tooltip>
     </Space>
   );

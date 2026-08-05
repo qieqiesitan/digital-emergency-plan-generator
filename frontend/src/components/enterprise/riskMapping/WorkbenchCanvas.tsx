@@ -202,17 +202,18 @@ export default function WorkbenchCanvas() {
 
   return (
     <>
-      <Stage
-        width={canvasWidth}
-        height={canvasHeight}
-        style={{ maxWidth: "100%", maxHeight: "100%" }}
-        onClick={handleClick}
-        onDblClick={finishDrawing}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-      >
-        <Layer>
+      <div data-testid="workbench-canvas">
+        <Stage
+          width={canvasWidth}
+          height={canvasHeight}
+          style={{ maxWidth: "100%", maxHeight: "100%" }}
+          onClick={handleClick}
+          onDblClick={finishDrawing}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+        >
+          <Layer>
         {image && <KonvaImage image={image} x={0} y={0} width={canvasWidth} height={canvasHeight} />}
         {gridEnabled &&
           Array.from({ length: Math.floor(canvasWidth / 100) + 1 }, (_, i) => (
@@ -351,7 +352,8 @@ export default function WorkbenchCanvas() {
         ))}
         <WorkbenchRiskPointLayer />
         </Layer>
-      </Stage>
+        </Stage>
+      </div>
       <Modal
         title="编辑文字标注"
         open={!!editingText}

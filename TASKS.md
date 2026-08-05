@@ -1,4 +1,33 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-05，任务 11 修复子智能体）：按质量审查意见修复 E2E 可复现性，提交独立 commit `fix(risk-mapping): make workbench e2e self-contained and reproducible`
+- 刚完成的动作：
+  - `frontend/playwright.config.ts`：新增 webServer（自动 `npm run dev -- --port 5174 --strictPort`），baseURL 默认 http://localhost:5174，`E2E_BASE_URL` 可覆盖
+  - `frontend/e2e/risk-mapping-workbench.spec.ts`：改用 config baseURL 相对路径；mock 收窄为 URL/方法精确分发（GET /workbench 与 POST /workbench/batch-save 分离），未匹配 /api/* 统一 404 兜底保证 hermetic；schema 对齐后端（FLOOR 补 created_at、去掉 pending_regions）；绘制/点击坐标改为画布 bounding box 比例坐标
+  - `WorkbenchToolbar.tsx` / `RiskMappingWorkbenchPage.tsx`：工具栏、保存、撤销/重做按钮补显式 aria-label（矩形/文字/取消绘制/保存工作台/撤销/重做），不再依赖 @ant-design/icons 内部名称
+  - `WorkbenchCanvas.tsx`：主画布包一层 `<div data-testid="workbench-canvas">` 供精确定位（react-konva Stage 不透传 data-testid）
+  - TASKS.md 补充可复现命令（见下）
+- 验证结果（全部通过）：
+  - `cd frontend && npx tsc -b`：exit 0
+  - `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：2 文件 25 passed
+  - `npx playwright test e2e/risk-mapping-workbench.spec.ts`（不设 E2E_BASE_URL，webServer 自动复用/拉起 5174）：3 passed（7.7s）
+  - `--repeat-each=2 --workers=2` 并行隔离：6/6 passed；`E2E_BASE_URL=http://localhost:5174` 覆盖运行：3/3 passed
+- 已提交：独立 commit `4881ac9`（`fix(risk-mapping): make workbench e2e self-contained and reproducible`），仅含范围内 6 个文件，未触碰后端功能代码
+- 可复现命令：
+  - 一键运行 Playwright（frontend 目录，webServer 自动拉起 5174，无需手工起服务、无需设 env）：
+    `npx playwright test e2e/risk-mapping-workbench.spec.ts`
+  - 覆盖目标环境（服务需可达）：`$env:E2E_BASE_URL='http://<host>:<port>'` 后再运行同上命令
+  - 类型检查：`npx tsc -b`
+  - 单元测试：`npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`
+  - 测试库迁移（发布前置①，幂等可重跑；本地库为 emergency_plan）：
+    `psql -h localhost -U postgres -d emergency_plan -f backend/db_migration_risk_mapping_workbench.sql`
+- 正在做什么（2026-08-05，任务 11 代码质量复审，只审不改）：审查 a5ce7b9（`frontend/e2e/risk-mapping-workbench.spec.ts` 216 行 + TASKS.md 15 行）
+- 刚完成的动作：
+  - `cd frontend && npx tsc -b`：通过（exit 0）
+  - `npx playwright test e2e/risk-mapping-workbench.spec.ts`（默认 E2E_BASE_URL=localhost:5173）：3 failed——5173 是 Docker 内旧构建（占位页无 canvas），与 playwright.config.ts 默认 baseURL 不一致
+  - `$env:E2E_BASE_URL='http://localhost:5174'` 后同命令：3 passed（8.7s）；`--repeat-each=2` 并行 2 worker 共 6/6 passed（8.8s），隔离性实证良好
+  - 代码核对：工具栏/保存按钮无显式 aria-label，选择器依赖 @ant-design/icons 内部 aria-label（AntdIcon.js：role=img + aria-label=icon.name）；Modal.warning「知道了」= antd zh_CN locale justOkText；后端 WorkbenchResponse（backend/app/schemas/risk_management.py:134）无 pending_regions 字段而 mock 含之（多余字段）；vite proxy /api → 8000 旧后端，未匹配请求无兜底
+- 下一步：审查报告已输出（关键 1：默认运行路径不可复现；重要：选择器耦合库内部/坐标硬编码/路由 glob 重叠+未匹配请求透传；次要若干），未修改任何代码
+- 关键上下文：playwright.config.ts 无 webServer、baseURL=5173；5174 = 本机当前源码 vite（node PID 11968，--strictPort），5173 = Docker wslrelay 旧构建；E2E 复现需先起 5174 再设 E2E_BASE_URL
 - 正在做什么（2026-08-05，任务 11 收尾）：E2E、性能与发布验证完成，正在提交独立 commit `test(risk-mapping): add workbench e2e and release verification`
 - 刚完成的动作：
   - 创建 `frontend/e2e/risk-mapping-workbench.spec.ts`：3 个用例全部通过
