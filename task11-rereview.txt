@@ -1,0 +1,29 @@
+## ✅ 通过
+
+复审提交 `c23b36d`（`fix(risk-mapping): make workbench e2e self-contained and reproducible`），上一轮 8 条审查意见中 7 条已解决并有实证，1 条次要意见未处理（不影响合入）。以下全部由我独立重跑验证，未采信修复报告。
+
+### 验证结果（均未设 E2E_BASE_URL）
+
+- `cd frontend && npx tsc -b`：exit 0
+- `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：2 文件 25 passed
+- `npx playwright test e2e/risk-mapping-workbench.spec.ts`：3/3 passed
+  - 关键点：我先停掉了 5174 上 17:49 启动的旧 vite 进程（修复报告里的“通过”其实只是复用了它，冷启动此前未实证），在端口空闲状态下重跑，Playwright 的 webServer 自己拉起 Vite、测试通过、退出后自动释放端口——「自包含」成立
+  - 附加：`--repeat-each=2 --workers=2` 冷启动并行 6/6 passed，比例坐标在并发下稳定
+
+### 意见逐条核对
+
+1. 关键「默认路径不可复现」→ 已解决：playwright.config.ts 新增 webServer（`npm run dev -- --port 5174 --strictPort`），baseURL 默认 5174，`E2E_BASE_URL` 可覆盖
+2. 「选择器耦合图标库内部」→ 已解决：工具栏/取消绘制/撤销/重做/保存均补显式 aria-label，spec 改用 `getByRole("button", { name: "矩形"/"文字"/"保存工作台" })`；画布包 `<div data-testid="workbench-canvas">` 精确定位（react-konva Stage 不透传 data-testid，包裹方式正确）
+3. 「坐标硬编码」→ 已解决：拖拽/点击均改为 canvas bounding box 比例坐标（0.16/0.14 → 0.3/0.3、0.4/0.4）
+4. 「mock 路由重叠/不透传」→ 已解决：单路由 `**/api/**` 按 pathname+method 精确分发，GET workbench 与 POST batch-save 分离，未匹配请求统一 404 兜底，测试 hermetic
+5. 「antd 内部 DOM/locale」→ 未处理：`.ant-modal-confirm-title` 和 zh_CN「知道了」仍保留，属次要项，当前 antd v6.4.3 下稳定，建议后续迭代给 Modal.warning 显式 okText 或改 data-testid
+6. 「mock schema 漂移」→ 已解决：FLOOR 补 `created_at`、WORKBENCH_SNAPSHOT 补 `code/message/data` 包装、删 `pending_regions`，与 backend `FloorResponse`/`WorkbenchResponse`/`BatchSaveResponse` 对齐（已核对 schemas/risk_management.py:13/131/134）
+7. 「canvas.first() 歧义」→ 已解决：改用 data-testid 定位
+8. 「TASKS 可复现命令」→ 已解决：迁移、一键 Playwright、E2E_BASE_URL 覆盖、tsc、vitest 命令均已写入
+
+### 两点提示（均不阻塞）
+
+- TASKS.md 快照里写「已提交 4881ac9」，但实际修复提交是 `c23b36d`（同一 message，仓库内存在 4881ac9 这个 commit 对象，疑似改写/重做），文档记录与 git log 不一致，建议顺手修正
+- 按项目规则我更新了 TASKS.md 快照（唯一文件变更）；停掉了 17:49 启动的临时 vite 进程，Playwright 每次运行后会自动清理 5174，环境已恢复
+
+提交卫生良好：`git diff --check` 无空白错误，改动仅限 6 个范围内文件，未触碰后端功能代码。

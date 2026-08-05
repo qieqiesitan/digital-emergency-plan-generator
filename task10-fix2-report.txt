@@ -1,0 +1,27 @@
+## 状态
+
+✅ 已完成并提交独立 commit `9c1d6f7`（message 与要求一字不差）：`fix(risk-mapping): preserve multi-zone polygons and sync overview tree with floor`。仅含 6 个前端文件；TASKS.md、计划文件、后端文件均未改动（未跟踪的 task*.txt 报告文件也保持原状，未纳入 commit）。
+
+## 修改文件
+
+- [RiskZoneForm.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/RiskZoneForm.tsx)：`handlePolygonConfirm` 改为调用新增的 `mergeEditedPolygon`——编辑时只替换当前编辑目标（编辑器加载的 `polygons[0]`），其余区域保留；颜色沿用原 v2 `color_source`/`color`，不再强制重置为 auto；多区域分区打开标注弹窗时显示「将保留其余区域」提示；顺手删除未用的 `message` 导入（既有 eslint error）。
+- [zoneSubmit.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/zoneSubmit.ts)：新增纯函数 `mergeEditedPolygon`（保留其它 polygons + 颜色，编辑目标沿用原 id；无既有值时创建新 v2 auto 单区域）。
+- [zoneSubmit.test.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/zoneSubmit.test.ts)：新增 3 个多区域回归用例（仅替换编辑区域 / 保留 manual 颜色 / 新建场景默认 auto）。
+- [riskManagementService.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskManagementService.ts)：`getFullHierarchy` 增加可选 `floor_id` 参数（后端 `/hierarchy` 已支持，前端此前未传）。
+- [RiskOverviewPage.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskOverviewPage.tsx)：默认楼层改为派生值 `effectiveFloorId`（用户显式选择优先，否则回退默认/首层），层级树查询按当前楼层传 `floor_id` 并纳入 queryKey；楼层切换时清理旧楼层的树选中/高亮残留；空态下移到楼层选择器之后，有楼层时提示「请切换楼层查看」；顺带恢复点击已高亮分区取消高亮的 toggle 行为。
+- [RiskDistributionStage.tsx](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/riskMapping/RiskDistributionStage.tsx)：移除 effect 内同步 `setLoadedImage(null)`（无平面图时直接 return，由既有 url 守卫派生空图）。
+
+## 测试结果
+
+- `cd frontend && npx tsc -b`：✅ 通过，0 错误
+- `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：✅ 25 passed（zoneSubmit 6 + workbenchStore 19，覆盖新增回归用例）
+- `npx eslint`（6 个修改文件）：✅ 0 error、0 warning
+- `git diff --check`：无空白/冲突标记
+- 补充说明：全量 `npx vitest run` 中另有 3 个 e2e/playwright 用例（`risk-ui-fixes.test.mjs`、`e2e/*.spec.ts`）失败，原因是它们需要 localhost:5173 运行中的服务，与本次改动无关，也不在要求范围内。
+
+## 自审
+
+- 审查意见 1-4 逐条核对：后端 `/hierarchy` 确认已支持 `floor_id`，前端只是没传；`getRiskMappingOverview` 本就走 `floor_id`，因此修复后树、高亮、分布图三者的楼层口径一致。
+- 派生 `effectiveFloorId` 而非 effect 内 setState，同时消除了 RiskOverviewPage 的 `react-hooks/set-state-in-effect`，且没有引入级联渲染。
+- 按 TDD 流程：先写 `mergeEditedPolygon` 失败用例再实现，测试已跑通。
+- 未运行 codegraph/graphify 同步（本次为任务限定范围的轻量修复，交付物为独立 commit），未推送远程，未执行 `git finish`。
