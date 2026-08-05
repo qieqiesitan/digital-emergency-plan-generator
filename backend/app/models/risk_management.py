@@ -5,6 +5,7 @@ from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, ForeignK
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
+from app.models.enterprise import EnterpriseFloor
 
 class RiskAssessmentMethod(Base):
     __tablename__ = "risk_assessment_methods"
@@ -23,19 +24,22 @@ class RiskZone(Base):
     __tablename__ = "risk_zones"
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     enterprise_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, index=True)
+    floor_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("enterprise_floors.id", ondelete="RESTRICT"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     floor_plan_polygon: Mapped[Optional[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    floor = relationship("EnterpriseFloor", lazy="selectin")
     objects = relationship("RiskObject", back_populates="zone", cascade="all, delete-orphan", lazy="selectin")
 
 class RiskObject(Base):
     __tablename__ = "risk_objects"
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     enterprise_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, index=True)
-    zone_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("risk_zones.id", ondelete="SET NULL"), nullable=True)
+    zone_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("risk_zones.id", ondelete="RESTRICT"), nullable=True)
+    floor_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("enterprise_floors.id", ondelete="RESTRICT"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     category: Mapped[Optional[str]] = mapped_column(String(100))
     location: Mapped[Optional[str]] = mapped_column(String(500))
@@ -48,6 +52,7 @@ class RiskObject(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     zone = relationship("RiskZone", back_populates="objects", lazy="selectin")
+    floor = relationship("EnterpriseFloor", lazy="selectin")
     units = relationship("RiskUnit", back_populates="object", cascade="all, delete-orphan", lazy="selectin")
     events = relationship("RiskEvent", back_populates="object", cascade="all, delete-orphan", lazy="selectin", primaryjoin="RiskObject.id==RiskEvent.object_id")
 

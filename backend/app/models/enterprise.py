@@ -66,6 +66,22 @@ class Enterprise(Base):
     resources = relationship("EmergencyResource", back_populates="enterprise", cascade="all, delete-orphan", lazy="selectin")
     plans = relationship("PlanProject", back_populates="enterprise", cascade="all, delete-orphan", lazy="selectin")
 
+class EnterpriseFloor(Base):
+    __tablename__ = "enterprise_floors"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    enterprise_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="RESTRICT"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    floor_plan_url: Mapped[Optional[str]] = mapped_column(String(500))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    canvas_width: Mapped[Optional[int]] = mapped_column(Integer)
+    canvas_height: Mapped[Optional[int]] = mapped_column(Integer)
+    canvas_texts: Mapped[list] = mapped_column(JSONB, default=list)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 class RiskSource(Base):
     __tablename__ = "risk_sources"
 
