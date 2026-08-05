@@ -1,0 +1,20 @@
+任务 6 修复完成，已提交独立 commit。
+
+## 状态
+已完成。全部 7 项必须修复点落实，测试与 lint 通过，提交为独立 commit `03c0f1f`（fix(risk-mapping): harden geometry helpers and undo history snapshot）。
+
+## 修改文件（仅 3 个，均在任务 6 范围内）
+- [riskMappingGeometry.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/riskMappingGeometry.ts>)：`simplifyPolygon` 改为基于 tolerance 的 Douglas-Peucker 抽稀（按最远点对拆分闭环避免接缝偏差，迭代栈实现防深递归）；结果少于 3 点或 `validatePolygon` 不通过时回退原多边形。`validatePolygon` 在算面积前先拒绝 NaN/Infinity 坐标（返回「坐标必须为有限数值」）。
+- [riskMappingWorkbenchStore.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.ts>)：新增 `WorkbenchDomainState`，`commit` 只快照 8 个领域字段（floors/currentFloorId/zones/riskPoints/texts/pendingRegions/deletedZoneIds/deletedRiskPointIds），历史栈不再嵌套 past/future；`setSnapshot` 收窄为 `Partial<WorkbenchDomainState>`。`undo`/`redo` 恢复领域字段时保留当前 UI 字段（tool/selectedZoneId/selectedRegionId/grid/snap/guide），不清空历史栈；undo 后新 commit 清空 future，dirty 保持 true。
+- [riskMappingWorkbenchStore.test.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.test.ts>)：补测试至 12 个，覆盖 undo 恢复+UI 保留、redo 重放、undo 后新 commit 清空 future、50 条历史上限、dirty 语义、NaN/Infinity 拒绝、simplify 容差行为与退化回退。
+
+## 测试结果
+- `cd frontend && npx vitest run src/store/riskMappingWorkbenchStore.test.ts`：12 passed
+- `npx eslint src/utils/riskMappingGeometry.ts src/store/riskMappingWorkbenchStore.ts src/store/riskMappingWorkbenchStore.test.ts`：0 error
+- 另跑了 `npx tsc -p tsconfig.app.json --noEmit --incremental false`：通过；`git diff --check`：干净
+
+## 自审
+- 7 项必须修复点逐项核对完毕；审查中「仅供参考」项（toPercent NaN 防护、undo/redo 导出形式、viewport 字段）未在范围内，未改动。
+- 未修改 TASKS.md、计划文件、后端文件、任务 5/7 文件；提交仅含上述 3 个文件。
+- 过程说明：期间外部 `git save` 产生了保存点 1131049（含本任务三文件及 TASKS.md/审查 txt）。我以 `git reset --soft 48be874` + 选择性暂存，将任务 6 整理为独立提交 `03c0f1f`；保存点保留在 reflog 可随时找回，TASKS.md、task*.txt 及任务 3 的后端未提交改动均保持原状未动。
+- dirty 语义按原有设计固化：commit/undo/redo 后均为 true，测试已断言。

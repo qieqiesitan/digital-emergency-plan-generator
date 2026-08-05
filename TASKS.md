@@ -1,6 +1,15 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：任务 2 闭环、任务 5 规格通过；并行执行后端任务 3、前端任务 6、任务 5 质量审查
+- 正在做什么（新排查，2026-08-05）：应急预案生成时公司地址被 AI 乱猜（如西安“湖北大厦”被写成湖北武汉）——已完成根因调查，未改动代码
 - 刚完成的动作：
+  - 排查结论：非代码“解析地址”，而是 ①企业 address 字段不完整/为空（100 家中 55 空、18 家 <8 字符；'陕西宝岳科技' id=2f754692… address='湖北大厦'，'陕西宝岳科技有限公司' id=a1866bd9… 同）→ ②generation.py `_collect_enterprise_data` 把 `"address":"湖北大厦"` 原样注入每个章节提示词 → ③提示词模板要求“结合企业实际信息、不得使用占位符”，但无“地址以企业信息为准、缺失标待补充、禁止推断”护栏 → 模型凭先验知识脑补成湖北省武汉市（LLM 幻觉，非确定性 bug）
+  - 排除项：autofill 走企查查（qcc_client.py）无本地推断；docx_template/export 无地址解析；前端地址非必填（EnterpriseCreatePage.tsx:136、EnterpriseForm.tsx:151）；全库生成内容当前未检出“武汉”，属结构性风险
+- 下一步（待用户确认是否修复）：提示词加地址防幻觉护栏；建档强制/提示补全省市区；生成后地址一致性校验
+- 正在做什么：任务 1/2/3/5/6 已闭环；并行执行后端任务 4、前端任务 7+8
+- 刚完成的动作：
+  - 任务 3 提交 e44e126 + 修复 caba211，规格与质量复审通过（48 passed）
+  - 任务 5 提交 2d4fc07 + 修复 48be874，规格与质量复审通过
+  - 任务 6 提交 5b7e845 + 修复 03c0f1f，规格与质量复审通过（12 vitest passed）
+  - 已并行启动：任务 4（Workbench API）、任务 7+8（页面壳/楼层管理 + Konva 画布/工具）
   - 任务 2 提交 e424fa4 + 修复 f011b09，规格与质量复审通过（33 passed）
   - 任务 5 已提交 2d4fc07，规格审查通过，tsc -b 通过
   - 前端任务 5 曾多次超时，已由主控完成构建验证并提交，占位页将在任务 7 替换
@@ -118,6 +127,17 @@
   - 部署副本两处小修补（文档已记录）：main.py /icons 挂载加 isdir 判断（9608ea7 无 public/icons 目录，否则启动崩溃）；server.py DIST_DIR 改相对路径
   - 验证：8000/5173/8080 均监听；OpenAPI 135 条路由（含 risk-management 全套）；风险接口未登录返回 401 JSON；公网 demo.chengleiai.com / /m.html / /docs 均 200；日志自 15:48 启动后无 error/traceback
   - 待办注意：playwright 浏览器未安装（PDF/导出如需浏览器渲染需 .venv/bin/playwright install chromium）；Vite/mobile 为 nohup 启动，重启 VM 需手动拉起
+- 旁路任务续：本地数据库已整体同步到云主机（2026-08-05 16:00 完成）
+  - 本地 pg_dump（PG16.14，--no-owner，纯 SQL 15.7MB）→ gzip 3.7MB → ssh 管道传 VM（MD5 一致）
+  - VM 侧：先备份当前库到 ~/backups/emergency-plan-db-pre-sync-20260805.dump → 停后端 → 剔除 \\restrict 行 → DROP+CREATE 重建 → psql 恢复（PG13 兼容，恢复日志仅末尾 \\unrestrict 一行无害报错）→ 重启后端
+  - 同步后 VM 数据与本地完全一致：users 14 / enterprises 100 / plan_projects 58 / plan_versions 26 / risk_sources 19 / risk_zones 7 / risk_objects 14 / risk_events 34 / risk_assessment_reports 2 / ai_configs 6
+  - 公网 demo.chengleiai.com：/、/m.html、/docs 均 200，API 401（需登录）；后端日志无错误
+  - 注意：VM 登录需用本地账号（密码在本地库的 bcrypt 哈希中，用户密码如已知即可登录）；AI 配置已被本地 6 条 deepseek 覆盖
+- 旁路任务续：一键生成预案卡住问题已定位并修复（2026-08-05 16:20）
+  - 根因 1（卡住主因）：chromadb 首次使用需从 AWS S3 下载 all-MiniLM-L6-v2 ONNX 模型（83MB），VM 到 S3 仅 16KB/s，下载卡死（缓存里只有 3.7MB 残包）；已从本地 Docker 容器导出完整模型（90MB model.onnx+tokenizer 全套）经 ssh 管道传到 VM ~/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx/，嵌入测试通过（dim=384，离线可用）
+  - 根因 2（AI 调用失败）：本地库 AI 密钥用 docker-compose 的 ENCRYPTION_KEY（abcdefghijklmnopqrstuvwxyz123456）加密，VM 后端此前用默认 "a"*32；已在 emergency-plan.service 增加 Environment=ENCRYPTION_KEY=... 并重启，主账号 550614706@qq.com 等 4/6 配置可解密
+  - 剩余 2 条解不开：admin@test.com（占位假 key，密文全 0）与 test@test.com（旧 key），需在 设置→AI配置 重新保存
+  - 验证：嵌入 dim=384 OK；服务进程环境含 ENCRYPTION_KEY；后端 active、docs/root 200、日志无 error；待用户在页面重试一键生成
 - 下一步：后端任务 2 与前端任务 5 并行完成后，依次执行任务 3/4、前端任务 6/7/8/9/10，最后任务 11
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2

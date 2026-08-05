@@ -1,0 +1,46 @@
+已完成全部审查项：提交 diff、当前文件、服务函数、Schema、迁移 SQL、规格契约、前端消费点，并运行了指定测试。汇报如下。
+
+---
+
+## 代码质量审查：提交 615109d（任务 4：Workbench 聚合加载、批量保存与总览）
+
+**审查范围**：`git show 615109d`（3 文件，+344/−8）+ 当前工作树文件对照（后端文件与提交一致）；运行 `pytest` 三个测试文件 → **43 passed**；`git diff --check` 无空白错误；规格对照 `2026-08-04-risk-mapping-drawing-design.md` 5.6/5.7/8.2/8.3 节。
+
+### 优点
+
+1. 事务/锁设计符合规格：批量保存单事务，`SELECT ... FOR UPDATE` 依次锁定楼层 → 分区 → 风险点，并先锁楼层行再比对 `floor_updated_at`，并发保存被正确串行化，不会静默覆盖。
+2. 乐观并发校验完整：楼层、既有分区、既有风险点三处均比对 `updated_at`，不一致返回 `SAVE_CONFLICT`（409）；`_same_ts` 归一化时区与字符串类型，测试覆盖了 `Z` 后缀、`+08:00` 与 UTC 换算。
+3. `client_id` 映射闭环正确：请求内 client_id 全局唯一校验 → 新分区/新风险点 flush 后生成 `created_zone_map`/`created_risk_point_map` → 风险点经 `zone_client_id` 解析新分区 → 响应回填映射，与规格 5.6 完全一致。
+4. 级联确认逻辑正确：删除有对象的分区必须 `confirm_cascade_zone_ids` 确认，返回 `CASCADE_CONFIRM_REQUIRED` 且 data 含 object/unit/event/measure 四层数量；ORM `all, delete-orphan` 级联链（分区→对象→单元/事件→措施）配合 selectin 默认加载，删除顺序满足 FK RESTRICT。
+5. 楼层过滤全面：workbench、overview、hierarchy 三个接口均按 `floor_id` 过滤分区与风险点，默认楼层由 `_default_floor` 兜底，楼层归属校验一致。
+6. Hierarchy 扩展字段（floor_id、floor_name、多边形 v2、max_risk_level、effective_color、对象坐标）填充逻辑正确，且向后兼容（新字段均有默认值）。
+7. `create_object` 增加 zone/floor 一致性校验与 `ZONE_FLOOR_MISMATCH` 错误码，符合规格 4.3/5.7。
+
+### 问题
+
+#### 关键
+
+**1. [必须修复] 批量保存中风险点绑定分区未校验楼层/企业归属，可写入跨楼层不一致数据**
+`batch_save_workbench` 中更新既有风险点时 `target_zone_id = item.zone_id`，仅检查该 zone_id 是否能命中 `created_zone_map`（新建分区安全），对既有分区未校验其 `floor_id` 是否等于当前楼层、是否属于当前企业（仅当 zone 完全不存在时才 404）。若客户端提交其它楼层的 `zone_id`，风险点会被写入 `zone_id=其它楼层分区` 而 `floor_id=当前楼层`，造成同一行内 zone 与 floor 互斥矛盾，违反「分区不可跨楼层」与规格 8.2「分区属于当前企业且属于当前楼层」、错误码 `ZONE_FLOOR_MISMATCH`。建议对 `item.zone_id` 用 `select(RiskZone).where(id==…, floor_id==floor.id, enterprise_id==enterprise_id)` 校验，不满足则返回 422 `ZONE_FLOOR_MISMATCH`。新建风险点路径安全（`created_zone_map` 仅含本批本楼层分区）。
+
+#### 重要
+
+**2. [建议修改] 风险点坐标缺少 0–100 范围校验**
+规格 5.7 定义了 `POINT_OUT_OF_RANGE`（坐标不是 0-100 有限数值），但 `BatchSaveRiskPointItem.location_x/location_y` 为裸 `float`，批量保存直接透传持久化（实测 `x=150` 可正常构造），与多边形顶点校验（0-100）口径不一致。建议 schema 加 range 校验或路由侧复用统一校验并返回该错误码。
+
+**3. [建议修改] 核心端到端逻辑无自动化测试**
+新增的 5 个 workbench 测试仅覆盖 Schema 解析与 `_same_ts` 纯函数；批量保存的事务提交、行锁、`ZONE_NOT_BOUND`、`CASCADE_CONFIRM_REQUIRED`、`client_id` 映射、409 冲突、floor 过滤、级联删除顺序等关键路径均无测试（43 个通过测试中无一个直接调用三个新端点）。建议至少补充基于 mock AsyncSession 或真实 PG 的集成测试覆盖：并发冲突返回 409、删除需确认、client_id 重复 422、缺失分区 422、跨楼层绑定被拒。
+
+#### 次要
+
+**4. [仅供参考] `_same_ts` 对 naive 时间戳静默判 False**：无时区后缀的合法 ISO 字符串（如 `2026-08-04T10:00:00`）会被当本地时区解析，导致与数据库 aware 值比较恒 False、反复 409（实测不抛异常）。虽前端回显服务端时间戳不受影响，但建议对 naive 输入显式按 UTC 处理或拒绝并返回明确错误。
+
+**5. [仅供参考] GET 端点存在写副作用**：`load_workbench`/`get_overview`/`get_hierarchy` 均调用 `_default_floor` 并 `db.commit()`（可能创建默认楼层）。与既有 `list_floors` 模式一致，但 GET 触发写入建议在文档中注明。
+
+**6. [仅供参考] 既有分区更新时忽略请求中的 `floor_id`**：`BatchSaveZoneItem` 无 floor_id 字段，更新路径按本楼层处理；`BatchSaveRiskPointItem.floor_id` 虽在 schema 中存在但实现忽略，与规格「缺省时按 zone 推导」语义略有偏差（不校验、不采用），建议明确支持或从 schema 移除以避免误用。
+
+**7. [仅供参考] 删除风险点 ID 不存在时静默跳过**（`deleted_risk_point_ids` 用 `existing_points.get(pid)` 容错），与删除分区的宽容语义一致，但缺少与规格 5.7 `RISK_POINT_NOT_FOUND` 的一致性说明。
+
+### 结论
+
+**不通过（需修复关键问题 1 后再合入）**。总体实现质量良好：事务与行锁、并发时间戳校验、client_id 映射、级联确认、楼层过滤均按规格落地且测试全部通过，但批量保存存在风险点可绑定其它楼层/企业分区的数据一致性漏洞，违反跨楼层铁律与 `ZONE_FLOOR_MISMATCH` 契约，属于必须修复项；坐标范围校验缺失与端到端测试空白建议本次一并补齐。

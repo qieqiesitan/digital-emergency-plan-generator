@@ -1,0 +1,22 @@
+任务 3 修复完成，独立 commit `caba211`（`fix(risk-mapping): harden floor deletion, upload safety, and enterprise cleanup`），8 个文件、+414/-35。
+
+## 修改文件
+
+| 文件 | 改动 |
+|---|---|
+| [floor_plan_storage_service.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/services/floor_plan_storage_service.py) | `remove_floor_plan` 先 `resolve()` 并强制目标位于 `UPLOAD_DIR` 内（含 `..` 片段拒绝）；新增 `normalize_floor_plan_url`（仅空值或 `/uploads/` 前缀）；按 Content-Length 预拦截超大文件（413）；扩展名改为按内容类型生成，忽略客户端文件名；新增 `remove_floor_plan_dir`/`remove_enterprise_uploads`，OSError 记日志不抛 |
+| [enterprise_cleanup_service.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/services/enterprise_cleanup_service.py) | `delete_enterprise_complete` 返回待清理数量（floors/zones/objects/units/events/measures/total） |
+| [risk_management.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/routers/risk_management.py) | `delete_floor` 返回 `ApiResponse(data=None)`，默认楼层一律 409 拦截，删除后清理平面图文件；顺带修复 delete_method/object/unit/event/measure/migration 共 6 处缺 `data`；`create_zone` 缺省解析默认楼层、`update_zone` 的 `floor_id=null` 不修改楼层、移动楼层同步 `RiskObject.floor_id`、楼层归属校验；create/update_floor 写 `floor_plan_url` 走校验；迁移创建分区/对象补 `floor_id` |
+| [enterprises.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/routers/enterprises.py) | 删除返回 `ApiResponse(data=counts)`，事务提交后清理 `uploads/enterprises/{id}` |
+| [chat_dispatch.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/services/chat_dispatch.py) | `delete_enterprise` 工具改走 `enterprise_cleanup_service` + 文件清理，避开 RESTRICT。说明：工具实际实现位于 chat_dispatch.py（chat.py 只做分发），故按任务 6 要求改的是该文件 |
+| 3 个测试文件 | 见下 |
+
+## 测试结果
+
+指定命令 `backend/.venv\Scripts\python.exe -m pytest backend/tests/test_floor_plan_upload.py backend/tests/test_risk_mapping_cascade.py backend/tests/test_risk_mapping_service.py backend/tests/test_risk_mapping_migration.py -v` → **48 passed**。新增覆盖：路径穿越防护（删除拒绝 + 写入校验）、delete_floor 合法响应与默认楼层 409、create_zone 默认楼层回填、update_zone null 不改楼层、移动楼层同步风险对象、Content-Length 拦截、扩展名按内容类型、企业删除计数、上传目录清理。`git diff --check` 无错误。
+
+## 自审
+
+- 范围：仅提交上述 8 个文件；TASKS.md、计划文件、前端文件均未改动、未提交（TASKS.md 的改动是任务 2/5 期间既有状态）。
+- 安全：路径穿越在删除侧（resolve + 目录边界）和写入侧（前缀 + `..` 拒绝）双重防护；企业/楼层目录清理均先校验在 `UPLOAD_DIR` 内再 `rmtree`。
+- 遗留说明：审查意见中 `/uploads` 加 `nosniff` 头需改 main.py（范围外）未做；`FLOOR_IN_USE` 错误码、同名并发 409、N+1 属下次迭代项。全量测试仅 `test_autofill_research`/`test_web_search` 因 venv 缺 `scrapling` 收集失败，属预先存在的环境问题，与本次改动无关。

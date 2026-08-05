@@ -1,0 +1,18 @@
+任务 4 已完成并提交。以下是汇报：
+
+## 状态
+✅ 已完成任务 4「Workbench 聚合加载、批量保存与总览」，提交 `615109d`（`feat(risk-mapping): add workbench load, batch save, and overview APIs`），仅包含允许的 3 个文件，未执行 git finish/推送。TASKS.md、计划文件、前端文件均未改动（故未按 AGENTS.md 更新快照，遵守任务要求）。
+
+## 修改文件
+- [backend/app/routers/risk_management.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/routers/risk_management.py)：新增 `GET /workbench`、`POST /workbench/batch-save`、`GET /overview`；`GET /hierarchy` 增加 `floor_id` 过滤并补齐扩展字段；`POST /objects` 兼容 `floor_id` 缺省沿用分区楼层；新增 `_same_ts`（时区归一化时间戳比较）与 `_to_workbench_zone`（共享的规范化助手）
+- [backend/app/schemas/risk_management.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/schemas/risk_management.py)：`HierarchyZoneResponse` 扩展 `floor_id/floor_name/floor_plan_polygon/max_risk_level/effective_color`；`HierarchyObjectResponse` 扩展 `floor_id/location_x/location_y`
+- [backend/tests/test_risk_mapping_workbench.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/tests/test_risk_mapping_workbench.py)（新建）：5 个测试
+
+## 测试结果
+`cd backend && .venv\Scripts\python.exe -m pytest tests/test_risk_mapping_workbench.py tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py -v` → **43 passed**（新增 5 + 服务 26 + 迁移 12）。补充运行相关套件（floor_plan_upload / cascade / conftest）也全部通过，合计 53 passed。`py_compile` 与 `git diff --check` 均无错误。全量跑测时仅 `test_web_search`/`test_autofill_research` 因 venv 缺少 `scrapling` 收集失败，属预存环境问题，与本次改动无关。
+
+## 自审
+- **批量保存**：单事务 + `SELECT FOR UPDATE` 锁定楼层/分区/风险点；`floor_updated_at` 并发检测（409 SAVE_CONFLICT）；client_id 全局唯一（422）；新建分区/风险点生成 `client_id → id` 映射回填；全量分区校验（422 ZONE_NOT_BOUND）；多边形走 `validate_polygon_v2`（422 POLYGON_INVALID）；删除分区经 `cascade_counts` 确认（409 CASCADE_CONFIRM_REQUIRED）；文字 `canvas_texts` 保存并随响应返回新 `floor.updated_at` 作为下次并发基线
+- **复用**：`_default_floor`、`_floor_response`、`ensure_default_floor`、`validate_polygon_v2`、`cascade_counts`、`normalize_polygon/effective_color/max_risk_level` 全部复用，未重复实现
+- **契约对齐**：`object_count` 按实际对象数返回；`create_object` 补充分区归属校验与 `ZONE_FLOOR_MISMATCH`（规格 5.4）；`GET /hierarchy` 缺省走默认楼层，与 workbench/overview 行为一致
+- **冒烟验证**：本地数据库是运行中的 Docker 容器（5438，属用户环境），未擅自迁移/改动，改以测试套件验证逻辑；需要真实 API 冒烟时可在本地库迁移后补跑（计划步骤 4.6）

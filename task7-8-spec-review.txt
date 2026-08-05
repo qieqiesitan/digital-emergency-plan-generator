@@ -1,0 +1,29 @@
+审查完成。以下为任务 7+8 规格合规审查结论。
+
+## ❌ 发现问题
+
+**先说结论**：任务 7+8 的核心需求（页面壳、楼层管理、分区面板、图例、工具栏、Konva 画布、风险点图层、konva/react-konva 依赖）全部落地，`npx tsc -b` 通过（exit 0），`npx vitest run src/store/riskMappingWorkbenchStore.test.ts` 12/12 通过；前端工作区文件与 e29e6e8 一致，无后续未提交改动。但提交存在明确的范围越界与多余实现，按审查标准判为发现问题：
+
+**1. 范围越界：任务 9 的内容被整体并入 e29e6e8**
+
+- `frontend/src/components/enterprise/riskMapping/WorkbenchPropertiesPanel.tsx:1-165` 是计划任务 9.1 的文件清单项（绑定待处理区域、颜色自动/手动覆盖、风险点绑定分区、文字标注），不应出现在任务 7+8 的提交里。
+- `frontend/src/pages/Enterprise/RiskMappingWorkbenchPage.tsx:48-138` 提前实现了任务 9 的 `onSave` 完整保存流程（`saveRiskMappingWorkbench` 调用、pendingRegions/空多边形/未绑定风险点三重校验、`SAVE_CONFLICT` 处理），而任务 7.1 的计划代码中保存按钮只是 `disabled={!dirty}`，无 `onClick`。
+- 提交拆分与计划不符：计划要求 7.5（页面壳+楼层）、8.6（画布工具）、9.4（绑定/属性/保存）三次独立提交，实际合并为一次提交。
+
+**2. 楼层管理器超出计划 7.2 的代码清单**
+
+`frontend/src/components/enterprise/EnterpriseFloorManager.tsx:102-113` 额外实现了「编辑楼层」「删除楼层」按钮（含 Popconfirm 与删除后楼层切换逻辑），计划 7.2 只有选择/新建/上传三项。功能本身与任务 3 的 update/delete API 一致、无破坏性，但属于未在任务 7 规格中出现的设计。
+
+**3. 图例多出「未评估」条目**
+
+`frontend/src/components/enterprise/riskMapping/WorkbenchLegend.tsx:3-6` 在 `RISK_LEVEL_COLORS` 之外追加了 `["未评估", "#d9d9d9"]`，计划 7.3 只要求遍历 `RISK_LEVEL_COLORS`。与分区默认风险等级「未评估」语义一致，属轻微扩展。
+
+**与计划代码的其他差异（均为合理改进，非偏差，供知悉）**：
+
+- 自由画笔改为 mousedown 记录起点、click 不再追加，并新增 `dedupeTail` 去重（`WorkbenchCanvas.tsx:77-99`），修复了计划代码中点击会重复加点的问题；
+- 风险点图层改用 `Group` 定位 + `onDragEnd` 回写 store（`WorkbenchRiskPointLayer.tsx:17-33`），与计划渲染效果等价且拖拽更稳；
+- 计划片段中 `setSnapshot({... dirty:false})`、`setSnapshot({... selectedZoneId})` 与 store 的 `Partial<WorkbenchDomainState>` 契约冲突（dirty/selectedZoneId 不在其中），实现改用 `setState` 处理，是正确的契约适配而非理解偏差。
+
+**非阻塞提示**：rect 工具拖拽预览为固定 100×100 方块（与计划代码一致，未随拖拽实时更新）；分区多边形 `draggable` 无 `onDragEnd` 持久化（与计划一致，属后续任务范围）。
+
+本次审查未修改任何文件、未提交。

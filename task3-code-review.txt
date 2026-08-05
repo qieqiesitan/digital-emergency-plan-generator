@@ -1,0 +1,48 @@
+审查完成。已核对提交 diff、当前文件、规格文档与实施计划，运行了指定 pytest（36 passed），并用最小复现验证了两个关键缺陷。全程未修改任何文件、未提交。
+
+---
+
+## 优点
+
+- **并发默认楼层处理正确**：`_default_floor` 复用服务层 `ensure_default_floor`（顺带合并了 TASKS 中遗留的重复实现），以部分唯一索引 `uq_ef_default_per_enterprise` 兜底 + `IntegrityError` 回滚重试，方案成立，且比计划示例更完善（复用 `enterprises.floor_plan_url`）。
+- **清理服务删除顺序符合规格 4.7**：严格按“措施→事件→单元→风险对象→分区→楼层→企业”执行，与 RESTRICT 外键匹配；仅挂 `unit_id` 的事件/措施由 DB CASCADE 兜底，不会因 RESTRICT 阻塞。
+- **上传服务比既有 `/api/v1/upload` 严格**：类型白名单、20MB、12000px 限制、PIL 真实解码校验、失败自动删临时文件、业务事务提交成功后才删旧图（符合“事务成功后清理”）。
+- **多边形校验已接入 create/update zone 路由**，闭合了任务 2 遗留的“validate_polygon_v2 无调用点”。
+- **范围控制良好**：改动仅 7 个文件，与计划文件清单完全一致，无范围外改动；`git show --check` 无空白错误。
+- **测试全绿**：`backend/.venv/Scripts/python.exe -m pytest tests/test_floor_plan_upload.py tests/test_risk_mapping_cascade.py tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py -v` → **36 passed**（0.97s）。
+
+## 问题
+
+### 关键（必须修复）
+
+1. **`remove_floor_plan` 路径穿越 → 任意文件删除**
+   `floor_plan_url` 可经 `FloorCreate/FloorUpdate` 写入任意字符串；攻击者把某楼层 `floor_plan_url` 设为 `/uploads/../../app/main.py`，再上传新平面图触发 `remove_floor_plan(old_url)`，即可删除 uploads 目录之外的文件。我已实测路径解析：`backend/uploads` + `../../app/main.py` → 解析到 `backend/app/main.py`，且 `unlink` 不受限。
+   修复建议：删除前 `resolve()` 并强制校验目标位于 `UPLOAD_DIR` 之内；同时在写入 `floor_plan_url` 的所有入口校验只接受空值或 `/uploads/` 前缀。注意该缺陷源自计划示例本身，但仍是必须修复项。
+
+2. **DELETE /floors/{floor_id} 必然返回 500**
+   `delete_floor` 返回 `ApiResponse(message="已删除")`，而 `ApiResponse.data` 是必填字段——已用 venv 直接构造验证：抛出 `ValidationError: data Field required`。该端点 100% 失败。
+   修复建议：返回 `ApiResponse(data=None)` 或给 `data` 默认值；顺带检查 `delete_method`、`delete_object` 等既有端点——它们使用同一坏模式，建议一并修。
+
+### 重要（本次或下次迭代修复）
+
+3. **旧 CRUD 兼容规则未落实**：`RiskZoneCreate.floor_id` 可空，但 `risk_zones.floor_id` 是 NOT NULL，`create_zone`/`update_zone` 未在缺省时解析默认楼层 → 旧表单创建分区直接 `IntegrityError` 500。规格明确“floor_id 缺省时服务端自动解析企业默认楼层”。
+4. **默认楼层不变量可被破坏**：`delete_floor` 只在默认楼层是“唯一”楼层时拦截；存在多个楼层时可删掉默认楼层，导致“每企业必须有且仅有一个默认楼层”失效，且 `enterprises.floor_plan_url` 不清理。规格要求“唯一默认楼层不可直接删除，必须先设置新的默认楼层”。
+5. **企业删除契约未达标**：规格 4.7 要求接口返回待清理数量供前端二次确认，并要求“平面图物理文件在事务提交成功后清理、失败记日志”。实现既无计数返回，也未删除 `uploads/enterprises/{id}` 下的文件；`remove_floor_plan` 的 `OSError` 被静默吞掉（未记日志）。
+6. **聊天智能体删除路径未接入清理服务**：`chat_dispatch._generic_delete`（`delete_enterprise` 工具）仍走 ORM 直接删除，与 REST 路由行为不一致，会在 RESTRICT 外键处失败或绕开应用层清理。
+7. **上传内存风险**：`await file.read()` 将整个文件读入内存后才校验 20MB，未按 `Content-Length` 预拦截；认证用户可发超大请求造成内存压力。
+
+### 次要（仅供参考/后续优化）
+
+8. 扩展名直接取自客户端文件名且未与内容类型对齐（如 `image/png` + `plan.html` → `.html` 落盘，同源静态服务按扩展名定 Content-Type）；建议按校验通过的类型生成扩展名，并给 `/uploads` 加 `X-Content-Type-Options: nosniff`。
+9. `create_floor` 同名并发 → IntegrityError 500（非 409）；`update_floor` 无重名与竞态兜底，可复用 `_default_floor` 的 IntegrityError 模式。
+10. `delete_floor` 不删除磁盘上的旧平面图文件（孤儿文件）；上传后 `db.commit()` 失败时新文件残留。
+11. **测试有效性偏弱**：`test_risk_mapping_cascade` 仅断言 callable，未验证删除顺序/级联行为（无 DB 测试）；floors CRUD 端点零覆盖（关键问题 2 因此漏网）；上传测试未覆盖 20MB/像素上限/路径穿越；测试还会在 `backend/uploads/enterprises/e-1/...` 留下空目录（本次运行已产生该残留）。
+12. 规格要求占用楼层返回 `FLOOR_IN_USE` 错误码，实现为普通 409 文案（与现有项目风格一致，但与规格码不一致）。
+13. `pytest`/`pytest-asyncio` 写入了运行依赖 `requirements.txt`（项目无 dev 依赖分离，可接受）。
+14. `_floor_response` 每楼层 2 次 count 查询（轻微 N+1），楼层量级小可接受。
+
+## 结论
+
+**不通过。**
+
+实现与计划高度一致、测试全绿、范围干净，但存在 2 个关键缺陷：`remove_floor_plan` 路径穿越可致任意文件删除（安全漏洞），以及删除楼层端点因 `ApiResponse` 缺必填字段必然 500；另有 4 个重要规格/一致性问题（旧 CRUD 缺 floor_id 500、默认楼层不变量可被破坏、企业删除契约缺计数与文件清理、聊天删除路径未接入清理服务）。建议先修复 2 个关键问题，再补齐默认楼层与旧 CRUD 兼容逻辑后复审。

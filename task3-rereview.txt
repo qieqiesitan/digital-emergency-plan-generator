@@ -1,0 +1,33 @@
+复审完成。已核对 `git diff e44e126 caba211`（8 个后端文件，+414/-35）、上一轮审查意见全文、当前实现与模型外键语义，并运行了指定测试与两个针对性最小验证。全程未修改、未提交任何文件。
+
+---
+
+## 复审结论
+
+### 优点
+
+- 修复范围干净：仅 8 个后端文件，与修复报告一致；`git diff --check` / `git show --check` 无空白或冲突标记。
+- 两个关键缺陷对症修复并各有测试：路径穿越在删除侧用 `resolve()` + `is_relative_to(UPLOAD_DIR)` + 拒绝 `target == root` 三重防护；`delete_floor` 改返 `ApiResponse(data=None)`，且顺带修复了 delete_method/object/unit/event/measure/migration 共 6 处同模式缺 `data`。我实测反斜杠变体 `/uploads/..\..\evil.txt` 也被删除侧拦截（外部文件未删、记日志）。
+- 默认楼层不变量修复比审查要求更严：`delete_floor` 一律 409 拦截默认楼层，`update_floor` 阻止取消唯一默认楼层（`default_count <= 1` → 409），`create_floor` 首层强制默认、设新默认清旧默认。
+- 企业删除契约落实：`delete_enterprise_complete` 返回 floors/zones/objects/units/events/measures/total 计数，REST 与聊天工具均返回计数，事务提交后清理 `uploads/enterprises/{id}`，OSError 记日志不抛。
+- 旧 CRUD 兼容落实：`create_zone` 缺省解析默认楼层、`update_zone` 显式 null 不修改楼层、移动楼层同步 `RiskObject.floor_id`、迁移创建 zone/object 补 `floor_id`，且 `_resolve_zone_floor` 校验楼层归属。
+- Content-Length 预拦截（413）与读后 `len(data)` 兜底并存；扩展名改为按内容类型生成（`plan.html` → `.jpg`），忽略客户端文件名。
+- 测试覆盖明显加强：新增 12 个用例覆盖上述全部修复点，指定命令 **48 passed**（1.29s），与修复报告一致。
+
+### 问题
+
+关键：无。
+
+重要：无。
+
+次要（不阻塞，建议下次迭代处理）：
+
+1. `normalize_floor_plan_url` 写入侧校验对 Windows 反斜杠穿越不敏感：`"/uploads/..\\..\\x"` 能通过 `".." in url.split("/")` 检查。已实测删除侧 `resolve` 边界仍兜底，无实际任意文件删除风险，属纵深防御缝隙，建议写入侧同时拒绝 `\`。
+2. `update_floor` 把默认楼层 `floor_plan_url` 清空（设为 None）时，`enterprises.floor_plan_url` 不会同步清除，会残留旧引用；上传与设置新 URL 两个方向已同步，仅清空方向缺失。
+3. `ApiResponse.data` 仍为必填无默认值，本次靠显式传 `data=None` 规避；若后续新增 delete 端点再漏传仍会 500，建议评估给 `data` 默认 None（涉及响应契约，需谨慎）。
+4. 测试仍以 mock 为主，floors CRUD 与级联删除无真实 DB 集成测试（原审查第 11 点部分保留）；本轮新测试已改用 `tmp_path`，不再向 `backend/uploads` 新增残留（现有 `e-1/floors/f-1` 空目录是上一轮遗留，非本提交产生）。
+5. `FLOOR_IN_USE` 规格错误码、`/uploads` 加 `nosniff` 头两项按修复报告声明留待下次迭代，可接受。
+
+### 结论
+
+**通过。** 上一轮审查的 2 个关键问题、4 个重要问题全部对症修复且均有测试覆盖；剩余问题均为次要或已明确登记的下次迭代项，不阻塞合入。

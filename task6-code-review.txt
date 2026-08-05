@@ -1,0 +1,41 @@
+# 代码质量审查报告：5b7e845（任务 6“Zustand Store 与几何工具”）
+
+审查方式：`git show 5b7e845` + 读取当前文件、规格文档（`docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md`）与实施计划（任务 6 章节）对照；运行了 `npx vitest run src/store/riskMappingWorkbenchStore.test.ts`（5/5 通过）、`npx tsc -p tsconfig.app.json --noEmit --incremental false`（无错误）、`npx eslint`（3 个新文件，报 1 个错误）、`git diff --check`（干净）。全程未修改任何文件、未提交。
+
+## 优点
+
+- 与实施计划任务 6 逐字一致，三件套（几何工具、Store、测试）齐全；且测试超出计划最低要求——计划只要求 1 个 store 测试，实际补了 4 个几何函数单测。
+- 验证结果良好：vitest 5/5 通过、tsc 无错误、package-lock 与 package.json 一致（vitest ^3.2.7 兼容 vite 5.4）。
+- 遵循现有前端模式：zustand `create` 写法与 `src/mobile/store/*` 一致；`@` 别名、类型集中在 `src/types`、工具放 `src/utils`、测试与源码同目录，符合 vitest 默认收集规则。
+- undo/redo 栈操作本身逻辑自洽：commit 有 50 条上限、commit 清空 future、undo/redo 出入栈顺序正确、`setSnapshot` 不自动入栈（与计划第 9 步约定一致）。逐场景推演过 undo→undo→redo→redo，行为正确。
+- 依赖归类合理：vitest 作为 devDependency 正确。
+
+## 问题
+
+### 关键（必须修复）
+
+1. **新增代码使 `npm run lint` 失败**：[riskMappingGeometry.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/riskMappingGeometry.ts:31>) 第 31 行 `simplifyPolygon` 的 `tolerance` 参数从未使用，`eslint` 报 `@typescript-eslint/no-unused-vars`（实测 exit 1）。tsc 没拦到是因为 `tsconfig.app.json` 的 `noUnusedLocals: false`。建议实现真正的容差抽稀，或删除参数（`_tolerance` 只是绕过而非解决）。
+
+### 重要（建议修改）
+
+2. **撤销/重做快照范围与规格 7.1 不符**：规格明确“撤销/重做…不记录 viewport/tool/selected”，但 [riskMappingWorkbenchStore.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.ts:51>) 的 `commit` 把整个 state（含 `tool`、`selectedZoneId/RegionId`、`gridEnabled/snapEnabled/guideEnabled`）压入 `past`，undo 会连工具选择、选中态一起回退，与规格冲突。同时快照里嵌套着各自的 `past`/`future` 数组，形成“历史套历史”，50 条上限内仍是 O(n²) 的对象膨胀。建议 commit 时只快照领域字段（floors/currentFloorId/zones/riskPoints/texts/pendingRegions/deleted\*），剥离 UI 字段与历史栈。
+
+3. **undo/redo 零测试**：AC-15（撤销/重做）是核心验收点，但 [riskMappingWorkbenchStore.test.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.test.ts:13>) 只覆盖 `commit` 与几何函数。建议补：undo 恢复快照、redo 重放、undo 后新 commit 清空 future、50 条上限、undo/redo 后 dirty 语义。
+
+4. **`simplifyPolygon` 是“隔点抽样”而非简化算法**：[riskMappingGeometry.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/riskMappingGeometry.ts:31>) 忽略 tolerance，仅保留偶数下标顶点；可构造合法多边形简化后三点共线、面积为 0（如 {0,0},{0,1},{1,1},{1,2},{2,2}），产出的多边形会再次被 `validatePolygon` 判非法。建议实现 Douglas-Peucker 或等价的容差抽稀，返回前用 `validatePolygon` 复核；若仅想轻量去点，请改名并去掉假参数。
+
+5. **`validatePolygon` 对非有限坐标无防护**：[riskMappingGeometry.ts](</C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/riskMappingGeometry.ts:25>) 对含 NaN/Infinity 的顶点，shoelace 得 NaN，`NaN <= 0.001` 为 false，非法多边形会静默通过。后端 `validate_polygon_v2` 已有同类加固，前端应对齐：先校验每个 x/y 为有限数，再算面积。
+
+### 次要（仅供参考）
+
+6. `toPercent`（第 3 行）在 `max` 为 0/undefined 时返回 NaN（`EnterpriseFloor.canvas_width/height` 可空），建议内部加有限值防护或由调用方保证。
+7. `setSnapshot` 类型为 `Partial<WorkbenchState>`（第 23/50 行），允许调用方意外覆盖 `past/future/dirty` 甚至方法，可收窄为只暴露领域字段。
+8. `undo`/`redo` 是模块级导出而非 store action（第 58/69 行），与 `commit`/`reset` 风格不一致，功能正常，但组件里取用方式不统一。
+9. 规格 7.1 的 store 字段清单含 `viewport`，本实现未包含——若后续画布在组件本地管理缩放/平移则属预期，建议明确记录该决策。
+10. `zustand` 位于 devDependencies 但被生产代码 import（初始提交 11c6c5c 遗留，非本提交引入），Vite 打包无影响，依赖归类仍建议归入 dependencies。
+
+## 结论
+
+**不通过。**
+
+功能可用（测试、tsc 通过，undo/redo 逻辑正确），但存在 1 个破坏仓库 lint 门槛的关键问题、undo/redo 无测试覆盖、以及快照范围违反规格 7.1 等质量问题。多数问题源自实施计划本身（本提交代码与计划逐字一致），建议将上述 1–5 反馈回计划后再实施修复。修复优先级：先解 eslint 错误并补 undo/redo 测试，再收敛快照范围与几何函数边界；预期修复量小，不涉及架构重写。

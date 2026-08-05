@@ -1,0 +1,37 @@
+复审完成，未修改任何文件、未提交。以下为审查报告。
+
+---
+
+## 复审报告：提交 48be874（任务 5 前端类型修复）
+
+**审查范围**：`git diff 2d4fc07 48be874`（区间含 5 个并行任务提交，本次复审聚焦修复提交 48be874 本体，仅涉及 3 个文件）；重点核对上一轮 4 个「重要」意见。
+
+**验证命令结果**
+- `cd frontend && npx tsc -b`：✅ 通过（exit 0，无输出）
+- `npx eslint`（针对 3 个修改文件）：✅ 无任何 error/warning
+- `git diff --check 2d4fc07 48be874`：✅ 无空白/冲突标记错误
+- 额外用 TS 6.0.3 编译器 API 做了内存验证：`zone_id === null` / `id === null` 判别收窄可用，缺 `client_id` 的新建对象被类型拒绝
+
+### 优点
+
+1. 四个重要意见全部对症修复，且修复方式干净、与后端契约逐字段对齐：
+   - **未使用导入已修复**：[riskMappingWorkbenchService.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskMappingWorkbenchService.ts:3) 删除 `RawOverviewResponse` 导入，上轮 ESLint error 消除；该类型仍被 [riskManagementService.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/services/riskManagementService.ts:54) 以内联 `import()` 消费，并非死代码。
+   - **Create 类型已扩展**：[riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:44) 的 `RiskZoneCreate` 补 `floor_id`、`floor_plan_polygon` 改为复用 `RiskZoneFloorPlanPolygon`（v2）；[riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:70) 的 `RiskObjectCreate` 补 `floor_id`。与后端 `RiskZoneCreate.floor_id/floor_plan_polygon`、`RiskObjectCreate.floor_id`（均 `str | None`）一致。
+   - **BatchSave 判别联合已实现**：[riskMappingWorkbench.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskMappingWorkbench.ts:85) 起拆分为 `BatchSaveZoneCreateItem`（`zone_id: null` + `client_id`/`name` 必填）与 `BatchSaveZoneUpdateItem`（`zone_id: string` + `updated_at` 必填），风险点同理（`id: null` vs `id: string`）。与后端 Schema 语义（`zone_id`/`id` 为 None 即新建）一致；实测非法请求（新建缺 `client_id`）编译期即被拒。
+   - **Hierarchy 可选字段已修复**：[riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:95) 起 `HierarchyObject`/`HierarchyZone` 中 `floor_id`、`floor_name`、`floor_plan_polygon`、`max_risk_level`、`effective_color`、`location_x/y` 全部改为可选，与后端 `HierarchyObjectResponse`/`HierarchyZoneResponse`（不含这些字段）对齐，消除「类型说必有、数据说没有」的假安全。
+2. 顺带解决了上轮两项次要意见：v2 polygon、`RiskLevel`、`ColorSource` 统一收归 [riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:9) 并转导出，消除两处内联复制漂移；`riskMappingWorkbench.ts` 中 5 处动态 `import()` 改为常规 `import type`，可读性提升。
+
+### 问题
+
+**关键**：无。
+
+**重要**：无。四项重点核对项全部解决，无新增类型错误或 ESLint error。
+
+**次要**（非本次修复范围，不影响通过结论）：
+1. 类型漂移仍存一处：[riskManagement.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/types/riskManagement.ts:35) `RiskZone.max_risk_level` 仍为 `string | null`，而 `WorkbenchZone.max_risk_level` 用 `RiskLevel | null`（上轮次要 1 的另一半）。
+2. 上轮次要 3/4 未纳入本次提交：`getRiskMappingOverview` 返回值仍无显式 `WorkbenchSnapshot` 标注；前端 `EnterpriseFloor` 仍缺 `created_at`（属类型子集，等任务 6/7 消费时对齐即可）。
+3. BatchSave 判别联合目前尚无构造点（store/页面在任务 6/7 实现），属「先定义后使用」；届时需按 `zone_id === null` / `id === null` 收窄构造，已验证可收窄，无隐患。
+
+### 结论
+
+**通过。** 上一轮 4 个「重要」意见全部解决：未使用导入已删、Create 类型补齐 `floor_id` 与 v2 polygon、BatchSave 判别联合按规格实现且实测生效、Hierarchy 字段改可选与后端契约一致。`tsc -b` 与针对修改文件的 ESLint 均干净，无新增 error。审查全程未修改文件、未提交；工作区中 TASKS.md 的修改与未跟踪 txt 文件为审查前既有状态，保持原状。
