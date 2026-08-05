@@ -7,6 +7,7 @@ export default function WorkbenchZonePanel() {
   const zones = useRiskMappingWorkbenchStore(s => s.zones);
   const pendingRegions = useRiskMappingWorkbenchStore(s => s.pendingRegions);
   const selectedZoneId = useRiskMappingWorkbenchStore(s => s.selectedZoneId);
+  const selectedRegionId = useRiskMappingWorkbenchStore(s => s.selectedRegionId);
   const setState = useRiskMappingWorkbenchStore.setState;
   const commit = useRiskMappingWorkbenchStore.getState().commit;
 
@@ -79,8 +80,31 @@ export default function WorkbenchZonePanel() {
         <div style={{ color: "#999", fontSize: 12 }}>暂无待绑定区域</div>
       ) : (
         pendingRegions.map(r => (
-          <div key={r.id} style={{ padding: 6, border: "1px dashed #fa8c16", borderRadius: 6, marginTop: 4 }}>
-            未绑定区域 · {r.points.length} 个顶点
+          <div
+            key={r.id}
+            onClick={() => setState({ selectedRegionId: `pending:${r.id}`, selectedZoneId: null })}
+            style={{
+              padding: 6,
+              border: selectedRegionId === `pending:${r.id}` ? "1px solid #1677ff" : "1px dashed #fa8c16",
+              borderRadius: 6,
+              marginTop: 4,
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>未绑定区域 · {r.points.length} 个顶点</span>
+            <Button
+              size="small"
+              type="text"
+              icon={<DeleteOutlined />}
+              onClick={e => {
+                e.stopPropagation();
+                commit();
+                useRiskMappingWorkbenchStore.getState().deletePendingRegion(r.id);
+              }}
+            />
           </div>
         ))
       )}

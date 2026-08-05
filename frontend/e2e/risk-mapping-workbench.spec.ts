@@ -229,6 +229,10 @@ test.describe("风险分级管控四色分布图工作台", () => {
     if (!box) throw new Error("canvas bounding box unavailable");
     await canvas.click({ position: { x: box.width * 0.4, y: box.height * 0.4 } });
 
+    // 文字工具点击后自动打开编辑弹窗，避免双击时继续新增文字图层
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: /保\s*存/ }).click();
+
     // dirty 后保存按钮可用
     const saveButton = page.getByRole("button", { name: "保存工作台" });
     await expect(saveButton).toBeEnabled();
@@ -239,5 +243,71 @@ test.describe("风险分级管控四色分布图工作台", () => {
     expect((savedPayload as { floor_id: string }).floor_id).toBe(FLOOR_ID);
     expect((savedPayload as { texts: unknown[] }).texts).toHaveLength(1);
     await expect(saveButton).toBeDisabled();
+  });
+
+  test("圆形绘制产生待绑定区域，删除所选可删除", async ({ page }) => {
+    await mockWorkbenchApis(page);
+    await loginAndOpenWorkbench(page);
+
+    await page.getByRole("button", { name: "圆形" }).click();
+    const canvas = page.locator('[data-testid="workbench-canvas"] canvas').first();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("canvas bounding box unavailable");
+    await page.mouse.move(box.x + box.width * 0.18, box.y + box.height * 0.2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3, { steps: 6 });
+    await page.mouse.up();
+
+    await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
+    await page.getByText(/未绑定区域 · \d+ 个顶点/).click();
+    await page.getByRole("button", { name: "删除所选" }).click();
+    await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).not.toBeVisible();
+  });
+
+  test("多边形点击顶点后双击闭合，并显示待绑定区域", async ({ page }) => {
+    await mockWorkbenchApis(page);
+    await loginAndOpenWorkbench(page);
+
+    await page.getByRole("button", { name: "多边形" }).click();
+    const canvas = page.locator('[data-testid="workbench-canvas"] canvas').first();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("canvas bounding box unavailable");
+    await expect(page.locator('[data-testid="workbench-canvas"]')).toHaveAttribute("data-tool", "polygon");
+    await canvas.click({ position: { x: box.width * 0.2, y: box.height * 0.2 } });
+    await page.waitForTimeout(700);
+    await canvas.click({ position: { x: box.width * 0.35, y: box.height * 0.25 } });
+    await page.waitForTimeout(700);
+    await canvas.click({ position: { x: box.width * 0.28, y: box.height * 0.4 } });
+    await page.waitForTimeout(700);
+    await expect(page.locator('[data-testid="workbench-canvas"]')).toHaveAttribute("data-draft-count", "3");
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
+  });
+
+  test("风险点工具点击后进入属性编辑状态", async ({ page }) => {
+    await mockWorkbenchApis(page);
+    await loginAndOpenWorkbench(page);
+
+    await page.getByRole("button", { name: "风险点" }).click();
+    const canvas = page.locator('[data-testid="workbench-canvas"] canvas').first();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("canvas bounding box unavailable");
+    await canvas.click({ position: { x: box.width * 0.42, y: box.height * 0.42 } });
+
+    await expect(page.getByPlaceholder("风险点名称")).toHaveValue("新风险点");
+    await page.getByPlaceholder("风险点名称").fill("配电室风险点");
+    await page.getByRole("button", { name: "保存风险点" }).click();
+    await expect(page.getByText("配电室风险点")).toBeVisible();
+  });
+
+  test("返回与画布缩放入口可用", async ({ page }) => {
+    await mockWorkbenchApis(page);
+    await loginAndOpenWorkbench(page);
+
+    await expect(page.getByRole("button", { name: "返回" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "放大" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "缩小" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "重置缩放" })).toBeVisible();
   });
 });

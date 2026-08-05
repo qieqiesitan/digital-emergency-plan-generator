@@ -7,11 +7,26 @@ const BASE = (eid: string) => `/enterprises/${eid}/risk-management`;
 export const getRiskMappingWorkbench = (eid: string, floorId?: string) =>
   api.get<ApiResponse<RawWorkbenchSnapshot>>(`${BASE(eid)}/workbench`, { params: floorId ? { floor_id: floorId } : {} }).then(r => {
     const d = r.data.data;
+    const zoneRiskPoints = d.zones.flatMap(z =>
+      (z.objects || [])
+        .filter(obj => obj.is_risk_point)
+        .map(obj => ({
+          ...obj,
+          floor_id: obj.floor_id ?? z.floor_id,
+          location_x: obj.location_x ?? 50,
+          location_y: obj.location_y ?? 50,
+        })),
+    );
+    const seen = new Set(d.risk_points.map(p => p.id));
+    const riskPoints = [
+      ...d.risk_points,
+      ...zoneRiskPoints.filter(p => !seen.has(p.id)),
+    ];
     return {
       floors: d.floors,
       currentFloorId: d.current_floor_id,
       zones: d.zones,
-      riskPoints: d.risk_points,
+      riskPoints,
       texts: d.texts,
       pendingRegions: d.pending_regions ?? [],
     };

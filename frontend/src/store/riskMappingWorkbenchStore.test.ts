@@ -7,6 +7,8 @@ import {
   toCanvasX,
   toCanvasY,
   pointsToKonva,
+  circlePoints,
+  quadraticCurvePoints,
   polygonArea,
   validatePolygon,
   simplifyPolygon,
@@ -305,6 +307,94 @@ describe("riskMappingWorkbenchStore", () => {
     expect(store.getState().future).toEqual([]);
     expect(store.getState().dirty).toBe(false);
   });
+
+  it("deletePendingRegion removes only the selected pending region", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({
+      pendingRegions: [
+        {
+          id: "r1",
+          floor_id: "f1",
+          points: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+          ],
+          created_at: "2026-01-01T00:00:00Z",
+        },
+        {
+          id: "r2",
+          floor_id: "f1",
+          points: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+          ],
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      selectedRegionId: "pending:r1",
+    });
+
+    store.getState().deletePendingRegion("r1");
+
+    expect(store.getState().pendingRegions.map(r => r.id)).toEqual(["r2"]);
+    expect(store.getState().selectedRegionId).toBeNull();
+  });
+
+  it("deleteZonePolygon removes a single polygon from the zone", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({
+      zones: [
+        {
+          ...makeZone("z1"),
+          floor_plan_polygon: {
+            version: 2,
+            color_source: "auto",
+            color: null,
+            polygons: [
+              { id: "p1", label: "p1", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] },
+              { id: "p2", label: "p2", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] },
+            ],
+          },
+        },
+      ],
+      selectedRegionId: "zone:z1:p1",
+    });
+
+    store.getState().deleteZonePolygon("z1", "p1");
+
+    const polygons = store.getState().zones[0].floor_plan_polygon?.polygons ?? [];
+    expect(polygons.map(p => p.id)).toEqual(["p2"]);
+    expect(store.getState().selectedRegionId).toBeNull();
+  });
+
+  it("deleteSelected commits once and removes the selected risk point", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({
+      riskPoints: [makeRiskPoint("p1"), makeRiskPoint("p2")],
+      selectedRiskPointId: "p1",
+    });
+
+    store.getState().deleteSelected();
+
+    expect(store.getState().riskPoints.map(p => p.id)).toEqual(["p2"]);
+    expect(store.getState().selectedRiskPointId).toBeNull();
+    expect(store.getState().past).toHaveLength(1);
+  });
+
+  it("zoomBy clamps scale and resetView restores defaults", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.getState().zoomBy(1.2);
+    expect(store.getState().viewScale).toBeCloseTo(1.2);
+    store.getState().zoomBy(100);
+    expect(store.getState().viewScale).toBe(4);
+    store.getState().zoomBy(0.0001);
+    expect(store.getState().viewScale).toBe(0.25);
+    store.setState({ viewX: 10, viewY: -10 });
+    store.getState().resetView();
+    expect(store.getState()).toMatchObject({ viewScale: 1, viewX: 0, viewY: 0 });
+  });
 });
 
 describe("riskMappingGeometry", () => {
@@ -326,6 +416,24 @@ describe("riskMappingGeometry", () => {
     ];
     expect(pointsToKonva(points, 1000, 1000)).toEqual([0, 0, 100, 0, 100, 100, 0, 100]);
     expect(polygonArea(points)).toBe(100);
+  });
+
+  it("builds a closed circle approximation within canvas bounds", () => {
+    const points = circlePoints({ x: 50, y: 50 }, 20, 360);
+    expect(points).toHaveLength(360);
+    expect(Math.abs(points[0].x - points[359].x)).toBeLessThan(0.5);
+    expect(Math.abs(points[0].y - points[359].y)).toBeLessThan(0.5);
+    expect(points.every(p => p.x >= 30 && p.x <= 70 && p.y >= 30 && p.y <= 70)).toBe(true);
+    expect(validatePolygon(points)).toBeNull();
+  });
+
+  it("builds a quadratic curve approximation with endpoints preserved", () => {
+    const points = quadraticCurvePoints({ x: 0, y: 0 }, { x: 50, y: 80 }, { x: 100, y: 0 }, 10);
+    expect(points).toHaveLength(11);
+    expect(points[0]).toEqual({ x: 0, y: 0 });
+    expect(points[10]).toEqual({ x: 100, y: 0 });
+    expect(points[5].y).toBeGreaterThan(0);
+    expect(points.every(p => p.x >= 0 && p.x <= 100)).toBe(true);
   });
 
   it("validates polygon requirements", () => {

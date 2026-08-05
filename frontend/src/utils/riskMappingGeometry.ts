@@ -12,6 +12,30 @@ export const clampPoint = (p: RiskPolygonPoint): RiskPolygonPoint => ({
 export const pointsToKonva = (points: RiskPolygonPoint[], width = 1200, height = 900) =>
   points.flatMap(p => [toCanvasX(p.x, width), toCanvasY(p.y, height)]);
 
+export const circlePoints = (center: RiskPolygonPoint, radius: number, segments = 48): RiskPolygonPoint[] =>
+  Array.from({ length: segments }, (_, i) => {
+    const angle = (Math.PI * 2 * i) / segments;
+    return clampPoint({
+      x: center.x + Math.cos(angle) * radius,
+      y: center.y + Math.sin(angle) * radius,
+    });
+  });
+
+export const quadraticCurvePoints = (
+  start: RiskPolygonPoint,
+  control: RiskPolygonPoint,
+  end: RiskPolygonPoint,
+  segments = 16,
+): RiskPolygonPoint[] =>
+  Array.from({ length: segments + 1 }, (_, i) => {
+    const t = i / segments;
+    const inv = 1 - t;
+    return clampPoint({
+      x: inv * inv * start.x + 2 * inv * t * control.x + t * t * end.x,
+      y: inv * inv * start.y + 2 * inv * t * control.y + t * t * end.y,
+    });
+  });
+
 export const polygonArea = (points: RiskPolygonPoint[]) => {
   let area = 0;
   for (let i = 0; i < points.length; i++) {

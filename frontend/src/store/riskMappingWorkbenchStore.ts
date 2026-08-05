@@ -21,7 +21,12 @@ export interface WorkbenchDomainState {
 interface WorkbenchState extends WorkbenchDomainState {
   selectedZoneId: string | null;
   selectedRegionId: string | null;
-  tool: "select" | "rect" | "polygon" | "freehand" | "risk-point" | "text";
+  selectedRiskPointId: string | null;
+  selectedTextId: string | null;
+  viewScale: number;
+  viewX: number;
+  viewY: number;
+  tool: "select" | "rect" | "circle" | "polygon" | "pen" | "freehand" | "risk-point" | "text";
   gridEnabled: boolean;
   snapEnabled: boolean;
   guideEnabled: boolean;
@@ -32,8 +37,14 @@ interface WorkbenchState extends WorkbenchDomainState {
   setSnapshot: (data: Partial<WorkbenchDomainState>) => void;
   commit: () => void;
   markSaved: () => void;
+  zoomBy: (factor: number) => void;
+  resetView: () => void;
   deleteZone: (zoneId: string) => void;
   deleteRiskPoint: (pointId: string) => void;
+  deletePendingRegion: (regionId: string) => void;
+  deleteZonePolygon: (zoneId: string, polygonId: string) => void;
+  deleteText: (textId: string) => void;
+  deleteSelected: () => void;
   reset: () => void;
 }
 
@@ -48,6 +59,11 @@ const initial = {
   deletedRiskPointIds: [],
   selectedZoneId: null,
   selectedRegionId: null,
+  selectedRiskPointId: null,
+  selectedTextId: null,
+  viewScale: 1,
+  viewX: 0,
+  viewY: 0,
   tool: "select" as const,
   gridEnabled: true,
   snapEnabled: true,
@@ -91,6 +107,11 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
     const state = get();
     set({ past: [...state.past.slice(-49), snapshotOf(state)], future: [], dirty: true });
   },
+  zoomBy: (factor) => {
+    const state = get();
+    set({ viewScale: Math.min(4, Math.max(0.25, state.viewScale * factor)) });
+  },
+  resetView: () => set({ viewScale: 1, viewX: 0, viewY: 0 }),
   markSaved: () => {
     const state = get();
     set({ dirty: false, savedFingerprint: fingerprintOf(state), past: [], future: [] });
@@ -107,6 +128,12 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
       zones: state.zones.filter(z => z.id !== zoneId),
       riskPoints: state.riskPoints.filter(p => p.zone_id !== zoneId),
       selectedZoneId: state.selectedZoneId === zoneId ? null : state.selectedZoneId,
+      selectedRiskPointId: state.riskPoints.some(p => p.zone_id === zoneId && p.id === state.selectedRiskPointId)
+        ? null
+        : state.selectedRiskPointId,
+      selectedRegionId: state.selectedRegionId?.startsWith(`zone:${zoneId}:`)
+        ? null
+        : state.selectedRegionId,
       deletedZoneIds: isPersisted
         ? [...state.deletedZoneIds, zoneId]
         : state.deletedZoneIds,
@@ -122,7 +149,63 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
       deletedRiskPointIds: isPersisted
         ? [...state.deletedRiskPointIds, pointId]
         : state.deletedRiskPointIds,
+      selectedRiskPointId: state.selectedRiskPointId === pointId ? null : state.selectedRiskPointId,
     });
+  },
+  deletePendingRegion: (regionId) => {
+    const state = get();
+    set({
+      pendingRegions: state.pendingRegions.filter(r => r.id !== regionId),
+      selectedRegionId: state.selectedRegionId === `pending:${regionId}` ? null : state.selectedRegionId,
+    });
+  },
+  deleteZonePolygon: (zoneId, polygonId) => {
+    const state = get();
+    set({
+      zones: state.zones.map(z => {
+        if (z.id !== zoneId || !z.floor_plan_polygon) return z;
+        return {
+          ...z,
+          floor_plan_polygon: {
+            ...z.floor_plan_polygon,
+            polygons: z.floor_plan_polygon.polygons.filter(p => p.id !== polygonId),
+          },
+        };
+      }),
+      selectedRegionId: state.selectedRegionId === `zone:${zoneId}:${polygonId}` ? null : state.selectedRegionId,
+    });
+  },
+  deleteText: (textId) => {
+    const state = get();
+    set({
+      texts: state.texts.filter(t => t.id !== textId),
+      selectedTextId: state.selectedTextId === textId ? null : state.selectedTextId,
+    });
+  },
+  deleteSelected: () => {
+    const state = get();
+    if (!state.selectedRegionId && !state.selectedRiskPointId && !state.selectedTextId) return;
+    state.commit();
+    const current = get();
+    if (current.selectedRegionId?.startsWith("pending:")) {
+      current.deletePendingRegion(current.selectedRegionId.slice("pending:".length));
+      return;
+    }
+    if (current.selectedRegionId?.startsWith("zone:")) {
+      const body = current.selectedRegionId.slice("zone:".length);
+      const separator = body.indexOf(":");
+      const zoneId = body.slice(0, separator);
+      const polygonId = body.slice(separator + 1);
+      current.deleteZonePolygon(zoneId, polygonId);
+      return;
+    }
+    if (current.selectedRiskPointId) {
+      current.deleteRiskPoint(current.selectedRiskPointId);
+      return;
+    }
+    if (current.selectedTextId) {
+      current.deleteText(current.selectedTextId);
+    }
   },
   reset: () => set({ ...initial }),
 }));
@@ -134,10 +217,15 @@ export const undo = () => useRiskMappingWorkbenchStore.setState(state => {
     ...previous,
     selectedZoneId: state.selectedZoneId,
     selectedRegionId: state.selectedRegionId,
+    selectedRiskPointId: state.selectedRiskPointId,
+    selectedTextId: state.selectedTextId,
     tool: state.tool,
     gridEnabled: state.gridEnabled,
     snapEnabled: state.snapEnabled,
     guideEnabled: state.guideEnabled,
+    viewScale: state.viewScale,
+    viewX: state.viewX,
+    viewY: state.viewY,
   };
   return {
     ...restored,
@@ -154,10 +242,15 @@ export const redo = () => useRiskMappingWorkbenchStore.setState(state => {
     ...next,
     selectedZoneId: state.selectedZoneId,
     selectedRegionId: state.selectedRegionId,
+    selectedRiskPointId: state.selectedRiskPointId,
+    selectedTextId: state.selectedTextId,
     tool: state.tool,
     gridEnabled: state.gridEnabled,
     snapEnabled: state.snapEnabled,
     guideEnabled: state.guideEnabled,
+    viewScale: state.viewScale,
+    viewX: state.viewX,
+    viewY: state.viewY,
   };
   return {
     ...restored,

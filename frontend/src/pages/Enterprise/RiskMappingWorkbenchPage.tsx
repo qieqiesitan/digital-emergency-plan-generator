@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Spin, Space, Button, Modal, message } from "antd";
-import { SaveOutlined, UndoOutlined, RedoOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, SaveOutlined, UndoOutlined, RedoOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getRiskMappingWorkbench,
@@ -18,10 +18,33 @@ import EnterpriseFloorManager from "@/components/enterprise/EnterpriseFloorManag
 
 export default function RiskMappingWorkbenchPage() {
   const { id: enterpriseId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const currentFloorId = useRiskMappingWorkbenchStore(s => s.currentFloorId);
   const setSnapshot = useRiskMappingWorkbenchStore(s => s.setSnapshot);
   const dirty = useRiskMappingWorkbenchStore(s => s.dirty);
   const queryClient = useQueryClient();
+
+  const goBack = () => {
+    const back = () => {
+      if (enterpriseId) {
+        navigate(`/enterprises/${enterpriseId}`);
+      } else {
+        navigate(-1);
+      }
+    };
+    if (dirty) {
+      Modal.confirm({
+        title: "返回并放弃未保存的改动？",
+        content: "当前工作台存在未保存修改，返回后这些改动将丢失。",
+        okText: "返回",
+        okButtonProps: { danger: true },
+        cancelText: "取消",
+        onOk: back,
+      });
+      return;
+    }
+    back();
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["risk-workbench", enterpriseId, currentFloorId],
@@ -155,6 +178,7 @@ export default function RiskMappingWorkbenchPage() {
   return (
     <div style={{ height: "calc(100vh - 80px)", display: "flex", flexDirection: "column", gap: 8 }}>
       <Space wrap>
+        <Button aria-label="返回" icon={<ArrowLeftOutlined />} onClick={goBack} />
         <EnterpriseFloorManager enterpriseId={enterpriseId!} />
         <WorkbenchToolbar />
         <Button aria-label="撤销" icon={<UndoOutlined />} onClick={undo} />

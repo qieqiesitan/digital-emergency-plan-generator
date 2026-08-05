@@ -1,21 +1,23 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-05）：风险分级管控四色分布图工作台已同步部署到本地 Docker，可测试
+- 正在做什么（2026-08-05）：风险分级管控四色分布图工作台易用性优化迭代完成，并已同步本地 Docker
 - 刚完成的动作：
-  - 本地保存点：`1f64844`；迁移前全库备份：`backup/risk-mapping-pre-migration-20260805.sql`（未提交）
-  - 已执行并重跑 `backend/db_migration_risk_mapping_workbench.sql`，幂等通过：100 个默认楼层、7 个分区、14 个风险对象全部绑定
-  - 使用 Node 22 完成生产构建（本机 Node 24 在 Rollup 阶段崩溃）：`npx -y node@22 node_modules/vite/bin/vite.js build`，dist 含 workbench 路由
-  - Docker：重建 backend/frontend/shuzihuayuan；前端容器补齐 konva/react-konva 并 commit 为 `2-frontend`；移动端镜像已含最新 dist
-  - 部署修复：`backend/app/main.py` 仅存在 icons 目录时挂载；`frontend/vite.config.ts` 支持 `VITE_CACHE_DIR`；`docker-compose.yml` 为 frontend 挂载 vite.config.ts 并设 `/tmp/vite-cache`
+  - 工作台新增返回按钮；区域按钮删除 + Del/Backspace 删除；选中区域可绑定/移动到分区
+  - 绘制工具新增圆形、钢笔（折线 + Shift 拖拽弧线）；多边形/钢笔实时顶点预览，Enter 或双击闭合
+  - 画布支持滚轮缩放与放大/缩小/重置按钮；风险点点击即选中并支持名称/属性/坐标/分区编辑
+  - 服务层合并树状图已添加的风险点到画布，原有风险点可显示、拖拽、编辑
+  - 文字工具单击创建后立即进入编辑，修复双击重复新增文字图层问题
+  - Docker：重建 frontend/shuzihuayuan，移动端镜像包含最新 dist；生产构建使用 Node 22
 - 验证结果：
-  - 后端 pytest：66 passed；前端 tsc 通过、vitest：25 passed
-  - Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright：3 passed
-  - 真实 API：登录后 `/risk-management/floors` 返回默认总图，`/risk-management/workbench` 返回工作台结构
+  - 前端 tsc 通过；vitest 31 passed（含圆形/二次曲线/删除/缩放）
+  - 本地 Playwright 7 passed；Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright 7 passed
+  - Node 22 生产构建通过（PWA 正常生成）
 - 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
 - 可复现命令：
+  - `cd frontend && npx playwright test e2e/risk-mapping-workbench.spec.ts`
   - `$env:E2E_BASE_URL='http://localhost:5173'; cd frontend && npx playwright test e2e/risk-mapping-workbench.spec.ts`
   - `cd frontend && npx -y node@22 node_modules/typescript/bin/tsc -b`
   - `cd frontend && npx -y node@22 node_modules/vite/bin/vite.js build`
-  - `cd backend && .venv\Scripts\python.exe -m pytest tests/test_risk_mapping_workbench.py tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py tests/test_floor_plan_upload.py tests/test_risk_mapping_cascade.py -v`
+  - `cd frontend && npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`
 - 以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-05，任务 11 代码质量复审第二轮完成）：复审 fix commit `c23b36d`，结论 ✅ 通过（8 条意见中 7 条已解决并实证；次要意见 5 未处理）
 - 刚完成的动作：
