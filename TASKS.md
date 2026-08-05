@@ -1,4 +1,19 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-05，任务 11 收尾）：E2E、性能与发布验证完成，正在提交独立 commit `test(risk-mapping): add workbench e2e and release verification`
+- 刚完成的动作：
+  - 创建 `frontend/e2e/risk-mapping-workbench.spec.ts`：3 个用例全部通过
+    1. 工作台路由打开 + 画布渲染（`/enterprises/:id/risk-mapping-workbench`、canvas、分区面板、保存按钮）
+    2. 矩形绘制产生待绑定区域 → 保存时触发「存在待绑定区域」确认弹窗（antd v6 无 `.ant-modal-content`，断言用 `.ant-modal-confirm-title`）
+    3. 文字标注绘制 → 保存成功闭环（mock batch-save 断言 payload.texts=1）
+  - E2E 方案：工作台 API 全部用 Playwright 路由 mock（auth/users/me/my-menus/enterprises/floors/workbench/batch-save），可脱离后端独立运行；`E2E_BASE_URL` 环境变量可切换目标
+  - 验证结果：`npx tsc -b` 通过；vitest 2 个文件 25 passed；venv pytest 5 个文件 66 passed；`npx playwright test e2e/risk-mapping-workbench.spec.ts` 3 passed（连跑 2 次稳定）
+- 任务 1-11 状态：任务 1-11 全部完成
+  - 1（模型/迁移 d417f12+8719355）、2（服务/Schema e424fa4+f011b09）、3（Floors/上传/清理 caba211）、4（Workbench API 615109d+397bec8）、5（前端类型/服务/路由 2d4fc07+48be874）、6（Store/几何 5b7e845+03c0f1f）、7+8（页面壳/楼层 + Konva 画布/工具 e29e6e8+f229b88）、9（绑定/保存/属性 31208a6、9c1d6f7）、10（总览联动 6d79bad、9c1d6f7）、11（E2E/发布验证，本次提交）
+- 已知发布前置（未执行项）：
+  - 迁移未执行：`backend/db_migration_risk_mapping_workbench.sql` 未在任何环境执行（本地 8000 后端为旧构建，无 workbench API；VM 为 6 月代码）
+  - 发布前置 5 项：①测试库执行迁移 SQL 并确认可幂等重跑 ②后端 pytest 全通过（本次 66 passed）③`cd frontend && npm run build` 通过（本次仅 tsc -b 通过，未跑完整 build）④Playwright E2E 通过（本次 3 passed）⑤旧企业总图迁移后抽查 3 个企业的分区坐标与总览色块
+  - 构建环境限制：localhost:5173 的 Vite dev server 运行在 Docker 容器内（服务 /app 下旧源码，工作台页仍为占位）；本地 8000 后端也是旧构建（/workbench、/floors 均返回 SPA HTML），真实服务 E2E 无法执行 → 本次 E2E 为本地启动当前源码 dev server（http://localhost:5174）+ API mock 的方式执行；Playwright chromium 已安装
+  - 关键上下文：分支 codex/protego-integration；HEAD 9c1d6f7；本次提交仅含 frontend/e2e/risk-mapping-workbench.spec.ts + TASKS.md，未触碰功能代码；未跟踪的 task10-fix2-report.txt / task10-rereview2.txt 保持原状
 - 正在做什么（新排查，2026-08-05）：应急预案生成时公司地址被 AI 乱猜（如西安“湖北大厦”被写成湖北武汉）——已完成根因调查，未改动代码
 - 刚完成的动作：
   - 排查结论：非代码“解析地址”，而是 ①企业 address 字段不完整/为空（100 家中 55 空、18 家 <8 字符；'陕西宝岳科技' id=2f754692… address='湖北大厦'，'陕西宝岳科技有限公司' id=a1866bd9… 同）→ ②generation.py `_collect_enterprise_data` 把 `"address":"湖北大厦"` 原样注入每个章节提示词 → ③提示词模板要求“结合企业实际信息、不得使用占位符”，但无“地址以企业信息为准、缺失标待补充、禁止推断”护栏 → 模型凭先验知识脑补成湖北省武汉市（LLM 幻觉，非确定性 bug）
