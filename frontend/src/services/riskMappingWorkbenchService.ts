@@ -1,6 +1,6 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { RawWorkbenchSnapshot, RawOverviewResponse, BatchSavePayload, BatchSaveResponse, EnterpriseFloor } from "@/types/riskMappingWorkbench";
+import type { RawWorkbenchSnapshot, BatchSavePayload, BatchSaveResponse, EnterpriseFloor } from "@/types/riskMappingWorkbench";
 
 const BASE = (eid: string) => `/enterprises/${eid}/risk-management`;
 

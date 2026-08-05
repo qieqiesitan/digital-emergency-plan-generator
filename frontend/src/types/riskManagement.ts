@@ -2,6 +2,17 @@ export type MethodType = "LS" | "LEC" | "COAL_LS" | "DIRECT";
 export type MeasureCategory = "engineering" | "management" | "ppe" | "emergency";
 export type MeasureStatus = "pending" | "implemented" | "expired";
 
+export type RiskLevel = "重大" | "较大" | "一般" | "低" | "未评估";
+export type ColorSource = "auto" | "manual";
+export interface RiskPolygonPoint { x: number; y: number }
+export interface RiskPolygon { id: string; label?: string; points: RiskPolygonPoint[] }
+export interface RiskZoneFloorPlanPolygon {
+  version: 2;
+  color_source: ColorSource;
+  color: string | null;
+  polygons: RiskPolygon[];
+}
+
 export interface CheckItem { name: string; standard: string; frequency: string; }
 
 export interface MethodConfig {
@@ -23,14 +34,20 @@ export interface RiskZone {
   name: string;
   description: string | null;
   sort_order: number;
-  floor_plan_polygon: { version: 2; color_source: "auto" | "manual"; color: string | null; polygons: { id: string; label?: string; points: { x: number; y: number }[] }[] } | null;
+  floor_plan_polygon: RiskZoneFloorPlanPolygon | null;
   max_risk_level: string | null;
   effective_color: string | null;
   object_count: number;
   created_at: string;
   updated_at: string;
 }
-export interface RiskZoneCreate { name: string; description?: string; sort_order?: number; floor_plan_polygon?: { points: { x: number; y: number }[] }; }
+export interface RiskZoneCreate {
+  floor_id?: string | null;
+  name: string;
+  description?: string;
+  sort_order?: number;
+  floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
+}
 
 export interface RiskObject {
   id: string;
@@ -50,7 +67,18 @@ export interface RiskObject {
   updated_at: string;
   unit_count: number;
 }
-export interface RiskObjectCreate { zone_id?: string; name: string; category?: string; location?: string; location_x?: number; location_y?: number; description?: string; image_url?: string; is_risk_point?: boolean; }
+export interface RiskObjectCreate {
+  zone_id?: string;
+  floor_id?: string | null;
+  name: string;
+  category?: string;
+  location?: string;
+  location_x?: number;
+  location_y?: number;
+  description?: string;
+  image_url?: string;
+  is_risk_point?: boolean;
+}
 
 export interface RiskUnit { id: string; object_id: string; name: string; unit_type: string | null; description: string | null; location: string | null; sort_order: number; created_at: string; event_count: number; }
 export interface RiskUnitCreate { object_id?: string; name: string; unit_type?: string; description?: string; location?: string; }
@@ -64,8 +92,28 @@ export interface RiskMeasureCreate { event_id?: string; measure_category: Measur
 export interface HierarchyMeasure extends Pick<RiskMeasure, 'id'|'measure_category'|'measure_type'|'description'|'status'> { check_items: CheckItem[]; }
 export interface HierarchyEvent extends Pick<RiskEvent, 'id'|'accident_type'|'description'|'risk_level'|'risk_score'|'method_type'> { method_params: Record<string, number>; measures: HierarchyMeasure[]; }
 export interface HierarchyUnit extends Pick<RiskUnit, 'id'|'name'|'unit_type'> { events: HierarchyEvent[]; }
-export interface HierarchyObject extends Pick<RiskObject, "id" | "name" | "category" | "is_risk_point" | "floor_id" | "location_x" | "location_y"> { units: HierarchyUnit[]; events: HierarchyEvent[]; }
-export interface HierarchyZone extends Pick<RiskZone, "id" | "name" | "description" | "floor_id" | "floor_name" | "floor_plan_polygon" | "max_risk_level" | "effective_color"> { objects: HierarchyObject[]; }
+export interface HierarchyObject {
+  id: string;
+  name: string;
+  category: string | null;
+  is_risk_point: boolean;
+  floor_id?: string | null;
+  location_x?: number | null;
+  location_y?: number | null;
+  units: HierarchyUnit[];
+  events: HierarchyEvent[];
+}
+export interface HierarchyZone {
+  id: string;
+  name: string;
+  description: string | null;
+  floor_id?: string | null;
+  floor_name?: string | null;
+  floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
+  max_risk_level?: string | null;
+  effective_color?: string | null;
+  objects: HierarchyObject[];
+}
 
 export interface SmartGuideMeasure {
   description: string;
