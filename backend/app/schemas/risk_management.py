@@ -1,19 +1,65 @@
 from datetime import datetime, date
 from typing import Optional
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from app.schemas.common import DatetimeStr
 
 class MethodCreate(BaseModel): method_type: str; name: str; description: str = ""; config: dict = {}
 class MethodUpdate(BaseModel): name: str | None = None; description: str | None = None; config: dict | None = None; is_active: bool | None = None
 class MethodResponse(BaseModel): id: str; enterprise_id: str | None; method_type: str; name: str; description: str = ""; config: dict; is_active: bool; is_system: bool; created_at: DatetimeStr; model_config = {"from_attributes": True}
 
-class RiskZoneCreate(BaseModel): name: str; description: str | None = None; sort_order: int = 0; floor_plan_polygon: dict | None = None
-class RiskZoneUpdate(BaseModel): name: str | None = None; description: str | None = None; sort_order: int | None = None; floor_plan_polygon: dict | None = None
-class RiskZoneResponse(BaseModel): id: str; enterprise_id: str; name: str; description: str | None; sort_order: int; floor_plan_polygon: dict | None; created_at: DatetimeStr; object_count: int = 0; model_config = {"from_attributes": True}
+class FloorCreate(BaseModel): name: str; sort_order: int = 0; floor_plan_url: str | None = None; description: str | None = None; canvas_width: int | None = None; canvas_height: int | None = None; canvas_texts: list[dict] = []; is_default: bool = False
+class FloorUpdate(BaseModel): name: str | None = None; sort_order: int | None = None; floor_plan_url: str | None = None; description: str | None = None; canvas_width: int | None = None; canvas_height: int | None = None; canvas_texts: list[dict] | None = None; is_default: bool | None = None
+class FloorResponse(BaseModel): id: str; enterprise_id: str; name: str; sort_order: int; floor_plan_url: str | None; description: str | None; canvas_width: int | None; canvas_height: int | None; canvas_texts: list[dict]; is_default: bool; zone_count: int = 0; risk_point_count: int = 0; created_at: DatetimeStr; updated_at: DatetimeStr; model_config = {"from_attributes": True}
 
-class RiskObjectCreate(BaseModel): zone_id: str | None = None; name: str; category: str | None = None; location: str | None = None; location_x: float | None = None; location_y: float | None = None; description: str | None = None; image_url: str | None = None; is_risk_point: bool = False; sort_order: int = 0
-class RiskObjectUpdate(BaseModel): zone_id: str | None = None; name: str | None = None; category: str | None = None; location: str | None = None; location_x: float | None = None; location_y: float | None = None; description: str | None = None; image_url: str | None = None; is_risk_point: bool | None = None; sort_order: int | None = None
-class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
+class RiskPolygonPoint(BaseModel):
+    x: float
+    y: float
+
+    @field_validator("x", "y")
+    @classmethod
+    def check_range(cls, v: float):
+        if not (0 <= v <= 100):
+            raise ValueError("坐标范围 0-100")
+        return v
+
+class RiskPolygon(BaseModel): id: str; label: str | None = None; points: list[RiskPolygonPoint]
+class RiskZoneFloorPlanPolygon(BaseModel): version: int = 2; color_source: str; color: str | None = None; polygons: list[RiskPolygon]
+class RiskCanvasText(BaseModel): id: str; content: str; x: float; y: float; font_size: int = 14; color: str = "#333333"; rotation: int = 0; sort_order: int = 0
+
+class RiskZoneCreate(BaseModel): floor_id: str | None = None; name: str; description: str | None = None; sort_order: int = 0; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None
+class RiskZoneUpdate(BaseModel): floor_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None
+class RiskZoneResponse(BaseModel): id: str; enterprise_id: str; floor_id: str | None; floor_name: str | None = None; name: str; description: str | None; sort_order: int; floor_plan_polygon: RiskZoneFloorPlanPolygon | None; max_risk_level: str | None = None; effective_color: str | None = None; object_count: int = 0; created_at: DatetimeStr; updated_at: DatetimeStr; model_config = {"from_attributes": True}
+
+class RiskObjectCreate(BaseModel):
+    zone_id: str | None = None
+    floor_id: str | None = None
+    name: str
+    category: str | None = None
+    location: str | None = None
+    location_x: float | None = None
+    location_y: float | None = None
+    description: str | None = None
+    image_url: str | None = None
+    is_risk_point: bool = False
+    sort_order: int = 0
+
+    @model_validator(mode="after")
+    def validate_risk_point(self):
+        if self.is_risk_point and (not self.zone_id or self.location_x is None or self.location_y is None):
+            raise ValueError("风险点必须绑定分区和坐标")
+        return self
+
+class RiskObjectUpdate(BaseModel): zone_id: str | None = None; floor_id: str | None = None; name: str | None = None; category: str | None = None; location: str | None = None; location_x: float | None = None; location_y: float | None = None; description: str | None = None; image_url: str | None = None; is_risk_point: bool | None = None; sort_order: int | None = None
+class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; floor_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; updated_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
+
+class BatchSaveZoneItem(BaseModel): client_id: str | None = None; zone_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int = 0; updated_at: DatetimeStr | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon
+class BatchSaveRiskPointItem(BaseModel): client_id: str | None = None; id: str | None = None; name: str | None = None; category: str | None = None; description: str | None = None; zone_id: str | None = None; zone_client_id: str | None = None; floor_id: str | None = None; location_x: float; location_y: float; updated_at: DatetimeStr | None = None
+class BatchSaveRequest(BaseModel): floor_id: str; floor_updated_at: DatetimeStr; zones: list[BatchSaveZoneItem]; risk_points: list[BatchSaveRiskPointItem] = []; deleted_risk_point_ids: list[str] = []; deleted_zone_ids: list[str] = []; confirm_cascade_zone_ids: list[str] = []; texts: list[RiskCanvasText] = []
+class BatchSaveResponse(BaseModel): floor: FloorResponse; zones: list[RiskZoneResponse]; risk_points: list[RiskObjectResponse]; texts: list[RiskCanvasText]; created_zone_map: dict[str, str] = {}; created_risk_point_map: dict[str, str] = {}
+
+class WorkbenchZone(RiskZoneResponse): objects: list[RiskObjectResponse] = []
+class WorkbenchResponse(BaseModel): floors: list[FloorResponse]; current_floor_id: str; zones: list[WorkbenchZone]; risk_points: list[RiskObjectResponse]; texts: list[RiskCanvasText]
+class OverviewResponse(BaseModel): floor: FloorResponse; zones: list[WorkbenchZone]; risk_points: list[RiskObjectResponse]
 
 class RiskUnitCreate(BaseModel): object_id: str | None = None; name: str; unit_type: str | None = None; description: str | None = None; location: str | None = None; sort_order: int = 0
 class RiskUnitUpdate(BaseModel): name: str | None = None; unit_type: str | None = None; description: str | None = None; location: str | None = None; sort_order: int | None = None
