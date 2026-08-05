@@ -34,7 +34,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 if os.path.isdir(FRONTEND_DIST):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
-    app.mount("/icons", StaticFiles(directory=os.path.join(FRONTEND_DIST, "icons")), name="icons")
+    if os.path.isdir(os.path.join(FRONTEND_DIST, "icons")):
+        app.mount("/icons", StaticFiles(directory=os.path.join(FRONTEND_DIST, "icons")), name="icons")
 
 @app.post("/api/v1/upload")
 async def upload_file(file: UploadFile = File(...), _=Depends(get_current_user)):

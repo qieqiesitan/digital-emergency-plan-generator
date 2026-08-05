@@ -71,6 +71,7 @@ async function getPlugins() {
 export default defineConfig(async () => ({
   plugins: await getPlugins(),
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+  cacheDir: process.env.VITE_CACHE_DIR || "node_modules/.vite",
   server: {
     port: 5173,
     cors: true,

@@ -1,21 +1,21 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（最终快照，2026-08-05）：风险分级管控四色分布图工作台任务 1-11 全部完成并通过规格/质量审查
+- 正在做什么（2026-08-05）：风险分级管控四色分布图工作台已同步部署到本地 Docker，可测试
 - 刚完成的动作：
-  - 后端：模型/迁移、服务/Schema、Floors/上传/清理、Workbench API/批量保存/总览
-  - 前端：类型/服务/路由、Store/几何、页面壳/楼层管理、Konva 画布/工具、绑定/属性/文字/保存、总览联动/旧入口兼容
-  - 测试：后端 pytest 66 passed；前端 tsc -b 通过、vitest 25 passed、Playwright 3 passed（webServer 自包含，冷启动 6/6 passed）
-  - 提交：完整 commit 链从 d417f12 至 c23b36d，详见下方历史快照
-- 未执行发布前置（上线前必须完成）：
-  - 在测试库执行 backend/db_migration_risk_mapping_workbench.sql 并确认幂等
-  - 执行 cd frontend && npm run build（当前环境仅 tsc -b 通过；完整 Vite 构建受 Node 24/Rollup 兼容问题限制）
-  - 在部署新后端后跑真实服务 E2E
-  - 抽查至少 3 个旧企业总图迁移后的分区坐标与总览色块
+  - 本地保存点：`1f64844`；迁移前全库备份：`backup/risk-mapping-pre-migration-20260805.sql`（未提交）
+  - 已执行并重跑 `backend/db_migration_risk_mapping_workbench.sql`，幂等通过：100 个默认楼层、7 个分区、14 个风险对象全部绑定
+  - 使用 Node 22 完成生产构建（本机 Node 24 在 Rollup 阶段崩溃）：`npx -y node@22 node_modules/vite/bin/vite.js build`，dist 含 workbench 路由
+  - Docker：重建 backend/frontend/shuzihuayuan；前端容器补齐 konva/react-konva 并 commit 为 `2-frontend`；移动端镜像已含最新 dist
+  - 部署修复：`backend/app/main.py` 仅存在 icons 目录时挂载；`frontend/vite.config.ts` 支持 `VITE_CACHE_DIR`；`docker-compose.yml` 为 frontend 挂载 vite.config.ts 并设 `/tmp/vite-cache`
+- 验证结果：
+  - 后端 pytest：66 passed；前端 tsc 通过、vitest：25 passed
+  - Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright：3 passed
+  - 真实 API：登录后 `/risk-management/floors` 返回默认总图，`/risk-management/workbench` 返回工作台结构
+- 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
 - 可复现命令：
-  - `cd frontend && npx playwright test e2e/risk-mapping-workbench.spec.ts`
-  - `cd frontend && npx tsc -b`
-  - `cd frontend && npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`
-  - `cd backend && .venv\Scripts\python.exe -m pytest backend/tests/test_risk_mapping_workbench.py backend/tests/test_risk_mapping_service.py backend/tests/test_risk_mapping_migration.py backend/tests/test_floor_plan_upload.py backend/tests/test_risk_mapping_cascade.py -v`
-  - `psql -h localhost -U postgres -d emergency_plan -f backend/db_migration_risk_mapping_workbench.sql`
+  - `$env:E2E_BASE_URL='http://localhost:5173'; cd frontend && npx playwright test e2e/risk-mapping-workbench.spec.ts`
+  - `cd frontend && npx -y node@22 node_modules/typescript/bin/tsc -b`
+  - `cd frontend && npx -y node@22 node_modules/vite/bin/vite.js build`
+  - `cd backend && .venv\Scripts\python.exe -m pytest tests/test_risk_mapping_workbench.py tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py tests/test_floor_plan_upload.py tests/test_risk_mapping_cascade.py -v`
 - 以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-05，任务 11 代码质量复审第二轮完成）：复审 fix commit `c23b36d`，结论 ✅ 通过（8 条意见中 7 条已解决并实证；次要意见 5 未处理）
 - 刚完成的动作：

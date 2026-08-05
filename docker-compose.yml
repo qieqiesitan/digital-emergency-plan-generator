@@ -54,8 +54,10 @@ services:
     container_name: emergency-plan-frontend
     environment:
       VITE_API_TARGET: http://backend:8000
+      VITE_CACHE_DIR: /tmp/vite-cache
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/vite.config.ts:/app/vite.config.ts
     ports:
       - "5173:5173"
     depends_on:
