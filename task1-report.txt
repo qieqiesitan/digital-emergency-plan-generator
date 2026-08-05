@@ -1,0 +1,21 @@
+## 执行报告：任务 1「数据模型与迁移基线」
+
+**状态：** ✅ 完成（无阻塞）。提交 `d417f12`：`feat(risk-mapping): add floor model and workbench migration baseline`（4 文件，190 插入）。
+
+### 实现内容
+- 新建 [db_migration_risk_mapping_workbench.sql](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/db_migration_risk_mapping_workbench.sql)：按规格 4.1/4.2/4.3/4.6 完整 SQL——`enterprise_floors` 建表+索引+默认楼层迁移、`risk_zones/risk_objects.floor_id` 加列+回填+NOT NULL、楼层外键 RESTRICT、`risk_objects.zone_id` 外键重建为 RESTRICT、v1 多边形迁移 v2、事务包裹。
+- [enterprise.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/models/enterprise.py)：`RiskSource` 前新增 `EnterpriseFloor` 模型（含 `canvas_width/height/canvas_texts/is_default` 等字段）。
+- [risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/models/risk_management.py)：`RiskZone`/`RiskObject` 增加 `floor_id` 与 `floor` 关系；`RiskObject.zone_id` 外键 `SET NULL` 改 `RESTRICT`；导入 `EnterpriseFloor`。
+- 新建 [test_risk_mapping_migration.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/tests/test_risk_mapping_migration.py)：3 个元数据断言（楼层列、floor_id 列、zone 外键 RESTRICT）。
+
+### 测试结果
+`backend/.venv` 中运行 `python -m pytest tests/test_risk_mapping_migration.py -v` → **3 passed**（2.57s）。`git diff --check` 无错误；模型导入验证：`zone_id` 外键 RESTRICT、`RiskZone.floor_id` NOT NULL、`RiskObject.floor_id` 可空，均符合规格。
+
+### 修改文件
+已提交：`backend/db_migration_risk_mapping_workbench.sql`（新建）、`backend/tests/test_risk_mapping_migration.py`（新建）、`backend/app/models/enterprise.py`、`backend/app/models/risk_management.py`。未提交（计划外/留待后续任务）：`TASKS.md`（快照更新，按计划任务 11 提交）。
+
+### 自审发现
+1. 计划展示的 SQL 块省略了规格 4.6 中 `enterprise_floors` 陈旧外键清理的两个 DO 块；因计划文字要求「规格 4.1/4.2/4.3/4.6 的完整 SQL」，我按规格补全，未做其他改动。
+2. 环境问题：全局 pytest 因 `pytest-asyncio` 版本冲突无法启动，venv 中无 pytest。已在 `backend/.venv` 安装 pytest 解决（pytest 9.1.1），**未改动任何仓库文件**，`requirements.txt` 保持原样（计划将其归入后续任务）。
+3. 铁律二已执行：`codegraph sync .`（276 文件）与 `graphify update .`（17158 节点）完成。未执行 `git finish`——你的要求只含 commit 不含推送，推送留待你确认；需要推送时可直接运行 `git finish "任务1 数据模型与迁移基线"`。
+4. 未触碰任务范围外文件，现有改动无回退。

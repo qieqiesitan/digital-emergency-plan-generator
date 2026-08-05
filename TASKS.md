@@ -1,6 +1,21 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么：四色分布图正式实施计划已完成，等待用户选择执行方式
+- 正在做什么：任务 1 已闭环；并行执行后端任务 2 与前端任务 5
 - 刚完成的动作：
+  - 任务 1 提交 d417f12 + 质量修复 8719355，规格审查与代码质量复审均通过
+  - 已登记已知中间态回归：在任务 2/3 完成前不要单独执行迁移；否则 POST /zones 缺 floor_id、DELETE /enterprises 受 RESTRICT 阻塞
+  - 已切换到双流并行：后端流任务 2（服务/Schema），前端流任务 5（类型/服务/路由），文件不重叠
+  - 任务 1 已按规格创建 backend/db_migration_risk_mapping_workbench.sql、EnterpriseFloor、floor_id、RESTRICT 外键、迁移测试
+  - 已按计划创建 backend/db_migration_risk_mapping_workbench.sql（规格 4.1/4.2/4.3/4.6 完整 SQL，含 enterprise_floors 陈旧外键清理 DO 块）
+  - 已在 backend/app/models/enterprise.py 新增 EnterpriseFloor 模型（RiskSource 之前）
+  - 已在 backend/app/models/risk_management.py 为 RiskZone/RiskObject 增加 floor_id + floor 关系，zone_id 外键改 RESTRICT，并导入 EnterpriseFloor
+  - 已创建 backend/tests/test_risk_mapping_migration.py（3 个元数据断言）
+  - 已修复测试环境：backend/.venv 安装 pytest（全局 pytest 因 pytest_asyncio 版本冲突不可用），仓库文件未改动
+  - 已运行 venv pytest tests/test_risk_mapping_migration.py -v：3 passed
+  - 已运行 git diff --check 无错误
+  - 已提交 commit：feat(risk-mapping): add floor model and workbench migration baseline
+  - 已运行 codegraph sync .（276 文件）与 graphify update .（17158 节点），图谱已同步
+  - 最终验证：模型导入正常、zone_id FK=RESTRICT、RiskZone.floor_id NOT NULL、RiskObject.floor_id 可空、无占位符残留
+  - 未执行 git finish（用户只要求 commit 不要求推送；TASKS.md 保持未提交，留待任务 11）
   - 已创建 docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md（约 2800 行）
   - 已按 writing-plans 自检：任务分解、文件清单、代码要点、测试命令、AC 映射、发布前置条件
   - 已补齐楼层 CRUD/上传、批量保存并发、级联删除、旧 CRUD 兼容、前端 Store/画布/总览联动细节
@@ -51,7 +66,17 @@
   - 三个子智能体已并行返回：后端数据/API、前端工作台/总览、测试与实施顺序
   - 已整合并写入 docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md
   - 已通过独立审查智能体复审，修复 client_id 映射、updated_at、OverviewResponse、迁移 SQL、外键约束等契约问题
-- 下一步：等用户选择实施计划执行方式：子代理驱动（推荐）或内联执行
+- 旁路任务（非计划内）：应要求连接华为云云开发环境 VM，已完成并验证
+  - hdspace.exe（桌面，CLI v2.3.3）devenv list：实例 DevEnvVM_L1C82K（ARM 4vCPU/8GiB/EulerOS）状态 Running，ID 477c5b6ac8e34d548e1e5fa94051493c
+  - 华为云 API 偶发超时（devenv list 重试成功；view 超时），非本机网络问题
+  - 已启动隧道：hdspace devenv start-tunnel --num=1 --ports=10022:22（后台进程 PID 25132，日志 %TEMP%\hds_tunnel.out）
+  - 修复 SSH 私钥 ACL：C:\Users\55061\.devenv\.ssh\IdentityFile\477c5b6ac8e34d548e1e5fa94051493c 原权限过宽被 OpenSSH 忽略，已 icacls 收紧为仅当前用户
+  - SSH 验证成功：developer@localhost:10022（ED25519 主机密钥写入 %TEMP%\hds_known_hosts，未改动原 known_hosts）
+  - VM：hostname ecs-devstage-desktop-0759，Huawei Cloud EulerOS 2.0 aarch64，4 vCPU / 7GiB / 49G（已用 16%）
+  - VM home 含 ~/emergency-plan（backend/frontend/docker-compose.yml/TASKS.md 等，疑似本项目的云端副本）与空的 ~/workspace
+  - 隧道保持运行；停止命令：Stop-Process -Id 25132
+- 下一步：后端任务 2 与前端任务 5 并行完成后，依次执行任务 3/4、前端任务 6/7/8/9/10，最后任务 11
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
+  - 分支：codex/protego-integration；任务 1 的 4 个文件已提交，TASKS.md 保持未提交（按计划任务 11 再提交）
   - 已提交：docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md

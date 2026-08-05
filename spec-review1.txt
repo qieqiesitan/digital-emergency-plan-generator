@@ -1,0 +1,28 @@
+审查完成。以下为结论。
+
+## ✅ 符合规格
+
+提交 `d417f12` 与计划「任务 1：数据模型与迁移基线」逐项核对，**无缺失需求、无多余实现、无理解偏差**。审查全程只读，未修改、未提交任何文件。
+
+**核对证据（基于 `git show d417f12` 与当前工作区文件）：**
+
+1. 文件清单与计划完全一致，提交仅含计划指定的 4 个文件（`git diff-tree --name-status -r d417f12` 确认）：
+   - 修改 [enterprise.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/models/enterprise.py:69)
+   - 修改 [risk_management.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/models/risk_management.py:27)
+   - 新建 [db_migration_risk_mapping_workbench.sql](C:/Users/55061/Documents/数字化预案自动生成 2/backend/db_migration_risk_mapping_workbench.sql:1)
+   - 新建 [test_risk_mapping_migration.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_migration.py:1)
+
+2. 步骤 1.1（迁移 SQL）：将 SQL 文件与规格文档 4.6「迁移 SQL 要点」逐行比对，**150/150 行、0 处差异**；覆盖规格 4.1/4.2/4.3/4.6 全部内容。计划内联片段标注为「核心内容」，提交比内联片段多出的两段 `DO $$` 块（[L23–48](C:/Users/55061/Documents/数字化预案自动生成 2/backend/db_migration_risk_mapping_workbench.sql:23)，enterprise_floors 陈旧外键清理）正是规格 4.6 规定的完整内容，属合规而非多余。核心语句齐全：建表+唯一索引 L2–21、默认楼层迁移 L50–60、回填 floor_id L63–78、`SET NOT NULL` L79、四组外键 DO 块 L80–128、floor 索引 L129–130、v2 多边形转换 L132–147、`COMMIT` L149。
+
+3. 步骤 1.2（ORM）：[enterprise.py:69–84](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/models/enterprise.py:69) 的 `EnterpriseFloor` 位于 `RiskSource` 之前，字段/约束/默认值逐项与计划一致；[risk_management.py](C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/models/risk_management.py:8) 完成 `EnterpriseFloor` 导入，`RiskZone.floor_id` NOT NULL + RESTRICT（L27）、`floor` 关系 lazy="selectin"（L34）、`RiskObject.zone_id` 改 RESTRICT（L41）、`floor_id` 可空 + RESTRICT（L42）、`floor` 关系（L55），均与计划逐字一致。
+
+4. 步骤 1.3/1.4（测试）：3 个元数据测试与计划一致（[L5](C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_migration.py:5)、[L10](C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_migration.py:10)、[L17](C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_migration.py:17)）。已按计划命令在 `backend` 目录实际运行：**3 passed**。
+
+5. 步骤 1.5（提交）：commit message 与计划指定文案完全一致；`git show --check` 无空白/冲突标记；无 TODO/占位符残留；实现者报告中「3 passed、diff --check 通过、4 文件提交」等关键声明均已独立复核属实。
+
+**仅供参考（不构成不符合）：**
+
+- 测试仅断言 ORM 元数据（计划如此规定）；SQL 实际执行与幂等重跑属于任务 11 的发布前置条件，任务 1 范围内未缺项。
+- 迁移对 `points` 键存在但为 null 的旧 JSON 会写出 `points: null` 的 v2 多边形，此为计划内联 SQL 同款行为，属计划继承边界，非本次实现偏差。
+
+另注：工作区原有未提交的 TASKS.md 改动及未跟踪的 `task1-report.txt` 均保持原样，本次审查未触碰。

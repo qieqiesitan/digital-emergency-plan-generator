@@ -1,0 +1,44 @@
+审查完成。以下是对提交 d417f12 的完整审查报告（只读审查，未修改任何文件、未提交；按你的要求也未更新 TASKS.md 快照）。
+
+## 审查范围
+
+- 提交：`d417f12 feat(risk-mapping): add floor model and workbench migration baseline`
+- 变更：4 个文件，190 行新增、1 行删除
+- 对照：规格 `docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md`（4.1/4.2/4.3/4.6/4.7）、计划 `docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md`（任务 1）、既有迁移与模型、既有测试惯例、现有 API 行为
+- 验证：`git diff --check` 干净；从 backend 目录运行 3 个测试通过；从仓库根目录运行收集失败（详见问题 4）
+
+## 优点
+
+1. 与规格、计划严格对齐。提交的 4 个文件与计划任务 1 的文件清单完全一致；SQL 完整覆盖规格 4.1/4.2/4.3/4.6，zone_id 由 SET NULL 改 RESTRICT、楼层外键 RESTRICT、多边形 v2 归一化均来自规格 4.3/4.4/4.7 的既定设计，没有夹带范围外重构。
+2. 迁移写得谨慎、工程化程度高：BEGIN/COMMIT 整体事务；CREATE IF NOT EXISTS / ON CONFLICT / 条件建索引保证可重复执行；先建表 → 回填 floor_id → SET NOT NULL → 再补约束的顺序正确；"每企业最多一个默认楼层"用部分唯一索引 `uq_ef_default_per_enterprise` 在数据库层强制，比纯应用层约束可靠；对历史 `enterprise_floors` 表上陈旧外键做了防御性清理。
+3. 命名一致性好：`db_migration_*` 文件命名、`fk_ef_enterprise`/`idx_rz_floor`/`uq_ef_*` 约束与索引前缀均沿用既有惯例；UUID 主键、时间戳、`Mapped[...]` 风格与现有模型一致。
+4. ORM 与 SQL 大体一致：`floor_id` 的可空性、ondelete、索引在模型与 SQL 之间对齐；`canvas_texts` 的 Python 默认 `list` 与 SQL 默认 `'[]'` 语义一致；无循环导入。
+5. 提交粒度合适（单任务 4 文件、SQL 149 行，无大文件），commit message 符合约定式提交；测试无 DB 依赖、快速确定。
+
+## 问题
+
+### 关键（必须修复）
+
+未发现必须阻塞合入的缺陷。
+
+### 重要（建议修改，需在本批次内处理或显式登记）
+
+1. 迁移应用后，现有 `POST /zones` 立即失效。`RiskZoneCreate`（[schemas/risk_management.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/schemas/risk_management.py:10)）不含 `floor_id`，而模型与数据库现在都要求 NOT NULL，创建分区会抛 IntegrityError → 500；前端当前也不传该字段（TASKS.md 已确认）。计划把任务 1+2 排为同一批，但两者是独立提交——若迁移单独落到共享库，分区创建功能即回归。建议在任务 2 的 schema/服务层默认楼层解析落地前不要单独执行该迁移，或在任务 1 内为建分区提供默认楼层兜底。
+
+2. 迁移应用后，`DELETE /enterprises/{enterprise_id}`（[routers/enterprises.py](C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/routers/enterprises.py:163)）以及 chat_dispatch 里的企业删除必然失败：`enterprise_floors.enterprise_id` 是 RESTRICT，而 `Enterprise` 模型没有 floors 关系、应用层 `enterprise_cleanup_service` 要到计划任务 3 才引入（[计划 37 行](C:/Users/55061/Documents/数字化预案自动生成%202/docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md:37)），届时任何企业都会有默认楼层，删除将抛外键冲突 → 500。这是规格 4.7 的有意设计，但形成"任务 1→3 之间企业删除不可用"的中间态回归。建议在 TASKS.md 或发布说明中显式登记该已知回归，并把企业删除改造与迁移执行排在同批，或至少在改造前让接口返回明确的 409 而不是裸 500。
+
+### 次要（建议修改/仅供参考）
+
+3. 测试有效性偏弱。3 个用例只断言了 ORM 列存在和 zone_id 的 ondelete，未覆盖本次交付的核心——149 行迁移 SQL：没有断言默认楼层回填、SET NOT NULL、RESTRICT 替换、多边形 v2 转换、唯一索引等关键语句，也没有断言 `RiskZone.floor_id` NOT NULL / `RiskObject.floor_id` 可空等模型语义。建议增加对 SQL 文本关键语句的断言或模型-迁移一致性检查，防止后续改动漂移。
+
+4. 测试可移植性：`test_risk_mapping_migration.py` 没有任何 sys.path 引导，从仓库根目录执行 `pytest` 会收集失败（`ModuleNotFoundError: No module named 'app'`，实测复现）；而既有 `test_web_search.py` 用 `sys.path.insert` + `os.chdir` 规避了这点。建议新增 `backend/tests/conftest.py`（或沿用既有写法），让"backend 目录运行"和"仓库根目录运行"两种方式都可用。
+
+5. 迁移中 risk_objects 回填语句：`FROM risk_zones rz, enterprise_floors ef` 缺少 `rz.enterprise_id = ro.enterprise_id` 一致性守卫（理论上可能把对象指到跨企业楼层的组合）；且 rz.floor_id 在上一步已全部回填，COALESCE 中的 ef 分支实际不生效，可直接 JOIN risk_zones 简化并去掉冗余的 ef 交叉连接。
+
+6. FK 替换 DO 块的边界：drop 逻辑排除了目标约束名 `fk_risk_objects_zone`，如果库中已存在同名但 action 为 SET NULL 的约束（例如人工建过），本次迁移不会把它替换成 RESTRICT。建议改为按 `pg_get_constraintdef` 校验 action，或采用"无条件 DROP 旧约束 + ADD 新约束"的写法。
+
+7. [仅供参考] 迁移文件没有头部注释（日期/用途/对应规格章节）和尾部验证 SELECT，与 `db_migration_add_style_preference.sql` 的惯例不一致；模型未声明 SQL 中的两个唯一索引（`(enterprise_id, name)` 与部分唯一 `is_default`），`EnterpriseFloor` 也未定义 back_populates / `Enterprise.floors` 关系（与既有双向关系风格不一致，功能上以 SQL 为准无碍，任务 3 补 CRUD 时可一并补齐）；`Mapped[list]` 泛型过宽与 `next(f for ...)` 无默认值属风格小点。
+
+## 结论
+
+整体质量高：与规格完全对齐、无范围外变更、迁移事务化且幂等、命名与既有模式一致、ORM/SQL 基本一致，值得作为后续任务的基线。没有必须阻塞合入的缺陷；主要风险是迁移落地后"创建分区"与"删除企业"两个现有 API 进入已知中间态回归，建议严格按批次顺序部署并显式登记；测试对迁移 SQL 的覆盖和从仓库根目录运行的可移植性建议在任务 2/3 内补齐。
