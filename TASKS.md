@@ -1,4 +1,32 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（最终快照，2026-08-05）：风险分级管控四色分布图工作台任务 1-11 全部完成并通过规格/质量审查
+- 刚完成的动作：
+  - 后端：模型/迁移、服务/Schema、Floors/上传/清理、Workbench API/批量保存/总览
+  - 前端：类型/服务/路由、Store/几何、页面壳/楼层管理、Konva 画布/工具、绑定/属性/文字/保存、总览联动/旧入口兼容
+  - 测试：后端 pytest 66 passed；前端 tsc -b 通过、vitest 25 passed、Playwright 3 passed（webServer 自包含，冷启动 6/6 passed）
+  - 提交：完整 commit 链从 d417f12 至 c23b36d，详见下方历史快照
+- 未执行发布前置（上线前必须完成）：
+  - 在测试库执行 backend/db_migration_risk_mapping_workbench.sql 并确认幂等
+  - 执行 cd frontend && npm run build（当前环境仅 tsc -b 通过；完整 Vite 构建受 Node 24/Rollup 兼容问题限制）
+  - 在部署新后端后跑真实服务 E2E
+  - 抽查至少 3 个旧企业总图迁移后的分区坐标与总览色块
+- 可复现命令：
+  - `cd frontend && npx playwright test e2e/risk-mapping-workbench.spec.ts`
+  - `cd frontend && npx tsc -b`
+  - `cd frontend && npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`
+  - `cd backend && .venv\Scripts\python.exe -m pytest backend/tests/test_risk_mapping_workbench.py backend/tests/test_risk_mapping_service.py backend/tests/test_risk_mapping_migration.py backend/tests/test_floor_plan_upload.py backend/tests/test_risk_mapping_cascade.py -v`
+  - `psql -h localhost -U postgres -d emergency_plan -f backend/db_migration_risk_mapping_workbench.sql`
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-05，任务 11 代码质量复审第二轮完成）：复审 fix commit `c23b36d`，结论 ✅ 通过（8 条意见中 7 条已解决并实证；次要意见 5 未处理）
+- 刚完成的动作：
+  - 独立重跑（全部本人执行，未设 E2E_BASE_URL）：
+    - `cd frontend && npx tsc -b`：exit 0
+    - `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：2 文件 25 passed
+    - `npx playwright test e2e/risk-mapping-workbench.spec.ts`：先复用 5174 旧进程 3/3（8.1s）；停掉旧进程（PID 11968，17:49 启动的临时 vite）后冷启动 3/3（12.0s，webServer 自动拉起）；`--repeat-each=2 --workers=2` 冷启动 6/6（12.2s）；每次跑完 Playwright 自动释放 5174
+  - 逐条核对 8 条意见：1 webServer+默认 5174 ✅、2 aria-label/data-testid ✅、3 比例坐标 ✅、4 路由精确分发+404 兜底 ✅、5 antd DOM/locale（`.ant-modal-confirm-title`+「知道了」）未改 ⚠、6 schema 对齐（FLOOR created_at、WORKBENCH_SNAPSHOT 包装、删 pending_regions）✅、7 canvas 定位 ✅、8 TASKS 可复现命令 ✅
+  - 提交卫生：`git diff c23b36d^ c23b36d --check` 无错误，仅 6 个范围内文件；未触碰后端功能代码
+  - 备注：TASKS.md 快照曾写“已提交 4881ac9”，实际修复提交为 c23b36d（同 message，4881ac9 为仓库内另一 commit 对象，疑似改写），记录与 git log 不一致，建议顺手修正
+- 下一步：任务 11 复审结论 ✅ 通过；若采纳次要意见 5，可后续迭代给 Modal.warning 显式 okText 或改 data-testid 断言
 - 正在做什么（2026-08-05，任务 11 修复子智能体）：按质量审查意见修复 E2E 可复现性，提交独立 commit `fix(risk-mapping): make workbench e2e self-contained and reproducible`
 - 刚完成的动作：
   - `frontend/playwright.config.ts`：新增 webServer（自动 `npm run dev -- --port 5174 --strictPort`），baseURL 默认 http://localhost:5174，`E2E_BASE_URL` 可覆盖
