@@ -24,11 +24,80 @@ export const polygonArea = (points: RiskPolygonPoint[]) => {
 
 export const validatePolygon = (points: RiskPolygonPoint[]) => {
   if (points.length < 3) return "至少需要 3 个顶点";
+  if (points.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return "坐标必须为有限数值";
   if (polygonArea(points) <= 0.001) return "多边形面积必须大于 0";
   return null;
 };
 
+const squaredDistance = (a: RiskPolygonPoint, b: RiskPolygonPoint) => {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
+};
+
+const perpendicularSquaredDistance = (p: RiskPolygonPoint, a: RiskPolygonPoint, b: RiskPolygonPoint) => {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSq = dx * dx + dy * dy;
+  if (lengthSq === 0) return squaredDistance(p, a);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq));
+  return squaredDistance(p, { x: a.x + t * dx, y: a.y + t * dy });
+};
+
+const douglasPeucker = (points: RiskPolygonPoint[], toleranceSq: number) => {
+  const keep = new Array<boolean>(points.length).fill(false);
+  keep[0] = true;
+  keep[points.length - 1] = true;
+  const stack: Array<[number, number]> = [[0, points.length - 1]];
+  while (stack.length) {
+    const [start, end] = stack.pop()!;
+    let maxDistSq = 0;
+    let maxIndex = -1;
+    for (let i = start + 1; i < end; i++) {
+      const distSq = perpendicularSquaredDistance(points[i], points[start], points[end]);
+      if (distSq > maxDistSq) {
+        maxDistSq = distSq;
+        maxIndex = i;
+      }
+    }
+    if (maxIndex !== -1 && maxDistSq > toleranceSq) {
+      keep[maxIndex] = true;
+      stack.push([start, maxIndex], [maxIndex, end]);
+    }
+  }
+  return points.filter((_, i) => keep[i]);
+};
+
 export const simplifyPolygon = (points: RiskPolygonPoint[], tolerance = 0.15) => {
-  if (points.length <= 3) return points;
-  return points.filter((_, i) => i % 2 === 0 || i === points.length - 1);
+  if (points.length <= 3) return points.slice();
+  const toleranceSq = tolerance * tolerance;
+  // Split the closed ring at its widest pair so simplification has no seam bias.
+  let startIndex = 0;
+  let endIndex = 1;
+  let maxDistSq = -1;
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const distSq = squaredDistance(points[i], points[j]);
+      if (distSq > maxDistSq) {
+        maxDistSq = distSq;
+        startIndex = i;
+        endIndex = j;
+      }
+    }
+  }
+  const chain = (from: number, to: number) => {
+    const sequence: RiskPolygonPoint[] = [];
+    let index = from;
+    while (index !== to) {
+      sequence.push(points[index]);
+      index = (index + 1) % points.length;
+    }
+    sequence.push(points[to]);
+    return sequence;
+  };
+  const firstHalf = douglasPeucker(chain(startIndex, endIndex), toleranceSq);
+  const secondHalf = douglasPeucker(chain(endIndex, startIndex), toleranceSq);
+  const simplified = [...firstHalf, ...secondHalf.slice(1, -1)];
+  if (simplified.length < 3 || validatePolygon(simplified) !== null) return points.slice();
+  return simplified;
 };
