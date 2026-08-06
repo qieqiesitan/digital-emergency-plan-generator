@@ -2179,3 +2179,12 @@ git commit -m "docs(risk-mapping): four-color auto import implementation plan"
 **3. 类型一致性：** `FourColorAnalyzeResponse.canvas_width/height`、`FourColorDraftZone.risk_level`、`FourColorCommitRequest.replace_existing` 在后端 schema、前端类型、E2E mock 三处命名一致；`LEVEL_COLORS`（后端 `risk_mapping_service`）与前端 `LEVEL_COLORS`（弹窗预览）色值一致；存储函数签名 `save_four_color_temp(enterprise_id, floor_id, data, content_type)` 在测试与路由中一致；`four_color_temp_dir` 返回 `Path | None` 在 commit/cancel 一致使用。
 
 **4. 已知取舍（规格批准的决策）：** 低风险识别为蓝但落库色板用系统绿 `#52c41a`，保证全系统图例一致；`FourColorImportModal` 的替换确认从"嵌套 Modal.confirm"改为"弹窗内 Checkbox"（规格 6.3 意图一致，E2E 可测）；后端集成测试采用仓库既有 AsyncMock db 模式（无真实数据库依赖）。
+
+## 执行记录（2026-08-06，实现过程中对计划的小修正）
+
+1. **任务 3 透视测试预期修正**：`warp_perspective` 测试中，OpenCV 矩形轮廓坐标 0-indexed，且测试图宽 400 使黑色矩形 `[50:450]` 被钳制到 399，实际输出尺寸为 299×349（原计划写 300×400/299×399 均不准）；`detect_perspective_quad` 对"四边形即整图"（占比 >95%）返回 None，因此校正后断言从"quad2 非空"改为"quad2 为 None + 中心像素为黑"。
+2. **任务 3 噪点测试修正**：原噪点间距 1px 会被闭运算（3×3 核）粘连成块；改为 40px 间距的孤立小噪点，单独面积 12px < MIN_AREA（13.5px）。
+3. **任务 4 测试文件结构**：schema 相关 import 从任务 5 才加入（任务 4 阶段测试文件仅引存储函数），避免提前引用未实现符号。
+4. **任务 7 commit 返回**：新建分区在 commit 后需重新查询（`select ... order_by sort_order`）再 `RiskZoneResponse.model_validate`，否则 id/created_at/updated_at 为 None 校验失败——与 batch_save_workbench 的既有模式对齐；两个成功路径测试相应补 `saved_zones` mock（真实 FloorResponse 假对象 + `db.add = MagicMock()`）。
+5. **E2E**：登录流程需要 hermetic 的单一 `**/api/**` 路由分发（login/users/me/roles/enterprises/workbench/floors/four-color），参照既有 risk-mapping-workbench.spec.ts；文件选择器需限定在弹窗作用域（楼层管理器也有 file input）；预览列表分区名在 antd Input value 中，断言改用 `toHaveValue`。
+6. **执行方式**：子代理在当前环境不可用（两次派出均无实际执行），改由主代理内联执行全部任务，保留 TDD 红绿节奏与提交纪律；`comprehensive.spec.ts` 的 9 个失败为环境性（硬编码 BASE 5173 指向主检出 dev server），与本次功能无关。
