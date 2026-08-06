@@ -1,8 +1,14 @@
 """四色分布图识别管线：颜色分割 → 形态学清理 → 轮廓提取 → 多边形归一化。"""
 from __future__ import annotations
 
+import io
+import math
+from dataclasses import dataclass
+from uuid import uuid4
+
 import cv2
 import numpy as np
+from PIL import Image, ImageOps
 
 COLOR_PALETTE: dict[str, tuple[int, int, int]] = {
     "红": (0, 0, 255),    # BGR
@@ -15,6 +21,8 @@ MAX_HSV_DIST = 0.35
 MIN_AREA_RATIO = 5e-5
 EPSILON_RATIO = 0.0025
 MAX_POLYGON_POINTS = 128
+MAX_ZONES = 200
+COLOR_HEX_BY_LEVEL = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a"}
 
 
 def classify_pixels(img: np.ndarray) -> dict[str, np.ndarray]:
@@ -75,3 +83,109 @@ def normalize_points(points: np.ndarray | list, width: int, height: int) -> list
         ny = round(max(0.0, min(100.0, float(y) / height * 100.0)), 2)
         out.append({"x": nx, "y": ny})
     return out
+
+
+def _kernel_size(width: int, height: int) -> int:
+    k = max(3, int(min(width, height) / 400))
+    return k if k % 2 == 1 else k + 1
+
+
+def _order_points(pts: np.ndarray) -> np.ndarray:
+    ordered = np.zeros((4, 2), dtype=np.float32)
+    s = pts.sum(axis=1)
+    ordered[0] = pts[np.argmin(s)]     # 左上
+    ordered[2] = pts[np.argmax(s)]     # 右下
+    diff = np.diff(pts, axis=1).ravel()
+    ordered[1] = pts[np.argmin(diff)]  # 右上
+    ordered[3] = pts[np.argmax(diff)]  # 左下
+    return ordered
+
+
+def detect_perspective_quad(img: np.ndarray) -> tuple[np.ndarray | None, str | None]:
+    """检测最大近似四边形（纸张/图框边缘）。返回 (quad, warning)。"""
+    h, w = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None, None
+    cnt = max(contours, key=cv2.contourArea)
+    area_ratio = cv2.contourArea(cnt) / (w * h)
+    if area_ratio < 0.2 or area_ratio > 0.95:
+        return None, None
+    peri = cv2.arcLength(cnt, True)
+    approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
+    if len(approx) != 4:
+        return None, "检测到疑似纸张边缘但无法校正透视，请尽量上传正拍图"
+    return approx.reshape(4, 2).astype(np.float32), None
+
+
+def warp_perspective(img: np.ndarray, quad: np.ndarray) -> np.ndarray:
+    """按四边形宽高比透视校正为正矩形。"""
+    src = _order_points(quad)
+    tl, tr, br, bl = src
+    width_top = float(np.linalg.norm(tr - tl))
+    width_bottom = float(np.linalg.norm(br - bl))
+    height_left = float(np.linalg.norm(bl - tl))
+    height_right = float(np.linalg.norm(br - tr))
+    max_w = max(int(width_top), int(width_bottom), 1)
+    max_h = max(int(height_left), int(height_right), 1)
+    dst = np.array([[0, 0], [max_w - 1, 0], [max_w - 1, max_h - 1], [0, max_h - 1]], dtype=np.float32)
+    matrix = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(img, matrix, (max_w, max_h))
+
+
+@dataclass
+class RecognizeResult:
+    zones: list[dict]
+    warnings: list[str]
+    width: int
+    height: int
+
+
+def recognize_from_bytes(data: bytes) -> RecognizeResult:
+    """识别管线入口：解码 → 透视校正 → 分类 → 清理 → 轮廓 → 归一化。"""
+    img = Image.open(io.BytesIO(data))
+    img = ImageOps.exif_transpose(img)
+    rgb = np.array(img.convert("RGB"))
+    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    height, width = bgr.shape[:2]
+    warnings: list[str] = []
+    quad, quad_warning = detect_perspective_quad(bgr)
+    if quad is not None:
+        bgr = warp_perspective(bgr, quad)
+        height, width = bgr.shape[:2]
+    if quad_warning:
+        warnings.append(quad_warning)
+    masks = classify_pixels(bgr)
+    diag = math.hypot(width, height)
+    min_area = MIN_AREA_RATIO * width * height
+    epsilon = EPSILON_RATIO * diag
+    kernel_size = _kernel_size(width, height)
+    zones: list[dict] = []
+    seq = 0
+    capped = False
+    for name in ("红", "橙", "黄", "蓝"):
+        mask = clean_mask(masks[name], kernel_size)
+        polys = mask_to_polygons(mask, width, height, min_area, epsilon)
+        for poly in polys:
+            if len(zones) >= MAX_ZONES:
+                if not capped:
+                    warnings.append("识别区域过多，已保留前 200 个")
+                    capped = True
+                break
+            seq += 1
+            zones.append({
+                "client_id": f"draft-{uuid4().hex}",
+                "name": f"分区{seq}",
+                "risk_level": LEVEL_BY_COLOR[name],
+                "color": COLOR_HEX_BY_LEVEL[LEVEL_BY_COLOR[name]],
+                "polygons": [{
+                    "id": f"poly-{uuid4().hex}",
+                    "label": None,
+                    "points": normalize_points(poly, width, height),
+                }],
+            })
+        if len(zones) >= MAX_ZONES:
+            break
+    return RecognizeResult(zones=zones, warnings=warnings, width=width, height=height)
