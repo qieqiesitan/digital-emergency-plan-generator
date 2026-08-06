@@ -12,6 +12,7 @@ import {
   ellipsePoints,
   polygonCentroid,
   quadraticCurvePoints,
+  transformPolygonPoints,
   polygonArea,
   validatePolygon,
   simplifyPolygon,
@@ -446,6 +447,24 @@ describe("riskMappingGeometry", () => {
       { x: 10, y: 10 },
       { x: 0, y: 10 },
     ])).toEqual({ x: 5, y: 5 });
+  });
+
+  it("scales, rotates and flips polygon points around the centroid", () => {
+    const source = [
+      { x: 40, y: 40 },
+      { x: 60, y: 40 },
+      { x: 60, y: 60 },
+      { x: 40, y: 60 },
+    ];
+    const scaled = transformPolygonPoints(source, { scale: 2 });
+    expect(Math.min(...scaled.map(p => p.x))).toBe(30);
+    expect(Math.max(...scaled.map(p => p.x))).toBe(70);
+    const flipped = transformPolygonPoints(source, { flipX: true });
+    expect(Math.min(...flipped.map(p => p.x))).toBe(40);
+    expect(Math.max(...flipped.map(p => p.x))).toBe(60);
+    const rotated = transformPolygonPoints(source, { rotationDeg: 90 });
+    expect(Math.abs(rotated[0].x - 60)).toBeLessThan(1e-6);
+    expect(Math.abs(rotated[0].y - 40)).toBeLessThan(1e-6);
   });
 
   it("builds a quadratic curve approximation with endpoints preserved", () => {

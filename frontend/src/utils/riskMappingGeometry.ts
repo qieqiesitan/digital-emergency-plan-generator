@@ -38,6 +38,30 @@ export const polygonCentroid = (points: RiskPolygonPoint[]): RiskPolygonPoint =>
   return { x: sum.x / points.length, y: sum.y / points.length };
 };
 
+export const transformPolygonPoints = (
+  points: RiskPolygonPoint[],
+  options: { scale?: number; rotationDeg?: number; flipX?: boolean; flipY?: boolean; center?: RiskPolygonPoint },
+): RiskPolygonPoint[] => {
+  if (!points.length) return points;
+  const center = options.center ?? polygonCentroid(points);
+  const scale = options.scale ?? 1;
+  const radians = ((options.rotationDeg ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return points.map(p => {
+    let dx = p.x - center.x;
+    let dy = p.y - center.y;
+    if (options.flipX) dx = -dx;
+    if (options.flipY) dy = -dy;
+    dx *= scale;
+    dy *= scale;
+    return clampPoint({
+      x: center.x + dx * cos - dy * sin,
+      y: center.y + dx * sin + dy * cos,
+    });
+  });
+};
+
 export const quadraticCurvePoints = (
   start: RiskPolygonPoint,
   control: RiskPolygonPoint,

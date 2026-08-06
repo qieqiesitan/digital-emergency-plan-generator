@@ -77,8 +77,17 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
 
   const doRemoveFloor = async (floorId: string) => {
     try {
-      await deleteEnterpriseFloor(enterpriseId, floorId);
       const remaining = floors.filter(f => f.id !== floorId);
+      if (remaining.length === 0) {
+        message.warning("企业至少需要保留一个楼层");
+        return;
+      }
+      const current = floors.find(f => f.id === floorId);
+      if (current?.is_default) {
+        const nextDefault = remaining.find(f => !f.is_default) ?? remaining[0];
+        await updateEnterpriseFloor(enterpriseId, nextDefault.id, { is_default: true });
+      }
+      await deleteEnterpriseFloor(enterpriseId, floorId);
       if (currentFloorId === floorId) {
         setState({ currentFloorId: remaining[0]?.id ?? "", dirty: false, deletedZoneIds: [], deletedRiskPointIds: [] });
       }
@@ -152,10 +161,10 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
       <Popconfirm
         title="删除当前楼层"
         description="删除后无法恢复；楼层下存在分区或风险点时将被拒绝。"
-        disabled={!currentFloorId}
+        disabled={!currentFloorId || floors.length <= 1}
         onConfirm={() => removeFloor(currentFloorId)}
       >
-        <Button danger icon={<DeleteOutlined />} disabled={!currentFloorId}>
+        <Button danger icon={<DeleteOutlined />} disabled={!currentFloorId || floors.length <= 1}>
           删除楼层
         </Button>
       </Popconfirm>

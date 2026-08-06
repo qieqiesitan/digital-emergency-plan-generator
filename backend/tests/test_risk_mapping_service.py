@@ -334,11 +334,39 @@ async def test_delete_default_floor_blocked():
         _zone_result(floor),
         _scalar_count(0),
         _scalar_count(0),
+        _none_result(),
     ]
 
     with pytest.raises(HTTPException) as exc_info:
         await delete_floor("floor-1", "e-1", MagicMock(id="u-1"), db)
     assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_delete_default_floor_promotes_alternative():
+    db = AsyncMock()
+    floor = MagicMock()
+    floor.is_default = True
+    floor.floor_plan_url = None
+    alternative = MagicMock()
+    alternative.is_default = False
+    alternative.floor_plan_url = None
+    enterprise = MagicMock()
+    db.execute.side_effect = [
+        _ent_result(),
+        _zone_result(floor),
+        _scalar_count(0),
+        _scalar_count(0),
+        _floor_result(alternative),
+        MagicMock(scalar_one=MagicMock(return_value=enterprise)),
+    ]
+
+    resp = await delete_floor("floor-1", "e-1", MagicMock(id="u-1"), db)
+
+    assert resp.data is None
+    assert alternative.is_default is True
+    assert enterprise.floor_plan_url is None
+    db.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio

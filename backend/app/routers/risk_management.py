@@ -126,7 +126,17 @@ async def delete_floor(floor_id: str, enterprise_id: str, current_user=Depends(g
     if zone_count or object_count:
         raise HTTPException(409, "楼层存在分区或风险对象，不允许删除")
     if floor.is_default:
-        raise HTTPException(409, "默认楼层不可直接删除，请先设置新的默认楼层")
+        alternative = (await db.execute(
+            select(EnterpriseFloor).where(
+                EnterpriseFloor.enterprise_id == enterprise_id,
+                EnterpriseFloor.id != floor_id,
+            ).order_by(EnterpriseFloor.sort_order).limit(1)
+        )).scalar_one_or_none()
+        if not alternative:
+            raise HTTPException(409, "企业至少保留一个默认楼层")
+        alternative.is_default = True
+        ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one()
+        ent.floor_plan_url = alternative.floor_plan_url
     old_url = floor.floor_plan_url
     await db.delete(floor)
     await db.commit()

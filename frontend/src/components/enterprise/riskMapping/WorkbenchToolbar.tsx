@@ -36,6 +36,7 @@ export default function WorkbenchToolbar() {
   const gridEnabled = useRiskMappingWorkbenchStore(s => s.gridEnabled);
   const snapEnabled = useRiskMappingWorkbenchStore(s => s.snapEnabled);
   const guideEnabled = useRiskMappingWorkbenchStore(s => s.guideEnabled);
+  const showFloorPlan = useRiskMappingWorkbenchStore(s => s.showFloorPlan);
   const drawingTool = ["polygon", "pen", "freehand"].includes(tool);
   const hasSelection = useRiskMappingWorkbenchStore(
     s => Boolean(s.selectedRegionId || s.selectedRiskPointId || s.selectedTextId),
@@ -80,6 +81,14 @@ export default function WorkbenchToolbar() {
           size="small"
         />
         <span style={{ fontSize: 12 }}>网格</span>
+      </Space>
+      <Space size={4}>
+        <Switch
+          checked={showFloorPlan}
+          onChange={v => useRiskMappingWorkbenchStore.setState({ showFloorPlan: v })}
+          size="small"
+        />
+        <span style={{ fontSize: 12 }}>平面图</span>
       </Space>
       <Space size={4}>
         <Switch

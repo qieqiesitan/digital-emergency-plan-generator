@@ -4,6 +4,7 @@ import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import type { RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
+import { transformPolygonPoints } from "@/utils/riskMappingGeometry";
 
 type RiskPointDraft = Pick<
   RiskObject,
@@ -26,6 +27,8 @@ export default function WorkbenchPropertiesPanel() {
   const [regionZoneId, setRegionZoneId] = useState<string | null>(null);
   const [targetZoneId, setTargetZoneId] = useState<string | null>(null);
   const [pointDraft, setPointDraft] = useState<RiskPointDraft | null>(null);
+  const [regionScale, setRegionScale] = useState(100);
+  const [regionRotation, setRegionRotation] = useState(0);
   const zone = zones.find(z => z.id === selectedZoneId);
   const selectedPending = selectedRegionId?.startsWith("pending:")
     ? pendingRegions.find(r => r.id === selectedRegionId.slice("pending:".length)) ?? null
@@ -49,6 +52,11 @@ export default function WorkbenchPropertiesPanel() {
   useEffect(() => {
     setRegionZoneId(selectedPending ? (selectedZoneId ?? zones[0]?.id ?? null) : null);
   }, [selectedRegionId, selectedPending, selectedZoneId, zones]);
+
+  useEffect(() => {
+    setRegionScale(100);
+    setRegionRotation(0);
+  }, [selectedRegionId]);
 
   useEffect(() => {
     setTargetZoneId(null);
@@ -143,6 +151,51 @@ export default function WorkbenchPropertiesPanel() {
       }),
     });
     setState({ selectedRegionId: null });
+  };
+
+  const transformSelectedRegion = (
+    options: { scale?: number; rotationDeg?: number; flipX?: boolean; flipY?: boolean } = {},
+  ) => {
+    const scale = options.scale ?? regionScale / 100;
+    const rotationDeg = options.rotationDeg ?? regionRotation;
+    const flipX = options.flipX ?? false;
+    const flipY = options.flipY ?? false;
+    if (selectedPending) {
+      commit();
+      setSnapshot({
+        pendingRegions: useRiskMappingWorkbenchStore.getState().pendingRegions.map(r =>
+          r.id === selectedPending.id
+            ? {
+                ...r,
+                points: transformPolygonPoints(r.points, { scale, rotationDeg, flipX, flipY }),
+              }
+            : r,
+        ),
+      });
+    } else if (selectedZonePolygon?.zoneId && selectedZonePolygon.polygonId) {
+      commit();
+      setSnapshot({
+        zones: useRiskMappingWorkbenchStore.getState().zones.map(z => {
+          if (z.id !== selectedZonePolygon.zoneId || !z.floor_plan_polygon) return z;
+          return {
+            ...z,
+            floor_plan_polygon: {
+              ...z.floor_plan_polygon,
+              polygons: z.floor_plan_polygon.polygons.map(p =>
+                p.id === selectedZonePolygon.polygonId
+                  ? {
+                      ...p,
+                      points: transformPolygonPoints(p.points, { scale, rotationDeg, flipX, flipY }),
+                    }
+                  : p,
+              ),
+            },
+          };
+        }),
+      });
+    }
+    setRegionScale(100);
+    setRegionRotation(0);
   };
 
   const saveRiskPoint = () => {
@@ -254,6 +307,45 @@ export default function WorkbenchPropertiesPanel() {
           >
             删除区域
           </Button>
+        </div>
+      )}
+
+      {(selectedPending || selectedZonePolygon) && (
+        <div style={{ border: "1px solid #8b5cf6", borderRadius: 6, padding: 8, marginBottom: 12 }}>
+          <strong>自由变换</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 12, color: "#666" }}>缩放</span>
+            <InputNumber
+              style={{ flex: 1 }}
+              min={10}
+              max={500}
+              value={regionScale}
+              onChange={v => setRegionScale(v ?? 100)}
+              addonAfter="%"
+            />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 12, color: "#666" }}>旋转</span>
+            <InputNumber
+              style={{ flex: 1 }}
+              min={-360}
+              max={360}
+              value={regionRotation}
+              onChange={v => setRegionRotation(v ?? 0)}
+              addonAfter="°"
+            />
+          </div>
+          <Button block type="primary" style={{ marginTop: 6 }} onClick={() => transformSelectedRegion()}>
+            应用变换
+          </Button>
+          <Space.Compact style={{ width: "100%", marginTop: 6 }}>
+            <Button style={{ width: "50%" }} onClick={() => transformSelectedRegion({ flipX: true })}>
+              水平翻转
+            </Button>
+            <Button style={{ width: "50%" }} onClick={() => transformSelectedRegion({ flipY: true })}>
+              垂直翻转
+            </Button>
+          </Space.Compact>
         </div>
       )}
 

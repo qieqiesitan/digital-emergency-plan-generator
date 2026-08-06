@@ -87,6 +87,7 @@ export default function WorkbenchCanvas() {
   const gridEnabled = useRiskMappingWorkbenchStore(s => s.gridEnabled);
   const snapEnabled = useRiskMappingWorkbenchStore(s => s.snapEnabled);
   const guideEnabled = useRiskMappingWorkbenchStore(s => s.guideEnabled);
+  const showFloorPlan = useRiskMappingWorkbenchStore(s => s.showFloorPlan);
   const selectedRegionId = useRiskMappingWorkbenchStore(s => s.selectedRegionId);
   const selectedTextId = useRiskMappingWorkbenchStore(s => s.selectedTextId);
   const viewScale = useRiskMappingWorkbenchStore(s => s.viewScale);
@@ -528,6 +529,7 @@ export default function WorkbenchCanvas() {
       <div
         data-testid="workbench-canvas"
         data-draft-count={draftPoints.length}
+        data-floor-plan={showFloorPlan}
         data-tool={tool}
         data-space={spacePressed}
         data-view-x={viewX}
@@ -567,7 +569,7 @@ export default function WorkbenchCanvas() {
           onContextMenu={e => e.evt.preventDefault()}
         >
           <Layer>
-            {image && (
+            {showFloorPlan && image && (
               <KonvaImage
                 image={image}
                 x={0}

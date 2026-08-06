@@ -1,4 +1,31 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06）：四色分布工作台楼层删除/自由变换/平面图显隐/总览自适应增强完成，并已同步本地 Docker
+- 刚完成的动作：
+  - 楼层删除增强：默认楼层存在替代楼层时自动提升新默认楼层后再删除；仅剩一个楼层时前端禁用删除
+  - 区域自由变换：选中待绑定或已绑定区域后，可在属性面板按中心缩放、旋转、水平/垂直翻转
+  - 工作台新增“平面图”开关，绘制时可显示/隐藏企业平面图参考
+  - 总览四色分布热区 Card body 强制撑满容器并加 `minHeight:0`，确保窗口缩放后自动适配仍生效
+  - Docker：重建 backend/frontend/shuzihuayuan；后端已重启加载楼层删除逻辑；移动端镜像包含最新 dist
+- 验证结果：
+  - 后端风险模块 pytest 67 passed；前端 tsc 通过、vitest 35 passed
+  - 本地 Playwright 10 passed；Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright 10 passed
+  - Node 22 生产构建通过（PWA 正常生成）
+- 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-06）：graphify 知识图谱增量更新完成（用户指令「更新图谱」）
+- 刚完成的动作：
+  - 增量检测 → AST 提取（1255 节点/3368 边）→ 语义提取 4 chunk（204 节点/343 边/12 超边）→ 合并语义（198 节点/449 边，68 文件入缓存）
+  - `build_merge` 合并旧图 + 新提取（`dedup=False` 只增不减，避免模糊去重误吞未变更文件的节点），剪除 18 个已删除源文件（无匹配节点，无需清理）
+  - 更新 `graphify-out/graph.json`（17657 节点/28637 边，较旧图 17411 净增 246 节点/733 边）、`graphify-out/GRAPH_REPORT.md`、`graphify-out/graph.html`（831 社区聚合视图）
+  - 社区标签 831 个全部生成（807 复用旧标签 + 24 个新社区自动命名，0 占位符）；`graphify-out/.graphify_labels.json` 已更新
+  - `save_manifest` 已保存（下次 --update 以本次为准）；`graphify-out/cost.json` 追加本次 run
+- 验证结果：graph.json 17657 节点/28637 links；graph.html 612KB 正常生成；GRAPH_REPORT.md 含 God Nodes/Surprising Connections/Suggested Questions
+- 注意事项：
+  - 语义抽取由子智能体完成（fork_turns=default 才能送达任务）；chunk 结果已合并，临时文件（.graphify_ast/.graphify_semantic/.graphify_analysis 等）按策略未删除，保留于 graphify-out/，下次更新会覆盖
+  - 已知小缺口：23:45 重新检测后新增的 6 个文件（TASKS.md、2 个 SQL、package.json、.last-run.json、tsconfig.app.json）未纳入本轮语义抽取，其旧节点仍保留（dedup=False 无丢失）
+  - 子智能体在收尾时曾误中断父代理，已由主控接管完成；`graphify-out/_run_*.py` 临时脚本保留可查
+- 下一步：图谱已就绪，可用 `graphify query "..."` / `graphify path A B` / `graphify explain <符号>` 查询
+- 以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06）：总览四色分布热区自动适配修复完成，并已同步本地 Docker
 - 刚完成的动作：
   - 从 `RiskDistributionStage` 移除平面图加载与渲染，总览只展示四色分区、风险点和文字标注

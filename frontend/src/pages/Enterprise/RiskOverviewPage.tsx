@@ -59,7 +59,7 @@ export default function RiskOverviewPage() {
 
   if (isLoading) return <Spin size="large" style={{ display: "block", margin: "100px auto" }} />;
 
-  const gridStyle: React.CSSProperties = viewMode === "quad" ? { display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 16, height: "calc(100vh - 140px)" } : viewMode === "floorplan" ? { display: "grid", gridTemplateColumns: "1fr", gridTemplateRows: "60% 40%", gap: 16, height: "calc(100vh - 140px)" } : { display: "grid", gridTemplateColumns: "40% 1fr", gridTemplateRows: "1fr", gap: 16, height: "calc(100vh - 140px)" };
+  const gridStyle: React.CSSProperties = viewMode === "quad" ? { display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 } : viewMode === "floorplan" ? { display: "grid", gridTemplateColumns: "1fr", gridTemplateRows: "60% 40%", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 } : { display: "grid", gridTemplateColumns: "40% 1fr", gridTemplateRows: "1fr", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 };
 
   return (
     <div style={{ padding: "0 0 16px 0" }}>
@@ -82,7 +82,12 @@ export default function RiskOverviewPage() {
       ) : (
         <div style={gridStyle}>
           {/* Q1: Floor Plan Heatmap */}
-          <Card size="small" title="① 四色分布热区" style={{ overflow: "hidden" }}>
+          <Card
+            size="small"
+            title="① 四色分布热区"
+            style={{ overflow: "hidden", height: "100%" }}
+            styles={{ body: { height: "100%", padding: 12, position: "relative" } }}
+          >
             <RiskDistributionStage floorId={effectiveFloorId} highlightZone={highlightZone} onZoneClick={handleZoneClick} />
           </Card>
           {/* Q2: Risk Matrix */}

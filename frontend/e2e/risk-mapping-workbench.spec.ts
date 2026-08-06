@@ -472,6 +472,18 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await expect(wrapper).not.toHaveAttribute("data-view-x", "0");
   });
 
+  test("工作台平面图参考可显示/隐藏", async ({ page }) => {
+    await mockWorkbenchApis(page);
+    await loginAndOpenWorkbench(page);
+
+    const wrapper = page.locator('[data-testid="workbench-canvas"]');
+    await expect(wrapper).toHaveAttribute("data-floor-plan", "true");
+    await page.getByRole("switch").nth(1).click();
+    await expect(wrapper).toHaveAttribute("data-floor-plan", "false");
+    await page.getByRole("switch").nth(1).click();
+    await expect(wrapper).toHaveAttribute("data-floor-plan", "true");
+  });
+
   test("可视化总览四色分布自动适配且不叠加平面图", async ({ page }) => {
     await mockOverviewApis(page);
     await page.goto("/login");

@@ -30,6 +30,7 @@ interface WorkbenchState extends WorkbenchDomainState {
   gridEnabled: boolean;
   snapEnabled: boolean;
   guideEnabled: boolean;
+  showFloorPlan: boolean;
   dirty: boolean;
   savedFingerprint: string | null;
   past: WorkbenchDomainState[];
@@ -68,6 +69,7 @@ const initial = {
   gridEnabled: true,
   snapEnabled: true,
   guideEnabled: true,
+  showFloorPlan: true,
   dirty: false,
   savedFingerprint: null,
   past: [],
@@ -223,6 +225,7 @@ export const undo = () => useRiskMappingWorkbenchStore.setState(state => {
     gridEnabled: state.gridEnabled,
     snapEnabled: state.snapEnabled,
     guideEnabled: state.guideEnabled,
+    showFloorPlan: state.showFloorPlan,
     viewScale: state.viewScale,
     viewX: state.viewX,
     viewY: state.viewY,
@@ -248,6 +251,7 @@ export const redo = () => useRiskMappingWorkbenchStore.setState(state => {
     gridEnabled: state.gridEnabled,
     snapEnabled: state.snapEnabled,
     guideEnabled: state.guideEnabled,
+    showFloorPlan: state.showFloorPlan,
     viewScale: state.viewScale,
     viewX: state.viewX,
     viewY: state.viewY,
