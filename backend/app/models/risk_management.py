@@ -46,6 +46,7 @@ class RiskObject(Base):
     location_x: Mapped[Optional[float]] = mapped_column(Float)
     location_y: Mapped[Optional[float]] = mapped_column(Float)
     description: Mapped[Optional[str]] = mapped_column(Text)
+    legacy_source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
     is_risk_point: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
