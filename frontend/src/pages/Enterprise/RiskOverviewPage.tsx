@@ -132,15 +132,18 @@ function getMaxLevel(zone: HierarchyZone): string {
 
 // Q4: Topology SVG
 function TopologySVG({ zones, highlightZone }: { zones: HierarchyZone[]; highlightZone: string | null }) {
-  const W = 600, H = 300;
+  const cols = Math.min(4, Math.max(1, zones.length));
+  const rows = Math.max(1, Math.ceil(zones.length / 4));
+  const W = Math.max(600, 60 + cols * 140);
+  const H = Math.max(300, 90 + rows * 100);
   return (
     <div style={{ overflow: "auto", maxHeight: "calc(100% - 30px)" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ minWidth: W, width: "100%" }}>
         <rect x={W/2-50} y={5} width={100} height={20} rx={4} fill="#f0f0f0" stroke="#d9d9d9" />;
         <text x={W/2} y={19} textAnchor="middle" fontSize={10} fontWeight={600}>企业风险总览</text>
-        {zones.slice(0, 4).map((z, i) => {
+        {zones.map((z, i) => {
           const lvl = getMaxLevel(z); const clr = RISK_LEVEL_COLORS[lvl] || "#d9d9d9";
-          const x = 30 + (i % 2) * 280; const y = 50 + Math.floor(i/2) * 100;
+          const x = 30 + (i % 4) * 140; const y = 50 + Math.floor(i / 4) * 100;
           return (
             <g key={z.id}>
               <line x1={W/2} y1={25} x2={x+50} y2={y} stroke="#d9d9d9" strokeWidth={1} />

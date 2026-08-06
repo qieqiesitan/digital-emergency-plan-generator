@@ -98,6 +98,28 @@ const OVERVIEW_ZONE = {
   objects: [],
 };
 
+const OVERVIEW_ZONES = Array.from({ length: 6 }, (_, index) => ({
+  ...OVERVIEW_ZONE,
+  id: `overview-zone-${index + 1}`,
+  name: `分区${index + 1}`,
+  floor_plan_polygon: {
+    version: 2,
+    color_source: "auto",
+    color: null,
+    polygons: [
+      {
+        ...OVERVIEW_ZONE.floor_plan_polygon.polygons[0],
+        id: `overview-polygon-${index + 1}`,
+        label: `分区${index + 1}`,
+        points: OVERVIEW_ZONE.floor_plan_polygon.polygons[0].points.map(p => ({
+          x: Math.min(95, p.x + index * 3),
+          y: Math.min(90, p.y + index * 2),
+        })),
+      },
+    ],
+  },
+}));
+
 const BATCH_SAVE_RESPONSE = {
   code: 0,
   message: "ok",
@@ -252,7 +274,7 @@ async function mockOverviewApis(page: Page) {
       return;
     }
     if (path === `/api/v1/enterprises/${OVERVIEW_ENTERPRISE_ID}/risk-management/hierarchy` && method === "GET") {
-      await route.fulfill(json(200, { code: 0, message: "ok", data: [OVERVIEW_ZONE] }));
+      await route.fulfill(json(200, { code: 0, message: "ok", data: OVERVIEW_ZONES }));
       return;
     }
     if (path === `/api/v1/enterprises/${OVERVIEW_ENTERPRISE_ID}/risk-management/overview` && method === "GET") {
@@ -262,7 +284,7 @@ async function mockOverviewApis(page: Page) {
           message: "ok",
           data: {
             floor: OVERVIEW_FLOOR,
-            zones: [OVERVIEW_ZONE],
+            zones: OVERVIEW_ZONES,
             risk_points: [],
             texts: [],
           },
@@ -531,5 +553,19 @@ test.describe("风险分级管控四色分布图工作台", () => {
     expect(containerHeight).toBeGreaterThan(0);
     await expect(stage.locator("canvas").first()).toBeVisible();
     await expect(stage.locator("img")).toHaveCount(0);
+  });
+
+  test("总览管控拓扑图展示全部分区", async ({ page }) => {
+    await mockOverviewApis(page);
+    await page.goto("/login");
+    await page.getByPlaceholder("邮箱").fill("qa_e2e_test@test.com");
+    await page.getByPlaceholder("密码").fill("test123456");
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/(dashboard|enterprises)/, { timeout: 10000 });
+    await page.goto(`/enterprises/${OVERVIEW_ENTERPRISE_ID}/risk-overview`);
+
+    await page.locator(".ant-segmented-item", { hasText: "管控拓扑图" }).click();
+    await expect(page.getByText("分区1")).toBeVisible();
+    await expect(page.getByText("分区6")).toBeVisible();
   });
 });
