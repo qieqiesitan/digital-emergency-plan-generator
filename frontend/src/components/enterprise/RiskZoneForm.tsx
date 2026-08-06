@@ -76,7 +76,7 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
   return (
     <>
       <Drawer
-        title={initialValues ? "编辑风险分区" : "新增风险分区"}
+        title={initialValues?.name ? "编辑风险分区" : "新增风险分区"}
         open={open}
         onClose={onClose}
         width={520}
