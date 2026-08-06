@@ -1,12 +1,13 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：排查并修复预案生成未使用风险分级管控数据
+- 正在做什么（2026-08-06）：预案生成未使用风险分级管控数据已完成定位和修复
 - 刚完成的动作：
   - 根因 1：本地 Docker DB 未执行 backend/db_migration_risk_source_consolidation.sql，risk_objects 缺 legacy_source_id，新 build_risk_management_context 查询报 UndefinedColumnError；已通过 docker exec 执行迁移并验证加列/索引
   - 根因 2：后端容器是合并前启动的旧进程，未加载新生成代码；已 docker restart 加载当前 backend/app/routers/generation.py
   - 根因 3：重启后镜像缺 opencv-python-headless，已将 backend/app/services/four_color_recognizer.py 的 cv2 改为可选导入，缺失时仅四色识别接口报错，不阻塞后端启动
   - 验证：docs 200；上下文构建 total_events=34、risk_sources_len=34；章节提示词包含“燃气灶台/火灾爆炸”；py_compile 通过；误改的 chroma.sqlite3 已恢复
-- 下一步：提交 four_color_recognizer.py；建议重建 backend 镜像以恢复四色识别；用户可重新生成 e5708dad 预案
-- 关键上下文：master HEAD=d2c478d，origin/master 落后 218；backend 容器 emergency-plan-backend 已重启运行；e5708dad 状态仍为 generating，属中断残留
+  - 已提交 f205ea2 fix(risk-management): keep backend bootable without cv2；同时发现并保留另一会话的 Dockerfile 镜像/超时提交 7f286d6、7c75c3d
+- 下一步：用户重新生成 e5708dad 预案验证；如需四色识别，重建 backend 镜像（requirements.txt 已含 opencv-python-headless）
+- 关键上下文：master HEAD=f205ea2，origin/master 落后 219；backend 容器 emergency-plan-backend 已重启运行；e5708dad 状态仍为 generating，属中断残留
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
