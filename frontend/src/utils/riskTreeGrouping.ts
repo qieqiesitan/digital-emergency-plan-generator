@@ -44,9 +44,8 @@ export function groupZonesByFloor(
       groups[idx].zones.push(z);
     }
   }
-  const withZones = groups.filter((g) => g.zones.length > 0);
-  for (const g of withZones) {
+  for (const g of groups) {
     g.zoneCount = g.zones.length;
   }
-  return unassigned.zones.length > 0 ? [...withZones, unassigned] : withZones;
+  return unassigned.zones.length > 0 ? [...groups, unassigned] : groups;
 }

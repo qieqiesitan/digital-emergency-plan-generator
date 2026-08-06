@@ -45,15 +45,20 @@ describe("groupZonesByFloor", () => {
     const floors = [floor("f1", "一层")];
     const groups = groupZonesByFloor([zone("x", null), zone("y", "ghost")], floors);
 
-    expect(groups).toHaveLength(1);
-    expect(groups[0].floorName).toBe("未分配楼层");
-    expect(groups[0].zones.map((z) => z.id)).toEqual(["x", "y"]);
+    // 空楼层也显示；未分配兜底组仍置于最后
+    expect(groups).toHaveLength(2);
+    expect(groups[0].floorName).toBe("一层");
+    expect(groups[0].zones).toHaveLength(0);
+    expect(groups[1].floorName).toBe("未分配楼层");
+    expect(groups[1].zones.map((z) => z.id)).toEqual(["x", "y"]);
   });
 
-  it("hides floors that have no zones", () => {
+  it("includes floors that have no zones with zero counts", () => {
     const floors = [floor("f1", "一层", true), floor("f2", "二层")];
     const groups = groupZonesByFloor([zone("a", "f1")], floors);
 
-    expect(groups.map((g) => g.floorId)).toEqual(["f1"]);
+    expect(groups.map((g) => g.floorId)).toEqual(["f1", "f2"]);
+    expect(groups[1].zoneCount).toBe(0);
+    expect(groups[1].zones).toHaveLength(0);
   });
 });

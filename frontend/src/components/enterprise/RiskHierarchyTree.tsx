@@ -443,7 +443,8 @@ export default function RiskHierarchyTree({ data, floors, onSelect, onAction }: 
     [handleAction]
   );
 
-  if (!data || data.length === 0) {
+  // 有楼层即渲染树（空楼层也可添加分区）；无楼层且无分区才显示空态
+  if ((!data || data.length === 0) && (floors?.length ?? 0) === 0) {
     return (
       <div
         style={{
