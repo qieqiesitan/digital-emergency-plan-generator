@@ -102,7 +102,13 @@ const USER = {
   created_at: "2026-08-05T00:00:00+08:00",
 };
 
-async function mockApis(page: Page, onZoneCreate?: (payload: unknown) => void, onZoneUpdate?: (payload: unknown) => void) {
+async function mockApis(
+  page: Page,
+  onZoneCreate?: (payload: unknown) => void,
+  onZoneUpdate?: (payload: unknown) => void,
+  hierarchyData: typeof HIERARCHY = HIERARCHY,
+  floorsData: Array<typeof FLOOR_1> = [FLOOR_1, FLOOR_2],
+) {
   const json = (status: number, body: unknown) => ({
     status,
     contentType: "application/json",
@@ -127,11 +133,26 @@ async function mockApis(page: Page, onZoneCreate?: (payload: unknown) => void, o
       return;
     }
     if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/floors` && method === "GET") {
-      await route.fulfill(json(200, { code: 0, message: "ok", data: [FLOOR_1, FLOOR_2] }));
+      await route.fulfill(json(200, { code: 0, message: "ok", data: floorsData }));
+      return;
+    }
+    if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/floors` && method === "POST") {
+      const body = request.postDataJSON() as { name?: string };
+      const created = {
+        ...FLOOR_1,
+        id: `floor-${floorsData.length + 1}`,
+        name: body.name ?? "新楼层",
+        sort_order: floorsData.length,
+        is_default: false,
+        zone_count: 0,
+        risk_point_count: 0,
+      };
+      floorsData.push(created);
+      await route.fulfill(json(201, { code: 0, message: "ok", data: created }));
       return;
     }
     if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/hierarchy` && method === "GET") {
-      await route.fulfill(json(200, HIERARCHY));
+      await route.fulfill(json(200, hierarchyData));
       return;
     }
     if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/zones` && method === "POST") {
@@ -210,4 +231,37 @@ test("编辑未分配楼层分区时保存不携带 floor_id（避免静默迁�
   await expect.poll(() => updatedZonePayload).toBeTruthy();
   expect(updatedZonePayload).toMatchObject({ name: "历史遗留分区-改名" });
   expect(updatedZonePayload).not.toHaveProperty("floor_id");
+});
+
+test("树显示没有分区的空楼层", async ({ page }) => {
+  const emptyFloorHierarchy = {
+    code: 0,
+    message: "ok",
+    data: [HIERARCHY.data[0]], // 只有一层有分区
+  };
+  await mockApis(page, undefined, undefined, emptyFloorHierarchy);
+  await gotoEnterpriseWithAuth(page);
+  await page.getByRole("tab", { name: "风险分级管控" }).click();
+
+  await expect(page.locator(".ant-tree")).toContainText("二层");
+  await expect(page.locator(".ant-tree")).toContainText("0 分区");
+  await expect(page.locator(".ant-tree")).toContainText("危险品储存区");
+});
+
+test("通过楼层管理抽屉添加楼层后树出现新楼层", async ({ page }) => {
+  await mockApis(page);
+  await gotoEnterpriseWithAuth(page);
+  await page.getByRole("tab", { name: "风险分级管控" }).click();
+
+  await page.getByRole("button", { name: "楼层管理" }).click();
+  await expect(page.getByText("楼层管理", { exact: true }).last()).toBeVisible();
+  await page.getByRole("button", { name: "添加楼层" }).click();
+  await page.getByPlaceholder("请输入楼层名称，如：三层").fill("三层");
+  // antd 会在两字按钮文案中自动插入空格（"保 存"），用正则匹配
+  await page.locator(".ant-modal").getByRole("button", { name: /保\s*存/ }).click();
+  await expect(page.locator(".ant-drawer").getByText("三层")).toBeVisible();
+
+  // 关闭抽屉后，树应出现新楼层节点
+  await page.locator(".ant-drawer-close").click();
+  await expect(page.locator(".ant-tree")).toContainText("三层");
 });
