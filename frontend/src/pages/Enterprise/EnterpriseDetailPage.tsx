@@ -8,7 +8,6 @@ import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { formatDate } from "@/utils/formatters";
 import OrgStructureEditor from "@/components/enterprise/OrgStructureEditor";
-import RiskSourceForm from "@/components/enterprise/RiskSourceForm";
 import EmergencyResourceForm from "@/components/enterprise/EmergencyResourceForm";
 import SurroundingInfoPanel from "@/components/enterprise/SurroundingInfoPanel";
 import RiskAssessmentTab from "@/pages/Enterprise/RiskAssessmentTab";
@@ -159,11 +158,6 @@ export default function EnterpriseDetailPage() {
           />
         </div>
       ),
-    },
-    {
-      key: "risk-sources",
-      label: <span>风险源 <Badge count={enterprise.risk_sources_count} style={{ marginLeft: 4 }} /></span>,
-      children: <RiskSourceForm enterpriseId={id!} floorPlanUrl={enterprise.floor_plan_url} />,
     },
     {
       key: "resources",

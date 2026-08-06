@@ -29,6 +29,7 @@ interface AIGenerationSheetProps {
   sectionName?: string;
   enterpriseName: string;
   contextSummary: {
+    // 语义约定：风险事件数量（非旧风险源数量）
     riskCount: number;
     resourceCount: number;
   };
@@ -93,7 +94,7 @@ export default function AIGenerationSheet({
           </div>
           {contextExpanded && (
             <div className="mt-2 space-y-1 text-caption text-neutral-500">
-              <p>风险源数量：{contextSummary.riskCount} 个</p>
+              <p>风险事件数量：{contextSummary.riskCount} 个</p>
               <p>应急资源数量：{contextSummary.resourceCount} 个</p>
               <p>预案 ID：{planId}</p>
             </div>

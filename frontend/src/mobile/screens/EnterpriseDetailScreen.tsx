@@ -13,25 +13,17 @@ import Card from "@/mobile/components/ui/Card";
 import SegmentedControl from "@/mobile/components/ui/SegmentedControl";
 import Skeleton from "@/mobile/components/ui/Skeleton";
 import { getEnterprise } from "@/services/enterpriseService";
-import { listRiskSources } from "@/services/riskSourceService";
+import { getFullHierarchy } from "@/services/riskManagementService";
 import { listResources } from "@/services/emergencyResourceService";
 
 type TabKey = "info" | "risk" | "resource" | "report";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "info", label: "基本信息" },
-  { key: "risk", label: "风险源" },
+  { key: "risk", label: "风险管控" },
   { key: "resource", label: "应急资源" },
   { key: "report", label: "调查报告" },
 ];
-
-const RISK_LEVEL_LABELS: Record<string, string> = {
-  L: "低风险", M: "中风险", H: "高风险", E: "重大风险",
-};
-
-const RISK_LEVEL_COLORS: Record<string, string> = {
-  L: "success", M: "info", H: "warning", E: "danger",
-};
 
 // 基本信息 Tab
 function InfoTab({ enterprise }: { enterprise: Record<string, unknown> }) {
@@ -58,8 +50,8 @@ function InfoTab({ enterprise }: { enterprise: Record<string, unknown> }) {
         <p className="text-h3 font-semibold text-neutral-900 mb-2">统计</p>
         <div className="flex gap-md">
           <div className="flex-1 bg-neutral-50 rounded-md p-3 text-center">
-            <p className="text-display text-primary-600 font-bold">{String(enterprise.risk_sources_count ?? 0)}</p>
-            <p className="text-caption text-neutral-400">风险源</p>
+            <p className="text-display text-primary-600 font-bold">{String(enterprise.risk_events_count ?? 0)}</p>
+            <p className="text-caption text-neutral-400">风险事件</p>
           </div>
           <div className="flex-1 bg-neutral-50 rounded-md p-3 text-center">
             <p className="text-display text-primary-600 font-bold">{String(enterprise.resources_count ?? 0)}</p>
@@ -75,14 +67,24 @@ function InfoTab({ enterprise }: { enterprise: Record<string, unknown> }) {
   );
 }
 
-// 风险源 Tab（内嵌列表）
+// 风险管控 Tab（内嵌摘要）
 function RiskTab({ enterpriseId }: { enterpriseId: string }) {
   const navigate = useNavigate();
-  const { data: riskSources = [], isLoading } = useQuery({
-    queryKey: ["risk-sources", enterpriseId],
-    queryFn: () => listRiskSources(enterpriseId, { page: 1, page_size: 50 }),
+  const { data: zones = [], isLoading } = useQuery({
+    queryKey: ["risk-hierarchy", enterpriseId],
+    queryFn: () => getFullHierarchy(enterpriseId),
     enabled: !!enterpriseId,
   });
+
+  const rows = zones.flatMap((zone) =>
+    (zone.objects || []).flatMap((obj) => {
+      const objectEvents = (obj.events || []).map((ev) => ({ ...ev, object: obj.name, unit: null }));
+      const unitEvents = (obj.units || []).flatMap((unit) =>
+        (unit.events || []).map((ev) => ({ ...ev, object: obj.name, unit: unit.name }))
+      );
+      return [...objectEvents, ...unitEvents];
+    })
+  );
 
   if (isLoading) {
     return (
@@ -92,46 +94,44 @@ function RiskTab({ enterpriseId }: { enterpriseId: string }) {
     );
   }
 
-  const items = Array.isArray(riskSources) ? riskSources : (riskSources as any)?.items ?? [];
-
   return (
     <div>
-      {items.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="px-md py-12 text-center">
           <AlertTriangle size={40} className="mx-auto text-neutral-300 mb-4" />
-          <p className="text-h3 text-neutral-900 mb-2">暂无风险源</p>
-          <p className="text-body text-neutral-500 mb-4">添加企业的风险源信息</p>
+          <p className="text-h3 text-neutral-900 mb-2">暂无风险事件</p>
+          <p className="text-body text-neutral-500 mb-4">请先在 Web 端维护风险分级管控数据</p>
           <button
             className="inline-flex items-center gap-xs px-4 py-2 bg-primary-600 text-white rounded-md font-medium"
-            onClick={() => navigate(`/m/enterprises/${enterpriseId}/risk-sources`)}
+            onClick={() => navigate(`/m/enterprises/${enterpriseId}/risk-management`)}
           >
-            <Plus size={16} /> 管理风险源
+            <Plus size={16} /> 查看风险管控
           </button>
         </div>
       ) : (
         <>
           <div className="flex items-center justify-between px-md py-3">
-            <span className="text-caption text-neutral-400">{items.length} 个风险源</span>
+            <span className="text-caption text-neutral-400">{rows.length} 个风险事件</span>
             <button
               className="text-caption text-primary-600 flex items-center gap-xs"
-              onClick={() => navigate(`/m/enterprises/${enterpriseId}/risk-sources`)}
+              onClick={() => navigate(`/m/enterprises/${enterpriseId}/risk-management`)}
             >
               查看全部 <ChevronRight size={14} />
             </button>
           </div>
-          {items.slice(0, 5).map((rs: any) => (
-            <div key={rs.id} className="flex items-center gap-md px-md py-3 bg-white border-b border-neutral-50">
+          {rows.slice(0, 5).map((row, index) => (
+            <div key={`${row.id}-${index}`} className="flex items-center gap-md px-md py-3 bg-white border-b border-neutral-50">
               <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
                 <Flame size={16} className="text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-body text-neutral-900 truncate">{rs.name ?? rs.risk_name ?? "未命名"}</p>
-                <p className="text-caption text-neutral-400">{rs.location ?? rs.risk_location ?? ""}</p>
+                <p className="text-body text-neutral-900 truncate">{row.accident_type}</p>
+                <p className="text-caption text-neutral-400">
+                  {zoneName(zones, row)}{row.unit ? ` · ${row.unit}` : ""}
+                </p>
               </div>
-              {rs.risk_level && (
-                <Badge variant={(RISK_LEVEL_COLORS[rs.risk_level] ?? "default") as any}>
-                  {RISK_LEVEL_LABELS[rs.risk_level] ?? rs.risk_level}
-                </Badge>
+              {row.risk_level && (
+                <Badge variant="warning">{row.risk_level}</Badge>
               )}
             </div>
           ))}
@@ -139,6 +139,15 @@ function RiskTab({ enterpriseId }: { enterpriseId: string }) {
       )}
     </div>
   );
+}
+
+function zoneName(zones, row) {
+  for (const zone of zones) {
+    for (const obj of zone.objects || []) {
+      if (obj.name === row.object) return zone.name;
+    }
+  }
+  return "未分区";
 }
 
 // 应急资源 Tab（内嵌列表）
