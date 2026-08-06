@@ -23,13 +23,14 @@
   - Node 22 生产构建通过（PWA 正常生成）
 - 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
 - 以下为历史快照，保留供压缩恢复参考
-- 正在做什么（2026-08-06，规格审查中）：分区树楼层分组设计文档已写入并提交，等待用户审查书面规格
+- 正在做什么（2026-08-06，计划就绪）：分区树楼层分组实现计划已写入并提交，等待用户选择执行方式
 - 刚完成的动作：
-  - 用户已批准方案 A 设计（树顶层楼层分组 + 添加分区楼层联动 + 默认展开默认楼层 + 楼层节点展示分区数/风险点数/默认徽标）
-  - 已写入设计文档 docs/superpowers/specs/2026-08-06-risk-tree-floor-grouping-design.md 并完成规格自检（无占位符、各节一致、范围聚焦单一实现计划）
-  - 规格核心：①后端 /hierarchy 不传 floor_id 返回全部楼层分区（响应结构不变，总览页单楼层不受影响）②树顶层 floor 节点分组 + 未分配兜底 ③buildZonePayload 透传 floor_id；RiskZoneForm 楼层 Select；标注底图跟随楼层 ④测试覆盖后端路由/前端分组/zoneSubmit/E2E
-- 下一步：等待用户审查规格 → 用户批准后调用 writing-plans 技能生成实现计划
-- 关键上下文：分支 codex/protego-integration；本次提交仅设计文档 + TASKS.md；工作区其他未提交改动（RiskDistributionStage.tsx、chroma.sqlite3、backup SQL）保持原样；涉及文件 backend/app/routers/risk_management.py、frontend/src/components/enterprise/RiskHierarchyTree.tsx、frontend/src/components/enterprise/RiskZoneForm.tsx、frontend/src/pages/Enterprise/RiskManagementTab.tsx、frontend/src/utils/zoneSubmit.ts
+  - 用户已批准设计规格（docs/superpowers/specs/2026-08-06-risk-tree-floor-grouping-design.md，已提交 dbed31c）
+  - 按 writing-plans 技能产出实现计划 docs/superpowers/plans/2026-08-06-risk-tree-floor-grouping.md：9 个任务、TDD 粒度、每步含完整代码/命令/预期、每任务独立 commit
+  - 计划自检完成：规格 1.4 决策逐项覆盖、无占位符、类型/命名跨任务一致（listEnterpriseFloors、groupZonesByFloor、floor_id、floor-{id} key）
+  - 关键设计点：分组纯函数 riskTreeGrouping.ts 与树组件分离可单测；RiskHierarchyTree 楼层节点默认展开默认楼层、隐藏无分区楼层、未分配楼层无操作；RiskZoneForm 用 Form.useWatch 联动底图
+- 下一步：等待用户选择执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 按对应技能逐任务实现
+- 关键上下文：分支 codex/protego-integration；已提交：设计文档 dbed31c + 计划文档（本次）；工作区其他未提交改动（RiskDistributionStage.tsx、chroma.sqlite3、backup SQL）保持原样；涉及文件 backend/app/routers/risk_management.py、backend/tests/test_risk_hierarchy.py、frontend/src/utils/riskTreeGrouping.ts、frontend/src/components/enterprise/RiskHierarchyTree.tsx、RiskZoneForm.tsx、frontend/src/pages/Enterprise/RiskManagementTab.tsx、frontend/e2e/risk-hierarchy-tree.spec.ts
 - 以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06）：四色分布工作台楼层删除/自由变换/平面图显隐/总览自适应增强完成，并已同步本地 Docker
 - 刚完成的动作：
