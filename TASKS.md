@@ -1,12 +1,14 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，头脑风暴阶段）：设计规格已完成并通过自检，等待用户审查
+- 正在做什么（2026-08-06，计划阶段）：只保留风险分级管控实现计划已完成，等待用户选择执行方式；另一会话「四色分布图自动识别」仍在讨论中，暂缓
 - 刚完成的动作：
-  - 新增 docs/superpowers/specs/2026-08-06-only-risk-management-design.md
-  - 规格覆盖：迁移闭环、legacy_source_id 幂等字段、AI 预览回退、预案/风险评估/统计/chat/Web/移动端切换、分三阶段下线
-  - 已补齐 build_risk_management_context 企业字段和风险源字段，避免风险评估委托后丢失数据
+  - 用户已批准设计规格 docs/superpowers/specs/2026-08-06-only-risk-management-design.md（提交 c3a0ff0）
+  - 新增 docs/superpowers/plans/2026-08-06-only-risk-management.md，共 11 个任务
+  - 计划覆盖：legacy_source_id 迁移基线、原子迁移服务、迁移接口、前端向导、上下文字段、预案/风险评估/统计/chat/Web/移动端切换、全量验证
+  - 自检修正：LS 无配置时补默认阈值、统计测试使用 asyncio.run、chat 统计复用 risk_stats_service、移动端补充 RiskAssessmentTab/AIGenerationSheet 文案
   - 已执行占位符扫描与 git diff --check，无占位符、无冲突标记
-- 下一步：提交设计规格与 TASKS.md，请用户审查规格；批准后调用 writing-plans
-- 关键上下文：当前分支 master，git save 保存点 825c4a0；工作区 backup/risk-mapping-pre-migration-20260805.sql 未跟踪；规格文件 docs/superpowers/specs/2026-08-06-only-risk-management-design.md
+- 下一步：提交计划与 TASKS.md，请用户选择执行方式（子代理驱动【推荐】/ 内联执行）
+- 关键上下文：当前分支 master，设计规格提交 c3a0ff0，git save 保存点 825c4a0；计划文件 docs/superpowers/plans/2026-08-06-only-risk-management.md；工作区 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
+- 另一会话快照（保留）：正在讨论「用户上传现有四色分布图 → 自动识别 → 自动落图」；已确认图源形态 = C（干净电子图 + 拍照/扫描件两种都有），下一步继续澄清上传图与系统平面图的底图关系；风险分区存储于 risk_zones.floor_plan_polygon，坐标归一化 0-100
 
 ---
 
