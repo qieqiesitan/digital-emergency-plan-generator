@@ -1,6 +1,7 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，功能完成待收尾）：分区树楼层分组功能已实现、审查、修复并全量验证通过；等待用户选择收尾方式
+- 正在做什么（2026-08-06，配置更新）：子代理模式模型默认统一为 deepseek-v4-flash（用户指定），技能文档已更新；楼层分组功能仍待用户选择收尾方式
 - 刚完成的动作：
+  - 用户指令：子代理模式所有角色（实现/规格审查/质量审查/最终审查）默认使用 deepseek-v4-flash；已更新 .codex/skills/subagent-driven-development/SKILL.md「模型选择」章节（原 pro 不可用，统一 flash）
   - 实现 9 任务提交 65d9304..4fe5707（后端多楼层 hierarchy + 树楼层分组 + 表单楼层联动 + E2E）
   - 双轴审查（子代理补跑 + 主控复核）：规格 1.4 决策表逐项落实；3 处计划外修正评估合理；质量无硬违规
   - 修复提交 1ac3762：编辑未分配楼层分区不再静默注入默认楼层（isEdit 判定）；无默认楼层时展开策略退回第一个楼层；分区保存后同时刷新 floors 计数；新增 E2E 第 3 用例断言编辑未分配分区 payload 不带 floor_id
@@ -8,7 +9,7 @@
 - 最终验证（全部通过）：backend pytest 69 passed；tsc -b 0；vitest 40 passed；Playwright 15 passed（risk-hierarchy-tree 3 + risk-mapping-workbench 12）；Node 22 生产构建成功（PWA 正常）
 - 已知缺口（记录，未处理）：spec §6 要求 /hierarchy 接口级测试，仓库无路由测试设施，当前以纯函数单测 + E2E 覆盖；P3 若干（楼层计数数据源一致性、groupZonesByFloor 重复计算、edit/edit-zone 分支重复）已记录
 - 下一步：等待用户选择收尾（本地合并 / 推送 PR / 保持现状 / 丢弃）；未执行 git finish/推送
-- 关键上下文：分支 codex/protego-integration，HEAD=1ac3762；分支同时含另一会话的 RiskOverview 布局提交（1577d18/9f9c211/2f07994 等），未触碰；工作区仅 TASKS.md 未提交；TASKS.md 快照被两侧交替更新属预期
+- 关键上下文：分支 codex/protego-integration，HEAD=88a8a4a（TASKS.md 快照已提交）；本次改动 .codex/skills/subagent-driven-development/SKILL.md；分支同时含另一会话的 RiskOverview 布局提交（1577d18/9f9c211/2f07994 等），未触碰
 
 ---
 
