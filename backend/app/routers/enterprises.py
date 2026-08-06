@@ -10,6 +10,10 @@ from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
 from app.dependencies import get_current_user
 from app.services.enterprise_cleanup_service import delete_enterprise_complete
 from app.services.floor_plan_storage_service import remove_enterprise_uploads
+from app.services.risk_stats_service import (
+    count_enterprise_risk_events,
+    count_enterprises_risk_events,
+)
 
 router = APIRouter(prefix="/enterprises", tags=["Enterprises"])
 
@@ -39,7 +43,7 @@ async def autofill_enterprise(
         data=AutofillResponse(error=reason),
     )
 
-def _build_response(e: Enterprise) -> EnterpriseResponse:
+def _build_response(e: Enterprise, risk_events_count: int = 0) -> EnterpriseResponse:
     def _fmt_date(d):
         return d.strftime('%Y-%m-%d') if d else None
     return EnterpriseResponse(
@@ -74,6 +78,7 @@ def _build_response(e: Enterprise) -> EnterpriseResponse:
         hazardous_chemicals=e.hazardous_chemicals,
         special_equipment=e.special_equipment,
         risk_sources_count=len(e.risk_sources) if e.risk_sources else 0,
+        risk_events_count=risk_events_count,
         resources_count=len(e.resources) if e.resources else 0,
         plans_count=len(e.plans) if e.plans else 0,
         created_at=e.created_at.isoformat() if e.created_at else "",
@@ -93,7 +98,8 @@ async def list_enterprises(
     total = (await db.execute(count_q)).scalar() or 0
     offset = (page - 1) * page_size
     rows = (await db.execute(query.order_by(Enterprise.created_at.desc()).offset(offset).limit(page_size))).scalars().all()
-    items = [_build_response(e) for e in rows]
+    event_counts = await count_enterprises_risk_events(db, [e.id for e in rows])
+    items = [_build_response(e, event_counts.get(e.id, 0)) for e in rows]
     return PaginatedResponse(data=PaginatedData(items=items, total=total, page=page, page_size=page_size))
 
 @router.get("/{enterprise_id}", response_model=ApiResponse[EnterpriseResponse])
@@ -101,7 +107,8 @@ async def get_enterprise(enterprise_id: str, current_user: User = Depends(get_cu
     result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id))
     e = result.scalar_one_or_none()
     if not e: raise HTTPException(status_code=404, detail="企业不存在")
-    return ApiResponse(data=_build_response(e))
+    risk_events_count = await count_enterprise_risk_events(db, enterprise_id)
+    return ApiResponse(data=_build_response(e, risk_events_count))
 
 @router.post("", response_model=ApiResponse[EnterpriseResponse], status_code=201)
 async def create_enterprise(data: EnterpriseCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

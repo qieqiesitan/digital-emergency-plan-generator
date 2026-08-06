@@ -51,6 +51,7 @@ export interface Enterprise {
   gis_lat: number | null;
   gis_lng: number | null;
   risk_sources_count: number;
+  risk_events_count: number;
   resources_count: number;
   plans_count: number;
   created_at: string;

@@ -3,6 +3,7 @@ export interface DashboardStats {
   plan_count: number;
   completed_plan_count: number;
   risk_source_count: number;
+  risk_event_count: number;
 }
 
 export interface DashboardRecentPlan {

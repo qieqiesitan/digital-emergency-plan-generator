@@ -43,6 +43,7 @@ export default function EnterpriseListPage() {
     { title: "行业", dataIndex: "industry" },
     { title: "员工数", dataIndex: "employee_count", render: (v: number | null) => v ?? "-" },
     { title: "风险源数", dataIndex: "risk_sources_count" },
+    { title: "风险事件数", dataIndex: "risk_events_count" },
     { title: "预案数", dataIndex: "plans_count" },
     { title: "更新时间", dataIndex: "updated_at", render: formatDate },
     {

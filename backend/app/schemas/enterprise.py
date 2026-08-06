@@ -89,6 +89,7 @@ class EnterpriseResponse(EnterpriseBase):
     gis_lat: float | None = None
     gis_lng: float | None = None
     risk_sources_count: int = 0
+    risk_events_count: int = 0
     resources_count: int = 0
     plans_count: int = 0
     created_at: DatetimeStr
