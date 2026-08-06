@@ -1,12 +1,23 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：独立复审任务 8 提交（241554a）完成，结论 ❌ 发现 1 处问题（建议修改）
-- 刚完成的动作（复审，只读验证未改代码）：
-  - git show 241554a：恰好 10 个文件，与计划任务 8 文件清单一致
-  - backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_stats_service.py -q → 1 passed；backend 全量 84 passed（--ignore=test_autofill_research.py）；frontend npx tsc -b exit 0；npx vitest run 42 passed（4 文件）；git show 241554a --check 干净
-  - 规格 1-7 逐项核对均实现：risk_stats_service.py 三函数（对象/单元事件 OR join + distinct）、EnterpriseResponse.risk_events_count（旧 risk_sources_count 保留）、DashboardStats.risk_event_count（旧 risk_source_count 保留）、enterprises.py 列表批量 IN 分组查询无 N+1、详情单查、dashboard.py 用 count_user_risk_events、前端类型/页面字段一致
-  - 唯一问题 [建议修改]：EnterpriseListPage.tsx:45-46 新增「风险事件数」列但保留旧「风险源数」列，设计规格 8.6（design 367-368 行）要求「从『风险源数』改为『风险事件数』」（替换而非新增）；实现与计划步骤 7 片段一致，但偏离设计规格；其余 [仅供参考]：test_risk_stats_service.py 仅 mock 验证接线，未真实覆盖对象/单元事件计数（仓库无 DB 测试惯例）
-- 下一步：由用户决定是否移除旧「风险源数」列，或进入任务 9（chat/Web/移动端统计切换）
-- 关键上下文：分支 codex/risk-management-only，HEAD=241554a；TASKS.md 未提交改动为快照更新本身
+- 正在做什么（2026-08-06）：任务 8（188afd5...acca801）代码质量审查完成，结论 ✅ 通过
+- 刚完成的动作（审查，只读验证未改代码）：
+  - git diff 188afd5...acca801：11 文件（含 TASKS.md），功能文件恰为计划任务 8 列出的 10 个；241554a=10 文件功能提交，acca801=仅 EnterpriseListPage.tsx 删 1 行
+  - backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_stats_service.py -q → 1 passed
+  - frontend npx tsc -b → exit 0；npm test -- --run → 42 passed（4 文件）
+  - 核对：count_*_risk_events OR join + count(distinct) 抵消行翻倍；count_enterprises_risk_events 单条 IN+GROUP BY 避免 N+1；Enterprise 关系 lazy=selectin 无懒加载问题；旧字段 risk_sources_count/risk_source_count 后端填充+前端类型均保留；EnterpriseListPage 仅剩「风险事件数」列；命名延续既有约定（enterprise 复数 events/dashboard 单数 event）
+  - 审查问题（不阻塞）：① 测试为纯 mock 冒烟测试，不校验 SQL 语义，count_user_risk_events/count_enterprises_risk_events 零覆盖 ② 统计走 zone→enterprise 过滤（符合计划），但 RiskObject.zone_id 可空，未入区对象的事件不计入，需作者确认口径 ③ 两个单查函数查询体重复可提取 ④ create/update 响应 risk_events_count 恒 0 ⑤ risk_events.unit_id/object_id 无 FK 索引（数据量小无碍）
+  - 越界检查：EnterpriseDetailPage/移动端仍显示 risk_sources_count，属任务 10「Web 和移动端入口切换」范围，非任务 8 缺陷
+- 下一步：任务 9（chat 助手读取新数据并移除旧 CRUD 工具）及后续任务
+- 关键上下文：分支 codex/risk-management-only，HEAD=acca801；TASKS.md 未提交改动为快照更新本身
+- 以下为历史快照，保留供压缩恢复参考
+
+- 正在做什么（2026-08-06）：规格审查问题已修复并提交（acca801）：企业列表「风险源数」列替换为「风险事件数」
+- 刚完成的动作：
+  - frontend/src/pages/Enterprise/EnterpriseListPage.tsx 删除 { title: "风险源数", dataIndex: "risk_sources_count" }，仅保留「风险事件数」列；提交 acca801（1 文件 1 删除）；修改前 git save（13bafe8）
+  - 验证：frontend npx tsc -b exit 0；npm test -- --run → 42 passed（4 文件）；git diff --check 干净
+- 下一步：任务 9（chat/Web/移动端统计切换）及后续任务
+- 关键上下文：分支 codex/risk-management-only，HEAD=acca801；任务 8 实现提交 241554a + 本修复 acca801，其余 9 个文件不受影响
+- 以下为历史快照，保留供压缩恢复参考
 
 以下为历史快照，保留供压缩恢复参考
 
