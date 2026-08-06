@@ -1,6 +1,10 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，配置更新）：子代理模式模型默认统一为 deepseek-v4-flash（用户指定），技能文档已更新；楼层分组功能仍待用户选择收尾方式
+- 正在做什么（2026-08-06，已合并收尾）：楼层分组功能已本地合并回 master（fast-forward，HEAD=1a52369），合并结果验证通过；功能分支保留未删
 - 刚完成的动作：
+  - 用户选择收尾方式 1（本地合并）：master 由 3061dfe 快进到 1a52369，包含本功能 12 提交 + 另一会话 RiskOverview 提交 + 分支历史 137 提交
+  - 合并前清理：误入分支的 backup/risk-mapping-pre-migration-20260805.sql 已 git rm --cached（文件保留在磁盘，恢复未跟踪）
+  - 合并结果验证：backend pytest 69 passed；tsc -b exit 0（vitest/Playwright/构建在合并前同内容已验证：40/15/成功）
+  - 未删除功能分支：git branch -d 因分支领先远程 origin/codex/protego-integration 被拒；考虑到另一会话可能仍在使用该分支，保留待用户确认后再删
   - 用户指令：子代理模式所有角色（实现/规格审查/质量审查/最终审查）默认使用 deepseek-v4-flash；已更新 .codex/skills/subagent-driven-development/SKILL.md「模型选择」章节（原 pro 不可用，统一 flash）
   - 实现 9 任务提交 65d9304..4fe5707（后端多楼层 hierarchy + 树楼层分组 + 表单楼层联动 + E2E）
   - 双轴审查（子代理补跑 + 主控复核）：规格 1.4 决策表逐项落实；3 处计划外修正评估合理；质量无硬违规
@@ -8,8 +12,8 @@
   - 清理：误提交截图已移除（d1bef26）；_debug-tree.spec.ts 已清理
 - 最终验证（全部通过）：backend pytest 69 passed；tsc -b 0；vitest 40 passed；Playwright 15 passed（risk-hierarchy-tree 3 + risk-mapping-workbench 12）；Node 22 生产构建成功（PWA 正常）
 - 已知缺口（记录，未处理）：spec §6 要求 /hierarchy 接口级测试，仓库无路由测试设施，当前以纯函数单测 + E2E 覆盖；P3 若干（楼层计数数据源一致性、groupZonesByFloor 重复计算、edit/edit-zone 分支重复）已记录
-- 下一步：等待用户选择收尾（本地合并 / 推送 PR / 保持现状 / 丢弃）；未执行 git finish/推送
-- 关键上下文：分支 codex/protego-integration，HEAD=88a8a4a（TASKS.md 快照已提交）；本次改动 .codex/skills/subagent-driven-development/SKILL.md；分支同时含另一会话的 RiskOverview 布局提交（1577d18/9f9c211/2f07994 等），未触碰
+- 下一步：等待用户决定（是否删除功能分支 / 是否推送 master 到 origin+gitee）；未执行 git finish/推送
+- 关键上下文：当前分支 master，HEAD=1a52369；master 领先 origin/master 与 gitee/master（本地合并未推送）；功能分支 codex/protego-integration 保留（指向 1a52369，已完全合并）；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
 
 ---
 
