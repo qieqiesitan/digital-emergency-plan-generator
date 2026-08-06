@@ -152,9 +152,40 @@ class HierarchyUnitResponse(BaseModel): id: str; name: str; unit_type: str | Non
 class HierarchyObjectResponse(BaseModel): id: str; name: str; category: str | None; is_risk_point: bool; floor_id: str | None = None; location_x: float | None = None; location_y: float | None = None; units: list[HierarchyUnitResponse] = []; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
 class HierarchyZoneResponse(BaseModel): id: str; floor_id: str | None = None; floor_name: str | None = None; name: str; description: str | None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None; max_risk_level: str | None = None; effective_color: str | None = None; objects: list[HierarchyObjectResponse] = []; model_config = {"from_attributes": True}
 
-class MigrationPreviewItem(BaseModel): source_id: str; source_name: str; suggested_zone: str = ""; suggested_object: str = ""; suggested_events: list[dict] = []
-class MigrationPreviewResponse(BaseModel): items: list[MigrationPreviewItem]; total: int
-class MigrationExecuteRequest(BaseModel): mappings: list[dict]
+class MigrationPreviewItem(BaseModel):
+    source_id: str
+    source_name: str
+    source_location: str | None = None
+    source_categories: list[str] = []
+    suggested_zone: str = "历史风险源"
+    suggested_object: str = ""
+    suggested_event: str = "安全生产事故"
+    suggested_params: dict[str, int] = {"l": 3, "s": 3}
+    control_measures: str | None = None
+
+
+class MigrationPreviewResponse(BaseModel):
+    items: list[MigrationPreviewItem]
+    total: int
+    migrated_total: int = 0
+
+
+class MigrationExecuteItem(BaseModel):
+    source_id: str
+    zone_name: str
+    object_name: str
+    accident_type: str
+    method_params: dict[str, int] = {"l": 3, "s": 3}
+
+
+class MigrationExecuteRequest(BaseModel):
+    mappings: list[MigrationExecuteItem]
+
+
+class MigrationExecuteResponse(BaseModel):
+    migrated: int = 0
+    skipped: int = 0
+    created: dict[str, int] = {}
 
 class SmartGuideMeasure(BaseModel):
     description: str
