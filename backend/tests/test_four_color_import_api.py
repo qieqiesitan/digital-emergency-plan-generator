@@ -399,3 +399,32 @@ async def test_commit_without_replace_on_empty_floor_creates_zones(monkeypatch):
     resp = await rm.commit_four_color_import(_commit_body(replace=False), "f-1", "e-1", current_user=MagicMock(), db=db)
     assert resp.data.zones[0].name == "分区1"
     assert db.delete.call_count == 0
+
+
+# ── 端点：cancel ──
+
+
+@pytest.mark.asyncio
+async def test_cancel_removes_temp_dir(monkeypatch):
+    from app.routers import risk_management as rm
+
+    db = AsyncMock()
+    db.execute.side_effect = [_ent_exec_result(MagicMock()), _floor_exec_result(MagicMock())]
+    monkeypatch.setattr(rm, "four_color_temp_dir", MagicMock(return_value=MagicMock()))
+    remove_mock = MagicMock()
+    monkeypatch.setattr(rm, "remove_four_color_temp_dir", remove_mock)
+    resp = await rm.cancel_four_color_import("a" * 32, "f-1", "e-1", current_user=MagicMock(), db=db)
+    assert resp.message == "已清理临时文件"
+    remove_mock.assert_called_once_with("e-1", "f-1", "a" * 32)
+
+
+@pytest.mark.asyncio
+async def test_cancel_invalid_session_404(monkeypatch):
+    from app.routers import risk_management as rm
+
+    db = AsyncMock()
+    db.execute.side_effect = [_ent_exec_result(MagicMock()), _floor_exec_result(MagicMock())]
+    monkeypatch.setattr(rm, "four_color_temp_dir", MagicMock(return_value=None))
+    with pytest.raises(HTTPException) as exc:
+        await rm.cancel_four_color_import("bad-token", "f-1", "e-1", current_user=MagicMock(), db=db)
+    assert exc.value.status_code == 404

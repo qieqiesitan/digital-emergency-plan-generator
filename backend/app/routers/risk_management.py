@@ -262,6 +262,17 @@ async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, 
         zones=[RiskZoneResponse.model_validate(z) for z in saved_zones],
     ))
 
+@router.delete("/floors/{floor_id}/four-color/{file_token}")
+async def cancel_four_color_import(file_token: str, floor_id: str, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    if four_color_temp_dir(enterprise_id, floor_id, file_token) is None:
+        raise HTTPException(404, "导入会话不存在")
+    remove_four_color_temp_dir(enterprise_id, floor_id, file_token)
+    return ApiResponse(data=None, message="已清理临时文件")
+
 # ── Methods ──
 @router.get("/methods", response_model=ApiResponse[list[MethodResponse]])
 async def list_methods(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
