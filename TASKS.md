@@ -1,12 +1,14 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：任务 5 修复提交（c23c99e）复核完成，结论 ✅ 通过
-- 刚完成的动作：
-  - 复核（只读，未改代码）：git diff 0bcdfe8...c23c99e 仅 2 个指定文件（76+/2-）；pytest test_risk_context_builder.py → 3 passed；git diff --check 干净
-  - 建议 1 已闭环：likelihood/severity 由 event.method_params 的 l/s 补出，key 与默认值（get("l", 3)）和 risk_method_engine.py:57-58、schema 默认 {"l":3,"s":3} 完全一致
-  - 建议 2 已闭环：新增无单元/空值用例（unit=None、category/location=None、measures=[]→control_measures=""）+ build_context enterprise 14 个新 key 用例（FakeResult awaitable mock）
-  - 遗留小缺口（不阻塞）：多措施"；"拼接仍无专门用例（仅空列表与单措施被覆盖）
-- 下一步：任务 6-7（预案/风险评估/统计等消费 risk_context 字段）
-- 关键上下文：分支 codex/risk-management-only，HEAD=c23c99e；任务 5 主体 0bcdfe8 + 修复 c23c99e；TASKS.md 未提交改动为快照更新本身
+- 正在做什么（2026-08-06）：独立复审任务 6 提交 da8980d 完成，结论 ✅ 通过（只读验证，仅更新 TASKS.md 快照）
+- 刚完成的动作（复审）：
+  - git diff c23c99e...da8980d：实现提交 da8980d 仅改 3 个规定文件（backend/app/routers/generation.py / external.py / backend/tests/test_generation_enterprise_data.py，92+/21-）；范围内 TASKS.md 变更为 savepoint 960e741 快照（19+/8-），非实现内容；git diff --check 干净
+  - pytest backend/tests/test_generation_enterprise_data.py backend/tests/test_risk_context_builder.py backend/tests/test_risk_source_migration_service.py -q → 10 passed
+  - 5 处替换（generation.py:381/607/758/857/949）全部正确传 p.enterprise_id；空 ent 时 `if ent else {}` 短路不发查询、不触发 builder ValueError；generation.py/external.py 大小写敏感搜索 RiskSource 零残留；顺带修复 base 既有 bug：c23c99e 的 external.py 以 4 参调用 3 参函数 `_collect_enterprise_data(..., accident_type)`（ent 存在即 TypeError），现改为三参、accident_type 仍单独传 _build_section_prompt
+  - risk_sources 12 字段（旧 6 + zone/object/unit/accident_type/triggers/consequences）与 _risk_source_item 输出对应，下游 retriever.py rs.get("name")/json.dumps 兼容
+- 遗留小观察（不阻塞）：unit 为 None 时 .get("unit","") 透传 None（JSON null，LLM 可读）；新测试仅断言 4 字段、未覆盖空 risk_context 与缺失 key 默认值分支；5 处调用点重复为 base 既有模式且计划明确要求按同模式替换；builder 的 risk_score/likelihood/severity/measures 未透传 prompt（计划步骤 3 未要求）
+- 下一步：任务 7-11（风险评估/统计/chat/Web/移动端切换与全量验证）
+- 关键上下文：分支 codex/risk-management-only，HEAD=da8980d；复审为只读，除 TASKS.md 快照外未改任何文件
+- 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
 - 正在做什么（2026-08-06）：任务 5（补齐风险上下文字段）完成并提交
