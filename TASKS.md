@@ -1,13 +1,26 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：任务 7（风险评估前置检查切换）代码质量复审完成，结论 ✅ 通过（只读验证，仅更新 TASKS.md 快照）
-- 刚完成的动作（复审）：
-  - git diff da8980d...188afd5：实现提交 188afd5 仅改 2 个规定文件（backend/app/routers/risk_assessment.py 12 行 + backend/app/services/risk_assessment_service.py 65 行）；范围内 TASKS.md 变更为 savepoint 4dd179c 快照（10+/8-），非实现内容；git diff --check 干净
-  - pytest backend/tests/test_risk_context_builder.py -q → 3 passed
-  - 逐项核对：前置检查顺序 = ent 404 → build_risk_management_context（risk_assessment.py:406）→ total_events==0 报 400「请先录入风险分级管控数据」（:407-408）→ ai_config → generating 检查，context 在 event_generator 内复用，builder 全文件仅 1 次调用；RiskSource 导入删除后零残留（rg 实测），Enterprise/AIConfig/select 仍在用未误删；risk_assessment_service.py 删除 select/Enterprise/RiskSource/RISK_ORDER 后零残留
-  - 发现点（不阻塞）：build_risk_assessment_context 委托新 builder 后当前零调用方（全 backend rg 仅定义处），属计划步骤 2 明确要求保留的兼容入口，建议任务 8-11 完成后复查，若仍无调用方可删除；路由前置检查无直接测试覆盖（rg backend/tests 无 generate_risk_assessment/total_events/请先录入风险 命中）
-- 下一步：任务 8（统计接口切换）及后续 chat/Web/移动端切换
-- 关键上下文：分支 codex/risk-management-only，HEAD=188afd5；复审为只读，除 TASKS.md 快照外未改任何文件
-- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-06）：独立复审任务 8 提交（241554a）完成，结论 ❌ 发现 1 处问题（建议修改）
+- 刚完成的动作（复审，只读验证未改代码）：
+  - git show 241554a：恰好 10 个文件，与计划任务 8 文件清单一致
+  - backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_stats_service.py -q → 1 passed；backend 全量 84 passed（--ignore=test_autofill_research.py）；frontend npx tsc -b exit 0；npx vitest run 42 passed（4 文件）；git show 241554a --check 干净
+  - 规格 1-7 逐项核对均实现：risk_stats_service.py 三函数（对象/单元事件 OR join + distinct）、EnterpriseResponse.risk_events_count（旧 risk_sources_count 保留）、DashboardStats.risk_event_count（旧 risk_source_count 保留）、enterprises.py 列表批量 IN 分组查询无 N+1、详情单查、dashboard.py 用 count_user_risk_events、前端类型/页面字段一致
+  - 唯一问题 [建议修改]：EnterpriseListPage.tsx:45-46 新增「风险事件数」列但保留旧「风险源数」列，设计规格 8.6（design 367-368 行）要求「从『风险源数』改为『风险事件数』」（替换而非新增）；实现与计划步骤 7 片段一致，但偏离设计规格；其余 [仅供参考]：test_risk_stats_service.py 仅 mock 验证接线，未真实覆盖对象/单元事件计数（仓库无 DB 测试惯例）
+- 下一步：由用户决定是否移除旧「风险源数」列，或进入任务 9（chat/Web/移动端统计切换）
+- 关键上下文：分支 codex/risk-management-only，HEAD=241554a；TASKS.md 未提交改动为快照更新本身
+
+以下为历史快照，保留供压缩恢复参考
+
+- 正在做什么（2026-08-06）：任务 8（统计服务与 Web 统计切换）完成并提交（241554a）
+- 刚完成的动作：
+  - 新建 backend/app/services/risk_stats_service.py：count_enterprise_risk_events / count_user_risk_events / count_enterprises_risk_events，统一 risk_events 统计口径（事件挂对象或挂单元均计入，distinct 去重，zone→enterprise 过滤）
+  - backend/app/schemas/enterprise.py 的 EnterpriseResponse 新增 risk_events_count=0；backend/app/schemas/dashboard.py 的 DashboardStats 新增 risk_event_count=0（旧 risk_sources_count / risk_source_count 均保留）
+  - backend/app/routers/enterprises.py：_build_response 增加 risk_events_count 参数；list_enterprises 批量 count_enterprises_risk_events；get_enterprise 单查 count_enterprise_risk_events（create/update 默认 0）
+  - backend/app/routers/dashboard.py：get_dashboard 新增 count_user_risk_events 并写入 DashboardStats
+  - 前端：types/enterprise.ts + types/dashboard.ts 新增字段；EnterpriseListPage 新增「风险事件数」列；DashboardPage 风险源数统计改为「风险事件数」（WarningOutlined 保留）
+  - TDD：test_risk_stats_service.py 先红（ModuleNotFoundError）后绿
+- 验证结果：pytest test_risk_stats_service.py -v → 1 passed；backend 全量 84 passed（--ignore=test_autofill_research.py，该文件缺 scrapling 依赖为既有环境问题）；router+service import ok；frontend npx tsc -b exit 0；vitest 42 passed（4 文件）；git diff --check 干净；codegraph sync 完成（+1 节点）
+- 下一步：任务 9（chat/Web/移动端统计切换）及后续任务
+- 关键上下文：分支 codex/risk-management-only，HEAD=241554a；worktree 无 graphify-out/graph.json 跳过 graphify；测试约定：SQLAlchemy execute 异步、scalar 同步，mock 时 result 用 Mock 而非 AsyncMock（AsyncMock 的 scalar() 返回协程导致断言拿不到返回值）
 - 以下为历史快照，保留供压缩恢复参考
 
 - 正在做什么（2026-08-06）：任务 5（补齐风险上下文字段）完成并提交
