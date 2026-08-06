@@ -15,6 +15,8 @@ from app.models.resource_investigation import ResourceInvestigationReport
 from app.services.enterprise_autofill import autofill
 from app.services.enterprise_cleanup_service import delete_enterprise_complete
 from app.services.floor_plan_storage_service import remove_enterprise_uploads
+from app.services.risk_context_builder import build_risk_management_context
+from app.services.risk_stats_service import count_user_risk_events
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
@@ -229,7 +231,8 @@ async def _get_dashboard(db, user, args):
     rs_count = (await db.execute(select(func.count(RiskSource.id)).join(Enterprise).where(Enterprise.user_id == user.id))).scalar() or 0
     res_count = (await db.execute(select(func.count(EmergencyResource.id)).join(Enterprise).where(Enterprise.user_id == user.id))).scalar() or 0
     generating = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == user.id, PlanProject.status == "generating"))).scalar() or 0
-    return {"enterprise_count": ent_count, "plan_count": plan_count, "completed_plan_count": completed, "generating_plan_count": generating, "risk_source_count": rs_count, "resource_count": res_count}
+    risk_event_count = await count_user_risk_events(db, user.id)
+    return {"enterprise_count": ent_count, "plan_count": plan_count, "completed_plan_count": completed, "generating_plan_count": generating, "risk_source_count": rs_count, "risk_event_count": risk_event_count, "resource_count": res_count}
 
 
 # ── 企业 + 自动填充 ──
@@ -254,12 +257,13 @@ async def _get_enterprise(db, user, args):
         return {"error": "请提供 enterprise_id 或 name"}
     if not ent:
         return {"error": "企业不存在"}
+    context = await build_risk_management_context(ent.id, db)
     return {
         "id": ent.id, "name": ent.name, "industry": ent.industry, "address": ent.address,
         "employee_count": ent.employee_count, "credit_code": ent.credit_code,
         "legal_representative": ent.legal_representative, "phone": ent.phone,
         "safety_officer": ent.safety_officer, "safety_officer_phone": ent.safety_officer_phone,
-        "risk_sources": [{"id": r.id, "name": r.name, "categories": r.categories, "risk_level": r.risk_level} for r in (ent.risk_sources or [])],
+        "risk_sources": context.get("risk_sources", []),
         "resources": [{"id": r.id, "name": r.name, "category": r.category, "quantity": r.quantity, "unit": r.unit, "location": r.location} for r in (ent.resources or [])],
         "plans": [{"id": p.id, "title": p.title, "plan_type": p.plan_type, "status": p.status} for p in (ent.plans or [])],
     }
@@ -376,11 +380,19 @@ async def _delete_enterprise(db, user, args):
 # ── 风险源 ──
 
 async def _list_risk_sources(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_list(db, user, args, _RS_CFG)
-    except _ErrorDict as e:
-        return e.data
+    ent_id = args.get("enterprise_id", "")
+    if not ent_id:
+        return {"error": "请提供 enterprise_id"}
+    ent = (await db.execute(
+        select(Enterprise).where(
+            Enterprise.id == ent_id,
+            Enterprise.user_id == user.id,
+        )
+    )).scalar_one_or_none()
+    if not ent:
+        return {"error": "企业不存在"}
+    context = await build_risk_management_context(ent_id, db)
+    return {"risk_sources": context.get("risk_sources", [])}
 
 
 async def _create_risk_source(db, user, args):
@@ -896,9 +908,6 @@ _FUNCTIONS = {
     "update_enterprise": _update_enterprise,
     "delete_enterprise": _delete_enterprise,
     "list_risk_sources": _list_risk_sources,
-    "create_risk_source": _create_risk_source,
-    "update_risk_source": _update_risk_source,
-    "delete_risk_source": _delete_risk_source,
     "list_resources": _list_resources,
     "create_resource": _create_resource,
     "update_resource": _update_resource,
