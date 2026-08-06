@@ -42,6 +42,7 @@ prompt_test_results/
 *.tmp
 *.swp
 .DS_Store
+.worktrees/
 
 # Docker
 docker-compose.override.yml
