@@ -3,9 +3,8 @@ import json
 import logging
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.models.enterprise import Enterprise, RiskSource
 from app.models.risk_assessment import RiskAssessmentReport
+from app.services.risk_context_builder import build_risk_management_context
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -13,68 +12,8 @@ logger = logging.getLogger(__name__)
 # 提示词缓存（延迟导入，避免循环引用）
 from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt, build_system_prompt_with_style
 
-RISK_ORDER = {"重大": 0, "较大": 1, "一般": 2, "低": 3}
-
-
 async def build_risk_assessment_context(enterprise_id: str, db: AsyncSession) -> dict:
-    enterprise_result = await db.execute(
-        select(Enterprise).where(Enterprise.id == enterprise_id)
-    )
-    enterprise = enterprise_result.scalar_one_or_none()
-    if not enterprise:
-        raise ValueError("企业不存在")
-
-    risk_result = await db.execute(
-        select(RiskSource).where(RiskSource.enterprise_id == enterprise_id)
-    )
-    risk_sources = risk_result.scalars().all()
-    risk_sources_sorted = sorted(
-        risk_sources,
-        key=lambda r: RISK_ORDER.get(r.risk_level or "低", 99),
-    )
-
-    return {
-        "enterprise": {
-            "name": enterprise.name,
-            "industry": enterprise.industry,
-            "address": enterprise.address,
-            "employee_count": enterprise.employee_count,
-            "business_scope": enterprise.business_scope,
-            "building_overview": enterprise.building_overview,
-            "surrounding_info": enterprise.surrounding_info,
-            "legal_representative": enterprise.legal_representative,
-            "credit_code": enterprise.credit_code,
-            "economic_type": enterprise.economic_type,
-            "established_date": str(enterprise.established_date) if enterprise.established_date else None,
-            "registered_capital": enterprise.registered_capital,
-            "phone": enterprise.phone,
-            "land_area": enterprise.land_area,
-            "building_area": enterprise.building_area,
-            "safety_officer": enterprise.safety_officer,
-            "safety_standardization": enterprise.safety_standardization,
-            "fire_approval": enterprise.fire_approval,
-            "main_products": enterprise.main_products,
-            "hazardous_chemicals": enterprise.hazardous_chemicals,
-            "special_equipment": enterprise.special_equipment,
-            "fire_protection_summary": enterprise.fire_protection_summary,
-            "special_equipment_detail": enterprise.special_equipment_detail,
-            "main_equipment_list": enterprise.main_equipment_list,
-            "natural_conditions": enterprise.natural_conditions,
-        },
-        "risk_sources": [
-            {
-                "name": rs.name,
-                "categories": rs.categories,
-                "location": rs.location,
-                "description": rs.description,
-                "likelihood": rs.likelihood,
-                "severity": rs.severity,
-                "risk_level": rs.risk_level,
-                "control_measures": rs.control_measures,
-            }
-            for rs in risk_sources_sorted
-        ],
-    }
+    return await build_risk_management_context(enterprise_id, db)
 
 
 SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格的风险评估专家

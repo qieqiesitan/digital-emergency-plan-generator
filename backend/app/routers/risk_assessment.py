@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 from app.database import get_db, async_session
 from app.dependencies import get_current_user
-from app.models.enterprise import Enterprise, RiskSource, AIConfig
+from app.models.enterprise import Enterprise, AIConfig
 from app.models.risk_assessment import RiskAssessmentReport
 from app.schemas.risk_assessment import (
     RiskAssessmentGenerateRequest,
@@ -403,11 +403,9 @@ async def generate_risk_assessment(
     if not ent:
         raise HTTPException(404, "企业不存在")
 
-    risk_count = (await db.execute(
-        select(RiskSource).where(RiskSource.enterprise_id == enterprise_id)
-    )).scalars().all()
-    if len(risk_count) == 0:
-        raise HTTPException(400, "请先录入风险源数据")
+    context = await build_risk_management_context(enterprise_id, db)
+    if context["total_events"] == 0:
+        raise HTTPException(400, "请先录入风险分级管控数据")
 
     ai_config = (await db.execute(
         select(AIConfig).where(AIConfig.user_id == current_user.id)
@@ -423,8 +421,6 @@ async def generate_risk_assessment(
     )).scalar_one_or_none()
     if existing:
         raise HTTPException(400, "已有正在生成的报告，请等待完成")
-
-    context = await build_risk_management_context(enterprise_id, db)
 
     report = (await db.execute(
         select(RiskAssessmentReport).where(RiskAssessmentReport.enterprise_id == enterprise_id)
