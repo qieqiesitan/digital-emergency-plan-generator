@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import { getFullHierarchy } from "@/services/riskManagementService";
+import { flattenHierarchyEvents } from "@/utils/riskHierarchyEvents";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import Card from "@/mobile/components/ui/Card";
@@ -21,15 +22,9 @@ export default function RiskManagementListScreen() {
     enabled: !!enterpriseId,
   });
 
-  const rows = zones.flatMap((zone) =>
-    (zone.objects || []).flatMap((obj) => {
-      const objectEvents = (obj.events || []).map((ev) => ({ ...ev, object: obj.name, unit: null }));
-      const unitEvents = (obj.units || []).flatMap((unit) =>
-        (unit.events || []).map((ev) => ({ ...ev, object: obj.name, unit: unit.name }))
-      );
-      return [...objectEvents, ...unitEvents];
-    })
-  ).sort((a, b) => LEVEL_ORDER.indexOf(a.risk_level) - LEVEL_ORDER.indexOf(b.risk_level));
+  const rows = flattenHierarchyEvents(zones).sort(
+    (a, b) => LEVEL_ORDER.indexOf(a.risk_level) - LEVEL_ORDER.indexOf(b.risk_level)
+  );
 
   return (
     <SafeArea className="bg-neutral-50 min-h-dvh pb-20">
@@ -43,7 +38,7 @@ export default function RiskManagementListScreen() {
               <div className="flex-1 min-w-0">
                 <p className="text-h3 font-semibold text-neutral-900">{row.accident_type}</p>
                 <p className="text-caption text-neutral-500 mt-0.5">
-                  {zoneName(zones, row)} · {row.object}{row.unit ? ` · ${row.unit}` : ""}
+                  {row.zone} · {row.object}{row.unit ? ` · ${row.unit}` : ""}
                 </p>
               </div>
               {row.risk_level && <Badge variant="warning">{row.risk_level}</Badge>}
@@ -58,13 +53,4 @@ export default function RiskManagementListScreen() {
       </div>
     </SafeArea>
   );
-}
-
-function zoneName(zones, row) {
-  for (const zone of zones) {
-    for (const obj of zone.objects || []) {
-      if (obj.name === row.object) return zone.name;
-    }
-  }
-  return "未分区";
 }

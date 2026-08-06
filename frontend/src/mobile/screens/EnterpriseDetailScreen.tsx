@@ -15,6 +15,7 @@ import Skeleton from "@/mobile/components/ui/Skeleton";
 import { getEnterprise } from "@/services/enterpriseService";
 import { getFullHierarchy } from "@/services/riskManagementService";
 import { listResources } from "@/services/emergencyResourceService";
+import { flattenHierarchyEvents } from "@/utils/riskHierarchyEvents";
 
 type TabKey = "info" | "risk" | "resource" | "report";
 
@@ -76,15 +77,7 @@ function RiskTab({ enterpriseId }: { enterpriseId: string }) {
     enabled: !!enterpriseId,
   });
 
-  const rows = zones.flatMap((zone) =>
-    (zone.objects || []).flatMap((obj) => {
-      const objectEvents = (obj.events || []).map((ev) => ({ ...ev, object: obj.name, unit: null }));
-      const unitEvents = (obj.units || []).flatMap((unit) =>
-        (unit.events || []).map((ev) => ({ ...ev, object: obj.name, unit: unit.name }))
-      );
-      return [...objectEvents, ...unitEvents];
-    })
-  );
+  const rows = flattenHierarchyEvents(zones);
 
   if (isLoading) {
     return (
@@ -127,7 +120,7 @@ function RiskTab({ enterpriseId }: { enterpriseId: string }) {
               <div className="flex-1 min-w-0">
                 <p className="text-body text-neutral-900 truncate">{row.accident_type}</p>
                 <p className="text-caption text-neutral-400">
-                  {zoneName(zones, row)}{row.unit ? ` · ${row.unit}` : ""}
+                  {row.zone}{row.unit ? ` · ${row.unit}` : ""}
                 </p>
               </div>
               {row.risk_level && (
@@ -139,15 +132,6 @@ function RiskTab({ enterpriseId }: { enterpriseId: string }) {
       )}
     </div>
   );
-}
-
-function zoneName(zones, row) {
-  for (const zone of zones) {
-    for (const obj of zone.objects || []) {
-      if (obj.name === row.object) return zone.name;
-    }
-  }
-  return "未分区";
 }
 
 // 应急资源 Tab（内嵌列表）

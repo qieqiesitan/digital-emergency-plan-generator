@@ -14,6 +14,7 @@ import Toast, { useToast } from "@/mobile/components/ui/Toast";
 import { listEnterprises } from "@/services/enterpriseService";
 import { getFullHierarchy } from "@/services/riskManagementService";
 import { createPlan } from "@/services/planService";
+import { flattenHierarchyEvents } from "@/utils/riskHierarchyEvents";
 import type { PlanType } from "@/types/plan";
 
 const TYPE_OPTIONS: { type: PlanType; icon: React.ReactNode; title: string; desc: string }[] = [
@@ -56,18 +57,11 @@ export default function PlanCreateScreen() {
     [enterprises, selectedEnterpriseId]
   );
 
+  const rows = useMemo(() => flattenHierarchyEvents(riskHierarchy), [riskHierarchy]);
+
   const accidentOptions = useMemo(
-    () => [
-      ...new Set(
-        riskHierarchy.flatMap((zone) =>
-          (zone.objects || []).flatMap((obj) => [
-            ...(obj.events || []).map((ev) => ev.accident_type),
-            ...(obj.units || []).flatMap((unit) => (unit.events || []).map((ev) => ev.accident_type)),
-          ])
-        )
-      ),
-    ],
-    [riskHierarchy]
+    () => [...new Set(rows.map(r => r.accident_type))],
+    [rows]
   );
 
   const defaultTitle = useMemo(() => {
