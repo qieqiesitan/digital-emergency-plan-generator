@@ -1,11 +1,14 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：任务 9 代码质量审查完成，结论 ✅ 通过（提交 66da886）
+- 正在做什么（2026-08-06）：任务 11 全量验证和收尾完成
 - 刚完成的动作：
-  - 复审（只读验证）：git diff acca801...66da886 → 实现提交 66da886 仅改 backend/app/routers/chat.py + backend/app/services/chat_dispatch.py；pytest test_risk_context_builder + test_risk_source_migration_service -q → 9 passed；git diff --check 干净
-  - 逐项核对：工具描述（风险事件数/风险分级管控列表/列出风险分级管控数据）与系统提示已按计划更新；_get_dashboard 保留 rs_count + risk_source_count 并新增 risk_event_count（旧键仍被 generate_report data_summary 消费，保留有依据）；_get_enterprise 用 scalar_one_or_none + 显式 error 返回，不存在企业不抛 ValueError（即使竞态抛错也被 dispatch 顶层 try/except 兜底）；_list_risk_sources 用 Enterprise.user_id == user.id 校验归属后走 build_risk_management_context；count_user_risk_events 按 Enterprise.user_id 过滤；_RS_CFG 仍被 _RES_CFG/_PLAN_CFG 派生引用、_generic_* 仍被企业/资源/预案 CRUD 使用，保留合理
-  - 问题记录：无关键/重要问题；建议（非阻塞）① 新增 chat_dispatch 归属校验/不存在企业单测 ② data_summary 仍取旧 risk_source_count，后续任务可切 risk_event_count ③ _create/_update/_delete_risk_source 三个包装函数已无调用者为死代码，建议加兼容注释或下迭代清理
-- 下一步：任务 10（Web 和移动端入口切换：EnterpriseDetailPage.tsx / RiskAssessmentTab.tsx / mobile routes.tsx 等）及后续任务
-- 关键上下文：分支 codex/risk-management-only，HEAD=66da886；范围中 TASKS.md 变更来自保存点 719ef11（快照维护，非实现内容）；TASKS.md 未提交改动为快照更新本身
+  - backend：pytest tests -q（排除既有缺 scrapling 的 test_autofill_research.py）→ 84 passed
+  - frontend：npx tsc -b exit 0；vitest → 45 passed（5 文件）
+  - Playwright：修正 comprehensive.spec.ts 指向 5174、旧风险源断言改为风险分级管控，并强制 webServer 每次新建；全量 31 passed
+  - 补充 E2E 修复：frontend/e2e/comprehensive.spec.ts + frontend/playwright.config.ts（未提交，待本任务提交）
+  - Node 24 下 vite build 仍因 workbox/PWA 兼容问题退出异常，属于环境既有问题；以 tsc 为准
+- 下一步：提交任务 11 的 TASKS.md 与 E2E 修复，随后做最终整体代码审查和分支收尾
+- 关键上下文：分支 codex/risk-management-only；本迭代实现提交覆盖任务 1-10 及质量修复；遗留下迭代项：旧入口孤儿文件删除、个别旧文案、未知风险等级排序、chat 报告口径
+- 关键上下文：分支 codex/risk-management-only，HEAD=71cf5c2；遗留（下迭代可做）：旧入口孤儿文件（RiskSourceListScreen.tsx / RiskSourceForm.tsx / RiskSourceAIGenerateModal / RiskSourceImportModal / riskSourceService）未删除；未知 risk_level 排序仍排最前；空态按钮跳全量列表页仍同为空态；PlanCreateScreen/RiskAssessmentScreen 个别旧文案未改（不在本次范围）
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
