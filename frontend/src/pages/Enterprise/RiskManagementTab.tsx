@@ -88,6 +88,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
 
   const confirmDelete = useCallback((meta: TreeNodeMeta) => {
     const typeLabels: Record<TreeNodeMeta["type"], string> = {
+      floor: "楼层",
       zone: "分区",
       object: "对象",
       unit: "单元",
@@ -95,6 +96,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
       measure: "措施",
     };
     const contents: Record<TreeNodeMeta["type"], string> = {
+      floor: "将删除该楼层及其下所有分区",
       zone: "将级联删除该分区下所有对象、单元、事件和措施",
       object: "将级联删除该对象下所有单元、事件和措施",
       unit: "将级联删除该单元下所有事件和措施",

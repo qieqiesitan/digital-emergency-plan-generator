@@ -15,21 +15,26 @@ import type {
   HierarchyMeasure,
   RiskZoneFloorPlanPolygon,
 } from "@/types/riskManagement";
+import type { EnterpriseFloor } from "@/types/riskMappingWorkbench";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { groupZonesByFloor } from "@/utils/riskTreeGrouping";
 
 // Types
 
 export interface TreeNodeMeta {
   id: string;
-  type: "zone" | "object" | "unit" | "event" | "measure";
+  type: "floor" | "zone" | "object" | "unit" | "event" | "measure";
   name: string;
   floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
   parentId?: string;
   parentType?: "zone" | "object" | "unit" | "event";
+  floorId?: string | null;
+  floorName?: string | null;
 }
 
 interface Props {
   data: HierarchyZone[];
+  floors?: EnterpriseFloor[];
   onSelect: (node: TreeNodeMeta) => void;
   onRefresh?: () => void;
   onAction: (action: string, meta: TreeNodeMeta) => void;
@@ -38,6 +43,7 @@ interface Props {
 // Helpers
 
 const EMOJI: Record<TreeNodeMeta["type"], string> = {
+  floor: "\u{1F3E2}", // 🏢
   zone: "\u{1F3ED}",
   object: "\u{1F4E6}",
   unit: "\u2699\uFE0F",
@@ -46,6 +52,7 @@ const EMOJI: Record<TreeNodeMeta["type"], string> = {
 };
 
 const ACTION_ITEMS: Record<TreeNodeMeta["type"], { key: string; label: string; icon: React.ReactNode }[]> = {
+  floor: [{ key: "add-zone", label: "添加分区", icon: <PlusOutlined /> }],
   zone: [
     { key: "add-object", label: "添加分析对象", icon: <PlusOutlined /> },
     { key: "edit", label: "编辑分区", icon: <EditOutlined /> },
@@ -82,15 +89,23 @@ function TitleRow({
   riskLevel,
   childCount,
   isRiskPoint,
+  isDefaultFloor,
+  zoneCount,
+  riskPointCount,
+  disableActions,
   onAction,
 }: {
   meta: TreeNodeMeta;
   riskLevel?: string | null;
   childCount: number;
   isRiskPoint?: boolean;
+  isDefaultFloor?: boolean;
+  zoneCount?: number;
+  riskPointCount?: number;
+  disableActions?: boolean;
   onAction: (key: string, meta: TreeNodeMeta) => void;
 }) {
-  const actions = ACTION_ITEMS[meta.type];
+  const actions = disableActions ? [] : ACTION_ITEMS[meta.type];
 
   return (
     <span
@@ -119,6 +134,29 @@ function TitleRow({
       >
         {meta.name}
       </span>
+      {isDefaultFloor && (
+        <Tag
+          color="blue"
+          style={{ margin: 0, fontSize: 11, lineHeight: "18px" }}
+        >
+          默认
+        </Tag>
+      )}
+      {typeof zoneCount === "number" && (
+        <span
+          style={{
+            fontSize: 11,
+            color: "#8c8c8c",
+            background: "#f5f5f5",
+            borderRadius: 10,
+            padding: "0 6px",
+            lineHeight: "20px",
+            flexShrink: 0,
+          }}
+        >
+          {zoneCount} 分区 · {riskPointCount ?? 0} 风险点
+        </span>
+      )}
       {riskLevel && (
         <Tag
           color={RISK_LEVEL_COLORS[riskLevel] || "#d9d9d9"}
@@ -176,7 +214,36 @@ function TitleRow({
 
 // Build tree data
 
-function buildTreeData(zones: HierarchyZone[]): DataNode[] {
+function countZoneTree(zones: HierarchyZone[]): number {
+  return zones.reduce(
+    (acc, z) =>
+      acc +
+      1 +
+      (z.objects || []).reduce(
+        (oa, o) =>
+          oa +
+          1 +
+          (o.units || []).reduce(
+            (ua, u) =>
+              ua +
+              1 +
+              (u.events || []).reduce(
+                (ea, ev) => ea + 1 + (ev.measures || []).length,
+                0
+              ),
+            0
+          ) +
+          (o.events || []).reduce(
+            (ea, ev) => ea + 1 + (ev.measures || []).length,
+            0
+          ),
+        0
+      ),
+    0
+  );
+}
+
+function buildTreeData(zones: HierarchyZone[], floors: EnterpriseFloor[]): DataNode[] {
   function measuresToNodes(measures: HierarchyMeasure[], parentId: string): DataNode[] {
     return measures.map((m) => ({
       key: "measure-" + m.id,
@@ -269,59 +336,66 @@ function buildTreeData(zones: HierarchyZone[]): DataNode[] {
     });
   }
 
-  return zones.map((z) => {
-    const childNodes = objectsToNodes(z.objects || [], z.id);
-    return {
-      key: "zone-" + z.id,
-      title: "",
-      children: childNodes.length > 0 ? childNodes : undefined,
-      isLeaf: childNodes.length === 0,
-      _meta: {
+  const groups = groupZonesByFloor(zones, floors);
+  return groups.map((g) => {
+    const childNodes = g.zones.map((z) => {
+      const objectNodes = objectsToNodes(z.objects || [], z.id);
+      return {
+        key: "zone-" + z.id,
+        title: "",
+        children: objectNodes.length > 0 ? objectNodes : undefined,
+        isLeaf: objectNodes.length === 0,
+        _meta: {
           id: z.id,
           type: "zone" as const,
           name: z.name,
           floor_plan_polygon: z.floor_plan_polygon,
+          floorId: z.floor_id,
+          floorName: z.floor_name,
+        },
+        _riskLevel: null,
+        _childCount: objectNodes.length,
+      };
+    });
+    return {
+      key: g.floorId ? `floor-${g.floorId}` : "floor-unassigned",
+      title: "",
+      children: childNodes,
+      isLeaf: childNodes.length === 0,
+      _meta: {
+        id: g.floorId ?? "unassigned",
+        type: "floor" as const,
+        name: g.floorName,
+        floorId: g.floorId,
+        floorName: g.floorName,
       },
       _riskLevel: null,
       _childCount: childNodes.length,
+      _floorInfo: {
+        isDefault: g.isDefault,
+        zoneCount: g.zoneCount,
+        riskPointCount: g.riskPointCount,
+      },
+      _disableActions: g.floorId === null,
     };
   });
 }
 
 // Component
 
-export default function RiskHierarchyTree({ data, onSelect, onAction }: Props) {
-  const treeData = useMemo(() => buildTreeData(data), [data]);
-  const totalNodes = useMemo(
-    () =>
-      data.reduce(
-        (acc, z) =>
-          acc +
-          1 +
-          (z.objects || []).reduce(
-            (oa, o) =>
-              oa +
-              1 +
-              (o.units || []).reduce(
-                (ua, u) =>
-                  ua +
-                  1 +
-                  (u.events || []).reduce(
-                    (ea, ev) => ea + 1 + (ev.measures || []).length,
-                    0
-                  ),
-                0
-              ) +
-              (o.events || []).reduce(
-                (ea, ev) => ea + 1 + (ev.measures || []).length,
-                0
-              ),
-            0
-          ),
-        0
-      ),
-    [data]
-  );
+export default function RiskHierarchyTree({ data, floors, onSelect, onAction }: Props) {
+  const treeData = useMemo(() => buildTreeData(data, floors ?? []), [data, floors]);
+  const totalNodes = useMemo(() => {
+    const groups = groupZonesByFloor(data, floors ?? []);
+    return groups.reduce((acc, g) => acc + 1 + countZoneTree(g.zones), 0);
+  }, [data, floors]);
+  const multiFloor = useMemo(() => groupZonesByFloor(data, floors ?? []).length > 1, [data, floors]);
+  const defaultExpandedKeys = useMemo(() => {
+    if (!multiFloor) return undefined;
+    const defaultFloor = floors?.find((f) => f.is_default);
+    if (!defaultFloor) return undefined;
+    return [`floor-${defaultFloor.id}`];
+  }, [multiFloor, floors]);
 
   const handleSelect = useCallback(
     (_selectedKeys: React.Key[], info: { node: EventDataNode<DataNode> }) => {
@@ -347,6 +421,8 @@ export default function RiskHierarchyTree({ data, onSelect, onAction }: Props) {
         _riskLevel?: string | null;
         _childCount?: number;
         _isRiskPoint?: boolean;
+        _floorInfo?: { isDefault: boolean; zoneCount: number; riskPointCount: number };
+        _disableActions?: boolean;
       };
       if (!n._meta) return <span>{String(nodeData.title)}</span>;
       return (
@@ -355,6 +431,10 @@ export default function RiskHierarchyTree({ data, onSelect, onAction }: Props) {
           riskLevel={n._riskLevel}
           childCount={n._childCount ?? 0}
           isRiskPoint={n._isRiskPoint}
+          isDefaultFloor={n._floorInfo?.isDefault}
+          zoneCount={n._floorInfo?.zoneCount}
+          riskPointCount={n._floorInfo?.riskPointCount}
+          disableActions={n._disableActions}
           onAction={handleAction}
         />
       );
@@ -384,7 +464,8 @@ export default function RiskHierarchyTree({ data, onSelect, onAction }: Props) {
       onSelect={handleSelect}
       showLine={{ showLeafIcon: false }}
       blockNode
-      defaultExpandAll={totalNodes < 100}
+      defaultExpandAll={totalNodes < 100 && !multiFloor}
+      defaultExpandedKeys={defaultExpandedKeys}
       virtual={totalNodes > 200}
       height={totalNodes > 200 ? 600 : undefined}
       style={{
