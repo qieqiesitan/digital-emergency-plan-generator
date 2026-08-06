@@ -10,10 +10,14 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.enterprise import Enterprise, EnterpriseFloor, RiskSource
 from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
-from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse)
+from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, MigrationExecuteResponse, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse)
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
+from app.services.risk_source_migration_service import (
+    build_migration_preview,
+    execute_migration as execute_risk_source_migration,
+)
 from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url
 from app.config import settings
@@ -780,41 +784,45 @@ async def ai_analyze_floor_plan(body: dict, enterprise_id: str, current_user=Dep
     result = await analyze_floor_plan(body.get("enterprise_info",{}), ai_config)
     return ApiResponse(data=result)
 
-@router.post("/ai/migrate-preview")
+@router.post("/ai/migrate-preview", response_model=ApiResponse[MigrationPreviewResponse])
 async def ai_migrate_preview(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    ai_config = await _get_ai_config(current_user.id, db)
-    old = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id==enterprise_id, RiskSource.migrated==False))).scalars().all()
-    if not old: return ApiResponse(data=[])
-    sources = [{"id":s.id,"name":s.name,"categories":s.categories,"location":s.location,"risk_level":s.risk_level,"description":s.description} for s in old]
-    result = await migrate_preview(sources, ai_config)
-    return ApiResponse(data=result)
+    mappings: list[dict] = []
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+        old = (await db.execute(
+            select(RiskSource).where(
+                RiskSource.enterprise_id == enterprise_id,
+                RiskSource.migrated.is_(False),
+            )
+        )).scalars().all()
+        if old:
+            sources = [{
+                "id": s.id,
+                "name": s.name,
+                "categories": s.categories,
+                "location": s.location,
+                "risk_level": s.risk_level,
+                "description": s.description,
+            } for s in old]
+            mappings = await migrate_preview(sources, ai_config)
+    except HTTPException:
+        mappings = []
+    data = await build_migration_preview(db, enterprise_id, ai_mappings=mappings)
+    return ApiResponse(data=MigrationPreviewResponse(**data))
 
 # ── Migration ──
 @router.get("/migrate/preview", response_model=ApiResponse[MigrationPreviewResponse])
 async def get_migration_preview(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    old = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id==enterprise_id, RiskSource.migrated==False))).scalars().all()
-    return ApiResponse(data=MigrationPreviewResponse(items=[MigrationPreviewItem(source_id=s.id, source_name=s.name) for s in old], total=len(old)))
+    data = await build_migration_preview(db, enterprise_id)
+    return ApiResponse(data=MigrationPreviewResponse(**data))
 
-@router.post("/migrate/execute")
+@router.post("/migrate/execute", response_model=ApiResponse[MigrationExecuteResponse])
 async def execute_migration(body: MigrationExecuteRequest, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    for mp in body.mappings:
-        sid = mp.get("source_id")
-        src = (await db.execute(select(RiskSource).where(RiskSource.id==sid))).scalar_one_or_none()
-        if not src: continue
-        zn = mp.get("zone_name","未命名分区")
-        on = mp.get("object_name", src.name)
-        zone = (await db.execute(select(RiskZone).where(RiskZone.enterprise_id==enterprise_id, RiskZone.name==zn))).scalar_one_or_none()
-        if not zone:
-            floor_id = await _resolve_zone_floor(db, enterprise_id, None)
-            zone = RiskZone(enterprise_id=enterprise_id, floor_id=floor_id, name=zn); db.add(zone); await db.flush()
-        obj = RiskObject(enterprise_id=enterprise_id, zone_id=zone.id, floor_id=zone.floor_id, name=on, category=src.categories, location=src.location, description=src.description or "")
-        db.add(obj); await db.flush()
-        params = mp.get("method_params",{})
-        rating = compute_risk("LS", params if params else {"l":3,"s":3})
-        ev = RiskEvent(object_id=obj.id, accident_type=mp.get("accident_type","火灾"), method_type="LS", method_params=params, risk_level=rating.risk_level, risk_score=rating.risk_score)
-        db.add(ev); src.migrated = True
-    await db.commit()
-    return ApiResponse(data=None, message=f"已迁移 {len(body.mappings)} 条数据")
+    data = await execute_risk_source_migration(db, enterprise_id, body.mappings)
+    return ApiResponse(
+        data=MigrationExecuteResponse(**data),
+        message=f"已迁移 {data['migrated']} 条数据",
+    )
