@@ -1,14 +1,12 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，功能完成待审查）：树楼层维护 + 空楼层显示已实现并全量验证通过（分支 codex/risk-tree-floor-maintenance），待最终审查与收尾
+- 正在做什么（2026-08-06，已合并收尾）：树楼层维护 + 空楼层显示已本地合并回 master（fast-forward，HEAD=1951f2d），验证通过，功能分支已删除
 - 刚完成的动作：
-  - 用户反馈两问题已修复：①树显示全部楼层（含空楼层"0 分区"，groupZonesByFloor 不再过滤空楼层；空态条件调整为有楼层即渲染树）②工具栏新增「楼层管理」抽屉（FloorManagementDrawer：添加/重命名/设为默认/删除，复用后端规则）
-  - 双向联动：抽屉操作后 invalidate enterprise-floors + risk-floors + refetch 分区树；工作台 EnterpriseFloorManager.refresh 补 invalidate enterprise-floors
-  - 提交：e09796b（空楼层显示）、3bc79d6（抽屉组件）、de6ebb6（集成联动）、79b0848（E2E 2 用例）
-  - 并发处理：另一会话（智能导引修复）期间共享工作区，其成果已并入 master 并合入本分支（7e2f334），无冲突
-  - 实现方式：子代理再次卡在"等待任务"，改为协调层直接按计划实现
-- 最终验证（全部通过）：backend pytest 71 passed；tsc -b 0；vitest 42 passed（4 文件）；Playwright 18 passed（树 5 + 工作台 12 + 智能导引 1）；Node 22 生产构建成功
-- 下一步：最终审查（规格+质量）→ 修复发现项（若有）→ 收尾决策（合并/PR/保持）
-- 关键上下文：当前分支 codex/risk-tree-floor-maintenance，HEAD=79b0848（TASKS.md 快照待提交）；master 含智能导引修复，本分支领先 master 5 个功能提交；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
+  - 用户选择收尾方式 1（本地合并）：master 由 ed8e1d6 快进到 1951f2d，包含本迭代 5 个提交（e09796b 空楼层显示 / 3bc79d6 抽屉 / de6ebb6 集成联动 / 79b0848 E2E / 1951f2d TASKS）
+  - 合并前已并入另一会话的智能导引修复（master 已有）；合并结果验证：backend 71 passed + tsc 0（vitest 42 / Playwright 18 / 构建在合并前同内容已验证）
+  - 已删除功能分支 codex/risk-tree-floor-maintenance（git branch -d 成功）
+  - git pull 尝试失败（网络 RPC reset），本地 master 领先 origin 152 提交，未推送
+- 下一步：等待用户决定（是否推送 master 到 origin+gitee / 是否删除遗留分支 codex/protego-integration）；未执行 git finish/推送
+- 关键上下文：当前分支 master，HEAD=1951f2d；master 领先 origin/master 与 gitee/master（本地合并未推送）；遗留分支 codex/protego-integration（上一迭代，已完全合并）保留；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
 - 最终验证（全部通过）：backend pytest 69 passed；tsc -b 0；vitest 40 passed；Playwright 15 passed（risk-hierarchy-tree 3 + risk-mapping-workbench 12）；Node 22 生产构建成功（PWA 正常）
 - 已知缺口（记录，未处理）：spec §6 要求 /hierarchy 接口级测试，仓库无路由测试设施，当前以纯函数单测 + E2E 覆盖；P3 若干（楼层计数数据源一致性、groupZonesByFloor 重复计算、edit/edit-zone 分支重复）已记录
 - 下一步：等待用户选择执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 按对应技能逐任务实现
