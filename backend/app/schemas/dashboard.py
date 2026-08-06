@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 class DashboardStats(BaseModel):
     enterprise_count: int; plan_count: int; completed_plan_count: int; risk_source_count: int
+    risk_event_count: int = 0
 
 class DashboardRecentPlan(BaseModel):
     id: str; title: str; plan_type: str; enterprise_name: str; status: str

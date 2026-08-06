@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.models.user import User
-from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, AIConfig, RiskSource, EmergencyResource
+from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, AIConfig, EmergencyResource
 from app.schemas.common import ApiResponse
 from app.config import settings
 from app.services.external_file_store import download_external_files
@@ -22,6 +22,7 @@ from app.routers.generation import (
 from app.services.markdown_utils import md_to_html
 from app.services.prompt_cache import ensure_loaded
 from app.services.docx_template import generate_plan_docx
+from app.services.risk_context_builder import build_risk_management_context
 
 logger = logging.getLogger("external_api")
 
@@ -92,9 +93,9 @@ async def _run_generation_then_callback(
                 _external_tasks[plan_id] = {"status": "failed", "error": "No AI config"}; return
 
             ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one_or_none()
-            risk_sources = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id == enterprise_id))).scalars().all()
             resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == enterprise_id))).scalars().all()
-            ent_data = _collect_enterprise_data(ent, risk_sources, resources, accident_type) if ent else {}
+            risk_context = await build_risk_management_context(enterprise_id, db) if ent else {}
+            ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
             if ent:
                 ent_data = await _enrich_with_reports(ent_data, enterprise_id, db)
 

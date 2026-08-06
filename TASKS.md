@@ -1,4 +1,104 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06）：任务 11 全量验证和收尾完成
+- 刚完成的动作：
+  - backend：pytest tests -q（排除既有缺 scrapling 的 test_autofill_research.py）→ 84 passed
+  - frontend：npx tsc -b exit 0；vitest → 45 passed（5 文件）
+  - Playwright：修正 comprehensive.spec.ts 指向 5174、旧风险源断言改为风险分级管控，并强制 webServer 每次新建；全量 31 passed
+  - 补充 E2E 修复：frontend/e2e/comprehensive.spec.ts + frontend/playwright.config.ts（未提交，待本任务提交）
+  - Node 24 下 vite build 仍因 workbox/PWA 兼容问题退出异常，属于环境既有问题；以 tsc 为准
+- 下一步：提交任务 11 的 TASKS.md 与 E2E 修复，随后做最终整体代码审查和分支收尾
+- 关键上下文：分支 codex/risk-management-only；本迭代实现提交覆盖任务 1-10 及质量修复；遗留下迭代项：旧入口孤儿文件删除、个别旧文案、未知风险等级排序、chat 报告口径
+- 关键上下文：分支 codex/risk-management-only，HEAD=71cf5c2；遗留（下迭代可做）：旧入口孤儿文件（RiskSourceListScreen.tsx / RiskSourceForm.tsx / RiskSourceAIGenerateModal / RiskSourceImportModal / riskSourceService）未删除；未知 risk_level 排序仍排最前；空态按钮跳全量列表页仍同为空态；PlanCreateScreen/RiskAssessmentScreen 个别旧文案未改（不在本次范围）
+- 以下为历史快照，保留供压缩恢复参考
+- 以下为历史快照，保留供压缩恢复参考
+
+- 正在做什么（2026-08-06）：规格审查问题已修复并提交（acca801）：企业列表「风险源数」列替换为「风险事件数」
+- 刚完成的动作：
+  - frontend/src/pages/Enterprise/EnterpriseListPage.tsx 删除 { title: "风险源数", dataIndex: "risk_sources_count" }，仅保留「风险事件数」列；提交 acca801（1 文件 1 删除）；修改前 git save（13bafe8）
+  - 验证：frontend npx tsc -b exit 0；npm test -- --run → 42 passed（4 文件）；git diff --check 干净
+- 下一步：任务 9（chat/Web/移动端统计切换）及后续任务
+- 关键上下文：分支 codex/risk-management-only，HEAD=acca801；任务 8 实现提交 241554a + 本修复 acca801，其余 9 个文件不受影响
+- 以下为历史快照，保留供压缩恢复参考
+
+以下为历史快照，保留供压缩恢复参考
+
+- 正在做什么（2026-08-06）：任务 8（统计服务与 Web 统计切换）完成并提交（241554a）
+- 刚完成的动作：
+  - 新建 backend/app/services/risk_stats_service.py：count_enterprise_risk_events / count_user_risk_events / count_enterprises_risk_events，统一 risk_events 统计口径（事件挂对象或挂单元均计入，distinct 去重，zone→enterprise 过滤）
+  - backend/app/schemas/enterprise.py 的 EnterpriseResponse 新增 risk_events_count=0；backend/app/schemas/dashboard.py 的 DashboardStats 新增 risk_event_count=0（旧 risk_sources_count / risk_source_count 均保留）
+  - backend/app/routers/enterprises.py：_build_response 增加 risk_events_count 参数；list_enterprises 批量 count_enterprises_risk_events；get_enterprise 单查 count_enterprise_risk_events（create/update 默认 0）
+  - backend/app/routers/dashboard.py：get_dashboard 新增 count_user_risk_events 并写入 DashboardStats
+  - 前端：types/enterprise.ts + types/dashboard.ts 新增字段；EnterpriseListPage 新增「风险事件数」列；DashboardPage 风险源数统计改为「风险事件数」（WarningOutlined 保留）
+  - TDD：test_risk_stats_service.py 先红（ModuleNotFoundError）后绿
+- 验证结果：pytest test_risk_stats_service.py -v → 1 passed；backend 全量 84 passed（--ignore=test_autofill_research.py，该文件缺 scrapling 依赖为既有环境问题）；router+service import ok；frontend npx tsc -b exit 0；vitest 42 passed（4 文件）；git diff --check 干净；codegraph sync 完成（+1 节点）
+- 下一步：任务 9（chat/Web/移动端统计切换）及后续任务
+- 关键上下文：分支 codex/risk-management-only，HEAD=241554a；worktree 无 graphify-out/graph.json 跳过 graphify；测试约定：SQLAlchemy execute 异步、scalar 同步，mock 时 result 用 Mock 而非 AsyncMock（AsyncMock 的 scalar() 返回协程导致断言拿不到返回值）
+- 以下为历史快照，保留供压缩恢复参考
+
+- 正在做什么（2026-08-06）：任务 5（补齐风险上下文字段）完成并提交
+- 刚完成的动作：
+  - 修改 backend/app/services/risk_context_builder.py：新增 _risk_source_item(zone, obj, unit, event) 辅助函数（含 name/categories/location/control_measures 等旧提示词兼容字段），两处手工构造列表替换为 _risk_source_item 调用，enterprise 返回字典补齐 legal_representative/credit_code/economic_type/established_date/registered_capital/phone/land_area/building_area/safety_officer/safety_standardization/fire_approval/main_products/special_equipment 等字段
+  - 新建 backend/tests/test_risk_context_builder.py（TDD：先写测试验证 ImportError FAIL，再实现后 PASS）
+  - 验证：pytest backend/tests/test_risk_context_builder.py -v → 1 passed；迁移服务+基线+本任务 9 passed；模块导入 ok；git diff --check 干净
+  - 已提交 0bcdfe8 feat(risk-management): enrich risk context for legacy prompts（2 文件 68+/37-）
+- 下一步：任务 6-7（预案/风险评估/统计等消费 risk_context 字段）
+- 关键上下文：分支 codex/risk-management-only，HEAD=0bcdfe8；任务 5 仅改指定 2 个文件；TASKS.md 未提交改动为快照更新本身
+- 以下为历史快照，保留供压缩恢复参考
+
+- 正在做什么（2026-08-06）：任务 4（前端迁移服务和向导闭环）已完成并提交
+- 刚完成的动作：
+  - 修改 4 个文件：frontend/src/types/riskManagement.ts（新增 4 个迁移接口类型）、frontend/src/services/riskManagementService.ts（getMigrationPreview / aiMigratePreview 新签名 / executeMigration）、frontend/src/components/enterprise/RiskMigrationWizard.tsx（迁移预览与执行改为走服务层）、frontend/src/pages/Enterprise/RiskManagementTab.tsx（迁移入口 Alert + RiskMigrationWizard 挂载）
+  - 验证：frontend `npm run build`（tsc -b + vite build）通过；`npm test` 42 passed（4 文件）；git diff --check 干净；修改前已按铁律二 git save（保存点 b120399）
+  - 已提交 feat(risk-management): complete migration wizard loop
+- 下一步：等待任务 5（后续计划任务）或用户指示
+- 关键上下文：分支 codex/risk-management-only；类型字段与 backend/app/schemas/risk_management.py Migration* 一一对应（含 mappings 请求体、created/migrated/skipped 响应）
+- 已知小观察（未改，按任务给定代码实现）：迁移成功后 risk-migration-preview 查询未随 onRefresh 重取，Alert 计数会在窗口重新聚焦/重进页面后才更新
+- 以下为历史快照，保留供压缩恢复参考
+
+---
+
+- 正在做什么（2026-08-06）：已按代码质量审查建议删除冗余导入并提交（d05d5e9）
+- 刚完成的动作：
+  - backend/app/routers/risk_management.py 第 13 行导入中删除未使用的 MigrationPreviewItem（仅此一处改动，其余内容未动）；修改前按铁律二 git save（保存点 d40ea2c）
+  - 验证：pytest 两文件 8 passed；backend 目录 `from app.routers.risk_management import router` → ok；git diff --check 干净
+  - 已提交 d05d5e9 refactor(risk-management): drop unused migration preview item import（1 文件 1+/1-）
+- 下一步：任务 4（前端迁移服务和向导闭环：riskManagement.ts / riskManagementService.ts / RiskMigrationWizard.tsx）
+- 关键上下文：分支 codex/risk-management-only，HEAD=d05d5e9；TASKS.md 未提交改动为快照更新本身
+
+- 以下为历史快照（复审记录 + 任务 3 完成记录），保留供压缩恢复参考
+
+---
+
+- 正在做什么（2026-08-06）：代码质量复审任务 3 提交（2aafae6）完成，结论 ✅ 通过（1 项建议修改：MigrationPreviewItem 冗余导入）
+- 刚完成的动作（复审，只读验证未改代码）：
+  - git diff ece9956...2aafae6：功能变更仅 backend/app/routers/risk_management.py（37+/29-）；TASKS.md 变更来自 savepoint 96c7a65，非任务 3 实现内容
+  - backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_source_migration_service.py backend/tests/test_risk_source_migration_baseline.py -q → 8 passed；router import ok；git diff --check 干净
+  - 逐项核对：GET /migrate/preview 与 POST /ai/migrate-preview 响应模型 ApiResponse[MigrationPreviewResponse]、POST /migrate/execute 为 ApiResponse[MigrationExecuteResponse]，数据与 Schema 字段一一对应；AI 预览 except HTTPException 覆盖 400（_get_ai_config）/500/502/504（llm_text_completion 统一映射、_parse_ai_json 500），DB 异常不吞；compute_risk/get_active_method_config/_resolve_zone_floor 仍被其他路由使用非死代码；mp.get 旧 dict 访问全清除；无重复导入
+  - 唯一问题（次要/建议修改）：MigrationPreviewItem 仅在第 13 行导入、全文件无使用 → 冗余导入，建议从导入行删除（已于 d05d5e9 修复）
+
+---
+
+- 正在做什么（2026-08-06）：独立复审任务 3 提交（2aafae6）完成，结论 ✅ 符合规格（1 项非阻塞小建议：MigrationPreviewItem 已不再使用，可顺手清理）
+- 刚完成的动作（复审，只读验证未改代码）：
+  - git show 2aafae6：仅改 backend/app/routers/risk_management.py（37+/29-）；当前 HEAD=2aafae6
+  - 逐条核对规格 1-7：schema 三项导入单一语句无重复；build_migration_preview + execute_migration 别名导入存在；POST /ai/migrate-preview 用 MigrationPreviewResponse 且 HTTPException（400 未配置 / 500/502/504 调用失败）回退默认映射后调 build_migration_preview(ai_mappings=...)；GET /migrate/preview 与 POST /migrate/execute 均按规格接入；全文件无 mp.get 残留
+  - 验证命令实测：backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_source_migration_service.py backend/tests/test_risk_source_migration_baseline.py -q → 8 passed；backend 目录 python -c "from app.routers.risk_management import router" → router import ok
+- 以下为任务 3 完成记录（原快照，保留）
+- 正在做什么（2026-08-06）：任务 3 完成并提交（2aafae6），迁移接口已接入服务
+- 刚完成的动作：
+  - 修改 backend/app/routers/risk_management.py：Schema 导入行补 MigrationExecuteResponse；新增 risk_source_migration_service 导入（execute_migration 别名 execute_risk_source_migration，避免与路由函数同名冲突）
+  - 替换 POST /ai/migrate-preview：AI 调用失败（HTTPException）回退默认映射，响应模型 ApiResponse[MigrationPreviewResponse]，数据走 build_migration_preview(ai_mappings=...)
+  - 替换 GET /migrate/preview：直接 build_migration_preview(db, enterprise_id)，响应含 items/total/migrated_total
+  - 替换 POST /migrate/execute：调用 execute_risk_source_migration(db, enterprise_id, body.mappings)，彻底消除旧 mp.get() dict 访问（旧实现与新 MigrationExecuteItem 对象不兼容，属已知中间态已消除）
+  - 已提交 2aafae6 feat(risk-management): wire legacy migration endpoints（仅 risk_management.py，37+/29-）；修改前已按铁律二 git save（保存点 96c7a65）
+- 验证结果：迁移服务测试 8 passed（test_risk_source_migration_service + baseline）；风险模块全量回归 69 passed；router import ok（需在 backend 目录运行，root 直跑 python -c 因 app 包不在 sys.path 失败，属既有路径约定）；git diff --check 干净；codegraph sync 完成
+- 下一步：任务 4（前端迁移服务和向导闭环：frontend/src/types/riskManagement.ts、frontend/src/services/riskManagementService.ts、frontend/src/components/enterprise/RiskMigrationWizard.tsx）
+- 关键上下文：分支 codex/risk-management-only，HEAD=2aafae6；TASKS.md 未提交改动为快照更新本身；graphify-out/graph.json 在当前 worktree 不存在（未跑 graphify update，已用 codegraph sync 替代）
+- 另一会话快照（保留）：「四色分布图自动识别导入」已完成并合并回 master——用户选本地合并，快进合并成功（master=e452047，15 个文件 +1683/-8）；合并结果验证：后端 109 passed、前端 tsc/vitest 45 passed、four-color+workbench E2E 14 passed；清理：worktree .worktrees\four-color-auto-import 已删、分支 codex/four-color-auto-import 已删；功能要点：上传图成为该楼层底图、每楼层一张、红橙黄蓝→重大/较大/一般/低、analyze/commit/cancel 三端点、replace_existing 替换语义、识别结果先预览校对；规格 b6228c3、计划 ea8c4ef（含执行记录 6bae865）
+
+---
+
+以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06，计划阶段）：只保留风险分级管控实现计划已完成，等待用户选择执行方式；另一会话「四色分布图自动识别」仍在讨论中，暂缓
 - 刚完成的动作：
   - 用户已批准设计规格 docs/superpowers/specs/2026-08-06-only-risk-management-design.md（提交 c3a0ff0）
@@ -8,11 +108,6 @@
   - 已执行占位符扫描与 git diff --check，无占位符、无冲突标记
 - 下一步：提交计划与 TASKS.md，请用户选择执行方式（子代理驱动【推荐】/ 内联执行）
 - 关键上下文：当前分支 master，设计规格提交 c3a0ff0，git save 保存点 825c4a0；计划文件 docs/superpowers/plans/2026-08-06-only-risk-management.md；工作区 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
-- 另一会话快照（保留）：正在讨论「用户上传现有四色分布图 → 自动识别 → 自动落图」；已确认 ① 图源形态 = C（电子图+拍照扫描都有）② 上传四色图与系统平面图无关系（无需配准对齐）③ 上传图成为该楼层底图、分区按原图位置落好、每楼层一张 ④ 识别只要形状+颜色等级（红橙黄蓝→重大/较大/一般/低），名称默认"分区N"，纯视觉零 AI 成本；下一步提出 2-3 个识别管线方案（候选：后端 OpenCV 一键识别 / 前端 Canvas 交互识别 / 混合带容差调节）；风险分区存储于 risk_zones.floor_plan_polygon，坐标归一化 0-100
-
----
-
-以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06，计划 9 任务全部完成）：风险分级管控分区树楼层分组实现完成并提交
 - 刚完成的动作：
   - 任务 1 后端排序纯函数（backend/app/routers/risk_management.py + tests/test_risk_hierarchy.py，TDD 2 用例）→ 65d9304

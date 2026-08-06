@@ -12,7 +12,7 @@ const EnterpriseListScreen = lazy(() => import("@/mobile/screens/EnterpriseListS
 const EnterpriseCreateScreen = lazy(() => import("@/mobile/screens/EnterpriseCreateScreen"));
 const EnterpriseDetailScreen = lazy(() => import("@/mobile/screens/EnterpriseDetailScreen"));
 const EnterpriseEditScreen = lazy(() => import("@/mobile/screens/EnterpriseEditScreen"));
-const RiskSourceListScreen = lazy(() => import("@/mobile/screens/RiskSourceListScreen"));
+const RiskManagementListScreen = lazy(() => import("@/mobile/screens/RiskManagementListScreen"));
 const ResourceListScreen = lazy(() => import("@/mobile/screens/ResourceListScreen"));
 const RiskAssessmentScreen = lazy(() => import("@/mobile/screens/RiskAssessmentScreen"));
 const ResourceInvestigationScreen = lazy(() => import("@/mobile/screens/ResourceInvestigationScreen"));
@@ -52,7 +52,7 @@ export const mobileRouter = createBrowserRouter([
       { path: "enterprises/new", element: <EnterpriseCreateScreen /> },
       { path: "enterprises/:id", element: <EnterpriseDetailScreen /> },
       { path: "enterprises/:id/edit", element: <EnterpriseEditScreen /> },
-      { path: "enterprises/:id/risk-sources", element: <RiskSourceListScreen /> },
+      { path: "enterprises/:id/risk-management", element: <RiskManagementListScreen /> },
       { path: "enterprises/:id/resources", element: <ResourceListScreen /> },
       { path: "enterprises/:id/risk-assessment", element: <RiskAssessmentScreen /> },
       { path: "enterprises/:id/resource-investigation", element: <ResourceInvestigationScreen /> },

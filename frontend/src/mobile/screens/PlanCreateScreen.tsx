@@ -12,8 +12,9 @@ import Card from "@/mobile/components/ui/Card";
 import Button from "@/mobile/components/ui/Button";
 import Toast, { useToast } from "@/mobile/components/ui/Toast";
 import { listEnterprises } from "@/services/enterpriseService";
-import { listRiskSources } from "@/services/riskSourceService";
+import { getFullHierarchy } from "@/services/riskManagementService";
 import { createPlan } from "@/services/planService";
+import { flattenHierarchyEvents } from "@/utils/riskHierarchyEvents";
 import type { PlanType } from "@/types/plan";
 
 const TYPE_OPTIONS: { type: PlanType; icon: React.ReactNode; title: string; desc: string }[] = [
@@ -45,12 +46,9 @@ export default function PlanCreateScreen() {
     },
   });
 
-  const { data: riskSources = [] } = useQuery({
-    queryKey: ["risk-sources", selectedEnterpriseId],
-    queryFn: async () => {
-      const res = await listRiskSources(selectedEnterpriseId, { page_size: 50 });
-      return res.data.items;
-    },
+  const { data: riskHierarchy = [] } = useQuery({
+    queryKey: ["risk-hierarchy", selectedEnterpriseId],
+    queryFn: () => getFullHierarchy(selectedEnterpriseId),
     enabled: !!selectedEnterpriseId,
   });
 
@@ -59,9 +57,11 @@ export default function PlanCreateScreen() {
     [enterprises, selectedEnterpriseId]
   );
 
+  const rows = useMemo(() => flattenHierarchyEvents(riskHierarchy), [riskHierarchy]);
+
   const accidentOptions = useMemo(
-    () => [...new Set(riskSources.map(r => r.name))],
-    [riskSources]
+    () => [...new Set(rows.map(r => r.accident_type))],
+    [rows]
   );
 
   const defaultTitle = useMemo(() => {
@@ -241,8 +241,8 @@ export default function PlanCreateScreen() {
                 <div className="text-body-sm space-y-1">
                   <p><span className="text-neutral-400">名称：</span><span className="text-neutral-900">{enterprise.name}</span></p>
                   {enterprise.industry && <p><span className="text-neutral-400">行业：</span><span className="text-neutral-900">{enterprise.industry}</span></p>}
-                  {enterprise.risk_sources_count !== undefined && (
-                    <p><span className="text-neutral-400">风险源：</span><span className="text-neutral-900">{enterprise.risk_sources_count} 个</span></p>
+                  {enterprise.risk_events_count !== undefined && (
+                    <p><span className="text-neutral-400">风险事件：</span><span className="text-neutral-900">{enterprise.risk_events_count} 个</span></p>
                   )}
                 </div>
               </div>

@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from uuid import uuid4
 from typing import Optional
-from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, ForeignKey, Date, func
+from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, ForeignKey, Date, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
@@ -36,6 +36,9 @@ class RiskZone(Base):
 
 class RiskObject(Base):
     __tablename__ = "risk_objects"
+    __table_args__ = (
+        Index("idx_ro_legacy_source", "enterprise_id", "legacy_source_id"),
+    )
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     enterprise_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, index=True)
     zone_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("risk_zones.id", ondelete="RESTRICT"), nullable=True)
@@ -46,6 +49,7 @@ class RiskObject(Base):
     location_x: Mapped[Optional[float]] = mapped_column(Float)
     location_y: Mapped[Optional[float]] = mapped_column(Float)
     description: Mapped[Optional[str]] = mapped_column(Text)
+    legacy_source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
     is_risk_point: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

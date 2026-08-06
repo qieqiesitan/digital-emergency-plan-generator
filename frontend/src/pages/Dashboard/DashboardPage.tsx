@@ -93,7 +93,7 @@ export default function DashboardPage() {
         </Col>
         <Col xs={12} sm={6}>
           <Card>
-            <Statistic title="风险源数" value={stats.risk_source_count} prefix={<WarningOutlined />} />
+            <Statistic title="风险事件数" value={stats.risk_event_count} prefix={<WarningOutlined />} />
           </Card>
         </Col>
       </Row>

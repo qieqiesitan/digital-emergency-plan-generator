@@ -8,11 +8,16 @@ import {
 } from "@ant-design/icons";
 import { useMutation } from "@tanstack/react-query";
 import {
+  getMigrationPreview,
   aiMigratePreview,
-  createZone,
-  createObject,
-  createEvent,
+  executeMigration,
 } from "@/services/riskManagementService";
+import type {
+  MigrationExecutePayload,
+  MigrationExecuteResponse,
+  MigrationPreviewItem,
+  MigrationPreviewResponse,
+} from "@/types/riskManagement";
 
 interface Props {
   open: boolean;
@@ -25,15 +30,8 @@ type Step = 0 | 1;
 
 type ItemStatus = "adopted" | "modified" | "skipped";
 
-interface MigrationItem {
+interface MigrationItem extends MigrationPreviewItem {
   _key: number;
-  source_id: string;
-  source_name: string;
-  source_location: string;
-  source_categories: string[];
-  suggested_zone: string;
-  suggested_object: string;
-  suggested_event: string;
   status: ItemStatus;
 }
 
@@ -43,20 +41,10 @@ interface EditForm {
   event: string;
 }
 
-function mapPreviewData(raw: Record<string, unknown>[]): MigrationItem[] {
-  return raw.map((item, i) => ({
+function mapPreviewData(raw: MigrationPreviewResponse): MigrationItem[] {
+  return raw.items.map((item, i) => ({
+    ...item,
     _key: i,
-    source_id: (item.source_id as string) || (item.id as string) || "",
-    source_name: (item.source_name as string) || (item.name as string) || "\u672A\u547D\u540D\u98CE\u9669\u6E90",
-    source_location: (item.source_location as string) || (item.location as string) || "-",
-    source_categories: Array.isArray(item.categories)
-      ? item.categories as string[]
-      : Array.isArray(item.source_categories)
-        ? item.source_categories as string[]
-        : [],
-    suggested_zone: (item.suggested_zone as string) || (item.zone as string) || "\u672A\u77E5\u5206\u533A",
-    suggested_object: (item.suggested_object as string) || (item.object as string) || "\u672A\u77E5\u5BF9\u8C61",
-    suggested_event: (item.suggested_event as string) || (item.event as string) || "\u672A\u77E5\u4E8B\u4EF6",
     status: "adopted" as ItemStatus,
   }));
 }
@@ -85,12 +73,18 @@ export default function RiskMigrationWizard({
   const loadPreview = async () => {
     setLoadingPreview(true);
     try {
-      const raw = await aiMigratePreview(enterpriseId);
-      if (!raw || raw.length === 0) {
+      const preview = await getMigrationPreview(enterpriseId);
+      if (!preview || preview.items.length === 0) {
         message.warning("\u672A\u68C0\u6D4B\u5230\u53EF\u8FC1\u79FB\u7684\u65E7\u7248\u98CE\u9669\u6E90\u6570\u636E");
         setItems([]);
-      } else {
-        setItems(mapPreviewData(raw));
+        return;
+      }
+      setItems(mapPreviewData(preview));
+      try {
+        const aiPreview = await aiMigratePreview(enterpriseId);
+        if (aiPreview?.items?.length) setItems(mapPreviewData(aiPreview));
+      } catch {
+        message.info("AI \u5EFA\u8BAE\u4E0D\u53EF\u7528\uFF0C\u5DF2\u4F7F\u7528\u9ED8\u8BA4\u6620\u5C04");
       }
     } catch (e: any) {
       message.error("\u52A0\u8F7D\u8FC1\u79FB\u9884\u89C8\u5931\u8D25: " + (e?.message || "\u8BF7\u91CD\u8BD5"));
@@ -114,10 +108,7 @@ export default function RiskMigrationWizard({
 
   const startEdit = (item: MigrationItem) => {
     setEditingKey(item._key);
-    const zone = item.status === "modified" ? item.suggested_zone : item.suggested_zone;
-    const obj = item.status === "modified" ? item.suggested_object : item.suggested_object;
-    const ev = item.status === "modified" ? item.suggested_event : item.suggested_event;
-    setEditForm({ zone, object: obj, event: ev });
+    setEditForm({ zone: item.suggested_zone, object: item.suggested_object, event: item.suggested_event });
   };
 
   const saveEdit = () => {
@@ -162,42 +153,17 @@ export default function RiskMigrationWizard({
       if (toMigrate.length === 0) {
         throw new Error("\u6CA1\u6709\u53EF\u8FC1\u79FB\u7684\u9879\u76EE");
       }
-
-      const zoneCache = new Map<string, string>();
-      const objectCache = new Map<string, string>();
-      let totalCreated = 0;
-
-      for (const item of toMigrate) {
-        const zoneName = item.suggested_zone;
-        const objectName = item.suggested_object;
-        const cacheKey = zoneName + "||" + objectName;
-
-        if (!zoneCache.has(zoneName)) {
-          const zone = await createZone(enterpriseId, { name: zoneName });
-          zoneCache.set(zoneName, zone.id);
-          totalCreated++;
-        }
-
-        if (!objectCache.has(cacheKey)) {
-          const obj = await createObject(enterpriseId, {
-            zone_id: zoneCache.get(zoneName),
-            name: objectName,
-          });
-          objectCache.set(cacheKey, obj.id);
-          totalCreated++;
-        }
-
-        await createEvent(enterpriseId, objectCache.get(cacheKey)!, {
-          object_id: objectCache.get(cacheKey)!,
-          accident_type: item.suggested_event,
-        });
-        totalCreated++;
-      }
-
-      return totalCreated;
+      const mappings: MigrationExecutePayload[] = toMigrate.map((it) => ({
+        source_id: it.source_id,
+        zone_name: it.suggested_zone,
+        object_name: it.suggested_object,
+        accident_type: it.suggested_event,
+        method_params: it.suggested_params,
+      }));
+      return executeMigration(enterpriseId, mappings);
     },
-    onSuccess: (count: number) => {
-      message.success("\u6210\u529F\u8FC1\u79FB " + count + " \u6761\u6570\u636E");
+    onSuccess: (data: MigrationExecuteResponse) => {
+      message.success("\u6210\u529F\u8FC1\u79FB " + data.migrated + " \u6761\u6570\u636E");
       onRefresh();
       onClose();
     },

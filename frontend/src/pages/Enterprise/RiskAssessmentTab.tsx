@@ -293,7 +293,7 @@ export default function RiskAssessmentTab({ enterpriseId }: Props) {
               <Paragraph type="secondary">
                 根据法规要求，编制应急预案前需先完成风险评估。
                 <br />
-                系统将基于已录入的风险源数据自动生成。
+                系统将基于风险分级管控数据自动生成。
               </Paragraph>
             </>
           }

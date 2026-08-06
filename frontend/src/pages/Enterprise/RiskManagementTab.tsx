@@ -1,11 +1,12 @@
 import { useState, useCallback, useMemo } from "react";
- import { useNavigate } from "react-router-dom";
-import { App as AntApp, Button, Spin, Empty, Space, Tag } from "antd";
+import { useNavigate } from "react-router-dom";
+import { App as AntApp, Alert, Button, Spin, Empty, Space, Tag } from "antd";
 import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure } from "@/services/riskManagementService";
+import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure, getMigrationPreview } from "@/services/riskManagementService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
+import RiskMigrationWizard from "@/components/enterprise/RiskMigrationWizard";
 import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent, HierarchyMeasure, CheckItem, RiskZoneFloorPlanPolygon, MethodType, MeasureCategory } from "@/types/riskManagement";
 import { buildZonePayload } from "@/utils/zoneSubmit";
  import RiskZoneForm from "@/components/enterprise/RiskZoneForm";
@@ -62,6 +63,12 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
    const [form, setForm] = useState<FormState>({ type: null, open: false });
   const [smartGuideOpen, setSmartGuideOpen] = useState(false);
   const [floorDrawerOpen, setFloorDrawerOpen] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
+  const { data: migrationPreview, refetch: refetchMigrationPreview } = useQuery({
+    queryKey: ["risk-migration-preview", enterpriseId],
+    queryFn: () => getMigrationPreview(enterpriseId),
+    enabled: !!enterpriseId,
+  });
   const zones = useMemo(() => hierarchy.map(z => ({ id: z.id, name: z.name })), [hierarchy]);
 
   const hierarchyMap = useMemo(() => {
@@ -262,6 +269,19 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
      <div style={{ display: "flex", gap: 16, height: "calc(100vh - 200px)" }}>
        {/* LEFT: Tree */}
        <div style={{ flex: 1, minWidth: 360, overflow: "auto", background: "#fff", borderRadius: 8, padding: 12, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+         {migrationPreview && migrationPreview.total > 0 && (
+           <Alert
+             type="warning"
+             showIcon
+             style={{ marginBottom: 12 }}
+             message={`检测到 ${migrationPreview.total} 条旧版风险源数据未迁移`}
+             action={
+               <Button size="small" type="primary" onClick={() => setMigrationOpen(true)}>
+                 迁移旧风险源
+               </Button>
+             }
+           />
+         )}
          <Space style={{ marginBottom: 12 }}>
            <Button icon={<PlusOutlined />} onClick={() => setForm({ type: "zone", open: true })}>添加分区</Button>
            <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
@@ -327,6 +347,16 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
 
       {/* SMART GUIDE MODAL */}
       <RiskSmartGuideModal open={smartGuideOpen} onClose={() => setSmartGuideOpen(false)} onRefresh={refetch} enterpriseId={enterpriseId} />
+      <RiskMigrationWizard
+        open={migrationOpen}
+        onClose={() => setMigrationOpen(false)}
+        onRefresh={() => {
+          refetch();
+          refetchFloors();
+          refetchMigrationPreview();
+        }}
+        enterpriseId={enterpriseId}
+      />
      </div>
    );
  }

@@ -7,6 +7,7 @@ from app.models.enterprise import Enterprise, PlanProject, RiskSource
 from app.schemas.dashboard import DashboardResponse, DashboardStats, DashboardRecentPlan, DashboardRecentEnterprise
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
+from app.services.risk_stats_service import count_user_risk_events
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -15,9 +16,17 @@ async def get_dashboard(current_user=Depends(get_current_user), db=Depends(get_d
     ent_count = (await db.execute(select(func.count(Enterprise.id)).where(Enterprise.user_id == current_user.id))).scalar() or 0
     plan_count = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == current_user.id))).scalar() or 0
     completed = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == current_user.id, PlanProject.status == "completed"))).scalar() or 0
-    rs_query = select(func.count(RiskSource.id)).join(Enterprise).where(Enterprise.user_id == current_user.id)
-    rs_count = (await db.execute(rs_query)).scalar() or 0
-    stats = DashboardStats(enterprise_count=ent_count, plan_count=plan_count, completed_plan_count=completed, risk_source_count=rs_count)
+    rs_count = (await db.execute(
+        select(func.count(RiskSource.id)).join(Enterprise).where(Enterprise.user_id == current_user.id)
+    )).scalar() or 0
+    risk_event_count = await count_user_risk_events(db, current_user.id)
+    stats = DashboardStats(
+        enterprise_count=ent_count,
+        plan_count=plan_count,
+        completed_plan_count=completed,
+        risk_source_count=rs_count,
+        risk_event_count=risk_event_count,
+    )
 
     recent_plans_rows = (await db.execute(select(PlanProject).where(PlanProject.user_id == current_user.id).order_by(PlanProject.updated_at.desc()).limit(5))).scalars().all()
     recent_plans = []
