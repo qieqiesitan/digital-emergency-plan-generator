@@ -1,14 +1,12 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：任务 8（188afd5...acca801）代码质量审查完成，结论 ✅ 通过
-- 刚完成的动作（审查，只读验证未改代码）：
-  - git diff 188afd5...acca801：11 文件（含 TASKS.md），功能文件恰为计划任务 8 列出的 10 个；241554a=10 文件功能提交，acca801=仅 EnterpriseListPage.tsx 删 1 行
-  - backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_stats_service.py -q → 1 passed
-  - frontend npx tsc -b → exit 0；npm test -- --run → 42 passed（4 文件）
-  - 核对：count_*_risk_events OR join + count(distinct) 抵消行翻倍；count_enterprises_risk_events 单条 IN+GROUP BY 避免 N+1；Enterprise 关系 lazy=selectin 无懒加载问题；旧字段 risk_sources_count/risk_source_count 后端填充+前端类型均保留；EnterpriseListPage 仅剩「风险事件数」列；命名延续既有约定（enterprise 复数 events/dashboard 单数 event）
-  - 审查问题（不阻塞）：① 测试为纯 mock 冒烟测试，不校验 SQL 语义，count_user_risk_events/count_enterprises_risk_events 零覆盖 ② 统计走 zone→enterprise 过滤（符合计划），但 RiskObject.zone_id 可空，未入区对象的事件不计入，需作者确认口径 ③ 两个单查函数查询体重复可提取 ④ create/update 响应 risk_events_count 恒 0 ⑤ risk_events.unit_id/object_id 无 FK 索引（数据量小无碍）
-  - 越界检查：EnterpriseDetailPage/移动端仍显示 risk_sources_count，属任务 10「Web 和移动端入口切换」范围，非任务 8 缺陷
-- 下一步：任务 9（chat 助手读取新数据并移除旧 CRUD 工具）及后续任务
-- 关键上下文：分支 codex/risk-management-only，HEAD=acca801；TASKS.md 未提交改动为快照更新本身
+- 正在做什么（2026-08-06）：任务 9 代码质量审查完成，结论 ✅ 通过（提交 66da886）
+- 刚完成的动作：
+  - 复审（只读验证）：git diff acca801...66da886 → 实现提交 66da886 仅改 backend/app/routers/chat.py + backend/app/services/chat_dispatch.py；pytest test_risk_context_builder + test_risk_source_migration_service -q → 9 passed；git diff --check 干净
+  - 逐项核对：工具描述（风险事件数/风险分级管控列表/列出风险分级管控数据）与系统提示已按计划更新；_get_dashboard 保留 rs_count + risk_source_count 并新增 risk_event_count（旧键仍被 generate_report data_summary 消费，保留有依据）；_get_enterprise 用 scalar_one_or_none + 显式 error 返回，不存在企业不抛 ValueError（即使竞态抛错也被 dispatch 顶层 try/except 兜底）；_list_risk_sources 用 Enterprise.user_id == user.id 校验归属后走 build_risk_management_context；count_user_risk_events 按 Enterprise.user_id 过滤；_RS_CFG 仍被 _RES_CFG/_PLAN_CFG 派生引用、_generic_* 仍被企业/资源/预案 CRUD 使用，保留合理
+  - 问题记录：无关键/重要问题；建议（非阻塞）① 新增 chat_dispatch 归属校验/不存在企业单测 ② data_summary 仍取旧 risk_source_count，后续任务可切 risk_event_count ③ _create/_update/_delete_risk_source 三个包装函数已无调用者为死代码，建议加兼容注释或下迭代清理
+- 下一步：任务 10（Web 和移动端入口切换：EnterpriseDetailPage.tsx / RiskAssessmentTab.tsx / mobile routes.tsx 等）及后续任务
+- 关键上下文：分支 codex/risk-management-only，HEAD=66da886；范围中 TASKS.md 变更来自保存点 719ef11（快照维护，非实现内容）；TASKS.md 未提交改动为快照更新本身
+- 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
 - 正在做什么（2026-08-06）：规格审查问题已修复并提交（acca801）：企业列表「风险源数」列替换为「风险事件数」
