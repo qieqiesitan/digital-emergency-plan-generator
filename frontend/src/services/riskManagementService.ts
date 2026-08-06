@@ -1,6 +1,6 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig, SmartGuideZone } from "@/types/riskManagement";
+import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig, SmartGuideZone, MigrationPreviewResponse, MigrationExecutePayload, MigrationExecuteResponse } from "@/types/riskManagement";
 
 const BASE = (eid: string) => `/enterprises/${eid}/risk-management`;
 
@@ -49,7 +49,14 @@ export const aiSuggestEvents = (eid: string, data: Record<string, unknown>) => a
 export const aiSuggestMeasures = (eid: string, data: Record<string, unknown>) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/suggest-measures`, data).then(r => r.data.data);
 export const aiSmartGuide = (eid: string, description: string) => api.post<ApiResponse<{ hierarchy: SmartGuideZone[]; summary: Record<string, unknown> }>>(`${BASE(eid)}/ai/smart-guide`, { description }).then(r => r.data.data);
 export const aiAnalyzeFloorPlan = (eid: string, enterprise_info: Record<string, unknown>) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/analyze-floor-plan`, { enterprise_info }).then(r => r.data.data);
-export const aiMigratePreview = (eid: string) => api.post<ApiResponse<Record<string, unknown>[]>>(`${BASE(eid)}/ai/migrate-preview`).then(r => r.data.data);
+export const getMigrationPreview = (eid: string) =>
+  api.get<ApiResponse<MigrationPreviewResponse>>(`${BASE(eid)}/migrate/preview`).then(r => r.data.data);
+
+export const aiMigratePreview = (eid: string) =>
+  api.post<ApiResponse<MigrationPreviewResponse>>(`${BASE(eid)}/ai/migrate-preview`).then(r => r.data.data);
+
+export const executeMigration = (eid: string, mappings: MigrationExecutePayload[]) =>
+  api.post<ApiResponse<MigrationExecuteResponse>>(`${BASE(eid)}/migrate/execute`, { mappings }).then(r => r.data.data);
 
 export const getRiskMappingOverview = (eid: string, floorId?: string) =>
   api.get<ApiResponse<import("@/types/riskMappingWorkbench").RawOverviewResponse>>(`${BASE(eid)}/overview`, { params: floorId ? { floor_id: floorId } : {} }).then(r => {

@@ -152,3 +152,40 @@ export interface SmartGuideZone {
   description?: string;
   objects?: SmartGuideObject[];
 }
+
+export interface MigrationPreviewItem {
+  source_id: string;
+  source_name: string;
+  source_location: string | null;
+  source_categories: string[];
+  suggested_zone: string;
+  suggested_object: string;
+  suggested_event: string;
+  suggested_params: Record<string, number>;
+  control_measures: string | null;
+}
+
+export interface MigrationPreviewResponse {
+  items: MigrationPreviewItem[];
+  total: number;
+  migrated_total: number;
+}
+
+export interface MigrationExecutePayload {
+  source_id: string;
+  zone_name: string;
+  object_name: string;
+  accident_type: string;
+  method_params: Record<string, number>;
+}
+
+export interface MigrationExecuteResponse {
+  migrated: number;
+  skipped: number;
+  created: {
+    zones: number;
+    objects: number;
+    events: number;
+    measures: number;
+  };
+}
