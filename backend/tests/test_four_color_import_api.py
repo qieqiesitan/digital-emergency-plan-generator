@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 import app.services.floor_plan_storage_service as fss
 from app.schemas.risk_management import (
+    FloorResponse,
     FourColorCommitRequest,
     FourColorCommitZone,
     RiskPolygonPoint,
@@ -213,3 +214,188 @@ async def test_analyze_floor_not_found_404():
     with pytest.raises(HTTPException) as exc:
         await rm.analyze_four_color("f-x", "e-1", FakeUpload(b"x"), current_user=MagicMock(), db=db)
     assert exc.value.status_code == 404
+
+
+# ── 端点：commit ──
+
+
+def _count_exec_result(n):
+    m = MagicMock()
+    m.scalar.return_value = n
+    return m
+
+
+def _zones_exec_result(zones):
+    m = MagicMock()
+    m.scalars.return_value.all.return_value = zones
+    return m
+
+
+def _commit_body(replace=True, level="重大"):
+    return FourColorCommitRequest(
+        file_token="a" * 32,
+        zones=[_commit_zone(level=level)],
+        replace_existing=replace,
+    )
+
+
+def _fake_floor_response():
+    return FloorResponse(
+        id="f-1",
+        enterprise_id="e-1",
+        name="一层",
+        sort_order=0,
+        floor_plan_url=None,
+        description=None,
+        canvas_width=600,
+        canvas_height=450,
+        canvas_texts=[],
+        is_default=False,
+        zone_count=0,
+        risk_point_count=0,
+        created_at="2026-08-06T00:00:00+08:00",
+        updated_at="2026-08-06T00:00:00+08:00",
+    )
+
+
+def _saved_zones_result(*names_levels):
+    zones = []
+    for i, (name, level) in enumerate(names_levels):
+        zones.append({
+            "id": f"z-{i + 1}",
+            "enterprise_id": "e-1",
+            "floor_id": "f-1",
+            "floor_name": "一层",
+            "name": name,
+            "description": None,
+            "sort_order": i,
+            "floor_plan_polygon": None,
+            "max_risk_level": level,
+            "effective_color": None,
+            "object_count": 0,
+            "created_at": "2026-08-06T00:00:00+08:00",
+            "updated_at": "2026-08-06T00:00:00+08:00",
+        })
+    return _zones_exec_result(zones)
+
+
+@pytest.mark.asyncio
+async def test_commit_rejects_invalid_session(monkeypatch):
+    from app.routers import risk_management as rm
+
+    db = AsyncMock()
+    db.execute.side_effect = [_ent_exec_result(MagicMock()), _floor_exec_result(MagicMock())]
+    monkeypatch.setattr(rm, "four_color_temp_dir", MagicMock(return_value=None))
+    with pytest.raises(HTTPException) as exc:
+        await rm.commit_four_color_import(_commit_body(), "f-1", "e-1", current_user=MagicMock(), db=db)
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_commit_rejects_not_empty_without_replace(monkeypatch):
+    from app.routers import risk_management as rm
+
+    floor = MagicMock()
+    floor.is_default = False
+    floor.canvas_texts = []
+    db = AsyncMock()
+    db.execute.side_effect = [
+        _ent_exec_result(MagicMock()),
+        _floor_exec_result(floor),
+        _count_exec_result(2),  # 已有分区
+        _count_exec_result(0),  # 未绑定风险点
+    ]
+    monkeypatch.setattr(rm, "four_color_temp_dir", MagicMock(return_value=MagicMock()))
+    with pytest.raises(HTTPException) as exc:
+        await rm.commit_four_color_import(_commit_body(replace=False), "f-1", "e-1", current_user=MagicMock(), db=db)
+    assert exc.value.status_code == 422
+    assert exc.value.detail["code"] == "FLOOR_NOT_EMPTY"
+
+
+@pytest.mark.asyncio
+async def test_commit_rejects_polygon_validation_failure(monkeypatch):
+    from app.routers import risk_management as rm
+
+    floor = MagicMock()
+    floor.is_default = False
+    db = AsyncMock()
+    db.execute.side_effect = [_ent_exec_result(MagicMock()), _floor_exec_result(floor)]
+    monkeypatch.setattr(rm, "four_color_temp_dir", MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(rm, "validate_polygon_v2", MagicMock(return_value=["坐标越界"]))
+    with pytest.raises(HTTPException) as exc:
+        await rm.commit_four_color_import(_commit_body(), "f-1", "e-1", current_user=MagicMock(), db=db)
+    assert exc.value.status_code == 422
+    assert "坐标越界" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_commit_replace_deletes_old_zones_and_creates_new(monkeypatch):
+    from app.routers import risk_management as rm
+
+    floor = MagicMock()
+    floor.is_default = False
+    floor.canvas_texts = ["旧文字"]
+    old_zone = MagicMock()
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.execute.side_effect = [
+        _ent_exec_result(MagicMock()),
+        _floor_exec_result(floor),
+        _zones_exec_result([old_zone]),
+        MagicMock(),            # delete 未绑定风险对象
+        _saved_zones_result(("重大区", "重大"), ("低风险区", "低")),
+    ]
+    monkeypatch.setattr(rm, "four_color_temp_dir", MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(rm, "promote_four_color_file", MagicMock(return_value=("/uploads/enterprises/e-1/floors/f-1/20260806_x.png", 600, 450)))
+    monkeypatch.setattr(rm, "_floor_response", AsyncMock(return_value=_fake_floor_response()))
+    remove_tmp = MagicMock()
+    remove_old = MagicMock()
+    monkeypatch.setattr(rm, "remove_four_color_temp_dir", remove_tmp)
+    monkeypatch.setattr(rm, "remove_floor_plan", remove_old)
+    body = FourColorCommitRequest(
+        file_token="a" * 32,
+        zones=[
+            _commit_zone(name="重大区", level="重大"),
+            _commit_zone(name="低风险区", level="低"),
+        ],
+        replace_existing=True,
+    )
+    resp = await rm.commit_four_color_import(body, "f-1", "e-1", current_user=MagicMock(), db=db)
+    db.delete.assert_called_once_with(old_zone)
+    assert floor.floor_plan_url == "/uploads/enterprises/e-1/floors/f-1/20260806_x.png"
+    assert floor.canvas_width == 600 and floor.canvas_height == 450
+    assert floor.canvas_texts == []
+    assert db.add.call_count == 2
+    assert db.commit.call_count == 1
+    remove_tmp.assert_called_once_with("e-1", "f-1", "a" * 32)
+    remove_old.assert_called_once()
+    assert len(resp.data.zones) == 2
+    created_polys = [call.args[0].floor_plan_polygon for call in db.add.call_args_list]
+    assert created_polys[0]["color"] == "#ff4d4f"
+    assert created_polys[1]["color"] == "#52c41a"
+
+
+@pytest.mark.asyncio
+async def test_commit_without_replace_on_empty_floor_creates_zones(monkeypatch):
+    from app.routers import risk_management as rm
+
+    floor = MagicMock()
+    floor.is_default = False
+    floor.canvas_texts = []
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.execute.side_effect = [
+        _ent_exec_result(MagicMock()),
+        _floor_exec_result(floor),
+        _count_exec_result(0),  # 分区数
+        _count_exec_result(0),  # 未绑定风险点数
+        _saved_zones_result(("分区1", "重大")),
+    ]
+    monkeypatch.setattr(rm, "four_color_temp_dir", MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(rm, "promote_four_color_file", MagicMock(return_value=("/uploads/enterprises/e-1/floors/f-1/20260806_x.png", 600, 450)))
+    monkeypatch.setattr(rm, "_floor_response", AsyncMock(return_value=_fake_floor_response()))
+    monkeypatch.setattr(rm, "remove_four_color_temp_dir", MagicMock())
+    monkeypatch.setattr(rm, "remove_floor_plan", MagicMock())
+    resp = await rm.commit_four_color_import(_commit_body(replace=False), "f-1", "e-1", current_user=MagicMock(), db=db)
+    assert resp.data.zones[0].name == "分区1"
+    assert db.delete.call_count == 0

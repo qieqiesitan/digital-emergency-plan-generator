@@ -2,7 +2,7 @@ import json, math, os, logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func, update, delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.database import get_db
@@ -14,7 +14,7 @@ from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodRespo
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
-from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts
+from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.four_color_recognizer import recognize_from_bytes
 from app.config import settings
@@ -186,6 +186,80 @@ async def analyze_four_color(floor_id: str, enterprise_id: str, file: UploadFile
         canvas_height=result.height,
         zones=result.zones,
         warnings=result.warnings,
+    ))
+
+@router.post("/floors/{floor_id}/four-color/commit", response_model=ApiResponse[FourColorCommitResponse])
+async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(
+        select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id).with_for_update()
+    )).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    if four_color_temp_dir(enterprise_id, floor_id, body.file_token) is None:
+        raise HTTPException(404, "导入会话不存在")
+    if not body.replace_existing:
+        zone_count = (await db.execute(select(func.count(RiskZone.id)).where(RiskZone.floor_id == floor_id))).scalar() or 0
+        unbound_point_count = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.floor_id == floor_id, RiskObject.zone_id.is_(None)))).scalar() or 0
+        if zone_count or unbound_point_count or floor.canvas_texts:
+            raise HTTPException(422, detail={"code": "FLOOR_NOT_EMPTY", "message": "楼层已有分区、风险点或文字标注，请确认替换后重试"})
+    for zone in body.zones:
+        polygon_v2 = {
+            "version": 2,
+            "color_source": "manual",
+            "color": LEVEL_COLORS[zone.risk_level],
+            "polygons": [
+                {"id": f"poly-{i}", "label": zone.name, "points": [p.model_dump() for p in poly.points]}
+                for i, poly in enumerate(zone.polygons)
+            ],
+        }
+        errors = validate_polygon_v2(polygon_v2)
+        if errors:
+            raise HTTPException(422, f"分区「{zone.name}」多边形校验失败：{'；'.join(errors)}")
+    try:
+        new_url, width, height = promote_four_color_file(enterprise_id, floor_id, body.file_token)
+    except FileNotFoundError:
+        raise HTTPException(404, "导入会话不存在")
+    old_url = floor.floor_plan_url
+    if body.replace_existing:
+        old_zones = (await db.execute(select(RiskZone).where(RiskZone.floor_id == floor_id))).scalars().all()
+        for z in old_zones:
+            await db.delete(z)
+        await db.execute(delete(RiskObject).where(RiskObject.floor_id == floor_id, RiskObject.zone_id.is_(None)))
+        floor.canvas_texts = []
+    floor.floor_plan_url = new_url
+    floor.canvas_width = width
+    floor.canvas_height = height
+    if floor.is_default:
+        ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one()
+        ent.floor_plan_url = new_url
+    for i, zone in enumerate(body.zones):
+        new_zone = RiskZone(
+            enterprise_id=enterprise_id,
+            floor_id=floor_id,
+            name=zone.name,
+            description=None,
+            sort_order=i,
+            floor_plan_polygon={
+                "version": 2,
+                "color_source": "manual",
+                "color": LEVEL_COLORS[zone.risk_level],
+                "polygons": [
+                    {"id": f"poly-{i}-{j}", "label": zone.name, "points": [p.model_dump() for p in poly.points]}
+                    for j, poly in enumerate(zone.polygons)
+                ],
+            },
+        )
+        db.add(new_zone)
+    await db.commit()
+    remove_four_color_temp_dir(enterprise_id, floor_id, body.file_token)
+    if body.replace_existing:
+        remove_floor_plan(old_url)
+    saved_zones = (await db.execute(select(RiskZone).where(RiskZone.floor_id == floor_id).order_by(RiskZone.sort_order))).scalars().all()
+    await db.refresh(floor)
+    return ApiResponse(data=FourColorCommitResponse(
+        floor=await _floor_response(db, floor),
+        zones=[RiskZoneResponse.model_validate(z) for z in saved_zones],
     ))
 
 # ── Methods ──
