@@ -1,22 +1,12 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，推送远程）：master 已推送 Gitee 成功；GitHub 网络不可达（443 不通、无代理），等待用户提供代理/VPN 后重试
+- 正在做什么（2026-08-06，头脑风暴阶段）：设计规格已完成并通过自检，等待用户审查
 - 刚完成的动作：
-  - git push gitee master 成功：ed8e1d6..79a82f4
-  - git push origin master 失败：github.com:443 连接超时（Test-NetConnection 确认不通；git 无 http/https 代理配置）
-  - Docker 同步：重启 emergency-plan-backend / emergency-plan-frontend（后端卷挂载 app 代码 + 无 --reload 需重启；前端 vite 挂载 src 热更）；移动端不消费该树未动
-  - 前端 E2E 指向 Docker（E2E_BASE_URL=http://localhost:5173）：树 5 + 工作台 12 + 智能导引 1 = 18 passed
-  - 真实接口端到端（超管 550614706@qq.com 名下企业）：POST /floors 新建"Docker验证层" → POST /zones 挂新楼层 → GET /hierarchy（不传 floor_id）返回该分区且 floor_name=Docker验证层（验证新行为：全部楼层分区可见）；GET /hierarchy?floor_id=默认总图 返回 0（单楼层过滤回归 OK）；验证后已删除测试楼层/分区，数据复原
-  - 数据库只读核验：14 用户 / 100 企业 / 101 楼层 / 7 分区
-  - 用户选择收尾方式 1（本地合并）：master 由 ed8e1d6 快进到 1951f2d，包含本迭代 5 个提交（e09796b 空楼层显示 / 3bc79d6 抽屉 / de6ebb6 集成联动 / 79b0848 E2E / 1951f2d TASKS）
-  - 合并前已并入另一会话的智能导引修复（master 已有）；合并结果验证：backend 71 passed + tsc 0（vitest 42 / Playwright 18 / 构建在合并前同内容已验证）
-  - 已删除功能分支 codex/risk-tree-floor-maintenance（git branch -d 成功）
-  - git pull 尝试失败（网络 RPC reset），本地 master 领先 origin 152 提交，未推送
-- 下一步：等待用户处理 GitHub 网络（开代理/VPN 或配置 git 代理）后重试 origin；是否删除遗留分支 codex/protego-integration 待定
-- 关键上下文：当前分支 master，HEAD=717d27e（TASKS 快照随合并已提交，本次再更新）；测试账号 qa_e2e_test@test.com / test123456、超管 550614706@qq.com / test123456 可用于本地验证；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
-- 最终验证（全部通过）：backend pytest 69 passed；tsc -b 0；vitest 40 passed；Playwright 15 passed（risk-hierarchy-tree 3 + risk-mapping-workbench 12）；Node 22 生产构建成功（PWA 正常）
-- 已知缺口（记录，未处理）：spec §6 要求 /hierarchy 接口级测试，仓库无路由测试设施，当前以纯函数单测 + E2E 覆盖；P3 若干（楼层计数数据源一致性、groupZonesByFloor 重复计算、edit/edit-zone 分支重复）已记录
-- 下一步：等待用户选择执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 按对应技能逐任务实现
-- 关键上下文：当前分支 codex/risk-tree-floor-maintenance（从 master 6ab1d72 切出）；已提交设计 2832008 + 计划（本次）；master 仍领先 origin/gitee 未推送；功能分支 codex/protego-integration 保留；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
+  - 新增 docs/superpowers/specs/2026-08-06-only-risk-management-design.md
+  - 规格覆盖：迁移闭环、legacy_source_id 幂等字段、AI 预览回退、预案/风险评估/统计/chat/Web/移动端切换、分三阶段下线
+  - 已补齐 build_risk_management_context 企业字段和风险源字段，避免风险评估委托后丢失数据
+  - 已执行占位符扫描与 git diff --check，无占位符、无冲突标记
+- 下一步：提交设计规格与 TASKS.md，请用户审查规格；批准后调用 writing-plans
+- 关键上下文：当前分支 master，git save 保存点 825c4a0；工作区 backup/risk-mapping-pre-migration-20260805.sql 未跟踪；规格文件 docs/superpowers/specs/2026-08-06-only-risk-management-design.md
 
 ---
 
