@@ -59,7 +59,12 @@ export default function RiskOverviewPage() {
 
   if (isLoading) return <Spin size="large" style={{ display: "block", margin: "100px auto" }} />;
 
-  const gridStyle: React.CSSProperties = viewMode === "quad" ? { display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 } : viewMode === "floorplan" ? { display: "grid", gridTemplateColumns: "1fr", gridTemplateRows: "60% 40%", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 } : { display: "grid", gridTemplateColumns: "40% 1fr", gridTemplateRows: "1fr", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 };
+  const gridStyle: React.CSSProperties =
+    viewMode === "quad"
+      ? { display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 }
+      : viewMode === "floorplan"
+      ? { display: "grid", gridTemplateColumns: "65% 1fr", gridTemplateRows: "1fr 1fr", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 }
+      : { display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "55% 45%", gap: 16, height: "calc(100vh - 140px)", minHeight: 0 };
 
   return (
     <div style={{ padding: "0 0 16px 0" }}>
@@ -85,17 +90,17 @@ export default function RiskOverviewPage() {
           <Card
             size="small"
             title="① 四色分布热区"
-            style={{ overflow: "hidden", height: "100%" }}
-            styles={{ body: { height: "100%", padding: 12, position: "relative" } }}
+            style={{ overflow: "hidden", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 1) }}
+            styles={{ body: { flex: 1, minHeight: 0, padding: 12, position: "relative", overflow: "hidden" } }}
           >
             <RiskDistributionStage floorId={effectiveFloorId} highlightZone={highlightZone} onZoneClick={handleZoneClick} />
           </Card>
           {/* Q2: Risk Matrix */}
-          <Card size="small" title="② 风险矩阵热力图"><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} /></Card>
+          <Card size="small" title="② 风险矩阵热力图" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 2) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} /></Card>
           {/* Q3: Stats */}
-          {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计"><RiskOverviewStats zones={zones} /></Card>}
+          {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 3) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewStats zones={zones} /></Card>}
           {/* Q4: Tree/Topology */}
-          <Card size="small" title={<Space><span>④</span><Segmented size="small" options={[{ label: "层级树", value: "tree" }, { label: "管控拓扑图", value: "topology" }]} value={rightView} onChange={v => { setRightView(v as "tree" | "topology"); localStorage.setItem("risk-overview-right", v as string); }} /></Space>}>
+          <Card size="small" title={<Space><span>④</span><Segmented size="small" options={[{ label: "层级树", value: "tree" }, { label: "管控拓扑图", value: "topology" }]} value={rightView} onChange={v => { setRightView(v as "tree" | "topology"); localStorage.setItem("risk-overview-right", v as string); }} /></Space>} style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 4) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}>
             {rightView === "tree" ? (
               <Tree
                 treeData={treeData}
@@ -119,6 +124,27 @@ export default function RiskOverviewPage() {
       )}
     </div>
   );
+}
+
+// 各视图下卡片在网格中的显式位置,避免依赖 DOM 顺序产生隐式行溢出
+function cardArea(mode: ViewMode, n: 1 | 2 | 3 | 4): React.CSSProperties {
+  switch (mode) {
+    case "quad":
+      // 2x2 均衡:①分布图 ②矩阵 / ③统计 ④树
+      return n === 1 || n === 3
+        ? { gridColumn: 1, gridRow: n === 1 ? 1 : 2 }
+        : { gridColumn: 2, gridRow: n === 2 ? 1 : 2 };
+    case "floorplan":
+      // 分布图独占左列整高,右侧竖排 ②矩阵 + ④树;③统计在该视图不渲染
+      if (n === 1) return { gridColumn: 1, gridRow: "1 / 3" };
+      return { gridColumn: 2, gridRow: n === 2 ? 1 : 2 };
+    case "data":
+      // 上排数据为主(③统计 + ②矩阵),下排图形(①分布图 + ④树)
+      if (n === 1) return { gridColumn: 1, gridRow: 2 };
+      if (n === 2) return { gridColumn: 2, gridRow: 1 };
+      if (n === 3) return { gridColumn: 1, gridRow: 1 };
+      return { gridColumn: 2, gridRow: 2 };
+  }
 }
 
 // Helper: get max risk level in a zone
