@@ -1,8 +1,21 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：复核 d05d5e9（删除冗余 MigrationPreviewItem 导入）完成，结论 ✅ 通过
-- 刚完成的动作（复核，只读验证未改代码）：
-  - git diff 2aafae6...d05d5e9：功能变更仅 risk_management.py 第 13 行导入删除 MigrationPreviewItem（1+/1-）；TASKS.md 变更来自 savepoint d40ea2c，非功能提交
-  - pytest 迁移服务两文件 8 passed；rg MigrationPreviewItem 全文件无残留；router import ok
+- 正在做什么（2026-08-06）：独立复审任务 4 提交 447441d（前端迁移类型/服务/向导闭环）完成，结论 ✅ 通过（1 项重要建议）
+- 刚完成的动作（只读验证，未改代码）：
+  - git diff d05d5e9...447441d：实现提交 447441d 仅 4 个规定文件（riskManagement.ts / riskManagementService.ts / RiskMigrationWizard.tsx / RiskManagementTab.tsx，110+/66-）；范围内另含 savepoint b120399 仅改 TASKS.md（21+/2-）
+  - 类型逐字段比对 backend/app/schemas/risk_management.py Migration*：四个前端接口类型一一对应；migrationPreview.total 为非空 number，前端守卫在对象级（`migrationPreview && ...`）
+  - 特别项核对：AI 预览失败静默回退默认映射（与计划步骤 3 及后端 HTTPException 回退语义一致）；迁移成功后 onRefresh 仅 refetch 层级+楼层，未 refetch ["risk-migration-preview"] → 入口 Alert 计数保持旧值，依赖窗口聚焦/重挂载才更新（重要建议）
+  - 实测：frontend npx tsc -b → exit 0；npm test -- --run → 42 passed（4 文件）；git diff --check 干净
+- 下一步：等待任务 5 或用户指示
+- 关键上下文：分支 codex/risk-management-only，HEAD=447441d；工作区仅 TASKS.md 未提交（快照更新本身）
+
+- 正在做什么（2026-08-06）：任务 4（前端迁移服务和向导闭环）已完成并提交
+- 刚完成的动作：
+  - 修改 4 个文件：frontend/src/types/riskManagement.ts（新增 4 个迁移接口类型）、frontend/src/services/riskManagementService.ts（getMigrationPreview / aiMigratePreview 新签名 / executeMigration）、frontend/src/components/enterprise/RiskMigrationWizard.tsx（迁移预览与执行改为走服务层）、frontend/src/pages/Enterprise/RiskManagementTab.tsx（迁移入口 Alert + RiskMigrationWizard 挂载）
+  - 验证：frontend `npm run build`（tsc -b + vite build）通过；`npm test` 42 passed（4 文件）；git diff --check 干净；修改前已按铁律二 git save（保存点 b120399）
+  - 已提交 feat(risk-management): complete migration wizard loop
+- 下一步：等待任务 5（后续计划任务）或用户指示
+- 关键上下文：分支 codex/risk-management-only；类型字段与 backend/app/schemas/risk_management.py Migration* 一一对应（含 mappings 请求体、created/migrated/skipped 响应）
+- 已知小观察（未改，按任务给定代码实现）：迁移成功后 risk-migration-preview 查询未随 onRefresh 重取，Alert 计数会在窗口重新聚焦/重进页面后才更新
 - 以下为历史快照，保留供压缩恢复参考
 
 ---
