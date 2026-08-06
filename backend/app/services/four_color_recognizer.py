@@ -6,9 +6,13 @@ import math
 from dataclasses import dataclass
 from uuid import uuid4
 
-import cv2
 import numpy as np
 from PIL import Image, ImageOps
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 COLOR_PALETTE: dict[str, tuple[int, int, int]] = {
     "红": (0, 0, 255),    # BGR
@@ -25,8 +29,14 @@ MAX_ZONES = 200
 COLOR_HEX_BY_LEVEL = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a"}
 
 
+def _require_cv2() -> None:
+    if cv2 is None:
+        raise RuntimeError("缺少 opencv-python-headless 依赖，无法执行四色分布图识别")
+
+
 def classify_pixels(img: np.ndarray) -> dict[str, np.ndarray]:
     """按 HSV 距离把每个像素归类到最近标准色；距离超过阈值则归为背景。"""
+    _require_cv2()
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.float32)
     h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
     names = list(COLOR_PALETTE)
@@ -50,6 +60,7 @@ def classify_pixels(img: np.ndarray) -> dict[str, np.ndarray]:
 
 def clean_mask(mask: np.ndarray, kernel_size: int = 3) -> np.ndarray:
     """开运算去噪点 + 闭运算填补文字造成的小孔。"""
+    _require_cv2()
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     return cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
@@ -57,6 +68,7 @@ def clean_mask(mask: np.ndarray, kernel_size: int = 3) -> np.ndarray:
 
 def mask_to_polygons(mask: np.ndarray, width: int, height: int, min_area: float, epsilon: float) -> list[np.ndarray]:
     """外轮廓提取 + Douglas-Peucker 简化 + 最小面积过滤，返回像素坐标多边形列表。"""
+    _require_cv2()
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     polys: list[np.ndarray] = []
     for cnt in contours:
@@ -103,6 +115,7 @@ def _order_points(pts: np.ndarray) -> np.ndarray:
 
 def detect_perspective_quad(img: np.ndarray) -> tuple[np.ndarray | None, str | None]:
     """检测最大近似四边形（纸张/图框边缘）。返回 (quad, warning)。"""
+    _require_cv2()
     h, w = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -122,6 +135,7 @@ def detect_perspective_quad(img: np.ndarray) -> tuple[np.ndarray | None, str | N
 
 def warp_perspective(img: np.ndarray, quad: np.ndarray) -> np.ndarray:
     """按四边形宽高比透视校正为正矩形。"""
+    _require_cv2()
     src = _order_points(quad)
     tl, tr, br, bl = src
     width_top = float(np.linalg.norm(tr - tl))
@@ -145,6 +159,7 @@ class RecognizeResult:
 
 def recognize_from_bytes(data: bytes) -> RecognizeResult:
     """识别管线入口：解码 → 透视校正 → 分类 → 清理 → 轮廓 → 归一化。"""
+    _require_cv2()
     img = Image.open(io.BytesIO(data))
     img = ImageOps.exif_transpose(img)
     rgb = np.array(img.convert("RGB"))

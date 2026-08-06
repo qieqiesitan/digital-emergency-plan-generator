@@ -1,10 +1,12 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：只保留风险分级管控已合并并完成 worktree/分支清理
+- 正在做什么（2026-08-06）：排查并修复预案生成未使用风险分级管控数据
 - 刚完成的动作：
-  - 已删除 .worktrees/codex-risk-management-only 并删除已合并功能分支 codex/risk-management-only；git worktree list 仅剩主工作区
-  - 合并结果此前已验证：backend 122 passed、frontend tsc exit 0、vitest 48 passed、Playwright 33 passed
-- 下一步：无阻塞事项；可按需推送 master 或进入遗留迭代项
-- 关键上下文：master HEAD=c834f33，origin/master 落后 214；遗留项：旧入口孤儿文件删除、个别旧文案、未知风险等级排序、chat 报告口径
+  - 根因 1：本地 Docker DB 未执行 backend/db_migration_risk_source_consolidation.sql，risk_objects 缺 legacy_source_id，新 build_risk_management_context 查询报 UndefinedColumnError；已通过 docker exec 执行迁移并验证加列/索引
+  - 根因 2：后端容器是合并前启动的旧进程，未加载新生成代码；已 docker restart 加载当前 backend/app/routers/generation.py
+  - 根因 3：重启后镜像缺 opencv-python-headless，已将 backend/app/services/four_color_recognizer.py 的 cv2 改为可选导入，缺失时仅四色识别接口报错，不阻塞后端启动
+  - 验证：docs 200；上下文构建 total_events=34、risk_sources_len=34；章节提示词包含“燃气灶台/火灾爆炸”；py_compile 通过；误改的 chroma.sqlite3 已恢复
+- 下一步：提交 four_color_recognizer.py；建议重建 backend 镜像以恢复四色识别；用户可重新生成 e5708dad 预案
+- 关键上下文：master HEAD=d2c478d，origin/master 落后 218；backend 容器 emergency-plan-backend 已重启运行；e5708dad 状态仍为 generating，属中断残留
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
