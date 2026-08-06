@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Alert, Button, Checkbox, Input, List, Modal, Spin, Tag, Upload, message } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import {
@@ -51,14 +51,12 @@ export default function FourColorImportModal({
   const [zones, setZones] = useState<FourColorDraftZone[]>([]);
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const fileRef = useRef<File | null>(null);
 
   const reset = () => {
     setStage("select");
     setResult(null);
     setZones([]);
     setReplaceExisting(true);
-    fileRef.current = null;
   };
 
   const handleClose = () => {
@@ -71,7 +69,6 @@ export default function FourColorImportModal({
   };
 
   const runAnalyze = async (file: File) => {
-    fileRef.current = file;
     setStage("analyzing");
     try {
       const res = await analyzeFourColorMap(enterpriseId, floorId, file);

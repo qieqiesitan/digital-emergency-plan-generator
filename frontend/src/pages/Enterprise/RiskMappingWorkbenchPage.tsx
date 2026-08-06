@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Spin, Space, Button, Modal, message } from "antd";
-import { ArrowLeftOutlined, SaveOutlined, UndoOutlined, RedoOutlined } from "@ant-design/icons";
-import { UploadOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, SaveOutlined, UndoOutlined, RedoOutlined, UploadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getRiskMappingWorkbench,
