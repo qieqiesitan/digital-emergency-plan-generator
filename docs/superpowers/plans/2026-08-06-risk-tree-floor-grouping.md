@@ -1063,8 +1063,8 @@ test("层级树按楼层分组且跨楼层分区可见", async ({ page }) => {
   await expect(page.locator(".ant-tree")).toContainText("默认");
   // 默认楼层分区直接可见
   await expect(page.locator(".ant-tree")).toContainText("危险品储存区");
-  // 展开二层楼层节点后，二层分区可见
-  await page.locator(".ant-tree").getByText("二层", { exact: true }).click();
+  // 展开二层楼层节点后，二层分区可见（antd Tree 展开需点击 switcher，标题点击是选中）
+  await page.locator(".ant-tree-switcher").nth(1).click();
   await expect(page.locator(".ant-tree")).toContainText("二层办公区");
 });
 
