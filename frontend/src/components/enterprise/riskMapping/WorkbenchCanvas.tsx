@@ -7,6 +7,7 @@ import {
   Rect,
   Circle as KonvaCircle,
   Text as KonvaText,
+  Transformer,
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { Modal, Input, InputNumber, Button, Space } from "antd";
@@ -129,6 +130,9 @@ export default function WorkbenchCanvas() {
   const [editColor, setEditColor] = useState("#333333");
   const zoneDragOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
   const pendingDragOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
+  const regionNodeRefs = useRef<Map<string, any>>(new Map());
+  const regionTransformOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
+  const transformerRef = useRef<any>(null);
   const spacePressedRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number; viewX: number; viewY: number } | null>(null);
   const isPanningRef = useRef(false);
@@ -346,6 +350,63 @@ export default function WorkbenchCanvas() {
     setIsDrawing(false);
   };
 
+  const handleRegionTransformStart = (regionId: string, points: RiskPolygonPoint[]) => {
+    regionTransformOriginRef.current.set(regionId, points);
+  };
+
+  const handleRegionTransformEnd = (e: KonvaEventObject<Event>) => {
+    const node = e.target as any;
+    const regionId = node?.id?.() as string | undefined;
+    const origin = regionId ? regionTransformOriginRef.current.get(regionId) : undefined;
+    if (!regionId || !origin) return;
+    const transform = node.getTransform();
+    const nextPoints = origin.map(pt => {
+      const canvasPoint = transform.point({
+        x: toCanvasX(pt.x, canvasWidth),
+        y: toCanvasY(pt.y, canvasHeight),
+      });
+      return {
+        x: Math.min(100, Math.max(0, toPercent(canvasPoint.x, canvasWidth))),
+        y: Math.min(100, Math.max(0, toPercent(canvasPoint.y, canvasHeight))),
+      };
+    });
+    node.scale({ x: 1, y: 1 });
+    node.rotation(0);
+    node.position({ x: 0, y: 0 });
+    node.offset({ x: 0, y: 0 });
+    regionTransformOriginRef.current.delete(regionId);
+    commit();
+    if (regionId.startsWith("pending:")) {
+      const pendingId = regionId.slice("pending:".length);
+      setSnapshot({
+        pendingRegions: useRiskMappingWorkbenchStore.getState().pendingRegions.map(r =>
+          r.id === pendingId ? { ...r, points: nextPoints } : r,
+        ),
+      });
+      return;
+    }
+    if (regionId.startsWith("zone:")) {
+      const body = regionId.slice("zone:".length);
+      const separator = body.indexOf(":");
+      const zoneId = body.slice(0, separator);
+      const polygonId = body.slice(separator + 1);
+      setSnapshot({
+        zones: useRiskMappingWorkbenchStore.getState().zones.map(z => {
+          if (z.id !== zoneId || !z.floor_plan_polygon) return z;
+          return {
+            ...z,
+            floor_plan_polygon: {
+              ...z.floor_plan_polygon,
+              polygons: z.floor_plan_polygon.polygons.map(p =>
+                p.id === polygonId ? { ...p, points: nextPoints } : p,
+              ),
+            },
+          };
+        }),
+      });
+    }
+  };
+
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 2 || (e.evt.button === 0 && spacePressedRef.current)) {
       e.evt.preventDefault();
@@ -530,6 +591,7 @@ export default function WorkbenchCanvas() {
         data-testid="workbench-canvas"
         data-draft-count={draftPoints.length}
         data-floor-plan={showFloorPlan}
+        data-transform-active={tool === "select" && !!selectedRegionId}
         data-tool={tool}
         data-space={spacePressed}
         data-view-x={viewX}
@@ -597,6 +659,7 @@ export default function WorkbenchCanvas() {
               const selected = selectedRegionId === `pending:${r.id}`;
               return (
                 <Line
+                  id={`pending:${r.id}`}
                   key={r.id}
                   points={pointsToKonva(r.points, canvasWidth, canvasHeight)}
                   closed
@@ -604,6 +667,13 @@ export default function WorkbenchCanvas() {
                   dash={selected ? undefined : [6, 4]}
                   strokeWidth={selected ? 3 : 2}
                   draggable={tool === "select"}
+                  ref={node => {
+                    if (node) {
+                      regionNodeRefs.current.set(`pending:${r.id}`, node);
+                    } else {
+                      regionNodeRefs.current.delete(`pending:${r.id}`);
+                    }
+                  }}
                   onClick={e => {
                     e.cancelBubble = true;
                     setState({ selectedRegionId: `pending:${r.id}`, selectedRiskPointId: null, selectedTextId: null });
@@ -625,6 +695,8 @@ export default function WorkbenchCanvas() {
                       ),
                     });
                   }}
+                  onTransformStart={() => handleRegionTransformStart(`pending:${r.id}`, r.points)}
+                  onTransformEnd={handleRegionTransformEnd}
                 />
               );
             })}
@@ -781,6 +853,7 @@ export default function WorkbenchCanvas() {
                     key={regionId}
                   >
                     <Line
+                      id={regionId}
                       points={pointsToKonva(p.points, canvasWidth, canvasHeight)}
                       closed
                       fill={z.effective_color || "#d9d9d9"}
@@ -788,6 +861,13 @@ export default function WorkbenchCanvas() {
                       stroke={selected ? "#1677ff" : "#ffffff"}
                       strokeWidth={selected ? 3.5 : 2.5}
                       draggable={tool === "select"}
+                      ref={node => {
+                        if (node) {
+                          regionNodeRefs.current.set(regionId, node);
+                        } else {
+                          regionNodeRefs.current.delete(regionId);
+                        }
+                      }}
                       onClick={e => {
                         e.cancelBubble = true;
                         setState({ selectedRegionId: regionId, selectedRiskPointId: null, selectedTextId: null });
@@ -818,6 +898,8 @@ export default function WorkbenchCanvas() {
                           }),
                         });
                       }}
+                      onTransformStart={() => handleRegionTransformStart(regionId, p.points)}
+                      onTransformEnd={handleRegionTransformEnd}
                     />
                     <Rect
                       x={labelX}
@@ -889,6 +971,20 @@ export default function WorkbenchCanvas() {
               );
             })}
             <WorkbenchRiskPointLayer />
+            {tool === "select" &&
+              selectedRegionId &&
+              regionNodeRefs.current.get(selectedRegionId) && (
+                <Transformer
+                  ref={transformerRef}
+                  nodes={[regionNodeRefs.current.get(selectedRegionId)]}
+                  rotateEnabled
+                  flipEnabled={false}
+                  anchorSize={10}
+                  borderStroke="#1677ff"
+                  anchorStroke="#1677ff"
+                  anchorFill="#ffffff"
+                />
+              )}
           </Layer>
         </Stage>
       </div>

@@ -1,4 +1,26 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06）：四色分布工作台画布自由变换完成，并已同步本地 Docker
+- 刚完成的动作：
+  - 选中待绑定区域或已绑定区域并切到“选择”工具后，画布直接显示自由变换控制框
+  - 支持在画布上直接拖拽缩放、旋转，变换结束会写回区域坐标并支持保存
+  - 保留右侧属性面板的数值缩放/旋转/翻转作为辅助输入
+  - 新增 E2E：绘制矩形后拖拽画布自由变换手柄
+  - Docker：重建 frontend/shuzihuayuan，移动端镜像包含最新 dist
+- 验证结果：
+  - 前端 tsc 通过；vitest 35 passed
+  - 本地 Playwright 11 passed；Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright 11 passed
+  - Node 22 生产构建通过（PWA 正常生成）
+- 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-06，讨论中）：用户咨询「风险分级管控分区树状图未体现企业楼层关系」优化方向，已完成根因调查，未改动代码
+- 刚完成的动作：
+  - 排查层级树与四色分布工作台的楼层数据链路，确认数据层已有楼层关系：RiskZone.floor_id/floor_name、RiskObject.floor_id、EnterpriseFloor（sort_order/is_default）
+  - 关键发现 1：后端 GET /risk-management/hierarchy（backend/app/routers/risk_management.py:691 起）未传 floor_id 时只返回默认楼层分区；RiskManagementTab.tsx:50 调用 getFullHierarchy(enterpriseId) 不带 floor_id → 树中只显示默认楼层的分区，多楼层企业其他楼层分区在树中完全不可见（比「未体现楼层关系」更严重）
+  - 关键发现 2：RiskHierarchyTree.tsx buildTreeData 直接 zone → object → unit → event → measure，无楼层分组层
+  - 关键发现 3：工作台 load_workbench 返回 floors 数组；前端 riskMappingWorkbenchService.listFloors 已封装 GET /floors；总览页 RiskOverviewPage.tsx:40 按 effectiveFloorId 传 floor_id 过滤
+- 下一步：等用户确认优化方向（A 树内楼层分组【推荐】/ B 楼层切换器 / C 混合），再进入设计
+- 关键上下文：分支 codex/protego-integration；未修改任何代码；涉及文件 backend/app/routers/risk_management.py、frontend/src/components/enterprise/RiskHierarchyTree.tsx、frontend/src/pages/Enterprise/RiskManagementTab.tsx、frontend/src/services/riskManagementService.ts
+- 以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06）：四色分布工作台楼层删除/自由变换/平面图显隐/总览自适应增强完成，并已同步本地 Docker
 - 刚完成的动作：
   - 楼层删除增强：默认楼层存在替代楼层时自动提升新默认楼层后再删除；仅剩一个楼层时前端禁用删除

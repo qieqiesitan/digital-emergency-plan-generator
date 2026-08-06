@@ -381,6 +381,32 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).not.toBeVisible();
   });
 
+  test("选中区域后可直接拖拽画布自由变换手柄", async ({ page }) => {
+    await mockWorkbenchApis(page);
+    await loginAndOpenWorkbench(page);
+
+    await page.getByRole("button", { name: "矩形" }).click();
+    const canvas = page.locator('[data-testid="workbench-canvas"] canvas').first();
+    const wrapper = page.locator('[data-testid="workbench-canvas"]');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("canvas bounding box unavailable");
+    await page.mouse.move(box.x + box.width * 0.16, box.y + box.height * 0.14);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3, { steps: 6 });
+    await page.mouse.up();
+    await page.getByRole("button", { name: "选择" }).click();
+
+    await expect(wrapper).toHaveAttribute("data-transform-active", "true");
+    const anchorX = box.x + box.width * 0.3;
+    const anchorY = box.y + box.height * 0.15;
+    await page.mouse.move(anchorX, anchorY);
+    await page.mouse.down();
+    await page.mouse.move(anchorX + 36, anchorY + 20, { steps: 5 });
+    await page.mouse.up();
+
+    await expect(page.getByText(/未绑定区域 · \d+ 个顶点/)).toBeVisible();
+  });
+
   test("多边形点击顶点后双击闭合，并显示待绑定区域", async ({ page }) => {
     await mockWorkbenchApis(page);
     await loginAndOpenWorkbench(page);
