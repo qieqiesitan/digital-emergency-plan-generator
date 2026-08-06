@@ -701,20 +701,36 @@ def sort_zones_by_floor(zones: list, floor_order: dict[str, int]) -> list:
 @router.get("/hierarchy", response_model=ApiResponse[list[HierarchyZoneResponse]])
 async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    default = await _default_floor(db, enterprise_id)
-    if not floor_id:
-        floor_id = default.id
-    else:
-        floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    floors = (await db.execute(
+        select(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id).order_by(EnterpriseFloor.sort_order)
+    )).scalars().all()
+    floor_order = {f.id: i for i, f in enumerate(floors)}
+    if floor_id:
+        floor = next((f for f in floors if f.id == floor_id), None)
         if not floor:
             raise HTTPException(404, "楼层不存在")
-    await db.commit()
-    floors = {f.id: f for f in (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.enterprise_id == enterprise_id))).scalars().all()}
-    zones = (await db.execute(select(RiskZone).where(RiskZone.enterprise_id==enterprise_id, RiskZone.floor_id==floor_id).options(selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures), selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures)).order_by(RiskZone.sort_order))).scalars().all()
+        zones = (await db.execute(
+            select(RiskZone).where(RiskZone.enterprise_id == enterprise_id, RiskZone.floor_id == floor_id)
+            .options(
+                selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
+                selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures),
+            )
+            .order_by(RiskZone.sort_order)
+        )).scalars().all()
+    else:
+        zones = (await db.execute(
+            select(RiskZone).where(RiskZone.enterprise_id == enterprise_id)
+            .options(
+                selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
+                selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures),
+            )
+        )).scalars().all()
+        zones = sort_zones_by_floor(zones, floor_order)
+    floors_by_id = {f.id: f for f in floors}
     out = []
     for z in zones:
         resp = HierarchyZoneResponse.model_validate(z)
-        f = floors.get(z.floor_id)
+        f = floors_by_id.get(z.floor_id)
         resp.floor_name = f.name if f else None
         normalized = normalize_polygon(z.floor_plan_polygon, z.name)
         resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
