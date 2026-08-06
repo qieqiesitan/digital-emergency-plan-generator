@@ -1,11 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { App as AntApp, Button, Spin, Empty, Space, Tag } from "antd";
-import { Alert } from "antd";
+import { App as AntApp, Alert, Button, Spin, Empty, Space, Tag } from "antd";
 import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure } from "@/services/riskManagementService";
-import { getMigrationPreview } from "@/services/riskManagementService";
+import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure, getMigrationPreview } from "@/services/riskManagementService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
 import RiskMigrationWizard from "@/components/enterprise/RiskMigrationWizard";
@@ -66,7 +64,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
   const [smartGuideOpen, setSmartGuideOpen] = useState(false);
   const [floorDrawerOpen, setFloorDrawerOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
-  const { data: migrationPreview } = useQuery({
+  const { data: migrationPreview, refetch: refetchMigrationPreview } = useQuery({
     queryKey: ["risk-migration-preview", enterpriseId],
     queryFn: () => getMigrationPreview(enterpriseId),
     enabled: !!enterpriseId,
@@ -355,6 +353,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
         onRefresh={() => {
           refetch();
           refetchFloors();
+          refetchMigrationPreview();
         }}
         enterpriseId={enterpriseId}
       />

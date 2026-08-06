@@ -84,7 +84,7 @@ export default function RiskMigrationWizard({
         const aiPreview = await aiMigratePreview(enterpriseId);
         if (aiPreview?.items?.length) setItems(mapPreviewData(aiPreview));
       } catch {
-        // AI \u4E0D\u53EF\u7528\u65F6\u4FDD\u7559\u9ED8\u8BA4\u6620\u5C04
+        message.info("AI \u5EFA\u8BAE\u4E0D\u53EF\u7528\uFF0C\u5DF2\u4F7F\u7528\u9ED8\u8BA4\u6620\u5C04");
       }
     } catch (e: any) {
       message.error("\u52A0\u8F7D\u8FC1\u79FB\u9884\u89C8\u5931\u8D25: " + (e?.message || "\u8BF7\u91CD\u8BD5"));
@@ -108,10 +108,7 @@ export default function RiskMigrationWizard({
 
   const startEdit = (item: MigrationItem) => {
     setEditingKey(item._key);
-    const zone = item.status === "modified" ? item.suggested_zone : item.suggested_zone;
-    const obj = item.status === "modified" ? item.suggested_object : item.suggested_object;
-    const ev = item.status === "modified" ? item.suggested_event : item.suggested_event;
-    setEditForm({ zone, object: obj, event: ev });
+    setEditForm({ zone: item.suggested_zone, object: item.suggested_object, event: item.suggested_event });
   };
 
   const saveEdit = () => {
