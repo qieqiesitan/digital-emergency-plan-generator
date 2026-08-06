@@ -1,13 +1,12 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：独立复审任务 6 提交 da8980d 完成，结论 ✅ 通过（只读验证，仅更新 TASKS.md 快照）
+- 正在做什么（2026-08-06）：任务 7（风险评估前置检查切换）代码质量复审完成，结论 ✅ 通过（只读验证，仅更新 TASKS.md 快照）
 - 刚完成的动作（复审）：
-  - git diff c23c99e...da8980d：实现提交 da8980d 仅改 3 个规定文件（backend/app/routers/generation.py / external.py / backend/tests/test_generation_enterprise_data.py，92+/21-）；范围内 TASKS.md 变更为 savepoint 960e741 快照（19+/8-），非实现内容；git diff --check 干净
-  - pytest backend/tests/test_generation_enterprise_data.py backend/tests/test_risk_context_builder.py backend/tests/test_risk_source_migration_service.py -q → 10 passed
-  - 5 处替换（generation.py:381/607/758/857/949）全部正确传 p.enterprise_id；空 ent 时 `if ent else {}` 短路不发查询、不触发 builder ValueError；generation.py/external.py 大小写敏感搜索 RiskSource 零残留；顺带修复 base 既有 bug：c23c99e 的 external.py 以 4 参调用 3 参函数 `_collect_enterprise_data(..., accident_type)`（ent 存在即 TypeError），现改为三参、accident_type 仍单独传 _build_section_prompt
-  - risk_sources 12 字段（旧 6 + zone/object/unit/accident_type/triggers/consequences）与 _risk_source_item 输出对应，下游 retriever.py rs.get("name")/json.dumps 兼容
-- 遗留小观察（不阻塞）：unit 为 None 时 .get("unit","") 透传 None（JSON null，LLM 可读）；新测试仅断言 4 字段、未覆盖空 risk_context 与缺失 key 默认值分支；5 处调用点重复为 base 既有模式且计划明确要求按同模式替换；builder 的 risk_score/likelihood/severity/measures 未透传 prompt（计划步骤 3 未要求）
-- 下一步：任务 7-11（风险评估/统计/chat/Web/移动端切换与全量验证）
-- 关键上下文：分支 codex/risk-management-only，HEAD=da8980d；复审为只读，除 TASKS.md 快照外未改任何文件
+  - git diff da8980d...188afd5：实现提交 188afd5 仅改 2 个规定文件（backend/app/routers/risk_assessment.py 12 行 + backend/app/services/risk_assessment_service.py 65 行）；范围内 TASKS.md 变更为 savepoint 4dd179c 快照（10+/8-），非实现内容；git diff --check 干净
+  - pytest backend/tests/test_risk_context_builder.py -q → 3 passed
+  - 逐项核对：前置检查顺序 = ent 404 → build_risk_management_context（risk_assessment.py:406）→ total_events==0 报 400「请先录入风险分级管控数据」（:407-408）→ ai_config → generating 检查，context 在 event_generator 内复用，builder 全文件仅 1 次调用；RiskSource 导入删除后零残留（rg 实测），Enterprise/AIConfig/select 仍在用未误删；risk_assessment_service.py 删除 select/Enterprise/RiskSource/RISK_ORDER 后零残留
+  - 发现点（不阻塞）：build_risk_assessment_context 委托新 builder 后当前零调用方（全 backend rg 仅定义处），属计划步骤 2 明确要求保留的兼容入口，建议任务 8-11 完成后复查，若仍无调用方可删除；路由前置检查无直接测试覆盖（rg backend/tests 无 generate_risk_assessment/total_events/请先录入风险 命中）
+- 下一步：任务 8（统计接口切换）及后续 chat/Web/移动端切换
+- 关键上下文：分支 codex/risk-management-only，HEAD=188afd5；复审为只读，除 TASKS.md 快照外未改任何文件
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
