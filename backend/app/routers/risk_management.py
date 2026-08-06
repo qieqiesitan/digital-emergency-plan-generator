@@ -767,7 +767,10 @@ async def ai_smart_guide(body: SmartGuideRequest, enterprise_id: str, current_us
     ai_config = await _get_ai_config(current_user.id, db)
     ent = await _get_ent(enterprise_id, current_user.id, db)
     info = {"name":ent.name,"industry":ent.industry,"business_scope":ent.business_scope,"building_overview":ent.building_overview,"hazardous_chemicals":ent.hazardous_chemicals,"special_equipment":ent.special_equipment}
-    result = await smart_guide(body.description, info, ai_config)
+    zone_rows = (await db.execute(select(RiskZone.name).where(RiskZone.enterprise_id == enterprise_id))).scalars().all()
+    object_rows = (await db.execute(select(RiskObject.name).where(RiskObject.enterprise_id == enterprise_id))).scalars().all()
+    existing_names = {"zones": list(zone_rows), "objects": list(object_rows)}
+    result = await smart_guide(body.description, info, ai_config, existing_names=existing_names)
     return ApiResponse(data=SmartGuideResponse(hierarchy=result.get("zones",[]), summary=result.get("summary",{})))
 
 @router.post("/ai/analyze-floor-plan")
