@@ -1,4 +1,20 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06）：任务 2 加固修复完成并提交（ece9956），6 passed
+- 刚完成的动作：
+  - 复核 ece9956（独立审查，未改代码）：git diff 44770b9...ece9956 + pytest 6 passed + 运行时 Schema 用例 6 组实测，五项修复全部确认到位；结论 ✅ 通过
+  - 复核残留（次要，不影响通过）：AI 部分参数合并无独立测试；method_params 显式 {"l": null} 过 Schema 但在服务层按缺失处理为 3（与「缺失默认 3」语义一致）
+  - 服务加固（backend/app/services/risk_source_migration_service.py）：ensure_default_floor/get_active_method_config 移入 try（失败也 rollback）；AI 参数改逐键合并保留默认 s；method_params 改 (mapping.method_params or {}).get() 防 None
+  - Schema 加固（backend/app/schemas/risk_management.py）：zone_name/object_name/accident_type 加 min_length=1；method_params 加 mode="before" field_validator（必须 dict、l/s 须 1-5 数字、拒绝 bool/越界/None/非 dict；数值字符串也被拒）
+  - 测试补 3 例（backend/tests/test_risk_source_migration_service.py）：commit 失败回滚、legacy 幂等跳过、无配置时默认阈值回退
+  - 已提交 ece9956 fix(risk-management): harden migration service validation and tests
+- 验证结果：迁移服务测试 6 passed；回归 55 passed（含 test_risk_mapping_migration/test_risk_mapping_service）；router 与 service import 正常；git diff --check 干净；行为验证脚本确认 floor 抛异常→rollback=1、AI 合并 {l:2,s:3}、method_params=None→回退 {3,3}、Schema 各非法输入均拒
+- 下一步：任务 3（迁移接口接入 risk_management 路由，将替换旧 /migrate/execute 的 mp.get() dict 访问——当前该旧实现与新 MigrationExecuteItem 对象不兼容，属已知中间态）
+- 关键上下文：分支 codex/risk-management-only，HEAD=ece9956；本次提交仅 3 个文件；3 个新测试在修复前即通过（覆盖既有健壮性行为，属回归/覆盖测试，TDD 红灯以既有 6 passed 为准并额外做了修复点行为验证）；TASKS.md 未提交改动为快照更新本身
+- 另一会话快照（保留）：正在讨论「用户上传现有四色分布图 → 自动识别 → 自动落图」；已确认 ① 图源形态 = C（电子图+拍照扫描都有）② 上传四色图与系统平面图无关系（无需配准对齐）③ 上传图成为该楼层底图、分区按原图位置落好、每楼层一张 ④ 识别只要形状+颜色等级（红橙黄蓝→重大/较大/一般/低），名称默认"分区N"，纯视觉零 AI 成本；下一步提出 2-3 个识别管线方案（候选：后端 OpenCV 一键识别 / 前端 Canvas 交互识别 / 混合带容差调节）；风险分区存储于 risk_zones.floor_plan_polygon，坐标归一化 0-100
+
+---
+
+以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06，计划阶段）：只保留风险分级管控实现计划已完成，等待用户选择执行方式；另一会话「四色分布图自动识别」仍在讨论中，暂缓
 - 刚完成的动作：
   - 用户已批准设计规格 docs/superpowers/specs/2026-08-06-only-risk-management-design.md（提交 c3a0ff0）
@@ -8,11 +24,6 @@
   - 已执行占位符扫描与 git diff --check，无占位符、无冲突标记
 - 下一步：提交计划与 TASKS.md，请用户选择执行方式（子代理驱动【推荐】/ 内联执行）
 - 关键上下文：当前分支 master，设计规格提交 c3a0ff0，git save 保存点 825c4a0；计划文件 docs/superpowers/plans/2026-08-06-only-risk-management.md；工作区 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
-- 另一会话快照（保留）：正在讨论「用户上传现有四色分布图 → 自动识别 → 自动落图」；已确认 ① 图源形态 = C（电子图+拍照扫描都有）② 上传四色图与系统平面图无关系（无需配准对齐）③ 上传图成为该楼层底图、分区按原图位置落好、每楼层一张 ④ 识别只要形状+颜色等级（红橙黄蓝→重大/较大/一般/低），名称默认"分区N"，纯视觉零 AI 成本；下一步提出 2-3 个识别管线方案（候选：后端 OpenCV 一键识别 / 前端 Canvas 交互识别 / 混合带容差调节）；风险分区存储于 risk_zones.floor_plan_polygon，坐标归一化 0-100
-
----
-
-以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06，计划 9 任务全部完成）：风险分级管控分区树楼层分组实现完成并提交
 - 刚完成的动作：
   - 任务 1 后端排序纯函数（backend/app/routers/risk_management.py + tests/test_risk_hierarchy.py，TDD 2 用例）→ 65d9304
