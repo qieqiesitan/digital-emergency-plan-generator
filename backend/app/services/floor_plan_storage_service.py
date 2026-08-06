@@ -1,4 +1,4 @@
-import logging, shutil, uuid
+import logging, re, shutil, uuid
 from datetime import datetime
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
@@ -109,3 +109,74 @@ def remove_enterprise_uploads(enterprise_id: str):
             shutil.rmtree(target)
     except OSError as exc:
         logger.warning("删除企业上传目录失败: %s (%s)", target, exc)
+
+
+FOUR_COLOR_TMP = "four_color_tmp"
+TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _floor_dir(enterprise_id: str, floor_id: str) -> Path:
+    return (UPLOAD_DIR / "enterprises" / enterprise_id / "floors" / floor_id).resolve()
+
+
+def _four_color_tmp_root(enterprise_id: str, floor_id: str) -> Path:
+    return _floor_dir(enterprise_id, floor_id) / FOUR_COLOR_TMP
+
+
+def four_color_temp_dir(enterprise_id: str, floor_id: str, token: str) -> Path | None:
+    """校验 token 并返回临时目录；格式非法或目录不存在返回 None。"""
+    if not TOKEN_RE.match(token):
+        return None
+    root = _floor_dir(enterprise_id, floor_id)
+    target = (_four_color_tmp_root(enterprise_id, floor_id) / token).resolve()
+    if target == root or not target.is_relative_to(root):
+        return None
+    if not target.is_dir():
+        return None
+    return target
+
+
+def save_four_color_temp(enterprise_id: str, floor_id: str, data: bytes, content_type: str) -> tuple[str, str]:
+    """保存识别源图临时文件，返回 (preview_url, token)。先清理同楼层旧临时目录。"""
+    if content_type not in ALLOWED:
+        raise HTTPException(422, "仅支持 PNG/JPEG/WebP 图片")
+    if len(data) > MAX_BYTES:
+        raise HTTPException(413, "文件不能超过 20MB")
+    ext = EXT_BY_CONTENT_TYPE.get(content_type, ".png")
+    root = _four_color_tmp_root(enterprise_id, floor_id)
+    root.mkdir(parents=True, exist_ok=True)
+    for child in root.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
+    token = uuid.uuid4().hex
+    target_dir = root / token
+    target_dir.mkdir(parents=True)
+    (target_dir / f"source{ext}").write_bytes(data)
+    url = f"/uploads/enterprises/{enterprise_id}/floors/{floor_id}/{FOUR_COLOR_TMP}/{token}/source{ext}"
+    return url, token
+
+
+def promote_four_color_file(enterprise_id: str, floor_id: str, token: str) -> tuple[str, int, int]:
+    """把临时源图转正为楼层正式底图，返回 (url, width, height)。"""
+    tmp_dir = four_color_temp_dir(enterprise_id, floor_id, token)
+    if tmp_dir is None:
+        raise FileNotFoundError("导入会话不存在")
+    source = next(tmp_dir.glob("source.*"), None)
+    if source is None:
+        raise FileNotFoundError("导入会话不存在")
+    with Image.open(source) as img:
+        width, height = img.size
+    floor_dir = _floor_dir(enterprise_id, floor_id)
+    floor_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex}{source.suffix}"
+    target = floor_dir / name
+    shutil.move(str(source), str(target))
+    return f"/uploads/enterprises/{enterprise_id}/floors/{floor_id}/{name}", width, height
+
+
+def remove_four_color_temp_dir(enterprise_id: str, floor_id: str, token: str) -> None:
+    """幂等删除临时目录；路径安全校验失败则仅返回。"""
+    tmp_dir = four_color_temp_dir(enterprise_id, floor_id, token)
+    if tmp_dir is None:
+        return
+    shutil.rmtree(tmp_dir, ignore_errors=True)
