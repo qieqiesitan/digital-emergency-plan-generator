@@ -1,10 +1,22 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，任务 1 重试中）：楼层分组实现计划执行中（docs/superpowers/plans/2026-08-06-risk-tree-floor-grouping.md），任务 1 后端楼层排序纯函数
+- 正在做什么（2026-08-06，计划 9 任务全部完成）：风险分级管控分区树楼层分组实现完成并提交
 - 刚完成的动作：
-  - 说明：检测到另一会话在本分支并行工作（RiskOverviewPage/RiskDistributionStage 布局修复，提交 1577d18/9f9c211/2f07994 及 savepoint af89baf）；本会话提交严格限定楼层分组相关文件，互不冲突；TASKS.md 快照两边交替更新属预期
-  - 两次子代理尝试均未执行任务（第一次只做启动检查；第二次被仓库铁律的 git save/图谱检查拖住，已中断）；已加约束重新派发
-- 下一步：任务 1 实现 → 规格审查 → 质量审查 → 任务 2-9 → 最终整体审查
-- 关键上下文：分支 codex/protego-integration，HEAD=2f07994（另一会话提交）；已提交设计 dbed31c + 计划 157845d + E2E 修正 fb9886e；用户未提交文件现仅 TASKS.md 与 frontend/output/（截图）；后端解释器 backend/.venv/Scripts/python.exe
+  - 任务 1 后端排序纯函数（backend/app/routers/risk_management.py + tests/test_risk_hierarchy.py，TDD 2 用例）→ 65d9304
+  - 任务 2 `/hierarchy` 多楼层返回（不传 floor_id 返回全部楼层分区并按楼层排序，传 floor_id 行为等价原实现）→ 4782a74
+  - 任务 3 `buildZonePayload` 透传 floor_id（frontend/src/utils/zoneSubmit.ts + test，8 用例）→ 4fb3643
+  - 任务 4 楼层分组纯函数（frontend/src/utils/riskTreeGrouping.ts + test，3 用例；实现含 sort_order 防御性排序，比计划原样代码更自洽）→ 5e303f1
+  - 任务 5 树楼层节点渲染（RiskHierarchyTree.tsx：楼层节点/默认标记/分区·风险点计数/默认楼层展开/未分配楼层无操作；RiskManagementTab 补 TreeNodeMeta floor 类型）→ 975e378
+  - 任务 6 RiskZoneForm 楼层 Select + 底图跟随所选楼层（floors 默认值 + Form.useWatch 联动 planUrl）→ 7d0115c
+  - 任务 7 RiskManagementTab 集成（floors 查询/树与表单传参/add-zone 携带 floorId/编辑预填楼层/详情面板楼层分支）→ 5b79bbe
+  - 任务 8 多楼层树 E2E（frontend/e2e/risk-hierarchy-tree.spec.ts，2 用例；含 antd v6 适配：switcher 定位、Select 无 selection-item、按钮「保 存」正则；RiskZoneForm 抽屉标题按 initialValues?.name 判断）→ c06240c
+  - 任务 9 收尾：规格文档 listFloors→listEnterpriseFloors 全部修正；vite.config.ts 补 test.include 限定 src 单测，修复 `npx vitest run` 误扫 e2e/Playwright 与根目录 risk-ui-fixes.test.mjs 的问题
+- 验证结果（全部通过）：
+  - 后端全量 69 passed（含新增 test_risk_hierarchy 2 用例）
+  - 前端 tsc exit 0；vitest 全量 40 passed（3 文件）
+  - Playwright risk-hierarchy-tree 2 passed + risk-mapping-workbench 12 passed = 14 passed
+  - Node 22 生产构建通过（PWA 正常生成）
+- 下一步：功能完成，可按需同步 Docker / 推送远程；另有其他会话未提交改动（RiskDistributionStage.tsx、chroma.sqlite3、backup SQL、frontend/output/）保持原样未触碰
+- 关键上下文：分支 codex/protego-integration，HEAD=c06240c；本次 9 个提交均严格限定楼层分组相关文件；后端解释器 backend/.venv/Scripts/python.exe
 
 --- 以下为历史快照，保留供压缩恢复参考 ---
 - 正在做什么（2026-08-06）：总览管控拓扑图分区数量与层级树对齐修复完成，并已同步本地 Docker
@@ -390,6 +402,12 @@
   - 根因 2（AI 调用失败）：本地库 AI 密钥用 docker-compose 的 ENCRYPTION_KEY（abcdefghijklmnopqrstuvwxyz123456）加密，VM 后端此前用默认 "a"*32；已在 emergency-plan.service 增加 Environment=ENCRYPTION_KEY=... 并重启，主账号 550614706@qq.com 等 4/6 配置可解密
   - 剩余 2 条解不开：admin@test.com（占位假 key，密文全 0）与 test@test.com（旧 key），需在 设置→AI配置 重新保存
   - 验证：嵌入 dim=384 OK；服务进程环境含 ENCRYPTION_KEY；后端 active、docs/root 200、日志无 error；待用户在页面重试一键生成
+- 旁路任务：评估云主机迁移到公司服务器（2026-08-06）
+  - VM 架构 aarch64（ARM64），公司服务器大概率 x86_64 → 整盘二进制镜像不可跨架构；推荐"应用级迁移包"
+  - 体积：emergency-plan 1.5G（含 node_modules 617M、.venv 749M）、/usr/local/python3.12 254M（ARM 编译版）、chroma 模型 96M、备份 111M、DB ~16MB
+  - 迁移包方案：源码（含 VM 两处修复）+ pg_dump 全量 + ENCRYPTION_KEY/SECRET_KEY 配置 + systemd 定义 + ONNX 模型 + 安装脚本/文档；目标机重建 Python 3.12 + pip/npm 依赖 + npm run build
+  - 云依赖说明：Cloudflare 隧道 token 可复用（域名继续指向 demo.chengleiai.com）；DeepSeek key 随库走需同 ENCRYPTION_KEY；目标机需能访问 api.deepseek.com
+  - 隧道 2026-08-06 曾中断（进程消失），已重新拉起 hdspace PID 8552
 - 下一步：后端任务 2 与前端任务 5 并行完成后，依次执行任务 3/4、前端任务 6/7/8/9/10，最后任务 11
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2

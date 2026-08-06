@@ -41,7 +41,7 @@
 |---|---|
 | 优化方向 | 方案 A：树顶层楼层分组 + 添加分区楼层联动 |
 | 后端接口 | `/hierarchy` 不传 `floor_id` 时返回企业全部楼层分区；响应结构不变 |
-| 楼层数据源 | 前端并行 `GET /floors`（现有 `listFloors` 封装）提供排序、默认标记、分区数/风险点数 |
+| 楼层数据源 | 前端并行 `GET /floors`（现有 `listEnterpriseFloors` 封装）提供排序、默认标记、分区数/风险点数 |
 | 未分配兜底 | `floor_id` 为 null 的分区归入「未分配楼层」分组，置于楼层列表之后 |
 | 展开策略 | 默认展开默认楼层，其余楼层折叠；单楼层企业保持全展开 |
 | 楼层节点信息 | 楼层名称 + 默认徽标 + 分区数 + 风险点数 |
@@ -69,7 +69,7 @@
 
 - 后端 `GET /risk-management/hierarchy`（backend/app/routers/risk_management.py:691）：`floor_id` 为空取默认楼层，传了按楼层过滤；`HierarchyZoneResponse` 已含 `floor_id/floor_name`。
 - 数据模型：`risk_zones.floor_id`、`risk_objects.floor_id`、`enterprise_floors（sort_order/is_default/floor_plan_url）`。
-- 工作台：`load_workbench` 返回全部 floors；前端 `riskMappingWorkbenchService.listFloors` 已封装 `GET /floors`。
+- 工作台：`load_workbench` 返回全部 floors；前端 `riskMappingWorkbenchService.listEnterpriseFloors` 已封装 `GET /floors`。
 - 总览页：`RiskOverviewPage` 按 `effectiveFloorId` 传 `floor_id`，走单楼层过滤。
 
 ### 2.2 需要修复的断点
@@ -97,8 +97,8 @@
 
 ### 4.1 数据加载（RiskManagementTab）
 
-- 并行 `useQuery`：`getFullHierarchy(eid)`（全部楼层）+ `listFloors(eid)`。
-- `listFloors` 提供楼层顺序、默认标记、`zone_count/risk_point_count`、每层 `floor_plan_url`。
+- 并行 `useQuery`：`getFullHierarchy(eid)`（全部楼层）+ `listEnterpriseFloors(eid)`。
+- `listEnterpriseFloors` 提供楼层顺序、默认标记、`zone_count/risk_point_count`、每层 `floor_plan_url`。
 - 向 `RiskHierarchyTree` 传入 `data + floors`；向 `RiskZoneForm` 传入当前选中楼层的 `floor_plan_url`（替代父级默认楼层 URL，父级传参保留为兜底）。
 
 ### 4.2 树结构（RiskHierarchyTree）
@@ -113,7 +113,7 @@
 
 - `buildZonePayload` 增加可选 `floor_id` 透传：创建时必传（来自表单状态）；编辑时若楼层未改动则不传，避免误清已有归属（沿用现有"多边形仅在有值时提交"的防御风格）。
 - `RiskZoneForm` 增加楼层 Select：
-  - 数据来自 `listFloors`；
+  - 数据来自 `listEnterpriseFloors`；
   - 从楼层节点「添加分区」进入：默认锁定该楼层，仍允许切换；
   - 顶部「添加分区」进入：默认选默认楼层；
   - 编辑分区：显示当前楼层，可切换迁移；

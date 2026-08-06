@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import qiankun from "vite-plugin-qiankun";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { configDefaults } from "vitest/config";
 
 const API_TARGET = process.env.VITE_API_TARGET || "http://localhost:8000";
 
@@ -72,6 +73,11 @@ export default defineConfig(async () => ({
   plugins: await getPlugins(),
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   cacheDir: process.env.VITE_CACHE_DIR || "node_modules/.vite",
+  test: {
+    // 单元测试限定 src 下 *.test.*；排除 e2e（Playwright）与仓库根遗留的 node:test 脚本
+    include: ["src/**/*.test.{ts,tsx,mts,cts,js,mjs,cjs}"],
+    exclude: [...configDefaults.exclude, "e2e/**"],
+  },
   server: {
     port: 5173,
     cors: true,
