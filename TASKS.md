@@ -1,6 +1,10 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，已合并收尾）：楼层分组功能已本地合并回 master（fast-forward，HEAD=1a52369），合并结果验证通过；功能分支保留未删
+- 正在做什么（2026-08-06，新迭代设计审查中）：树楼层维护 + 空楼层显示方案已获用户批准（方案 A），设计文档已写入，等待用户审查规格
 - 刚完成的动作：
+  - 用户反馈两问题：①工作台新增楼层后风险管控树无变化（根因：groupZonesByFloor 隐藏空楼层 + 查询键不一致）②树区域无楼层维护入口
+  - 用户选择方案 A：树显示全部楼层（空楼层显示"0 分区"）+ 工具栏「楼层管理」抽屉（添加/重命名/设默认/删除，复用后端规则）+ 双向数据联动
+  - 已写设计文档 docs/superpowers/specs/2026-08-06-risk-tree-floor-maintenance-design.md；自检通过（无占位符、各节一致、范围单一）
+  - 已建功能分支 codex/risk-tree-floor-maintenance（从 master 切出）
   - 用户选择收尾方式 1（本地合并）：master 由 3061dfe 快进到 1a52369，包含本功能 12 提交 + 另一会话 RiskOverview 提交 + 分支历史 137 提交
   - 合并前清理：误入分支的 backup/risk-mapping-pre-migration-20260805.sql 已 git rm --cached（文件保留在磁盘，恢复未跟踪）
   - 合并结果验证：backend pytest 69 passed；tsc -b exit 0（vitest/Playwright/构建在合并前同内容已验证：40/15/成功）
@@ -12,8 +16,8 @@
   - 清理：误提交截图已移除（d1bef26）；_debug-tree.spec.ts 已清理
 - 最终验证（全部通过）：backend pytest 69 passed；tsc -b 0；vitest 40 passed；Playwright 15 passed（risk-hierarchy-tree 3 + risk-mapping-workbench 12）；Node 22 生产构建成功（PWA 正常）
 - 已知缺口（记录，未处理）：spec §6 要求 /hierarchy 接口级测试，仓库无路由测试设施，当前以纯函数单测 + E2E 覆盖；P3 若干（楼层计数数据源一致性、groupZonesByFloor 重复计算、edit/edit-zone 分支重复）已记录
-- 下一步：等待用户决定（是否删除功能分支 / 是否推送 master 到 origin+gitee）；未执行 git finish/推送
-- 关键上下文：当前分支 master，HEAD=1a52369；master 领先 origin/master 与 gitee/master（本地合并未推送）；功能分支 codex/protego-integration 保留（指向 1a52369，已完全合并）；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
+- 下一步：等待用户审查新设计规格 → 批准后调用 writing-plans 生成实现计划 → 执行
+- 关键上下文：当前分支 codex/risk-tree-floor-maintenance（从 master 6ab1d72 切出）；master 仍领先 origin/gitee 未推送；功能分支 codex/protego-integration 保留；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
 
 ---
 
