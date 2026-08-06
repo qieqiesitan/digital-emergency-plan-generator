@@ -10,12 +10,13 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.enterprise import Enterprise, EnterpriseFloor, RiskSource
 from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
-from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse)
+from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewItem, MigrationPreviewResponse, MigrationExecuteRequest, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse, FourColorAnalyzeResponse, FourColorCommitRequest, FourColorCommitResponse)
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
 from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts
-from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url
+from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
+from app.services.four_color_recognizer import recognize_from_bytes
 from app.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises/{enterprise_id}/risk-management", tags=["Risk Management"])
@@ -162,6 +163,30 @@ async def upload_floor_plan(floor_id: str, enterprise_id: str, file: UploadFile 
     remove_floor_plan(old_url)
     await db.refresh(floor)
     return ApiResponse(data=await _floor_response(db, floor))
+
+@router.post("/floors/{floor_id}/four-color/analyze", response_model=ApiResponse[FourColorAnalyzeResponse])
+async def analyze_four_color(floor_id: str, enterprise_id: str, file: UploadFile = File(...), current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    data = await file.read()
+    preview_url, token = save_four_color_temp(enterprise_id, floor_id, data, file.content_type)
+    try:
+        result = recognize_from_bytes(data)
+    except Exception:
+        remove_four_color_temp_dir(enterprise_id, floor_id, token)
+        raise HTTPException(422, "图片解析失败，请检查图片格式")
+    if not result.zones:
+        remove_four_color_temp_dir(enterprise_id, floor_id, token)
+        raise HTTPException(422, detail={"code": "NO_ZONE_DETECTED", "message": "未识别到红/橙/黄/蓝色块，请检查图片"})
+    return ApiResponse(data=FourColorAnalyzeResponse(
+        preview_url=preview_url,
+        canvas_width=result.width,
+        canvas_height=result.height,
+        zones=result.zones,
+        warnings=result.warnings,
+    ))
 
 # ── Methods ──
 @router.get("/methods", response_model=ApiResponse[list[MethodResponse]])
