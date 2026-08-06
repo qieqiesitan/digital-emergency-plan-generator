@@ -1,15 +1,14 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：智能引导导入 422 修复 + 生成去重已实现并全部验证通过，待收尾合并
+- 正在做什么（2026-08-06，功能完成待审查）：树楼层维护 + 空楼层显示已实现并全量验证通过（分支 codex/risk-tree-floor-maintenance），待最终审查与收尾
 - 刚完成的动作：
-  - 分支 codex/smart-guide-import-fix（基于楼层维护分支 HEAD 创建，含其 2 个文档提交）；提交序列 40383bb(规格) → 5f485aa(计划) → 19616e0(normalize 强制非风险点) → 69b7db6(prompt 注入现有分区) → 529be65(buildImportPlan) → 4b5c1aa(Modal 接入去重) → 52c199a(表单坐标补传) → 3d00e3c(E2E)
-  - 实现：后端 normalize 强制 is_risk_point=False；smart-guide 路由查库注入现有分区/对象清单到 prompt；前端 Modal 拉现有分区导入去重；表单补传 location_x/y + 风险点缺坐标前端拦截提示
-  - 注意：另一会话曾把共享工作区切回 codex/risk-tree-floor-maintenance 并新增提交 e09796b，我的分支提交不受影响；协作期间需注意分支切换
-  - 验证：后端 71 passed；前端 tsc + vitest 42 passed；Playwright 智能引导 E2E + 总览回归 3 passed
-- 下一步：按 finishing-a-development-branch 收尾（验证 → 向用户展示合并/PR 选项）
-- 关键上下文：本地后端 8000 运行中；未提交 TASKS.md（含本快照）与 backup SQL 保持原样；风险点必须绑定分区和坐标的业务规则未改动
-  - 双轴审查（子代理补跑 + 主控复核）：规格 1.4 决策表逐项落实；3 处计划外修正评估合理；质量无硬违规
-  - 修复提交 1ac3762：编辑未分配楼层分区不再静默注入默认楼层（isEdit 判定）；无默认楼层时展开策略退回第一个楼层；分区保存后同时刷新 floors 计数；新增 E2E 第 3 用例断言编辑未分配分区 payload 不带 floor_id
-  - 清理：误提交截图已移除（d1bef26）；_debug-tree.spec.ts 已清理
+  - 用户反馈两问题已修复：①树显示全部楼层（含空楼层"0 分区"，groupZonesByFloor 不再过滤空楼层；空态条件调整为有楼层即渲染树）②工具栏新增「楼层管理」抽屉（FloorManagementDrawer：添加/重命名/设为默认/删除，复用后端规则）
+  - 双向联动：抽屉操作后 invalidate enterprise-floors + risk-floors + refetch 分区树；工作台 EnterpriseFloorManager.refresh 补 invalidate enterprise-floors
+  - 提交：e09796b（空楼层显示）、3bc79d6（抽屉组件）、de6ebb6（集成联动）、79b0848（E2E 2 用例）
+  - 并发处理：另一会话（智能导引修复）期间共享工作区，其成果已并入 master 并合入本分支（7e2f334），无冲突
+  - 实现方式：子代理再次卡在"等待任务"，改为协调层直接按计划实现
+- 最终验证（全部通过）：backend pytest 71 passed；tsc -b 0；vitest 42 passed（4 文件）；Playwright 18 passed（树 5 + 工作台 12 + 智能导引 1）；Node 22 生产构建成功
+- 下一步：最终审查（规格+质量）→ 修复发现项（若有）→ 收尾决策（合并/PR/保持）
+- 关键上下文：当前分支 codex/risk-tree-floor-maintenance，HEAD=79b0848（TASKS.md 快照待提交）；master 含智能导引修复，本分支领先 master 5 个功能提交；工作区仅 backup/risk-mapping-pre-migration-20260805.sql 未跟踪
 - 最终验证（全部通过）：backend pytest 69 passed；tsc -b 0；vitest 40 passed；Playwright 15 passed（risk-hierarchy-tree 3 + risk-mapping-workbench 12）；Node 22 生产构建成功（PWA 正常）
 - 已知缺口（记录，未处理）：spec §6 要求 /hierarchy 接口级测试，仓库无路由测试设施，当前以纯函数单测 + E2E 覆盖；P3 若干（楼层计数数据源一致性、groupZonesByFloor 重复计算、edit/edit-zone 分支重复）已记录
 - 下一步：等待用户选择执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 按对应技能逐任务实现
