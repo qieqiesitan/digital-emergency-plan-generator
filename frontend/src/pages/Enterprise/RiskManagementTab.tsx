@@ -4,6 +4,7 @@ import { App as AntApp, Button, Spin, Empty, Space, Tag } from "antd";
 import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure } from "@/services/riskManagementService";
+import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
 import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent, HierarchyMeasure, CheckItem, RiskZoneFloorPlanPolygon, MethodType, MeasureCategory } from "@/types/riskManagement";
 import { buildZonePayload } from "@/utils/zoneSubmit";
@@ -48,6 +49,10 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
   const { modal, message: antMessage } = AntApp.useApp();
  
    const { data: hierarchy = [], isLoading, refetch } = useQuery({ queryKey: ["risk-hierarchy", enterpriseId], queryFn: () => getFullHierarchy(enterpriseId) });
+   const { data: floors = [] } = useQuery({
+     queryKey: ["enterprise-floors", enterpriseId],
+     queryFn: () => listEnterpriseFloors(enterpriseId),
+   });
  
    const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; name: string } | null>(null);
    const [form, setForm] = useState<FormState>({ type: null, open: false });
@@ -123,7 +128,12 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
   const handleTreeAction = useCallback((action: string, meta: TreeNodeMeta) => {
     switch (action) {
       case "add-zone":
-        setForm({ type: "zone", open: true });
+        setForm({
+          type: "zone",
+          open: true,
+          parentId: meta.id,
+          initialValues: meta.floorId ? { name: "", floor_id: meta.floorId } : undefined,
+        });
         break;
       case "add-object":
         setForm({ type: "object", open: true, parentId: meta.id, parentType: "zone", initialValues: { zone_id: meta.id } });
@@ -145,7 +155,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           parentId: meta.parentId,
           parentType: meta.parentType,
           initialValues:
-            meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined }
+            meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined, floor_id: meta.floorId ?? undefined }
             : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
             : meta.type === "unit" ? { name: meta.name }
             : meta.type === "event" ? { accident_type: meta.name }
@@ -167,7 +177,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           parentId: meta.parentId,
           parentType: meta.parentType,
           initialValues:
-            meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined }
+            meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined, floor_id: meta.floorId ?? undefined }
             : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
             : meta.type === "unit" ? { name: meta.name }
             : meta.type === "event" ? { accident_type: meta.name }
@@ -249,13 +259,24 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
            <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-mapping-workbench`)}>四色分布图工作台</Button>
            <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
          </Space>
-         {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}
+         {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}
        </div>
  
        {/* RIGHT: Detail Panel */}
        <div style={{ width: 300, background: "#fff", borderRadius: 8, padding: 16, boxShadow: "0 2px 8px rgba(0,0,0,.08)", overflow: "auto" }}>
         <h4 style={{ fontSize: 14, marginBottom: 12 }}>📌 节点详情</h4>
         {selectedNode ? (() => {
+          if (selectedNode.type === "floor") {
+            const f = floors.find((x) => x.id === selectedNode.id);
+            return (
+              <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+                <p><strong>{selectedNode.name}</strong></p>
+                {f?.is_default && <p><Tag color="blue">默认楼层</Tag></p>}
+                <p>分区数：{f?.zone_count ?? 0}</p>
+                <p>风险点数：{f?.risk_point_count ?? 0}</p>
+              </div>
+            );
+          }
           const info = hierarchyMap[selectedNode.id] || {};
           return (
             <div style={{ fontSize: 13, lineHeight: 1.8 }}>
@@ -277,7 +298,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
        </div>
  
        {/* FORMS */}
-       {form.type === "zone" && <RiskZoneForm key={`zone-${form.id || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} floorPlanUrl={floorPlanUrl || undefined} />}
+       {form.type === "zone" && <RiskZoneForm key={`zone-${form.id || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} floorPlanUrl={floorPlanUrl || undefined} floors={floors} />}
        {form.type === "object" && <RiskObjectForm key={`object-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} isEdit={!!form.id} zones={zones} />}
        {form.type === "unit" && <RiskUnitForm key={`unit-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} />}
        {form.type === "event" && (() => {
