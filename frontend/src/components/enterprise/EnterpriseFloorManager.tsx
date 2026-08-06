@@ -35,6 +35,8 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["risk-floors", enterpriseId] });
     queryClient.invalidateQueries({ queryKey: ["risk-workbench", enterpriseId] });
+    // 风险分级管控页使用独立楼层键，双向联动保证两边数据一致
+    queryClient.invalidateQueries({ queryKey: ["enterprise-floors", enterpriseId] });
   };
 
   const switchFloor = (floorId: string) => {

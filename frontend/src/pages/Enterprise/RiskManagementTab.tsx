@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
  import { useNavigate } from "react-router-dom";
 import { App as AntApp, Button, Spin, Empty, Space, Tag } from "antd";
-import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined } from "@ant-design/icons";
+import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure } from "@/services/riskManagementService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
@@ -14,6 +14,7 @@ import { buildZonePayload } from "@/utils/zoneSubmit";
 import RiskEventForm from "@/components/enterprise/RiskEventForm";
 import RiskMeasureForm from "@/components/enterprise/RiskMeasureForm";
 import RiskSmartGuideModal from "@/components/enterprise/RiskSmartGuideModal";
+import FloorManagementDrawer from "@/components/enterprise/FloorManagementDrawer";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 
 interface Props { enterpriseId: string; floorPlanUrl?: string | null; }
@@ -59,7 +60,8 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
  
    const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; name: string } | null>(null);
    const [form, setForm] = useState<FormState>({ type: null, open: false });
-   const [smartGuideOpen, setSmartGuideOpen] = useState(false);
+  const [smartGuideOpen, setSmartGuideOpen] = useState(false);
+  const [floorDrawerOpen, setFloorDrawerOpen] = useState(false);
   const zones = useMemo(() => hierarchy.map(z => ({ id: z.id, name: z.name })), [hierarchy]);
 
   const hierarchyMap = useMemo(() => {
@@ -265,6 +267,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
            <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
            <Button icon={<BarChartOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-overview`)}>📊 可视化总览</Button>
            <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-mapping-workbench`)}>四色分布图工作台</Button>
+           <Button icon={<ApartmentOutlined />} onClick={() => setFloorDrawerOpen(true)}>楼层管理</Button>
            <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
          </Space>
          {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}
@@ -315,8 +318,15 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
        })()}
        {form.type === "measure" && <RiskMeasureForm key={`measure-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} />}
  
-       {/* SMART GUIDE MODAL */}
-       <RiskSmartGuideModal open={smartGuideOpen} onClose={() => setSmartGuideOpen(false)} onRefresh={refetch} enterpriseId={enterpriseId} />
+       <FloorManagementDrawer
+         enterpriseId={enterpriseId}
+         open={floorDrawerOpen}
+         onClose={() => setFloorDrawerOpen(false)}
+         onChanged={refetch}
+       />
+
+      {/* SMART GUIDE MODAL */}
+      <RiskSmartGuideModal open={smartGuideOpen} onClose={() => setSmartGuideOpen(false)} onRefresh={refetch} enterpriseId={enterpriseId} />
      </div>
    );
  }
