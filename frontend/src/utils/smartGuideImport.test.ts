@@ -3,9 +3,9 @@ import { buildImportPlan } from "./smartGuideImport";
 import type { SmartGuideZone } from "@/types/riskManagement";
 
 const hierarchy: SmartGuideZone[] = [
-  { name: "储罐区", description: null, objects: [] },
-  { name: "新车间", description: null, objects: [] },
-  { name: "储罐区", description: "重名", objects: [] },
+  { name: "储罐区", objects: [] },
+  { name: "新车间", objects: [] },
+  { name: "储罐区", objects: [] },
 ];
 
 describe("buildImportPlan", () => {
