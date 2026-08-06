@@ -5,8 +5,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 from PIL import Image, ImageDraw
+from pydantic import ValidationError
 
 import app.services.floor_plan_storage_service as fss
+from app.schemas.risk_management import (
+    FourColorCommitRequest,
+    FourColorCommitZone,
+    RiskPolygonPoint,
+)
 from app.services.floor_plan_storage_service import (
     MAX_BYTES,
     promote_four_color_file,
@@ -87,3 +93,37 @@ def test_remove_four_color_temp_dir_idempotent(tmp_path, monkeypatch):
     _, token = save_four_color_temp("e-1", "f-1", _png_bytes(), "image/png")
     remove_four_color_temp_dir("e-1", "f-1", token)
     remove_four_color_temp_dir("e-1", "f-1", token)
+
+
+# ── Schema ──
+
+
+def _commit_zone(name="分区1", level="重大", points=None):
+    pts = points or [{"x": 10, "y": 10}, {"x": 30, "y": 10}, {"x": 30, "y": 40}]
+    return FourColorCommitZone(name=name, risk_level=level, polygons=[{"points": pts}])
+
+
+def test_commit_request_accepts_valid_payload():
+    req = FourColorCommitRequest(file_token="a" * 32, zones=[_commit_zone()], replace_existing=True)
+    assert req.zones[0].risk_level == "重大"
+    assert req.file_token == "a" * 32
+
+
+def test_commit_request_rejects_unknown_level():
+    with pytest.raises(ValidationError):
+        _commit_zone(level="绿色")
+
+
+def test_commit_request_rejects_too_few_points():
+    with pytest.raises(ValidationError):
+        _commit_zone(points=[{"x": 1, "y": 2}])
+
+
+def test_commit_request_rejects_out_of_range_point():
+    with pytest.raises(ValidationError):
+        RiskPolygonPoint(x=150, y=50)
+
+
+def test_commit_request_rejects_empty_zones():
+    with pytest.raises(ValidationError):
+        FourColorCommitRequest(file_token="a" * 32, zones=[], replace_existing=True)

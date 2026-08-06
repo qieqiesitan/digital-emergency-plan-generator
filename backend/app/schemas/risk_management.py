@@ -198,3 +198,46 @@ class SmartGuideRequest(BaseModel): description: str
 class SmartGuideResponse(BaseModel): hierarchy: list[SmartGuideZone]; summary: dict = {}
 class MethodPreviewRequest(BaseModel): method_id: str; params: dict
 class MethodPreviewResponse(BaseModel): risk_level: str; risk_score: str; action: str; deadline: str
+
+
+class FourColorDraftPolygon(BaseModel):
+    id: str
+    label: str | None = None
+    points: list[RiskPolygonPoint] = Field(min_length=3)
+
+
+class FourColorDraftZone(BaseModel):
+    client_id: str
+    name: str
+    risk_level: Literal["重大", "较大", "一般", "低"]
+    color: str
+    polygons: list[FourColorDraftPolygon] = Field(min_length=1)
+
+
+class FourColorAnalyzeResponse(BaseModel):
+    preview_url: str
+    canvas_width: int
+    canvas_height: int
+    zones: list[FourColorDraftZone]
+    warnings: list[str] = []
+
+
+class FourColorCommitPolygon(BaseModel):
+    points: list[RiskPolygonPoint] = Field(min_length=3)
+
+
+class FourColorCommitZone(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    risk_level: Literal["重大", "较大", "一般", "低"]
+    polygons: list[FourColorCommitPolygon] = Field(min_length=1)
+
+
+class FourColorCommitRequest(BaseModel):
+    file_token: str
+    zones: list[FourColorCommitZone] = Field(min_length=1, max_length=200)
+    replace_existing: bool = True
+
+
+class FourColorCommitResponse(BaseModel):
+    floor: FloorResponse
+    zones: list[RiskZoneResponse]
