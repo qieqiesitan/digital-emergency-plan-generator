@@ -1,14 +1,12 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：任务 11 全量验证和收尾完成
+- 正在做什么（2026-08-06）：只保留风险分级管控已合并回 master（fffdfdd）
 - 刚完成的动作：
-  - backend：pytest tests -q（排除既有缺 scrapling 的 test_autofill_research.py）→ 84 passed
-  - frontend：npx tsc -b exit 0；vitest → 45 passed（5 文件）
-  - Playwright：修正 comprehensive.spec.ts 指向 5174、旧风险源断言改为风险分级管控，并强制 webServer 每次新建；全量 31 passed
-  - 补充 E2E 修复：frontend/e2e/comprehensive.spec.ts + frontend/playwright.config.ts（未提交，待本任务提交）
-  - Node 24 下 vite build 仍因 workbox/PWA 兼容问题退出异常，属于环境既有问题；以 tsc 为准
-- 下一步：提交任务 11 的 TASKS.md 与 E2E 修复，随后做最终整体代码审查和分支收尾
-- 关键上下文：分支 codex/risk-management-only；本迭代实现提交覆盖任务 1-10 及质量修复；遗留下迭代项：旧入口孤儿文件删除、个别旧文案、未知风险等级排序、chat 报告口径
-- 关键上下文：分支 codex/risk-management-only，HEAD=71cf5c2；遗留（下迭代可做）：旧入口孤儿文件（RiskSourceListScreen.tsx / RiskSourceForm.tsx / RiskSourceAIGenerateModal / RiskSourceImportModal / riskSourceService）未删除；未知 risk_level 排序仍排最前；空态按钮跳全量列表页仍同为空态；PlanCreateScreen/RiskAssessmentScreen 个别旧文案未改（不在本次范围）
+  - 与四色识别分支完成本地合并，仅 backend/app/routers/risk_management.py 一处导入冲突，已合并保留四色识别和迁移服务两套导入
+  - 合并结果验证：backend 122 passed、frontend tsc exit 0、vitest 48 passed、Playwright 33 passed
+  - 已在主 venv 补装 requirements.txt 中缺失的 opencv-python-headless，解决四色识别模块 cv2 导入问题
+  - E2E 修复已随分支合入：comprehensive.spec.ts 指向 Playwright webServer 5174，并断言风险分级管控；playwright.config.ts 禁止复用旧 server
+- 下一步：清理 worktree .worktrees/codex-risk-management-only 并删除功能分支 codex/risk-management-only
+- 关键上下文：master HEAD=fffdfdd；遗留下迭代项：旧入口孤儿文件删除、个别旧文案、未知风险等级排序、chat 报告口径
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
