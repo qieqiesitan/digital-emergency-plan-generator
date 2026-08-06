@@ -108,6 +108,8 @@ def _normalize_smart_guide_hierarchy(data: dict) -> dict:
                         _normalize_measure(item) for item in event.get("measures", [])
                     ]
                 units.append(unit)
+            # AI 文本生成无画布坐标，不能产生合法风险点；一律作为普通分析对象导入
+            obj["is_risk_point"] = False
             obj["units"] = units
             events = []
             for event in obj.get("events", []) or []:
