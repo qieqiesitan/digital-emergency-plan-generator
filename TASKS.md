@@ -1,12 +1,23 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：独立复审任务 4 提交 447441d（前端迁移类型/服务/向导闭环）完成，结论 ✅ 通过（1 项重要建议）
-- 刚完成的动作（只读验证，未改代码）：
-  - git diff d05d5e9...447441d：实现提交 447441d 仅 4 个规定文件（riskManagement.ts / riskManagementService.ts / RiskMigrationWizard.tsx / RiskManagementTab.tsx，110+/66-）；范围内另含 savepoint b120399 仅改 TASKS.md（21+/2-）
-  - 类型逐字段比对 backend/app/schemas/risk_management.py Migration*：四个前端接口类型一一对应；migrationPreview.total 为非空 number，前端守卫在对象级（`migrationPreview && ...`）
-  - 特别项核对：AI 预览失败静默回退默认映射（与计划步骤 3 及后端 HTTPException 回退语义一致）；迁移成功后 onRefresh 仅 refetch 层级+楼层，未 refetch ["risk-migration-preview"] → 入口 Alert 计数保持旧值，依赖窗口聚焦/重挂载才更新（重要建议）
-  - 实测：frontend npx tsc -b → exit 0；npm test -- --run → 42 passed（4 文件）；git diff --check 干净
-- 下一步：等待任务 5 或用户指示
-- 关键上下文：分支 codex/risk-management-only，HEAD=447441d；工作区仅 TASKS.md 未提交（快照更新本身）
+- 正在做什么（2026-08-06）：任务 5 修复提交（c23c99e）复核完成，结论 ✅ 通过
+- 刚完成的动作：
+  - 复核（只读，未改代码）：git diff 0bcdfe8...c23c99e 仅 2 个指定文件（76+/2-）；pytest test_risk_context_builder.py → 3 passed；git diff --check 干净
+  - 建议 1 已闭环：likelihood/severity 由 event.method_params 的 l/s 补出，key 与默认值（get("l", 3)）和 risk_method_engine.py:57-58、schema 默认 {"l":3,"s":3} 完全一致
+  - 建议 2 已闭环：新增无单元/空值用例（unit=None、category/location=None、measures=[]→control_measures=""）+ build_context enterprise 14 个新 key 用例（FakeResult awaitable mock）
+  - 遗留小缺口（不阻塞）：多措施"；"拼接仍无专门用例（仅空列表与单措施被覆盖）
+- 下一步：任务 6-7（预案/风险评估/统计等消费 risk_context 字段）
+- 关键上下文：分支 codex/risk-management-only，HEAD=c23c99e；任务 5 主体 0bcdfe8 + 修复 c23c99e；TASKS.md 未提交改动为快照更新本身
+- 以下为历史快照，保留供压缩恢复参考
+
+- 正在做什么（2026-08-06）：任务 5（补齐风险上下文字段）完成并提交
+- 刚完成的动作：
+  - 修改 backend/app/services/risk_context_builder.py：新增 _risk_source_item(zone, obj, unit, event) 辅助函数（含 name/categories/location/control_measures 等旧提示词兼容字段），两处手工构造列表替换为 _risk_source_item 调用，enterprise 返回字典补齐 legal_representative/credit_code/economic_type/established_date/registered_capital/phone/land_area/building_area/safety_officer/safety_standardization/fire_approval/main_products/special_equipment 等字段
+  - 新建 backend/tests/test_risk_context_builder.py（TDD：先写测试验证 ImportError FAIL，再实现后 PASS）
+  - 验证：pytest backend/tests/test_risk_context_builder.py -v → 1 passed；迁移服务+基线+本任务 9 passed；模块导入 ok；git diff --check 干净
+  - 已提交 0bcdfe8 feat(risk-management): enrich risk context for legacy prompts（2 文件 68+/37-）
+- 下一步：任务 6-7（预案/风险评估/统计等消费 risk_context 字段）
+- 关键上下文：分支 codex/risk-management-only，HEAD=0bcdfe8；任务 5 仅改指定 2 个文件；TASKS.md 未提交改动为快照更新本身
+- 以下为历史快照，保留供压缩恢复参考
 
 - 正在做什么（2026-08-06）：任务 4（前端迁移服务和向导闭环）已完成并提交
 - 刚完成的动作：
