@@ -11,6 +11,7 @@ from app.models.risk_management import RiskZone, RiskObject, RiskUnit, RiskEvent
 
 
 def _risk_source_item(zone: RiskZone, obj: RiskObject, unit: RiskUnit | None, event: RiskEvent) -> dict:
+    params = event.method_params or {}
     measures = [
         {"category": m.measure_category, "description": m.description}
         for m in event.measures
@@ -28,6 +29,8 @@ def _risk_source_item(zone: RiskZone, obj: RiskObject, unit: RiskUnit | None, ev
         "description": event.description,
         "triggers": event.trigger_conditions,
         "consequences": event.consequences,
+        "likelihood": params.get("l", 3),
+        "severity": params.get("s", 3),
         "control_measures": "；".join(m["description"] for m in measures),
         "measures": measures,
     }
