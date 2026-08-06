@@ -1,4 +1,13 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06，任务 1 执行中）：按 subagent-driven-development 执行楼层分组实现计划（docs/superpowers/plans/2026-08-06-risk-tree-floor-grouping.md），当前任务 1 后端楼层排序纯函数
+- 刚完成的动作：
+  - 用户选择「子代理驱动」执行方式；已读 subagent-driven-development 技能与三个提示词模板，建立 10 项任务跟踪
+  - 首次派发的任务 1 实现代理只做了会话启动检查即结束（未执行任务），已重新下发
+  - 注意：分支出现外部并行提交 1577d18（align overview risk points）、9f9c211（show all zones in overview topology view），与本功能无关，保留不动
+- 下一步：任务 1 实现 → 规格审查 → 质量审查 → 依次任务 2-9 → 最终整体审查
+- 关键上下文：分支 codex/protego-integration HEAD=fb9886e；已提交设计 dbed31c + 计划 157845d + E2E 修正 fb9886e；用户未提交文件（RiskDistributionStage.tsx、chroma.sqlite3、backup SQL）不得触碰；后端解释器 backend/.venv/Scripts/python.exe
+
+--- 以下为历史快照，保留供压缩恢复参考 ---
 - 正在做什么（2026-08-06）：总览管控拓扑图分区数量与层级树对齐修复完成，并已同步本地 Docker
 - 刚完成的动作：
   - 移除 `TopologySVG` 的 `zones.slice(0, 4)` 限制，改为按全部分区动态扩展画布高度和列数
