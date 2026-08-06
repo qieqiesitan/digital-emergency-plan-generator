@@ -484,9 +484,13 @@ test.describe("风险分级管控四色分布图工作台", () => {
     const stage = page.locator('[data-testid="risk-distribution-stage"]');
     await expect(stage).toBeVisible({ timeout: 15000 });
     const scale = Number(await stage.getAttribute("data-fit-scale"));
+    const containerWidth = Number(await stage.getAttribute("data-container-width"));
+    const containerHeight = Number(await stage.getAttribute("data-container-height"));
     expect(Number.isFinite(scale)).toBe(true);
     expect(scale).toBeGreaterThan(0);
     expect(scale).toBeLessThanOrEqual(2);
+    expect(containerWidth).toBeGreaterThan(0);
+    expect(containerHeight).toBeGreaterThan(0);
     await expect(stage.locator("canvas").first()).toBeVisible();
     await expect(stage.locator("img")).toHaveCount(0);
   });

@@ -39,7 +39,7 @@ export default function RiskDistributionStage({
     const observer = new ResizeObserver(updateSize);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [isLoading, data]);
 
   const width = floor?.canvas_width || DEFAULT_WIDTH;
   const height = floor?.canvas_height || DEFAULT_HEIGHT;
@@ -96,6 +96,8 @@ export default function RiskDistributionStage({
       ref={containerRef}
       data-testid="risk-distribution-stage"
       data-fit-scale={viewTransform.scale}
+      data-container-width={containerSize.width}
+      data-container-height={containerSize.height}
       style={{ width: "100%", height: "100%", overflow: "hidden", background: "#fafafa", position: "relative" }}
     >
       <Stage
