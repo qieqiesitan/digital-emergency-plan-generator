@@ -26,8 +26,22 @@ export default function RiskDistributionStage({
   });
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [contentBounds, setContentBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const floor = data?.floors[0];
+  const floorPlanUrl = floor?.floor_plan_url ?? null;
+
+  useEffect(() => {
+    if (!floorPlanUrl) return;
+    const img = new window.Image();
+    img.onload = () => {
+      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.src = floorPlanUrl;
+    return () => {
+      img.onload = null;
+    };
+  }, [floorPlanUrl]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -41,8 +55,8 @@ export default function RiskDistributionStage({
     return () => observer.disconnect();
   }, [isLoading, data]);
 
-  const width = floor?.canvas_width || DEFAULT_WIDTH;
-  const height = floor?.canvas_height || DEFAULT_HEIGHT;
+  const width = floor?.canvas_width || imageSize?.width || DEFAULT_WIDTH;
+  const height = floor?.canvas_height || imageSize?.height || DEFAULT_HEIGHT;
 
   useEffect(() => {
     if (!data) return;
@@ -72,7 +86,7 @@ export default function RiskDistributionStage({
       width: Math.max(toCanvasX(maxX, width) - toCanvasX(minX, width), 1),
       height: Math.max(toCanvasY(maxY, height) - toCanvasY(minY, height), 1),
     });
-  }, [data, width, height]);
+  }, [data, width, height, imageSize]);
 
   const viewTransform = useMemo(() => {
     if (!containerSize.width || !containerSize.height || !contentBounds) {

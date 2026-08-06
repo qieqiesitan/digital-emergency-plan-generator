@@ -1,4 +1,15 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06）：总览风险点位置与四色分布工作台坐标对齐修复完成，并已同步本地 Docker
+- 刚完成的动作：
+  - `RiskDistributionStage` 只读取企业平面图尺寸、不再渲染平面图，避免 canvas_width/height 为空时总览回退到 1200x900
+  - 工作台与总览现在使用同一画布宽高换算风险点/分区坐标，风险点位置不再偏移
+  - Docker：重建 frontend/shuzihuayuan，移动端镜像包含最新 dist
+- 验证结果：
+  - 前端 tsc 通过；vitest 35 passed
+  - 本地 Playwright 11 passed；Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright 11 passed
+  - Node 22 生产构建通过（PWA 正常生成）
+- 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
+- 以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06）：四色分布工作台画布自由变换完成，并已同步本地 Docker
 - 刚完成的动作：
   - 选中待绑定区域或已绑定区域并切到“选择”工具后，画布直接显示自由变换控制框
