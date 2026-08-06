@@ -1,12 +1,10 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：只保留风险分级管控已合并回 master（fffdfdd）
+- 正在做什么（2026-08-06）：只保留风险分级管控已合并并完成 worktree/分支清理
 - 刚完成的动作：
-  - 与四色识别分支完成本地合并，仅 backend/app/routers/risk_management.py 一处导入冲突，已合并保留四色识别和迁移服务两套导入
-  - 合并结果验证：backend 122 passed、frontend tsc exit 0、vitest 48 passed、Playwright 33 passed
-  - 已在主 venv 补装 requirements.txt 中缺失的 opencv-python-headless，解决四色识别模块 cv2 导入问题
-  - E2E 修复已随分支合入：comprehensive.spec.ts 指向 Playwright webServer 5174，并断言风险分级管控；playwright.config.ts 禁止复用旧 server
-- 下一步：清理 worktree .worktrees/codex-risk-management-only 并删除功能分支 codex/risk-management-only
-- 关键上下文：master HEAD=fffdfdd；遗留下迭代项：旧入口孤儿文件删除、个别旧文案、未知风险等级排序、chat 报告口径
+  - 已删除 .worktrees/codex-risk-management-only 并删除已合并功能分支 codex/risk-management-only；git worktree list 仅剩主工作区
+  - 合并结果此前已验证：backend 122 passed、frontend tsc exit 0、vitest 48 passed、Playwright 33 passed
+- 下一步：无阻塞事项；可按需推送 master 或进入遗留迭代项
+- 关键上下文：master HEAD=c834f33，origin/master 落后 214；遗留项：旧入口孤儿文件删除、个别旧文案、未知风险等级排序、chat 报告口径
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
