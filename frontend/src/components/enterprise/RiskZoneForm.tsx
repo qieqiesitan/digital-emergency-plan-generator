@@ -1,13 +1,15 @@
 import { useState, useRef, useCallback } from "react";
-import { Drawer, Form, Input, Button, Modal, Space } from "antd";
+import { Drawer, Form, Input, Button, Modal, Space, Select } from "antd";
 import { EnvironmentOutlined, DeleteOutlined } from "@ant-design/icons";
 import { mergeEditedPolygon } from "@/utils/zoneSubmit";
+import type { EnterpriseFloor } from "@/types/riskMappingWorkbench";
 
 interface PolygonPoint { x: number; y: number }
 
 interface RiskZoneFormValues {
   name: string;
   description?: string;
+  floor_id?: string | null;
   floor_plan_polygon?: {
     version: 2;
     color_source: "auto" | "manual";
@@ -22,10 +24,15 @@ interface Props {
   onSubmit: (values: RiskZoneFormValues) => void;
   initialValues?: RiskZoneFormValues;
   floorPlanUrl?: string | null;
+  floors?: EnterpriseFloor[];
 }
 
-export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, floorPlanUrl }: Props) {
+export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, floorPlanUrl, floors }: Props) {
   const [form] = Form.useForm<RiskZoneFormValues>();
+  const defaultFloorId = floors?.find((f) => f.is_default)?.id;
+  const selectedFloorId = Form.useWatch("floor_id", form);
+  const activeFloor = floors?.find((f) => f.id === selectedFloorId);
+  const planUrl = activeFloor?.floor_plan_url ?? floorPlanUrl;
   const [polygonOpen, setPolygonOpen] = useState(false);
   const [polygonPoints, setPolygonPoints] = useState<PolygonPoint[]>([]);
   const [existingRegionCount, setExistingRegionCount] = useState(0);
@@ -85,7 +92,7 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
         <Form
           form={form}
           layout="vertical"
-          initialValues={initialValues}
+          initialValues={{ ...initialValues, floor_id: initialValues?.floor_id ?? defaultFloorId }}
           onFinish={handleFinish}
         >
           <Form.Item
@@ -100,11 +107,20 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
             <Input.TextArea rows={4} placeholder="请描述该分区的范围、用途等" />
           </Form.Item>
 
+          {floors && floors.length > 0 && (
+            <Form.Item name="floor_id" label="所属楼层">
+              <Select
+                options={floors.map((f) => ({ value: f.id, label: `${f.name}${f.is_default ? "（默认）" : ""}` }))}
+                placeholder="请选择楼层"
+              />
+            </Form.Item>
+          )}
+
           <Form.Item name="floor_plan_polygon" label="平面图标注" hidden>
             <Input />
           </Form.Item>
 
-          {floorPlanUrl ? (
+          {planUrl ? (
             <div style={{ marginBottom: 16 }}>
               <Button
                 icon={<EnvironmentOutlined />}
@@ -140,7 +156,7 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
           <Button key="confirm" type="primary" onClick={handlePolygonConfirm}>确定</Button>,
         ]}
       >
-        {!floorPlanUrl ? (
+        {!planUrl ? (
           <div style={{ textAlign: "center", padding: 60, color: "#999" }}>
             未上传平面图
           </div>
@@ -157,7 +173,7 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
           >
             <img
               ref={imgRef}
-              src={floorPlanUrl}
+              src={planUrl}
               alt="厂区平面图"
               style={{ width: "100%", display: "block", userSelect: "none" }}
               draggable={false}
