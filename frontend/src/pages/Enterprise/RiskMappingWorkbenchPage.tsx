@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Spin, Space, Button, Modal, message } from "antd";
 import { ArrowLeftOutlined, SaveOutlined, UndoOutlined, RedoOutlined } from "@ant-design/icons";
+import { UploadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getRiskMappingWorkbench,
@@ -15,6 +16,7 @@ import WorkbenchPropertiesPanel from "@/components/enterprise/riskMapping/Workbe
 import WorkbenchCanvas from "@/components/enterprise/riskMapping/WorkbenchCanvas";
 import WorkbenchLegend from "@/components/enterprise/riskMapping/WorkbenchLegend";
 import EnterpriseFloorManager from "@/components/enterprise/EnterpriseFloorManager";
+import FourColorImportModal from "@/components/enterprise/riskMapping/FourColorImportModal";
 
 export default function RiskMappingWorkbenchPage() {
   const { id: enterpriseId } = useParams<{ id: string }>();
@@ -22,6 +24,12 @@ export default function RiskMappingWorkbenchPage() {
   const currentFloorId = useRiskMappingWorkbenchStore(s => s.currentFloorId);
   const setSnapshot = useRiskMappingWorkbenchStore(s => s.setSnapshot);
   const dirty = useRiskMappingWorkbenchStore(s => s.dirty);
+  const [importOpen, setImportOpen] = useState(false);
+  const floors = useRiskMappingWorkbenchStore(s => s.floors);
+  const zones = useRiskMappingWorkbenchStore(s => s.zones);
+  const riskPoints = useRiskMappingWorkbenchStore(s => s.riskPoints);
+  const texts = useRiskMappingWorkbenchStore(s => s.texts);
+  const currentFloor = floors.find(f => f.id === currentFloorId);
   const queryClient = useQueryClient();
 
   const goBack = () => {
@@ -180,6 +188,14 @@ export default function RiskMappingWorkbenchPage() {
       <Space wrap>
         <Button aria-label="返回" icon={<ArrowLeftOutlined />} onClick={goBack} />
         <EnterpriseFloorManager enterpriseId={enterpriseId!} />
+        <Button
+          aria-label="导入四色图"
+          icon={<UploadOutlined />}
+          disabled={!currentFloor}
+          onClick={() => setImportOpen(true)}
+        >
+          导入四色图
+        </Button>
         <WorkbenchToolbar />
         <Button aria-label="撤销" icon={<UndoOutlined />} onClick={undo} />
         <Button aria-label="重做" icon={<RedoOutlined />} onClick={redo} />
@@ -201,6 +217,33 @@ export default function RiskMappingWorkbenchPage() {
         </div>
         <WorkbenchPropertiesPanel />
       </div>
+      <FourColorImportModal
+        open={importOpen}
+        enterpriseId={enterpriseId!}
+        floorId={currentFloor?.id ?? ""}
+        hasExistingData={zones.length > 0 || riskPoints.length > 0 || texts.length > 0}
+        existingZoneCount={zones.length}
+        existingRiskPointCount={riskPoints.length}
+        onClose={() => setImportOpen(false)}
+        onImported={result => {
+          setImportOpen(false);
+          const state = useRiskMappingWorkbenchStore.getState();
+          setSnapshot({
+            floors: state.floors.map(f => (f.id === result.floor.id ? result.floor : f)),
+            currentFloorId: result.floor.id,
+            zones: result.zones,
+            riskPoints: [],
+            texts: [],
+            pendingRegions: [],
+            deletedRiskPointIds: [],
+            deletedZoneIds: [],
+          });
+          useRiskMappingWorkbenchStore.getState().markSaved();
+          message.success("四色图导入成功");
+          queryClient.invalidateQueries({ queryKey: ["risk-hierarchy", enterpriseId] });
+          queryClient.invalidateQueries({ queryKey: ["risk-overview", enterpriseId] });
+        }}
+      />
     </div>
   );
 }
