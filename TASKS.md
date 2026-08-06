@@ -1,15 +1,30 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06）：任务 2 加固修复完成并提交（ece9956），6 passed
+- 正在做什么（2026-08-06）：代码质量复审任务 3 提交（2aafae6）完成，结论 ✅ 通过（1 项建议修改：MigrationPreviewItem 冗余导入）
+- 刚完成的动作（复审，只读验证未改代码）：
+  - git diff ece9956...2aafae6：功能变更仅 backend/app/routers/risk_management.py（37+/29-）；TASKS.md 变更来自 savepoint 96c7a65，非任务 3 实现内容
+  - backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_source_migration_service.py backend/tests/test_risk_source_migration_baseline.py -q → 8 passed；router import ok；git diff --check 干净
+  - 逐项核对：GET /migrate/preview 与 POST /ai/migrate-preview 响应模型 ApiResponse[MigrationPreviewResponse]、POST /migrate/execute 为 ApiResponse[MigrationExecuteResponse]，数据与 Schema 字段一一对应；AI 预览 except HTTPException 覆盖 400（_get_ai_config）/500/502/504（llm_text_completion 统一映射、_parse_ai_json 500），DB 异常不吞；compute_risk/get_active_method_config/_resolve_zone_floor 仍被其他路由使用非死代码；mp.get 旧 dict 访问全清除；无重复导入
+  - 唯一问题（次要/建议修改）：MigrationPreviewItem 仅在第 13 行导入、全文件无使用 → 冗余导入，建议从导入行删除
+- 以下为历史快照（含任务 3 完成记录），保留供压缩恢复参考
+
+---
+
+- 正在做什么（2026-08-06）：独立复审任务 3 提交（2aafae6）完成，结论 ✅ 符合规格（1 项非阻塞小建议：MigrationPreviewItem 已不再使用，可顺手清理）
+- 刚完成的动作（复审，只读验证未改代码）：
+  - git show 2aafae6：仅改 backend/app/routers/risk_management.py（37+/29-）；当前 HEAD=2aafae6
+  - 逐条核对规格 1-7：schema 三项导入单一语句无重复；build_migration_preview + execute_migration 别名导入存在；POST /ai/migrate-preview 用 MigrationPreviewResponse 且 HTTPException（400 未配置 / 500/502/504 调用失败）回退默认映射后调 build_migration_preview(ai_mappings=...)；GET /migrate/preview 与 POST /migrate/execute 均按规格接入；全文件无 mp.get 残留
+  - 验证命令实测：backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_source_migration_service.py backend/tests/test_risk_source_migration_baseline.py -q → 8 passed；backend 目录 python -c "from app.routers.risk_management import router" → router import ok
+- 以下为任务 3 完成记录（原快照，保留）
+- 正在做什么（2026-08-06）：任务 3 完成并提交（2aafae6），迁移接口已接入服务
 - 刚完成的动作：
-  - 复核 ece9956（独立审查，未改代码）：git diff 44770b9...ece9956 + pytest 6 passed + 运行时 Schema 用例 6 组实测，五项修复全部确认到位；结论 ✅ 通过
-  - 复核残留（次要，不影响通过）：AI 部分参数合并无独立测试；method_params 显式 {"l": null} 过 Schema 但在服务层按缺失处理为 3（与「缺失默认 3」语义一致）
-  - 服务加固（backend/app/services/risk_source_migration_service.py）：ensure_default_floor/get_active_method_config 移入 try（失败也 rollback）；AI 参数改逐键合并保留默认 s；method_params 改 (mapping.method_params or {}).get() 防 None
-  - Schema 加固（backend/app/schemas/risk_management.py）：zone_name/object_name/accident_type 加 min_length=1；method_params 加 mode="before" field_validator（必须 dict、l/s 须 1-5 数字、拒绝 bool/越界/None/非 dict；数值字符串也被拒）
-  - 测试补 3 例（backend/tests/test_risk_source_migration_service.py）：commit 失败回滚、legacy 幂等跳过、无配置时默认阈值回退
-  - 已提交 ece9956 fix(risk-management): harden migration service validation and tests
-- 验证结果：迁移服务测试 6 passed；回归 55 passed（含 test_risk_mapping_migration/test_risk_mapping_service）；router 与 service import 正常；git diff --check 干净；行为验证脚本确认 floor 抛异常→rollback=1、AI 合并 {l:2,s:3}、method_params=None→回退 {3,3}、Schema 各非法输入均拒
-- 下一步：任务 3（迁移接口接入 risk_management 路由，将替换旧 /migrate/execute 的 mp.get() dict 访问——当前该旧实现与新 MigrationExecuteItem 对象不兼容，属已知中间态）
-- 关键上下文：分支 codex/risk-management-only，HEAD=ece9956；本次提交仅 3 个文件；3 个新测试在修复前即通过（覆盖既有健壮性行为，属回归/覆盖测试，TDD 红灯以既有 6 passed 为准并额外做了修复点行为验证）；TASKS.md 未提交改动为快照更新本身
+  - 修改 backend/app/routers/risk_management.py：Schema 导入行补 MigrationExecuteResponse；新增 risk_source_migration_service 导入（execute_migration 别名 execute_risk_source_migration，避免与路由函数同名冲突）
+  - 替换 POST /ai/migrate-preview：AI 调用失败（HTTPException）回退默认映射，响应模型 ApiResponse[MigrationPreviewResponse]，数据走 build_migration_preview(ai_mappings=...)
+  - 替换 GET /migrate/preview：直接 build_migration_preview(db, enterprise_id)，响应含 items/total/migrated_total
+  - 替换 POST /migrate/execute：调用 execute_risk_source_migration(db, enterprise_id, body.mappings)，彻底消除旧 mp.get() dict 访问（旧实现与新 MigrationExecuteItem 对象不兼容，属已知中间态已消除）
+  - 已提交 2aafae6 feat(risk-management): wire legacy migration endpoints（仅 risk_management.py，37+/29-）；修改前已按铁律二 git save（保存点 96c7a65）
+- 验证结果：迁移服务测试 8 passed（test_risk_source_migration_service + baseline）；风险模块全量回归 69 passed；router import ok（需在 backend 目录运行，root 直跑 python -c 因 app 包不在 sys.path 失败，属既有路径约定）；git diff --check 干净；codegraph sync 完成
+- 下一步：任务 4（前端迁移服务和向导闭环：frontend/src/types/riskManagement.ts、frontend/src/services/riskManagementService.ts、frontend/src/components/enterprise/RiskMigrationWizard.tsx）
+- 关键上下文：分支 codex/risk-management-only，HEAD=2aafae6；TASKS.md 未提交改动为快照更新本身；graphify-out/graph.json 在当前 worktree 不存在（未跑 graphify update，已用 codegraph sync 替代）
 - 另一会话快照（保留）：正在讨论「用户上传现有四色分布图 → 自动识别 → 自动落图」；已确认 ① 图源形态 = C（电子图+拍照扫描都有）② 上传四色图与系统平面图无关系（无需配准对齐）③ 上传图成为该楼层底图、分区按原图位置落好、每楼层一张 ④ 识别只要形状+颜色等级（红橙黄蓝→重大/较大/一般/低），名称默认"分区N"，纯视觉零 AI 成本；下一步提出 2-3 个识别管线方案（候选：后端 OpenCV 一键识别 / 前端 Canvas 交互识别 / 混合带容差调节）；风险分区存储于 risk_zones.floor_plan_polygon，坐标归一化 0-100
 
 ---
