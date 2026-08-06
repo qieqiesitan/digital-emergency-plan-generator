@@ -1,4 +1,35 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06）：总览四色分布图不再叠加企业平面图，并已同步本地 Docker
+- 刚完成的动作：
+  - 从 `RiskDistributionStage` 移除平面图加载与渲染，总览只展示四色分区、风险点和文字标注
+  - 保留四色分布图工作台中的平面图参考能力，仅绘制时使用
+  - 将总览文案从“厂区平面图热区/平面图优先”改为“四色分布热区/分布图优先”
+  - 强化总览 E2E：即使 mock 楼层带平面图 URL，也断言总览不渲染图片
+  - Docker：重建 frontend/shuzihuayuan，移动端镜像包含最新 dist；生产构建使用 Node 22
+- 验证结果：
+  - 前端 tsc 通过；vitest 34 passed
+  - 本地 Playwright 9 passed；Docker 前端 `E2E_BASE_URL=http://localhost:5173` Playwright 9 passed
+  - Node 22 生产构建通过（PWA 正常生成）
+- 当前入口：前端 `http://localhost:5173`，后端 `http://localhost:8000`，移动端 `http://localhost:8082`
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-06 00:xx，续跑 graphify 增量更新，用户指令「更新图谱」）：已确认中断点，等待语义抽取子智能体返回
+- 刚完成的动作：
+  - 读取 TASKS.md 与 graphify SKILL.md + references/update.md + references/extraction-spec.md，确认无 GEMINI/GOOGLE_API_KEY（走子智能体抽取）
+  - 状态盘点：205 变更（code 135 + document 70）+ 18 删除；chunk_01（26 文档）已完成并写入 cache/semantic（25 命中，TASKS.md 需重取）；AST 已重跑（.graphify_ast.json 1255 节点/3368 边）
+  - 未抽取 50 文档：chunk_02 25 个 task 报告 + chunk_03 12 个 html（分别对应运行中 sem_chunk_02/03）；chunk_04 7 个文件（3 playwright yml + requirements.txt + 3 份 md）；另 6 个文件未派发（TASKS.md、2 SQL、package.json、.last-run.json、tsconfig.app.json）
+  - 尝试补派 sem_chunk_05（6 文件）失败：线程槽位已满（me + sem_chunk_02[interrupted] + sem_chunk_04[running] + sem_chunk_03[running] = 4/4）
+  - 已发消息询问 sem_chunk_04 覆盖范围（是否写入 .graphify_chunk_04.json）
+- 下一步：等待 sem_chunk_03/04 返回 → 槽位释放后补派剩余文件块 → 合并 4+1 chunk → 缓存 → Part C 合并 AST → build_merge 剪除 18 删除 → Steps 4-9（聚类/标签/报告/HTML/清单/成本）→ 输出图谱差异摘要
+- 关键上下文：工作区仅 TASKS.md、chroma.sqlite3 已修改；分支 codex/protego-integration，HEAD=b3c5374；旧图基线 17158 节点（17:02），.graphify_old.json 已备份；chunk_01 结果保留在磁盘（勿删，合并用）；.graphify_uncached.txt 180 行（130 code + 50 doc）为本轮抽取依据
+- 正在做什么（2026-08-05 23:45，本轮）：续跑 graphify 增量更新（用户指令「更新图谱」）
+- 刚完成的动作：
+  - 重要修正：原增量清单（23:00，171/6）过期——提交 b3c5374（代码质量重构）在检测之后落地；已重新 detect_incremental → 205 变更（code 130 + document 75）+ 18 删除（12 个为重构删除的死代码/测试，6 个为 test-results 等），并重写 .graphify_incremental.json/.graphify_detect.json
+  - 语义缓存：将 .graphify_chunk_01.json（53 节点/114 边/3 超边，覆盖 26 文档）写入 cache/semantic（25 文件命中，TASKS.md 因 23:35 内容变更除外，需重取）
+  - AST 重跑：135→130 个变更代码文件 → .graphify_ast.json 1255 节点/3368 边（extract 并行池在 stdin 下失败已自动回退顺序执行，产物有效）
+  - 缓存检查：205 文件中 25 命中（37 节点/106 边/1 超边），180 未命中（130 code + 50 docs）
+  - 待抽取 50 文档：25 task3-9 报告 + 12 html 原型（与运行中 sem_chunk_02/03 覆盖范围一致）+ 13 新块（2 SQL、3 playwright yml、package.json/.last-run.json/tsconfig.app.json、TASKS.md、requirements.txt、3 份 md 文档）
+- 下一步：等 sem_chunk_02/03 返回 → 线程释放后补派 13 文件块 → 合并 4+1 个 chunk → 缓存 → Part C 合并 AST → build_merge 剪除 18 删除 → Steps 4-9（聚类/标签/报告/HTML/清单/成本）→ 输出图谱差异摘要
+- 关键上下文：工作区仅 TASKS.md、chroma.sqlite3 已修改；分支 codex/protego-integration，HEAD=b3c5374；旧图基线 17158 节点（17:02），.graphify_old.json 已备份；chunk_01 结果保留在磁盘（勿删，合并用）
 - 正在做什么（2026-08-05 深夜）：按审查建议完成代码质量清理并已验证，待提交
 - 刚完成的动作（核心 5 项）：
   - ① generation.py 删除 L1115-1595 四组重复路由副本（1739→983 行）；顺带清掉未使用的 settings/httpx/markdown/re/AES 等 import

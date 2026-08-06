@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Stage, Layer, Line, Circle, Text as KonvaText, Image as KonvaImage } from "react-konva";
+import { Stage, Layer, Line, Circle, Text as KonvaText } from "react-konva";
 import { Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getRiskMappingOverview } from "@/services/riskManagementService";
@@ -8,11 +8,6 @@ import { pointsToKonva, toCanvasX, toCanvasY } from "@/utils/riskMappingGeometry
 
 const DEFAULT_WIDTH = 1200;
 const DEFAULT_HEIGHT = 900;
-
-interface LoadedImage {
-  url: string;
-  image: HTMLImageElement;
-}
 
 export default function RiskDistributionStage({
   floorId,
@@ -29,22 +24,10 @@ export default function RiskDistributionStage({
     queryFn: () => getRiskMappingOverview(enterpriseId!, floorId),
     enabled: !!enterpriseId,
   });
-  const [loadedImage, setLoadedImage] = useState<LoadedImage | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [contentBounds, setContentBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const floor = data?.floors[0];
-  const floorPlanUrl = floor?.floor_plan_url ?? null;
-
-  useEffect(() => {
-    if (!floorPlanUrl) return;
-    const img = new window.Image();
-    img.onload = () => setLoadedImage({ url: floorPlanUrl, image: img });
-    img.src = floorPlanUrl;
-    return () => {
-      img.onload = null;
-    };
-  }, [floorPlanUrl]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -58,16 +41,11 @@ export default function RiskDistributionStage({
     return () => observer.disconnect();
   }, []);
 
-  const image = loadedImage && loadedImage.url === floorPlanUrl ? loadedImage.image : null;
-  const width = floor?.canvas_width || (image ? image.naturalWidth : DEFAULT_WIDTH);
-  const height = floor?.canvas_height || (image ? image.naturalHeight : DEFAULT_HEIGHT);
+  const width = floor?.canvas_width || DEFAULT_WIDTH;
+  const height = floor?.canvas_height || DEFAULT_HEIGHT;
 
   useEffect(() => {
     if (!data) return;
-    if (image) {
-      setContentBounds({ x: 0, y: 0, width, height });
-      return;
-    }
     const rawPoints: Array<[number, number]> = [];
     for (const zone of data.zones) {
       for (const polygon of zone.floor_plan_polygon?.polygons || []) {
@@ -94,7 +72,7 @@ export default function RiskDistributionStage({
       width: Math.max(toCanvasX(maxX, width) - toCanvasX(minX, width), 1),
       height: Math.max(toCanvasY(maxY, height) - toCanvasY(minY, height), 1),
     });
-  }, [data, image, width, height]);
+  }, [data, width, height]);
 
   const viewTransform = useMemo(() => {
     if (!containerSize.width || !containerSize.height || !contentBounds) {
@@ -129,7 +107,6 @@ export default function RiskDistributionStage({
         y={viewTransform.y}
       >
         <Layer>
-          {image && <KonvaImage image={image} x={0} y={0} width={width} height={height} />}
           {data.zones.map(z =>
             (z.floor_plan_polygon?.polygons || []).map(p => {
               const isHighlighted = highlightZone === z.id;

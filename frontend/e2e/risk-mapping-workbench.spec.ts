@@ -24,7 +24,7 @@ const FLOOR = {
   enterprise_id: ENTERPRISE_ID,
   name: "一层",
   sort_order: 0,
-  floor_plan_url: null,
+  floor_plan_url: "/uploads/overview-plan.png",
   description: null,
   canvas_width: 1200,
   canvas_height: 900,
@@ -472,7 +472,7 @@ test.describe("风险分级管控四色分布图工作台", () => {
     await expect(wrapper).not.toHaveAttribute("data-view-x", "0");
   });
 
-  test("可视化总览总平图自动适配容器", async ({ page }) => {
+  test("可视化总览四色分布自动适配且不叠加平面图", async ({ page }) => {
     await mockOverviewApis(page);
     await page.goto("/login");
     await page.getByPlaceholder("邮箱").fill("qa_e2e_test@test.com");
@@ -488,5 +488,6 @@ test.describe("风险分级管控四色分布图工作台", () => {
     expect(scale).toBeGreaterThan(0);
     expect(scale).toBeLessThanOrEqual(2);
     await expect(stage.locator("canvas").first()).toBeVisible();
+    await expect(stage.locator("img")).toHaveCount(0);
   });
 });

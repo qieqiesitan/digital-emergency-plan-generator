@@ -72,7 +72,7 @@ export default function RiskOverviewPage() {
           options={floors.map(f => ({ label: f.name, value: f.id }))}
           onChange={handleFloorChange}
         />
-        <Segmented options={[{ label: "四象限", value: "quad" }, { label: "平面图优先", value: "floorplan" }, { label: "数据优先", value: "data" }]} value={viewMode} onChange={v => setViewMode(v as ViewMode)} />
+        <Segmented options={[{ label: "四象限", value: "quad" }, { label: "分布图优先", value: "floorplan" }, { label: "数据优先", value: "data" }]} value={viewMode} onChange={v => setViewMode(v as ViewMode)} />
       </Space>
       {zones.length === 0 ? (
         <Empty
@@ -82,7 +82,7 @@ export default function RiskOverviewPage() {
       ) : (
         <div style={gridStyle}>
           {/* Q1: Floor Plan Heatmap */}
-          <Card size="small" title="① 厂区平面图热区" style={{ overflow: "hidden" }}>
+          <Card size="small" title="① 四色分布热区" style={{ overflow: "hidden" }}>
             <RiskDistributionStage floorId={effectiveFloorId} highlightZone={highlightZone} onZoneClick={handleZoneClick} />
           </Card>
           {/* Q2: Risk Matrix */}
