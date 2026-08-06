@@ -11,7 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.database import get_db, async_session
 
-from app.models.enterprise import Enterprise, PlanProject, PlanSection, AIConfig, RiskSource, EmergencyResource, PlanVersion
+from app.models.enterprise import Enterprise, PlanProject, PlanSection, AIConfig, EmergencyResource, PlanVersion
 
 from app.models.risk_assessment import RiskAssessmentReport
 
@@ -28,6 +28,7 @@ from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import sse_event
 from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, render_template
+from app.services.risk_context_builder import build_risk_management_context
 from app.regulations.context_builder import RegulationContextBuilder
 
 from app.schemas.plan import RegenerateRequest
@@ -174,7 +175,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
 
     return prompt
 
-def _collect_enterprise_data(enterprise: Enterprise, risk_sources: list, resources: list) -> dict:
+def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list) -> dict:
 
     return {
 
@@ -214,7 +215,23 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_sources: list, resourc
 
         "special_equipment": enterprise.special_equipment,
 
-        "risk_sources": [{"categories": r.categories, "name": r.name, "location": r.location, "description": r.description, "risk_level": r.risk_level, "control_measures": r.control_measures} for r in risk_sources],
+        "risk_sources": [
+            {
+                "categories": rs.get("categories", ""),
+                "name": rs.get("name", ""),
+                "location": rs.get("location", ""),
+                "description": rs.get("description", ""),
+                "risk_level": rs.get("risk_level", ""),
+                "control_measures": rs.get("control_measures", ""),
+                "zone": rs.get("zone", ""),
+                "object": rs.get("object", ""),
+                "unit": rs.get("unit", ""),
+                "accident_type": rs.get("accident_type", ""),
+                "triggers": rs.get("triggers", ""),
+                "consequences": rs.get("consequences", ""),
+            }
+            for rs in risk_context.get("risk_sources", [])
+        ],
 
         "emergency_resources": [{"category": r.category, "name": r.name, "specification": r.specification, "quantity": r.quantity, "unit": r.unit, "location": r.location} for r in resources],
 
@@ -359,11 +376,11 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
 
-    risk_sources = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id == p.enterprise_id))).scalars().all()
-
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
+
+    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
 
     if ent:
 
@@ -585,11 +602,11 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
 
-    risk_sources = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id == p.enterprise_id))).scalars().all()
-
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
+
+    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
 
     if ent:
 
@@ -736,11 +753,11 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
 
-    risk_sources = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id == p.enterprise_id))).scalars().all()
-
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
 
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
+
+    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
 
     if ent:
 
@@ -836,9 +853,9 @@ async def regenerate_selection(
 
     # 收集企业数据
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
-    risk_sources = (await db.execute(select(RiskSource).where(RiskSource.enterprise_id == p.enterprise_id))).scalars().all()
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
@@ -926,13 +943,11 @@ async def generate_preview(
     ent = (await db.execute(select(Enterprise).where(
         Enterprise.id == p.enterprise_id
     ))).scalar_one_or_none()
-    risk_sources = (await db.execute(select(RiskSource).where(
-        RiskSource.enterprise_id == p.enterprise_id
-    ))).scalars().all()
     resources = (await db.execute(select(EmergencyResource).where(
         EmergencyResource.enterprise_id == p.enterprise_id
     ))).scalars().all()
-    ent_data = _collect_enterprise_data(ent, risk_sources, resources) if ent else {}
+    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
