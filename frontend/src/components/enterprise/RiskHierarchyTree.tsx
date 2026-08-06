@@ -392,7 +392,8 @@ export default function RiskHierarchyTree({ data, floors, onSelect, onAction }: 
   const multiFloor = useMemo(() => groupZonesByFloor(data, floors ?? []).length > 1, [data, floors]);
   const defaultExpandedKeys = useMemo(() => {
     if (!multiFloor) return undefined;
-    const defaultFloor = floors?.find((f) => f.is_default);
+    // 无默认楼层标记时退回第一个楼层，避免多楼层树全部折叠
+    const defaultFloor = floors?.find((f) => f.is_default) ?? floors?.[0];
     if (!defaultFloor) return undefined;
     return [`floor-${defaultFloor.id}`];
   }, [multiFloor, floors]);

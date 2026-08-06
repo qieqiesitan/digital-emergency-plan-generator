@@ -30,6 +30,9 @@ interface Props {
 export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, floorPlanUrl, floors }: Props) {
   const [form] = Form.useForm<RiskZoneFormValues>();
   const defaultFloorId = floors?.find((f) => f.is_default)?.id;
+  // 编辑已有分区（initialValues.name 非空）时不得注入默认楼层：
+  // 未分配楼层（floor_id=null）的分区编辑后应保持未分配，除非用户显式选择楼层。
+  const isEdit = !!initialValues?.name;
   const selectedFloorId = Form.useWatch("floor_id", form);
   const activeFloor = floors?.find((f) => f.id === selectedFloorId);
   const planUrl = activeFloor?.floor_plan_url ?? floorPlanUrl;
@@ -92,7 +95,7 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ ...initialValues, floor_id: initialValues?.floor_id ?? defaultFloorId }}
+          initialValues={{ ...initialValues, floor_id: initialValues?.floor_id ?? (isEdit ? undefined : defaultFloorId) }}
           onFinish={handleFinish}
         >
           <Form.Item

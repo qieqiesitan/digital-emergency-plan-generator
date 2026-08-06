@@ -49,7 +49,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
   const { modal, message: antMessage } = AntApp.useApp();
  
    const { data: hierarchy = [], isLoading, refetch } = useQuery({ queryKey: ["risk-hierarchy", enterpriseId], queryFn: () => getFullHierarchy(enterpriseId) });
-   const { data: floors = [] } = useQuery({
+   const { data: floors = [], refetch: refetchFloors } = useQuery({
      queryKey: ["enterprise-floors", enterpriseId],
      queryFn: () => listEnterpriseFloors(enterpriseId),
    });
@@ -243,8 +243,9 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
       antMessage.success(form.id ? "保存成功" : "创建成功");
       setForm({ type: null, open: false });
       refetch();
+      refetchFloors();
     } catch (e: unknown) { antMessage.error("创建失败: " + (e instanceof Error ? e.message : "未知错误")); }
-   }, [enterpriseId, form, refetch, antMessage]);
+   }, [enterpriseId, form, refetch, refetchFloors, antMessage]);
  
    if (isLoading) return <Spin size="large" />;
  

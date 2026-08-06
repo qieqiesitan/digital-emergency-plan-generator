@@ -62,6 +62,17 @@ const HIERARCHY = {
       effective_color: null,
       objects: [],
     },
+    {
+      id: "zone-3",
+      floor_id: null,
+      floor_name: null,
+      name: "历史遗留分区",
+      description: null,
+      floor_plan_polygon: null,
+      max_risk_level: null,
+      effective_color: null,
+      objects: [],
+    },
   ],
 };
 
@@ -91,7 +102,7 @@ const USER = {
   created_at: "2026-08-05T00:00:00+08:00",
 };
 
-async function mockApis(page: Page, onZoneCreate?: (payload: unknown) => void) {
+async function mockApis(page: Page, onZoneCreate?: (payload: unknown) => void, onZoneUpdate?: (payload: unknown) => void) {
   const json = (status: number, body: unknown) => ({
     status,
     contentType: "application/json",
@@ -126,6 +137,11 @@ async function mockApis(page: Page, onZoneCreate?: (payload: unknown) => void) {
     if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/zones` && method === "POST") {
       onZoneCreate?.(request.postDataJSON());
       await route.fulfill(json(200, { code: 0, message: "ok", data: { id: "new-zone-1" } }));
+      return;
+    }
+    if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/zones/zone-3` && method === "PUT") {
+      onZoneUpdate?.(request.postDataJSON());
+      await route.fulfill(json(200, { code: 0, message: "ok", data: { id: "zone-3" } }));
       return;
     }
     await route.fulfill(json(404, { code: 404, message: "not found", data: null }));
@@ -173,4 +189,25 @@ test("从楼层节点添加分区时 payload 携带目标楼层", async ({ page 
 
   await expect.poll(() => createdZonePayload).toBeTruthy();
   expect(createdZonePayload).toMatchObject({ name: "二层新增分区", floor_id: "floor-2" });
+});
+
+test("编辑未分配楼层分区时保存不携带 floor_id（避免静默迁移）", async ({ page }) => {
+  let updatedZonePayload: unknown = null;
+  await mockApis(page, undefined, (payload) => {
+    updatedZonePayload = payload;
+  });
+  await gotoEnterpriseWithAuth(page);
+  await page.getByRole("tab", { name: "风险分级管控" }).click();
+
+  // 展开「未分配楼层」节点（最后一个楼层节点的 switcher）
+  await page.locator(".ant-tree-treenode").filter({ hasText: "未分配楼层" }).locator(".ant-tree-switcher").click();
+  // 点击「历史遗留分区」行的「编辑分区」按钮
+  await page.locator(".ant-tree-treenode").filter({ hasText: "历史遗留分区" }).getByRole("button", { name: "编辑分区" }).click();
+  // 修改名称并保存
+  await page.getByLabel("分区名称").fill("历史遗留分区-改名");
+  await page.locator(".ant-drawer").getByRole("button", { name: /保\s*存/ }).click();
+
+  await expect.poll(() => updatedZonePayload).toBeTruthy();
+  expect(updatedZonePayload).toMatchObject({ name: "历史遗留分区-改名" });
+  expect(updatedZonePayload).not.toHaveProperty("floor_id");
 });
