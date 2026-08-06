@@ -1,15 +1,12 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-06，计划就绪）：树楼层维护 + 空楼层显示实现计划已写入并提交，等待用户选择执行方式
+- 正在做什么（2026-08-06）：智能引导导入 422 修复 + 生成去重已实现并全部验证通过，待收尾合并
 - 刚完成的动作：
-  - 设计规格已获用户批准（docs/superpowers/specs/2026-08-06-risk-tree-floor-maintenance-design.md，提交 2832008）
-  - 按 writing-plans 产出实现计划 docs/superpowers/plans/2026-08-06-risk-tree-floor-maintenance.md：5 个任务、TDD 粒度、每步含完整代码/命令/预期、每任务独立 commit
-  - 计划自检完成：规格 1.4 决策逐项覆盖、无占位符、查询键与 props 跨任务一致
-  - 用户选择收尾方式 1（本地合并）：master 由 3061dfe 快进到 1a52369，包含本功能 12 提交 + 另一会话 RiskOverview 提交 + 分支历史 137 提交
-  - 合并前清理：误入分支的 backup/risk-mapping-pre-migration-20260805.sql 已 git rm --cached（文件保留在磁盘，恢复未跟踪）
-  - 合并结果验证：backend pytest 69 passed；tsc -b exit 0（vitest/Playwright/构建在合并前同内容已验证：40/15/成功）
-  - 未删除功能分支：git branch -d 因分支领先远程 origin/codex/protego-integration 被拒；考虑到另一会话可能仍在使用该分支，保留待用户确认后再删
-  - 用户指令：子代理模式所有角色（实现/规格审查/质量审查/最终审查）默认使用 deepseek-v4-flash；已更新 .codex/skills/subagent-driven-development/SKILL.md「模型选择」章节（原 pro 不可用，统一 flash）
-  - 实现 9 任务提交 65d9304..4fe5707（后端多楼层 hierarchy + 树楼层分组 + 表单楼层联动 + E2E）
+  - 分支 codex/smart-guide-import-fix（基于楼层维护分支 HEAD 创建，含其 2 个文档提交）；提交序列 40383bb(规格) → 5f485aa(计划) → 19616e0(normalize 强制非风险点) → 69b7db6(prompt 注入现有分区) → 529be65(buildImportPlan) → 4b5c1aa(Modal 接入去重) → 52c199a(表单坐标补传) → 3d00e3c(E2E)
+  - 实现：后端 normalize 强制 is_risk_point=False；smart-guide 路由查库注入现有分区/对象清单到 prompt；前端 Modal 拉现有分区导入去重；表单补传 location_x/y + 风险点缺坐标前端拦截提示
+  - 注意：另一会话曾把共享工作区切回 codex/risk-tree-floor-maintenance 并新增提交 e09796b，我的分支提交不受影响；协作期间需注意分支切换
+  - 验证：后端 71 passed；前端 tsc + vitest 42 passed；Playwright 智能引导 E2E + 总览回归 3 passed
+- 下一步：按 finishing-a-development-branch 收尾（验证 → 向用户展示合并/PR 选项）
+- 关键上下文：本地后端 8000 运行中；未提交 TASKS.md（含本快照）与 backup SQL 保持原样；风险点必须绑定分区和坐标的业务规则未改动
   - 双轴审查（子代理补跑 + 主控复核）：规格 1.4 决策表逐项落实；3 处计划外修正评估合理；质量无硬违规
   - 修复提交 1ac3762：编辑未分配楼层分区不再静默注入默认楼层（isEdit 判定）；无默认楼层时展开策略退回第一个楼层；分区保存后同时刷新 floors 计数；新增 E2E 第 3 用例断言编辑未分配分区 payload 不带 floor_id
   - 清理：误提交截图已移除（d1bef26）；_debug-tree.spec.ts 已清理

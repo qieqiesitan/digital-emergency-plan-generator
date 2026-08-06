@@ -108,6 +108,8 @@ def _normalize_smart_guide_hierarchy(data: dict) -> dict:
                         _normalize_measure(item) for item in event.get("measures", [])
                     ]
                 units.append(unit)
+            # AI 文本生成无画布坐标，不能产生合法风险点；一律作为普通分析对象导入
+            obj["is_risk_point"] = False
             obj["units"] = units
             events = []
             for event in obj.get("events", []) or []:
@@ -286,6 +288,7 @@ async def smart_guide(
     description: str,
     enterprise_info: dict,
     ai_config: AIConfig,
+    existing_names: dict | None = None,
 ) -> dict:
     """一键智能导引：自然语言描述 → 完整层级结构。
 
@@ -293,20 +296,38 @@ async def smart_guide(
         description: 用户自然语言描述（如"储罐区有3个5000m³原油储罐..."）
         enterprise_info: 企业基本信息
         ai_config: AI 配置
+        existing_names: 企业已有层级名称，形如 {"zones": [...], "objects": [...]}，
+            用于约束 AI 避免生成重复分区/对象
 
     Returns:
         dict 含 zones 和 summary 字段，zones 为完整层级结构
     """
+    existing_names = existing_names or {}
+    existing_zones = existing_names.get("zones") or []
+    existing_objects = existing_names.get("objects") or []
+    existing_summary = ""
+    if existing_zones:
+        existing_summary += "现有分区：" + "、".join(existing_zones) + "\n"
+    if existing_objects:
+        existing_summary += "现有对象：" + "、".join(existing_objects) + "\n"
     prompt = (
         f"用户描述了以下企业区域，请分析并生成完整的风险分级管控层级结构"
         f"（分区 → 对象 → 单元 → 事件 → 措施）。\n\n"
         f"用户描述：\n{description}\n\n"
         f"企业信息：\n{json.dumps(enterprise_info, ensure_ascii=False, indent=2)}\n\n"
+    )
+    if existing_summary:
+        prompt += f"企业已有层级（请勿重复生成）：\n{existing_summary}\n"
+    prompt += (
         f"要求：\n"
         f"1. 解析描述中的实体关系，生成到措施层级\n"
         f"2. 每个事件使用 LS 矩阵法评估（L: 1-5, S: 1-5），含 risk_level 和 risk_score\n"
         f"3. 每事件至少 2 条管控措施\n"
-        f"4. 最多生成 5 个分区、50 个对象\n\n"
+        f"4. 最多生成 5 个分区、50 个对象\n"
+        f"5. 不得生成与现有分区名称相同或语义重复的分区；描述若已对应现有分区，"
+        f"将该分区名写入 summary 的 duplicates 数组，而不是重复生成\n"
+        f"6. 同一区域内多个同类设备用编号区分命名（如「1号储罐」「2号储罐」），避免对象名重复\n"
+        f"7. 所有对象 is_risk_point 一律输出 false（风险点由用户在画布上手动标记）\n\n"
         f'输出 JSON 格式（完整层级）：\n'
         f'{{"zones": [{{"name": "...", "description": "...", '
         f'"objects": [{{"name": "...", "category": "...", '

@@ -5,15 +5,17 @@ import {
   ThunderboltOutlined,
   EditOutlined,
 } from "@ant-design/icons";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   aiSmartGuide,
+  listZones,
   createZone,
   createObject,
   createUnit,
   createEvent,
   createMeasure,
 } from "@/services/riskManagementService";
+import { buildImportPlan } from "@/utils/smartGuideImport";
 import type {
   MethodType,
   MeasureCategory,
@@ -143,6 +145,13 @@ export default function RiskSmartGuideModal({
   const [editValue, setEditValue] = useState("");
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
 
+  const { data: existingZones = [] } = useQuery({
+    queryKey: ["risk-zones", enterpriseId],
+    queryFn: () => listZones(enterpriseId),
+    enabled: open,
+  });
+  const existingZoneNames = useMemo(() => new Set(existingZones.map(z => z.name)), [existingZones]);
+
   useEffect(() => {
     if (open) {
       setStep("input");
@@ -182,11 +191,13 @@ export default function RiskSmartGuideModal({
   const importMut = useMutation({
     mutationFn: async () => {
       const keySet = new Set(checkedKeys.map(String));
+      const { filteredHierarchy, skippedZones } = buildImportPlan(hierarchy, nameOverrides, existingZoneNames);
       let totalCreated = 0;
 
-      for (let zi = 0; zi < hierarchy.length; zi++) {
-        const zone = hierarchy[zi];
-        const zoneKey = "z-" + zi;
+      for (let zi = 0; zi < filteredHierarchy.length; zi++) {
+        const zone = filteredHierarchy[zi];
+        const originalZi = hierarchy.indexOf(zone);
+        const zoneKey = "z-" + originalZi;
         if (!keySet.has(zoneKey)) continue;
 
         const zoneName = nameOverrides[zoneKey] || zone.name;
@@ -198,7 +209,7 @@ export default function RiskSmartGuideModal({
 
         for (let oi = 0; oi < (zone.objects || []).length; oi++) {
           const obj = zone.objects![oi];
-          const objKey = "z-" + zi + "-o-" + oi;
+          const objKey = "z-" + originalZi + "-o-" + oi;
           if (!keySet.has(objKey)) continue;
 
           const objName = nameOverrides[objKey] || obj.name;
@@ -206,13 +217,13 @@ export default function RiskSmartGuideModal({
             zone_id: createdZone.id,
             name: objName,
             category: obj.category || undefined,
-            is_risk_point: obj.is_risk_point,
+            is_risk_point: false,
           });
           totalCreated++;
 
           for (let ui = 0; ui < (obj.units || []).length; ui++) {
             const unit = obj.units![ui];
-            const unitKey = "z-" + zi + "-o-" + oi + "-u-" + ui;
+            const unitKey = "z-" + originalZi + "-o-" + oi + "-u-" + ui;
             const unitName = nameOverrides[unitKey] || unit.name;
             const createdUnit = await createUnit(enterpriseId, createdObj.id, {
               name: unitName,
@@ -222,7 +233,7 @@ export default function RiskSmartGuideModal({
 
             for (let ei = 0; ei < (unit.events || []).length; ei++) {
               const ev = unit.events![ei];
-              const evKey = "z-" + zi + "-o-" + oi + "-u-" + ui + "-ev-" + ei;
+              const evKey = "z-" + originalZi + "-o-" + oi + "-u-" + ui + "-ev-" + ei;
               if (!keySet.has(evKey)) continue;
 
               const evName = nameOverrides[evKey] || ev.accident_type;
@@ -237,7 +248,7 @@ export default function RiskSmartGuideModal({
 
               for (let mi = 0; mi < (ev.measures || []).length; mi++) {
                 const m = ev.measures![mi];
-                const mKey = "z-" + zi + "-o-" + oi + "-u-" + ui + "-ev-" + ei + "-m-" + mi;
+                const mKey = "z-" + originalZi + "-o-" + oi + "-u-" + ui + "-ev-" + ei + "-m-" + mi;
                 if (!keySet.has(mKey)) continue;
 
                 const mDesc = nameOverrides[mKey] || m.description;
@@ -254,7 +265,7 @@ export default function RiskSmartGuideModal({
 
           for (let ei = 0; ei < (obj.events || []).length; ei++) {
             const ev = obj.events![ei];
-            const evKey = "z-" + zi + "-o-" + oi + "-ev-" + ei;
+            const evKey = "z-" + originalZi + "-o-" + oi + "-ev-" + ei;
             if (!keySet.has(evKey)) continue;
 
             const evName = nameOverrides[evKey] || ev.accident_type;
@@ -269,7 +280,7 @@ export default function RiskSmartGuideModal({
 
             for (let mi = 0; mi < (ev.measures || []).length; mi++) {
               const m = ev.measures![mi];
-              const mKey = "z-" + zi + "-o-" + oi + "-ev-" + ei + "-m-" + mi;
+              const mKey = "z-" + originalZi + "-o-" + oi + "-ev-" + ei + "-m-" + mi;
               if (!keySet.has(mKey)) continue;
 
               const mDesc = nameOverrides[mKey] || m.description;
@@ -285,10 +296,10 @@ export default function RiskSmartGuideModal({
         }
       }
 
-      return totalCreated;
+      return { count: totalCreated, skipped: skippedZones.length };
     },
-    onSuccess: (count: number) => {
-      antMessage.success("\u6210\u529F\u5BFC\u5165 " + count + " \u6761\u6570\u636E");
+    onSuccess: ({ count, skipped }: { count: number; skipped: number }) => {
+      antMessage.success(`成功导入 ${count} 条数据${skipped > 0 ? `，跳过 ${skipped} 个重名分区` : ""}`);
       onRefresh();
       onClose();
     },
