@@ -146,3 +146,40 @@ export interface BatchSaveResponse {
   created_zone_map: Record<string, string>;
   created_risk_point_map: Record<string, string>;
 }
+
+export interface FourColorDraftPolygon {
+  id: string;
+  label?: string | null;
+  points: { x: number; y: number }[];
+}
+export interface FourColorDraftZone {
+  client_id: string;
+  name: string;
+  risk_level: RiskLevel;
+  color: string;
+  polygons: FourColorDraftPolygon[];
+}
+export interface FourColorAnalyzeResult {
+  preview_url: string;
+  canvas_width: number;
+  canvas_height: number;
+  zones: FourColorDraftZone[];
+  warnings: string[];
+}
+export interface FourColorCommitPolygon {
+  points: { x: number; y: number }[];
+}
+export interface FourColorCommitZone {
+  name: string;
+  risk_level: RiskLevel;
+  polygons: FourColorCommitPolygon[];
+}
+export interface FourColorCommitPayload {
+  file_token: string;
+  zones: FourColorCommitZone[];
+  replace_existing: boolean;
+}
+export interface FourColorCommitResult {
+  floor: EnterpriseFloor;
+  zones: WorkbenchZone[];
+}

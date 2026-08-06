@@ -1,6 +1,14 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { RawWorkbenchSnapshot, BatchSavePayload, BatchSaveResponse, EnterpriseFloor } from "@/types/riskMappingWorkbench";
+import type {
+  RawWorkbenchSnapshot,
+  BatchSavePayload,
+  BatchSaveResponse,
+  EnterpriseFloor,
+  FourColorAnalyzeResult,
+  FourColorCommitPayload,
+  FourColorCommitResult,
+} from "@/types/riskMappingWorkbench";
 
 const BASE = (eid: string) => `/enterprises/${eid}/risk-management`;
 
@@ -52,3 +60,19 @@ export const uploadEnterpriseFloorPlan = (eid: string, floorId: string, file: Fi
   form.append("file", file);
   return api.post<ApiResponse<EnterpriseFloor>>(`${BASE(eid)}/floors/${floorId}/plan`, form).then(r => r.data.data);
 };
+
+export const analyzeFourColorMap = (eid: string, floorId: string, file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return api
+    .post<ApiResponse<FourColorAnalyzeResult>>(`${BASE(eid)}/floors/${floorId}/four-color/analyze`, form)
+    .then(r => r.data.data);
+};
+
+export const commitFourColorImport = (eid: string, floorId: string, payload: FourColorCommitPayload) =>
+  api
+    .post<ApiResponse<FourColorCommitResult>>(`${BASE(eid)}/floors/${floorId}/four-color/commit`, payload)
+    .then(r => r.data.data);
+
+export const cancelFourColorImport = (eid: string, floorId: string, token: string) =>
+  api.delete(`${BASE(eid)}/floors/${floorId}/four-color/${token}`);
