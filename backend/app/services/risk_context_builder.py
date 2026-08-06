@@ -10,6 +10,29 @@ from app.models.enterprise import Enterprise
 from app.models.risk_management import RiskZone, RiskObject, RiskUnit, RiskEvent
 
 
+def _risk_source_item(zone: RiskZone, obj: RiskObject, unit: RiskUnit | None, event: RiskEvent) -> dict:
+    measures = [
+        {"category": m.measure_category, "description": m.description}
+        for m in event.measures
+    ]
+    return {
+        "zone": zone.name,
+        "object": obj.name,
+        "unit": unit.name if unit else None,
+        "name": obj.name,
+        "categories": obj.category or "",
+        "location": obj.location or "",
+        "accident_type": event.accident_type,
+        "risk_level": event.risk_level,
+        "risk_score": event.risk_score,
+        "description": event.description,
+        "triggers": event.trigger_conditions,
+        "consequences": event.consequences,
+        "control_measures": "；".join(m["description"] for m in measures),
+        "measures": measures,
+    }
+
+
 async def build_risk_management_context(enterprise_id: str, db: AsyncSession) -> dict:
     """从五层表构建企业风险管控上下文。
 
@@ -60,46 +83,12 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
         for obj in zone.objects:
             # 对象下直接挂载的事件（无单元场景，如"消防泵房"直接关联"设备故障"）
             for event in obj.events:
-                risk_sources_list.append({
-                    "zone": zone.name,
-                    "object": obj.name,
-                    "unit": None,
-                    "accident_type": event.accident_type,
-                    "risk_level": event.risk_level,
-                    "risk_score": event.risk_score,
-                    "description": event.description,
-                    "triggers": event.trigger_conditions,
-                    "consequences": event.consequences,
-                    "measures": [
-                        {
-                            "category": m.measure_category,
-                            "description": m.description,
-                        }
-                        for m in event.measures
-                    ],
-                })
+                risk_sources_list.append(_risk_source_item(zone, obj, None, event))
 
             # 单元下挂载的事件（标准场景，如"1号储罐 → 罐体 → 储罐泄漏"）
             for unit in obj.units:
                 for event in unit.events:
-                    risk_sources_list.append({
-                        "zone": zone.name,
-                        "object": obj.name,
-                        "unit": unit.name,
-                        "accident_type": event.accident_type,
-                        "risk_level": event.risk_level,
-                        "risk_score": event.risk_score,
-                        "description": event.description,
-                        "triggers": event.trigger_conditions,
-                        "consequences": event.consequences,
-                        "measures": [
-                            {
-                                "category": m.measure_category,
-                                "description": m.description,
-                            }
-                            for m in event.measures
-                        ],
-                    })
+                    risk_sources_list.append(_risk_source_item(zone, obj, unit, event))
 
     # 计算总事件数
     total_events = sum(
@@ -117,11 +106,24 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
             "business_scope": ent.business_scope,
             "building_overview": ent.building_overview,
             "surrounding_info": ent.surrounding_info,
+            "legal_representative": ent.legal_representative,
+            "credit_code": ent.credit_code,
+            "economic_type": ent.economic_type,
+            "established_date": str(ent.established_date) if ent.established_date else None,
+            "registered_capital": ent.registered_capital,
+            "phone": ent.phone,
+            "land_area": ent.land_area,
+            "building_area": ent.building_area,
+            "safety_officer": ent.safety_officer,
+            "safety_standardization": ent.safety_standardization,
+            "fire_approval": ent.fire_approval,
+            "main_products": ent.main_products,
+            "hazardous_chemicals": ent.hazardous_chemicals,
+            "special_equipment": ent.special_equipment,
             "fire_protection_summary": ent.fire_protection_summary,
             "special_equipment_detail": ent.special_equipment_detail,
             "main_equipment_list": ent.main_equipment_list,
             "natural_conditions": ent.natural_conditions,
-            "hazardous_chemicals": ent.hazardous_chemicals,
         },
         "risk_sources": risk_sources_list,
         "zone_count": len(zones),
