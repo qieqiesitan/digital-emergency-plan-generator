@@ -4,20 +4,26 @@ export interface ZoneSubmitValues {
   name?: string;
   description?: string;
   floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
+  floor_id?: string | null;
 }
 
 // Build the create/update payload for a zone. floor_plan_polygon is only
 // included when the user actually drew/submitted one, so that editing a zone
 // from the legacy form never clears an existing workbench polygon with null.
+// floor_id follows the same rule: only included when explicitly chosen, so an
+// edit from the legacy form never clears an existing floor assignment.
 export function buildZonePayload(
   values: ZoneSubmitValues
-): Pick<RiskZoneCreate, "name" | "description" | "floor_plan_polygon"> {
-  const payload: Pick<RiskZoneCreate, "name" | "description" | "floor_plan_polygon"> = {
+): Pick<RiskZoneCreate, "name" | "description" | "floor_plan_polygon" | "floor_id"> {
+  const payload: Pick<RiskZoneCreate, "name" | "description" | "floor_plan_polygon" | "floor_id"> = {
     name: values.name || "",
     description: values.description || "",
   };
   if (values.floor_plan_polygon) {
     payload.floor_plan_polygon = values.floor_plan_polygon;
+  }
+  if (values.floor_id) {
+    payload.floor_id = values.floor_id;
   }
   return payload;
 }

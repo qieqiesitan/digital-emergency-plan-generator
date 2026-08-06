@@ -43,6 +43,18 @@ describe("buildZonePayload", () => {
 
     expect(payload).not.toHaveProperty("floor_plan_polygon");
   });
+
+  it("includes floor_id when the zone form carries a floor", () => {
+    const payload = buildZonePayload({ name: "储罐区", floor_id: "floor-2" });
+
+    expect(payload.floor_id).toBe("floor-2");
+  });
+
+  it("omits floor_id when undefined, so edits never clear an existing floor", () => {
+    const payload = buildZonePayload({ name: "储罐区" });
+
+    expect(payload).not.toHaveProperty("floor_id");
+  });
 });
 
 describe("mergeEditedPolygon", () => {
