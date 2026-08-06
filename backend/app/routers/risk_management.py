@@ -688,6 +688,16 @@ async def delete_measure(event_id: str, measure_id: str, enterprise_id: str, cur
     return ApiResponse(data=None, message="已删除措施")
 
 # ── Hierarchy ──
+def sort_zones_by_floor(zones: list, floor_order: dict[str, int]) -> list:
+    """按（楼层顺序，分区 sort_order）排序；未知/空楼层排最后。
+
+    floor_order 由 enterprise_floors.sort_order 生成：{floor_id: index}。
+    纯函数，便于单元测试。
+    """
+    fallback = len(floor_order)
+    return sorted(zones, key=lambda z: (floor_order.get(z.floor_id, fallback), z.sort_order))
+
+
 @router.get("/hierarchy", response_model=ApiResponse[list[HierarchyZoneResponse]])
 async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
