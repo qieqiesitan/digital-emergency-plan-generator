@@ -172,10 +172,26 @@ class MigrationPreviewResponse(BaseModel):
 
 class MigrationExecuteItem(BaseModel):
     source_id: str
-    zone_name: str
-    object_name: str
-    accident_type: str
+    zone_name: str = Field(min_length=1)
+    object_name: str = Field(min_length=1)
+    accident_type: str = Field(min_length=1)
     method_params: dict[str, int] = {"l": 3, "s": 3}
+
+    @field_validator("method_params", mode="before")
+    @classmethod
+    def _validate_method_params(cls, v: dict) -> dict:
+        if not isinstance(v, dict):
+            raise ValueError("method_params must be a dict")
+        for key in ("l", "s"):
+            if v.get(key) is not None:
+                value = v[key]
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not (1 <= value <= 5)
+                ):
+                    raise ValueError(f"{key} must be a number between 1 and 5")
+        return v
 
 
 class MigrationExecuteRequest(BaseModel):

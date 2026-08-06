@@ -85,10 +85,9 @@ async def build_migration_preview(
             )
             params = ai.get("suggested_params") or item["suggested_params"]
             if isinstance(params, dict):
-                item["suggested_params"] = {
-                    "l": _clamp_ls(params.get("l")),
-                    "s": _clamp_ls(params.get("s")),
-                }
+                for key in ("l", "s"):
+                    if params.get(key) is not None:
+                        item["suggested_params"][key] = _clamp_ls(params[key])
 
     return {
         "items": items,
@@ -114,22 +113,22 @@ async def execute_migration(
         )
     ).scalars().all()
     source_map = {s.id: s for s in sources}
-    floor = await ensure_default_floor(db, enterprise_id)
-    config = await get_active_method_config(db, enterprise_id, "LS")
-    if not config:
-        config = {
-            "risk_thresholds": [
-                {"min": 20, "max": 25, "level": "重大", "action": "立即整改", "deadline": "立即"},
-                {"min": 15, "max": 19, "level": "较大", "action": "限期整改", "deadline": "1 个月"},
-                {"min": 10, "max": 14, "level": "一般", "action": "限期整改", "deadline": "3 个月"},
-                {"min": 1, "max": 9, "level": "低", "action": "加强日常管理", "deadline": "持续"},
-            ]
-        }
     created = {"zones": 0, "objects": 0, "events": 0, "measures": 0}
     migrated = 0
     skipped = 0
 
     try:
+        floor = await ensure_default_floor(db, enterprise_id)
+        config = await get_active_method_config(db, enterprise_id, "LS")
+        if not config:
+            config = {
+                "risk_thresholds": [
+                    {"min": 20, "max": 25, "level": "重大", "action": "立即整改", "deadline": "立即"},
+                    {"min": 15, "max": 19, "level": "较大", "action": "限期整改", "deadline": "1 个月"},
+                    {"min": 10, "max": 14, "level": "一般", "action": "限期整改", "deadline": "3 个月"},
+                    {"min": 1, "max": 9, "level": "低", "action": "加强日常管理", "deadline": "持续"},
+                ]
+            }
         for mapping in mappings:
             source = source_map.get(mapping.source_id)
             if not source:
@@ -190,8 +189,8 @@ async def execute_migration(
             created["objects"] += 1
 
             params = {
-                "l": _clamp_ls(mapping.method_params.get("l", source.likelihood)),
-                "s": _clamp_ls(mapping.method_params.get("s", source.severity)),
+                "l": _clamp_ls((mapping.method_params or {}).get("l", source.likelihood)),
+                "s": _clamp_ls((mapping.method_params or {}).get("s", source.severity)),
             }
             rating = compute_risk("LS", params, config)
             event = RiskEvent(

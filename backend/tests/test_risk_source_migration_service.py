@@ -1,6 +1,8 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app.services.risk_source_migration_service import (
     build_default_mapping,
     execute_migration,
@@ -85,3 +87,155 @@ def test_execute_migration_marks_sources_and_commits():
     assert result["created"]["objects"] == 1
     assert source.migrated is True
     db.commit.assert_awaited_once()
+
+
+def test_execute_migration_rolls_back_on_commit_failure():
+    db = AsyncMock()
+    source = MagicMock()
+    source.id = "src-1"
+    source.enterprise_id = "ent-1"
+    source.name = "火灾"
+    source.categories = "火灾"
+    source.location = "仓库"
+    source.location_x = 10
+    source.location_y = 20
+    source.description = "可燃物堆积"
+    source.likelihood = 3
+    source.severity = 3
+    source.control_measures = "定期巡检"
+    source.migrated = False
+
+    mapping = MagicMock()
+    mapping.source_id = "src-1"
+    mapping.zone_name = "历史风险源"
+    mapping.object_name = "火灾"
+    mapping.accident_type = "火灾"
+    mapping.method_params = {"l": 3, "s": 3}
+
+    floor = MagicMock()
+    floor.id = "floor-1"
+    rating = MagicMock()
+    rating.risk_level = "一般"
+    rating.risk_score = "R=9"
+
+    db.execute.return_value = MagicMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [source]
+    db.execute.return_value.scalar_one_or_none.side_effect = [None, None]
+    db.add = MagicMock()
+    db.flush = AsyncMock()
+    db.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    db.rollback = AsyncMock()
+
+    with patch(
+        "app.services.risk_source_migration_service.ensure_default_floor",
+        new=AsyncMock(return_value=floor),
+    ), patch(
+        "app.services.risk_source_migration_service.get_active_method_config",
+        new=AsyncMock(return_value={"risk_thresholds": []}),
+    ), patch(
+        "app.services.risk_source_migration_service.compute_risk",
+        return_value=rating,
+    ):
+        with pytest.raises(RuntimeError):
+            asyncio.run(execute_migration(db, "ent-1", [mapping]))
+
+    db.rollback.assert_awaited_once()
+
+
+def test_execute_migration_skips_existing_legacy_object():
+    db = AsyncMock()
+    source = MagicMock()
+    source.id = "src-1"
+    source.enterprise_id = "ent-1"
+    source.name = "火灾"
+    source.categories = "火灾"
+    source.location = "仓库"
+    source.location_x = 10
+    source.location_y = 20
+    source.description = "可燃物堆积"
+    source.likelihood = 3
+    source.severity = 3
+    source.control_measures = "定期巡检"
+    source.migrated = False
+
+    mapping = MagicMock()
+    mapping.source_id = "src-1"
+    mapping.zone_name = "历史风险源"
+    mapping.object_name = "火灾"
+    mapping.accident_type = "火灾"
+    mapping.method_params = {"l": 3, "s": 3}
+
+    existing = MagicMock()
+    existing.id = "obj-1"
+
+    db.execute.return_value = MagicMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [source]
+    db.execute.return_value.scalar_one_or_none.side_effect = [existing]
+    db.add = MagicMock()
+    db.flush = AsyncMock()
+    db.commit = AsyncMock()
+
+    with patch(
+        "app.services.risk_source_migration_service.ensure_default_floor",
+        new=AsyncMock(return_value=MagicMock(id="floor-1")),
+    ), patch(
+        "app.services.risk_source_migration_service.get_active_method_config",
+        new=AsyncMock(return_value={"risk_thresholds": []}),
+    ), patch(
+        "app.services.risk_source_migration_service.compute_risk",
+        return_value=MagicMock(risk_level="一般", risk_score="R=9"),
+    ):
+        result = asyncio.run(execute_migration(db, "ent-1", [mapping]))
+
+    assert result["migrated"] == 1
+    assert result["created"]["objects"] == 0
+    assert source.migrated is True
+
+
+def test_execute_migration_uses_default_ls_thresholds_when_no_config():
+    db = AsyncMock()
+    source = MagicMock()
+    source.id = "src-1"
+    source.enterprise_id = "ent-1"
+    source.name = "火灾"
+    source.categories = "火灾"
+    source.location = "仓库"
+    source.location_x = 10
+    source.location_y = 20
+    source.description = "可燃物堆积"
+    source.likelihood = 3
+    source.severity = 3
+    source.control_measures = "定期巡检"
+    source.migrated = False
+
+    mapping = MagicMock()
+    mapping.source_id = "src-1"
+    mapping.zone_name = "历史风险源"
+    mapping.object_name = "火灾"
+    mapping.accident_type = "火灾"
+    mapping.method_params = {"l": 3, "s": 3}
+
+    db.execute.return_value = MagicMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [source]
+    db.execute.return_value.scalar_one_or_none.side_effect = [None, None]
+    db.add = MagicMock()
+    db.flush = AsyncMock()
+    db.commit = AsyncMock()
+
+    with patch(
+        "app.services.risk_source_migration_service.ensure_default_floor",
+        new=AsyncMock(return_value=MagicMock(id="floor-1")),
+    ), patch(
+        "app.services.risk_source_migration_service.get_active_method_config",
+        new=AsyncMock(return_value=None),
+    ), patch(
+        "app.services.risk_source_migration_service.compute_risk",
+        return_value=MagicMock(risk_level="一般", risk_score="R=9"),
+    ) as mock_compute_risk:
+        result = asyncio.run(execute_migration(db, "ent-1", [mapping]))
+
+    config = mock_compute_risk.call_args.args[2]
+    assert config is not None
+    assert "risk_thresholds" in config
+    assert len(config["risk_thresholds"]) == 4
+    assert result["migrated"] == 1
