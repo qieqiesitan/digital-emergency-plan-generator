@@ -8,6 +8,9 @@ from PIL import Image, ImageDraw
 
 from app.services.four_color_recognizer import (
     classify_pixels,
+    clean_mask,
+    mask_to_polygons,
+    normalize_points,
 )
 
 PALETTE_BGR = {
@@ -69,3 +72,37 @@ def test_classify_pixels_returns_uint8_binary():
     img = _bgr_img()
     masks = classify_pixels(img)
     assert set(masks["红"].flat) <= {0, 255}
+
+
+def test_clean_mask_removes_small_noise():
+    mask = np.zeros((100, 100), dtype=np.uint8)
+    mask[10:90, 10:90] = 255
+    mask[2:4, 2:4] = 255  # 2x2 噪点
+    cleaned = clean_mask(mask, kernel_size=3)
+    assert cleaned[50, 50] == 255
+    assert cleaned[3, 3] == 0
+
+
+def test_mask_to_polygons_simplifies_rectangle():
+    mask = np.zeros((100, 100), dtype=np.uint8)
+    mask[10:90, 10:90] = 255
+    polys = mask_to_polygons(mask, 100, 100, min_area=100.0, epsilon=2.0)
+    assert len(polys) == 1
+    assert len(polys[0]) == 4
+    area = cv2.contourArea(polys[0].astype(np.float32))
+    assert 5000 < area < 7000
+
+
+def test_mask_to_polygons_filters_small_areas():
+    mask = np.zeros((100, 100), dtype=np.uint8)
+    mask[10:20, 10:20] = 255   # 100 px
+    mask[40:80, 40:80] = 255   # 1600 px
+    polys = mask_to_polygons(mask, 100, 100, min_area=500.0, epsilon=1.0)
+    assert len(polys) == 1
+    assert cv2.contourArea(polys[0].astype(np.float32)) > 1000
+
+
+def test_normalize_points_clamps_and_rounds():
+    points = [(-5.0, 55.0), (100.5, 33.333), (25.0, 0.0)]
+    out = normalize_points(points, 100, 100)
+    assert out == [{"x": 0.0, "y": 55.0}, {"x": 100.0, "y": 33.33}, {"x": 25.0, "y": 0.0}]
