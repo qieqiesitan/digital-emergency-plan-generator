@@ -1,4 +1,18 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06，功能完成待收尾）：分区树楼层分组功能已实现、审查、修复并全量验证通过；等待用户选择收尾方式
+- 刚完成的动作：
+  - 实现 9 任务提交 65d9304..4fe5707（后端多楼层 hierarchy + 树楼层分组 + 表单楼层联动 + E2E）
+  - 双轴审查（子代理补跑 + 主控复核）：规格 1.4 决策表逐项落实；3 处计划外修正评估合理；质量无硬违规
+  - 修复提交 1ac3762：编辑未分配楼层分区不再静默注入默认楼层（isEdit 判定）；无默认楼层时展开策略退回第一个楼层；分区保存后同时刷新 floors 计数；新增 E2E 第 3 用例断言编辑未分配分区 payload 不带 floor_id
+  - 清理：误提交截图已移除（d1bef26）；_debug-tree.spec.ts 已清理
+- 最终验证（全部通过）：backend pytest 69 passed；tsc -b 0；vitest 40 passed；Playwright 15 passed（risk-hierarchy-tree 3 + risk-mapping-workbench 12）；Node 22 生产构建成功（PWA 正常）
+- 已知缺口（记录，未处理）：spec §6 要求 /hierarchy 接口级测试，仓库无路由测试设施，当前以纯函数单测 + E2E 覆盖；P3 若干（楼层计数数据源一致性、groupZonesByFloor 重复计算、edit/edit-zone 分支重复）已记录
+- 下一步：等待用户选择收尾（本地合并 / 推送 PR / 保持现状 / 丢弃）；未执行 git finish/推送
+- 关键上下文：分支 codex/protego-integration，HEAD=1ac3762；分支同时含另一会话的 RiskOverview 布局提交（1577d18/9f9c211/2f07994 等），未触碰；工作区仅 TASKS.md 未提交；TASKS.md 快照被两侧交替更新属预期
+
+---
+
+以下为历史快照，保留供压缩恢复参考
 - 正在做什么（2026-08-06，计划 9 任务全部完成）：风险分级管控分区树楼层分组实现完成并提交
 - 刚完成的动作：
   - 任务 1 后端排序纯函数（backend/app/routers/risk_management.py + tests/test_risk_hierarchy.py，TDD 2 用例）→ 65d9304
@@ -408,6 +422,12 @@
   - 迁移包方案：源码（含 VM 两处修复）+ pg_dump 全量 + ENCRYPTION_KEY/SECRET_KEY 配置 + systemd 定义 + ONNX 模型 + 安装脚本/文档；目标机重建 Python 3.12 + pip/npm 依赖 + npm run build
   - 云依赖说明：Cloudflare 隧道 token 可复用（域名继续指向 demo.chengleiai.com）；DeepSeek key 随库走需同 ENCRYPTION_KEY；目标机需能访问 api.deepseek.com
   - 隧道 2026-08-06 曾中断（进程消失），已重新拉起 hdspace PID 8552
+- 旁路任务：docker-compose 迁移包已制作并验证完成（2026-08-06）
+  - 交付物：C:\Users\55061\Desktop\emergency-plan-migration.tar.gz（120MB，1105 文件）
+  - 内容：backend（含修复后 main.py/Dockerfile/requirements）、frontend（源码+dist+Dockerfiles）、db-init/01_restore.sql（全量数据）、model-cache（ONNX 模型 96MB）、docker-compose.yml（CentOS 迁移版：pgdata 命名卷+db-init 自动恢复+模型 bind mount）、.env.example、README-DEPLOY.md、scripts/deploy.sh+backup.sh
+  - 与本地 compose 的差异：移除 external 卷与 chroma 命名卷；postgres 增加 ./db-init:/docker-entrypoint-initdb.d 首次自动恢复；chroma 模型改为 ./model-cache/chroma 挂载；端口恢复 5432/8000/5173/8080
+  - 本地验证（Docker Desktop x86_64 与公司同架构）：3 镜像构建成功；全新栈启动后 DB 自动恢复 users14/enterprises100/plans59/risk_zones7/ai_configs6；/docs 200、API 401、前端 200、移动端 m.html 200、容器内嵌入 384 维 OK、日志无错误
+  - 注意事项已写入 README：ENCRYPTION_KEY 不可改、SECRET_KEY 建议生产化、pip/npm/playwright 国内镜像方案、Cloudflare 隧道 token 位置、admin/test 账号 AI key 为旧值、1 个历史导出文件名含乱码
 - 下一步：后端任务 2 与前端任务 5 并行完成后，依次执行任务 3/4、前端任务 6/7/8/9/10，最后任务 11
 - 关键上下文：
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
