@@ -1,11 +1,30 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-06）：复核 d05d5e9（删除冗余 MigrationPreviewItem 导入）完成，结论 ✅ 通过
+- 刚完成的动作（复核，只读验证未改代码）：
+  - git diff 2aafae6...d05d5e9：功能变更仅 risk_management.py 第 13 行导入删除 MigrationPreviewItem（1+/1-）；TASKS.md 变更来自 savepoint d40ea2c，非功能提交
+  - pytest 迁移服务两文件 8 passed；rg MigrationPreviewItem 全文件无残留；router import ok
+- 以下为历史快照，保留供压缩恢复参考
+
+---
+
+- 正在做什么（2026-08-06）：已按代码质量审查建议删除冗余导入并提交（d05d5e9）
+- 刚完成的动作：
+  - backend/app/routers/risk_management.py 第 13 行导入中删除未使用的 MigrationPreviewItem（仅此一处改动，其余内容未动）；修改前按铁律二 git save（保存点 d40ea2c）
+  - 验证：pytest 两文件 8 passed；backend 目录 `from app.routers.risk_management import router` → ok；git diff --check 干净
+  - 已提交 d05d5e9 refactor(risk-management): drop unused migration preview item import（1 文件 1+/1-）
+- 下一步：任务 4（前端迁移服务和向导闭环：riskManagement.ts / riskManagementService.ts / RiskMigrationWizard.tsx）
+- 关键上下文：分支 codex/risk-management-only，HEAD=d05d5e9；TASKS.md 未提交改动为快照更新本身
+
+- 以下为历史快照（复审记录 + 任务 3 完成记录），保留供压缩恢复参考
+
+---
+
 - 正在做什么（2026-08-06）：代码质量复审任务 3 提交（2aafae6）完成，结论 ✅ 通过（1 项建议修改：MigrationPreviewItem 冗余导入）
 - 刚完成的动作（复审，只读验证未改代码）：
   - git diff ece9956...2aafae6：功能变更仅 backend/app/routers/risk_management.py（37+/29-）；TASKS.md 变更来自 savepoint 96c7a65，非任务 3 实现内容
   - backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_source_migration_service.py backend/tests/test_risk_source_migration_baseline.py -q → 8 passed；router import ok；git diff --check 干净
   - 逐项核对：GET /migrate/preview 与 POST /ai/migrate-preview 响应模型 ApiResponse[MigrationPreviewResponse]、POST /migrate/execute 为 ApiResponse[MigrationExecuteResponse]，数据与 Schema 字段一一对应；AI 预览 except HTTPException 覆盖 400（_get_ai_config）/500/502/504（llm_text_completion 统一映射、_parse_ai_json 500），DB 异常不吞；compute_risk/get_active_method_config/_resolve_zone_floor 仍被其他路由使用非死代码；mp.get 旧 dict 访问全清除；无重复导入
-  - 唯一问题（次要/建议修改）：MigrationPreviewItem 仅在第 13 行导入、全文件无使用 → 冗余导入，建议从导入行删除
-- 以下为历史快照（含任务 3 完成记录），保留供压缩恢复参考
+  - 唯一问题（次要/建议修改）：MigrationPreviewItem 仅在第 13 行导入、全文件无使用 → 冗余导入，建议从导入行删除（已于 d05d5e9 修复）
 
 ---
 
