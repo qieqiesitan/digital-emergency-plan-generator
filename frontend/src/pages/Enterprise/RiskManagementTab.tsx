@@ -35,6 +35,9 @@ interface ZoneFormValues {
   description?: string;
   floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
   category?: string;
+  location?: string;
+  location_x?: number | null;
+  location_y?: number | null;
   is_risk_point?: boolean;
   unit_type?: string;
   accident_type?: string;
@@ -197,8 +200,12 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
   }, [confirmDelete, antMessage]);
  
    // Handle form submit
-   const handleFormSubmit = useCallback(async (values: ZoneFormValues) => {
-     try {
+  const handleFormSubmit = useCallback(async (values: ZoneFormValues) => {
+    try {
+      if (form.type === "object" && values.is_risk_point && (!form.parentId || values.location_x == null || values.location_y == null)) {
+        antMessage.warning("风险点必须绑定分区并设置平面图坐标");
+        return;
+      }
       switch (form.type) {
         case "zone": {
           const zonePayload = buildZonePayload(values);
@@ -211,9 +218,9 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
         }
         case "object":
           if (form.id) {
-            await updateObject(enterpriseId, form.id, { name: values.name || "", category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
+            await updateObject(enterpriseId, form.id, { name: values.name || "", category: values.category || "", description: values.description || "", location: values.location || undefined, location_x: values.location_x ?? undefined, location_y: values.location_y ?? undefined, is_risk_point: values.is_risk_point || false });
           } else {
-            await createObject(enterpriseId, { zone_id: form.parentId, name: values.name || "", category: values.category || "", description: values.description || "", is_risk_point: values.is_risk_point || false });
+            await createObject(enterpriseId, { zone_id: form.parentId, name: values.name || "", category: values.category || "", description: values.description || "", location: values.location || undefined, location_x: values.location_x ?? undefined, location_y: values.location_y ?? undefined, is_risk_point: values.is_risk_point || false });
           }
           break;
         case "unit":
