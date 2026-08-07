@@ -317,12 +317,9 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     height, width = bgr.shape[:2]
     warnings: list[str] = []
-    quad, quad_warning = detect_perspective_quad(bgr)
-    if quad is not None:
-        bgr = warp_perspective(bgr, quad)
-        height, width = bgr.shape[:2]
-    if quad_warning:
-        warnings.append(quad_warning)
+    # 透视校正默认关闭：电子四色图中大面积斜形区域会触发误校正，导致整图变形
+    # （面积/倾斜/宽高比启发式无法可靠区分"内部斜形区域"与"拍照纸张边缘"）。
+    # 拍照件仍可正常识别（区域落在原图坐标系上）；如需自动拉正，后续作为可选功能开启。
     masks = classify_pixels(bgr)
     diag = math.hypot(width, height)
     min_area = MIN_AREA_RATIO * width * height
