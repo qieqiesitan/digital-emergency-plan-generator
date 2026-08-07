@@ -31,6 +31,11 @@ export default function RiskMappingWorkbenchPage() {
   const currentFloor = floors.find(f => f.id === currentFloorId);
   const queryClient = useQueryClient();
 
+  // 切换企业时重置工作台全局状态，避免上一个企业的楼层/分区串台
+  useEffect(() => {
+    useRiskMappingWorkbenchStore.getState().reset();
+  }, [enterpriseId]);
+
   const goBack = () => {
     const back = () => {
       if (enterpriseId) {
