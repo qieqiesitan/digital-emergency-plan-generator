@@ -17,19 +17,30 @@ def main() -> int:
     try:
         import numpy as np
         import torch
-        from transformers import CLIPModel, CLIPProcessor, CLIPVisionModel
+        from transformers import CLIPModel, CLIPProcessor
+
+        class VisionProjected(torch.nn.Module):
+            """导出 CLIP 图像侧投影后的 embedding（与文本 embedding 同维度）。"""
+
+            def __init__(self, model):
+                super().__init__()
+                self.model = model
+
+            def forward(self, pixel_values):
+                pooled = self.model.vision_model(pixel_values).pooler_output
+                return self.model.visual_projection(pooled)
 
         model = CLIPModel.from_pretrained(MODEL_ID)
-        inputs = CLIPProcessor.from_pretrained(MODEL_ID)(text=PROMPTS, return_tensors="pt")
+        inputs = CLIPProcessor.from_pretrained(MODEL_ID)(text=PROMPTS, return_tensors="pt", padding=True, truncation=True)
         with torch.no_grad():
-            text_embs = model.get_text_features(**inputs).numpy()
+            pooled = model.text_model(**inputs).pooler_output
+            text_embs = model.text_projection(pooled).numpy()
         np.savez(MODELS_DIR / "clip_prompts.npz", labels=np.array(PROMPTS), embeddings=text_embs)
 
-        vision = CLIPVisionModel.from_pretrained(MODEL_ID)
-        vision.eval()
+        model.eval()
         dummy = torch.randn(1, 3, 224, 224)
         torch.onnx.export(
-            vision,
+            VisionProjected(model),
             dummy,
             str(MODELS_DIR / "clip_vision.onnx"),
             input_names=["pixel_values"],
