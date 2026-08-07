@@ -1,4 +1,25 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-07）：评估四色识别微服务分支合并回 master 的影响（只读分析，未改代码）
+- 刚完成的动作：git diff 分析——分支仅新增 four-color-ai/（独立服务）、four-color-ai-java/（参考工程）共 37 文件 1890 行 + .gitignore 一行；与 master 新增 3 提交（backend 识别器透视修复 642b020/12cb771、docker-compose 3f7f156）零重叠，合并无冲突；发现 four-color-ai/ 内识别器为 260fc3b 快照，落后 master 最新透视修复
+- 下一步：用户决定是否合并；若合并，建议先把 backend 最新 four_color_recognizer.py/test 同步进 four-color-ai/（保持双份一致），再做本地合并
+- 关键上下文：master HEAD=12cb771（另一会话推进中）；分支 codex/four-color-ai-microservice 基于 260fc3b
+- 正在做什么（2026-08-07）：四色识别微服务交付包已生成到 C:\Users\55061\Desktop\sisetushibie，等待用户交给公司开发
+- 刚完成的动作：从 worktree 复制 four-color-ai（含 335MB 模型资产，43 测试在交付目录复跑通过）、four-color-ai-java（22 文件）、docs（设计规格+实现计划）、新建交付 README.md（结构/快速开始/接口摘要/Java 待办/注意事项）；已排除 docker-build.log 与 __pycache__
+- 下一步：用户交付公司开发；Java 侧 mvn test 与停服/熔断演练待公司 Java 环境；收尾选项（合并/PR/保持/丢弃）仍待用户选择
+- 关键上下文：分支 codex/four-color-ai-microservice 8 提交未合并回 master；交付包为纯文件拷贝，无 .git
+- 正在做什么（2026-08-07）：四色识别微服务抽取实现完成（worktree 分支 codex/four-color-ai-microservice，8 提交），等待用户选择收尾方式
+- 刚完成的动作：
+  - 任务 0-8 全部完成：four-color-ai/ 独立服务（healthz / X-API-Key / analyze 全分支 200-400-422-500-503，43 测试通过）；Docker 镜像构建成功 + 容器 E2E 验证（zones=4、画布 800×600、0 越界点）；four-color-ai-java/ 参考工程 22 文件（pom/application.yml/Feign/ErrorDecoder/Facade 重试熔断/异步控制器/PreviewStorage + 8 个单测代码）；原系统回归 151 passed；codegraph sync 完成（435 节点）
+  - 计划偏差（已验证）：Dockerfile 改用官方 PyPI（tuna 镜像容器内不可达 Errno 101）；移除 ENV 硬编码密钥（运行时 -e 注入）；Header 鉴权用 default="" 使缺失密钥返回 401；模型 335MB 物理复制进 worktree（junction 不随 Docker build context）；子代理机制本环境不可用 → 内联执行
+- 下一步：用户选收尾方式（1 本地合并回 master【推荐】/ 2 推送建 PR / 3 保持分支 / 4 丢弃）
+- 关键上下文：分支基于 master 260fc3b；Java 侧 mvn test 与停服/熔断演练需公司 Java 环境执行（本机无 JDK）；graphify update 未跑；worktree 内 four-color-ai/models 为 gitignored 物理副本
+- 正在做什么（2026-08-07）：四色识别微服务抽取实现计划已完成并提交，等待用户选择执行方式
+- 刚完成的动作：
+  - 新建 docs/superpowers/plans/2026-08-07-four-color-ai-microservice.md（1613 行，9 任务 TDD）——任务 0 骨架复制资产（four-color-ai/）、任务 1-2 FastAPI healthz/X-API-Key/analyze 全分支（400/422/500/503）、任务 3 Dockerfile+README（含 opencv 冲突规避）、任务 4-7 Java 参考工程 four-color-ai-java/（pom/application.yml/Feign/ErrorDecoder/Facade 重试熔断/异步控制器/PreviewStorage）、任务 8 端到端+原系统回归+公司环境熔断演练清单
+  - 计划自检：规格 §1-§9 全覆盖；无占位符；类型一致性核对通过（Python monkeypatch 目标、Java 构造器/包名/字段）；补 OpenAPI /docs 说明（规格风险"双端契约漂移"）
+  - 修改前已 git save（保存点 6e752fc）；环境事实已写入计划：本机无 JDK（Java 验证标注公司环境）、backend/.venv 可验证 Python 侧（httpx 0.27.2/TestClient ok）、backend/models 资产存在
+- 下一步：用户选择执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 用 using-git-worktrees 建 worktree 开始任务 0
+- 关键上下文：规格已获用户批准（docs/superpowers/specs/2026-08-07-four-color-ai-microservice-design.md）；工作区他人改动保持原样；原系统 backend 不修改（抽取为新增目录）
 - 正在做什么（2026-08-07）：四色识别微服务抽取设计规格已写入并自检完成，等待用户审查
 - 刚完成的动作：
   - 新建 docs/superpowers/specs/2026-08-07-four-color-ai-microservice-design.md：方案 A（Python 无状态独立 FastAPI 服务 + Java Feign/Resilience4j 调用）、AI 服务接口契约（POST /api/v1/four-color/analyze，base64 入参，zones/texts/excluded/preview_png_base64 出参，坐标 0-100）、Java 调用方设计（Feign + ErrorDecoder + 超时/重试/熔断 yaml + CompletableFuture/WebClient 异步 + PreviewStorageService 存储转换）、实施清单与验收标准
@@ -60,6 +81,9 @@
 - 另一会话补记 12：「四色图干扰剔除 + OCR/CLIP + 默认画布 + 企业切换修复」已合并回 master（快进，master=9b05904）——合并结果验证：后端 153 passed、前端 tsc/vitest 全绿、E2E 16 passed；worktree .worktrees\four-color-interference-filter 与分支 codex/four-color-interference-filter 已清理（junction 先安全移除，node_modules/.venv 完好）；遗留：未推送远程、Docker 镜像未重建（部署时需重建 backend 镜像并打包 backend/models/ CLIP 资产）；graphify update 未跑
 - 另一会话补记 13：Docker 部署完成——backend 镜像已重建（master 代码 + backend/models CLIP 资产打包 + rapidocr；Dockerfile 加 opencv-python 卸载/headless 重建防双包冲突 cd505b4），容器 emergency-plan-backend 已替换为新镜像 19764c78e944；最终验证：analyze canvas=1333x1000、4 分区、CLIP/OCR 加载 True、调试数据已清理；前端 5173 容器 src 绑定挂载自动生效；遗留：未推送远程、graphify update 未跑
 - 另一会话补记 14：图例几何聚类自动剔除已停用（用户反馈密集分区图被整组误删，commit 19c445a）——移除 LEGEND_* 常量/并查集/detect_legend_clusters，图例小色块保留为普通分区由人工删除（spec 同步修订）；保留规则：极小噪点/细长线/贴边细框/疑似标记；验证：后端 151 passed，容器已重启加载生效，analyze 正常（1333x1000、4 分区）
+- 另一会话补记 15：「预览拉长仍在」根因=前端容器 Vite 崩溃——compose 设了 VITE_CACHE_DIR=/tmp/vite-cache（缓存目录在 node_modules 外），@vitejs/plugin-react 对预构建依赖的 node_modules 排除失效，react-dom chunk 被注入 react-refresh 代码，模块求值时 $RefreshSig$ 未定义 → 应用白屏；本地用同配置复现后移除该环境变量（commit 3f7f156），重建前端容器；验证：5173 真实页面应用正常启动、预览图盒 520x390=1.333 与画布/图片一致、无拉伸；后端 analyze 预览 PNG 尺寸=canvas=1333x1000 此前已验证；提醒用户硬刷新（Ctrl+F5/清站点数据）以清除 PWA service worker 旧缓存
+- 另一会话补记 16：「预览拉长」真正根因=透视校正误触发（commit 642b020）——用户 DOM 里画布与预览图尺寸一致（1416x1000），前端渲染不可能拉伸；合成复现：密集分区图里占 35% 的斜形大区域触发 warp，整图比例 1.429→1.191 被拉正变形；修复：warp 门槛收紧为"面积 ≥50% 且 bbox 覆盖 ≥75%"（只对几乎铺满画面的真纸张生效）；验证：后端 152 passed，运行环境实测斜形图 canvas=1429x1000（比例保持 1.429）、2 分区，不再变形；用户需重新上传验证（若仍异常请提供原图对比）
+- 另一会话补记 17：「预览拉长」仍存在——用户正确指出未修好；复现确认占 55%-68% 的大斜形区域即使过新门槛仍触发 warp（比例 1.429→1.451/1.49）；根治：**默认关闭自动透视校正**（commit 12cb771）——电子图与拍照纸张在几何上无法可靠区分，关闭后预览永远保持原图比例，照片仍可识别（区域在原图坐标系上，不做自动拉正）；运行环境实测 68% 斜形图 canvas=1429x1000（比例 1.429 保持）、2 分区；后端 152 passed
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
