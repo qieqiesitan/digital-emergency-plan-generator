@@ -157,34 +157,34 @@ def test_detect_perspective_quad_returns_none_for_full_image():
 
 
 def test_detect_perspective_quad_finds_tilted_paper():
-    """倾斜的照片纸面（旋转 12°）应被识别为需要校正的四边形。"""
+    """倾斜的照片纸面（旋转 12°、铺满画面大半）应被识别为需要校正的四边形。"""
     img = _bgr_img(500, 400)
-    pts = _rotated_rect_quad(250, 200, 380, 260, 12)
+    pts = _rotated_rect_quad(250, 200, 420, 330, 12)
     cv2.fillPoly(img, [pts.astype(np.int32)], (0, 0, 0))
     quad, warning = detect_perspective_quad(img)
     assert quad is not None and len(quad) == 4
     assert warning is None
 
 
-def test_detect_perspective_quad_skips_extreme_aspect_region():
-    """内部竖向斜条带（宽高比与整图差异过大）不应触发校正，且给出提示。"""
-    img = _bgr_img(1200, 900)
-    cv2.fillPoly(img, [np.array([[60, 40], [360, 40], [300, 860], [60, 860]], np.int32)], (0, 0, 0))
+def test_detect_perspective_quad_skips_internal_slanted_zone():
+    """内部斜形大区域（面积不足一半）不应被当成纸张触发校正。"""
+    img = _bgr_img(2000, 1400)
+    cv2.fillPoly(img, [np.array([[100, 100], [1300, 200], [1150, 1200], [100, 1100]], np.int32)], (0, 0, 0))
     quad, warning = detect_perspective_quad(img)
     assert quad is None
-    assert warning is not None and "透视校正" in warning
+    assert warning is None
 
 
 def test_warp_perspective_makes_tilted_quad_full_frame():
     img = _bgr_img(500, 400)
-    pts = _rotated_rect_quad(250, 200, 380, 260, 12)
+    pts = _rotated_rect_quad(250, 200, 420, 330, 12)
     cv2.fillPoly(img, [pts.astype(np.int32)], (0, 0, 0))
     quad, _ = detect_perspective_quad(img)
     assert quad is not None
     warped = warp_perspective(img, quad)
-    # 校正后纸面接近整图尺寸（380x260 旋转四边形）
-    assert 240 <= warped.shape[0] <= 290
-    assert 360 <= warped.shape[1] <= 410
+    # 校正后纸面接近整图尺寸（420x330 旋转四边形）
+    assert 300 <= warped.shape[0] <= 360
+    assert 400 <= warped.shape[1] <= 450
     # 校正后检测器应认为"四边形即整图"（占比 >95%）→ 返回 None
     quad2, _ = detect_perspective_quad(warped)
     assert quad2 is None
@@ -453,3 +453,14 @@ def test_recognize_returns_processed_image():
     assert result.processed_image is not None
     assert result.processed_image.shape[1] == result.width
     assert result.processed_image.shape[0] == result.height
+
+
+def test_recognize_keeps_aspect_for_slanted_dominant_zone():
+    """带斜形大区域的密集图不再被透视校正扭曲：画布比例保持原图。"""
+    img = Image.new("RGB", (2000, 1400), "white")
+    d = ImageDraw.Draw(img)
+    d.polygon([(100, 100), (1300, 200), (1150, 1200), (100, 1100)], fill=(255, 0, 0))
+    d.rectangle([1400, 100, 1900, 300], fill=(0, 0, 255))
+    result = recognize_from_bytes(_png_bytes(img))
+    assert abs(result.width / result.height - 2000 / 1400) < 0.01
+    assert len(result.zones) >= 2

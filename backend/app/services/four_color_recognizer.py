@@ -259,13 +259,19 @@ def detect_perspective_quad(img: np.ndarray) -> tuple[np.ndarray | None, str | N
         return None, None
     cnt = max(contours, key=cv2.contourArea)
     area_ratio = cv2.contourArea(cnt) / (w * h)
-    if area_ratio < 0.2 or area_ratio > 0.95:
+    # 只对"几乎铺满画面"的四边形做透视校正：内部斜形区域面积通常不足一半
+    if area_ratio < 0.5 or area_ratio > 0.95:
         return None, None
     peri = cv2.arcLength(cnt, True)
     approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
     if len(approx) != 4:
         return None, "检测到疑似纸张边缘但无法校正透视，请尽量上传正拍图"
     quad = approx.reshape(4, 2).astype(np.float32)
+    # 纸张边缘应横跨大部分画面；内部区域 bbox 覆盖不足
+    xs = quad[:, 0]
+    ys = quad[:, 1]
+    if (xs.max() - xs.min()) / w < 0.75 or (ys.max() - ys.min()) / h < 0.75:
+        return None, None
     # 电子图自带的框/区域通常与图像轴对齐：倾斜过小则不需要透视校正
     if _quad_max_tilt_deg(quad) <= MAX_TILT_DEG:
         return None, None
