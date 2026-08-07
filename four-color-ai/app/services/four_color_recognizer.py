@@ -259,13 +259,19 @@ def detect_perspective_quad(img: np.ndarray) -> tuple[np.ndarray | None, str | N
         return None, None
     cnt = max(contours, key=cv2.contourArea)
     area_ratio = cv2.contourArea(cnt) / (w * h)
-    if area_ratio < 0.2 or area_ratio > 0.95:
+    # 只对"几乎铺满画面"的四边形做透视校正：内部斜形区域面积通常不足一半
+    if area_ratio < 0.5 or area_ratio > 0.95:
         return None, None
     peri = cv2.arcLength(cnt, True)
     approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
     if len(approx) != 4:
         return None, "检测到疑似纸张边缘但无法校正透视，请尽量上传正拍图"
     quad = approx.reshape(4, 2).astype(np.float32)
+    # 纸张边缘应横跨大部分画面；内部区域 bbox 覆盖不足
+    xs = quad[:, 0]
+    ys = quad[:, 1]
+    if (xs.max() - xs.min()) / w < 0.75 or (ys.max() - ys.min()) / h < 0.75:
+        return None, None
     # 电子图自带的框/区域通常与图像轴对齐：倾斜过小则不需要透视校正
     if _quad_max_tilt_deg(quad) <= MAX_TILT_DEG:
         return None, None
@@ -311,12 +317,9 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     height, width = bgr.shape[:2]
     warnings: list[str] = []
-    quad, quad_warning = detect_perspective_quad(bgr)
-    if quad is not None:
-        bgr = warp_perspective(bgr, quad)
-        height, width = bgr.shape[:2]
-    if quad_warning:
-        warnings.append(quad_warning)
+    # 透视校正默认关闭：电子四色图中大面积斜形区域会触发误校正，导致整图变形
+    # （面积/倾斜/宽高比启发式无法可靠区分"内部斜形区域"与"拍照纸张边缘"）。
+    # 拍照件仍可正常识别（区域落在原图坐标系上）；如需自动拉正，后续作为可选功能开启。
     masks = classify_pixels(bgr)
     diag = math.hypot(width, height)
     min_area = MIN_AREA_RATIO * width * height
