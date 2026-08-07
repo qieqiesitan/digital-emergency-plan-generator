@@ -14,7 +14,6 @@ from app.services.four_color_recognizer import (
     classify_pixels,
     clean_mask,
     classify_interference,
-    detect_legend_clusters,
     detect_perspective_quad,
     fit_canvas,
     mask_to_polygons,
@@ -298,35 +297,6 @@ def _comp(color, x0, y0, x1, y1, area=None):
     )
 
 
-def test_detect_legend_clusters_marks_three_color_cluster():
-    comps = [
-        _comp("红", 1000, 50, 1030, 80, area=900),
-        _comp("橙", 1040, 50, 1070, 80, area=900),
-        _comp("黄", 1000, 90, 1030, 120, area=900),
-        _comp("蓝", 1040, 90, 1070, 120, area=900),
-    ]
-    excluded = detect_legend_clusters(comps, 1200, 900)
-    assert excluded == {0, 1, 2, 3}
-
-
-def test_detect_legend_clusters_ignores_isolated_zone():
-    comps = [
-        _comp("红", 80, 80, 700, 500, area=620 * 420),
-        _comp("蓝", 750, 80, 1120, 500, area=370 * 420),
-    ]
-    excluded = detect_legend_clusters(comps, 1200, 900)
-    assert excluded == set()
-
-
-def test_detect_legend_clusters_requires_three_colors():
-    comps = [
-        _comp("红", 1000, 50, 1030, 80, area=900),
-        _comp("橙", 1040, 50, 1070, 80, area=900),
-    ]
-    excluded = detect_legend_clusters(comps, 1200, 900)
-    assert excluded == set()
-
-
 def test_classify_interference_marks_tiny_thin_and_border_frame():
     comps = [
         _comp("红", 0, 0, 30, 30, area=40),             # 极小噪点（<54）
@@ -378,13 +348,12 @@ def _legend_map():
     return img
 
 
-def test_recognize_excludes_legend_and_keeps_zones():
+def test_recognize_keeps_legend_swatches_as_zones():
+    """图例小色块不再被几何聚类剔除：四分区 + 四图例块全部保留。"""
     result = recognize_from_bytes(_png_bytes(_legend_map()))
     assert (result.width, result.height) == (1200, 900)
-    assert len(result.zones) == 4
-    reasons = {e["reason"] for e in result.excluded}
-    assert reasons == {"legend"}
-    assert len(result.excluded) == 4
+    assert len(result.zones) == 8
+    assert result.excluded == []
 
 
 def test_recognize_marks_suspected_odd_shape():
