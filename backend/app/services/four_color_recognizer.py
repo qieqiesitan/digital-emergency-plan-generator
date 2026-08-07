@@ -26,6 +26,8 @@ MIN_AREA_RATIO = 5e-5
 EPSILON_RATIO = 0.0025
 MAX_POLYGON_POINTS = 128
 MAX_ZONES = 200
+MAX_TILT_DEG = 2.0
+MAX_ASPECT_CHANGE = 2.0
 COLOR_HEX_BY_LEVEL = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a"}
 
 
@@ -103,14 +105,41 @@ def _kernel_size(width: int, height: int) -> int:
 
 
 def _order_points(pts: np.ndarray) -> np.ndarray:
-    ordered = np.zeros((4, 2), dtype=np.float32)
+    """把任意凸四边形四点排序为 TL, TR, BR, BL（对旋转/倾斜形状稳健）。"""
+    pts = np.asarray(pts, dtype=np.float32).reshape(4, 2)
     s = pts.sum(axis=1)
-    ordered[0] = pts[np.argmin(s)]     # 左上
-    ordered[2] = pts[np.argmax(s)]     # 右下
-    diff = np.diff(pts, axis=1).ravel()
-    ordered[1] = pts[np.argmin(diff)]  # 右上
-    ordered[3] = pts[np.argmax(diff)]  # 左下
-    return ordered
+    tl_i = int(np.argmin(s))
+    br_i = int(np.argmax(s))
+    others = [i for i in range(4) if i not in (tl_i, br_i)]
+    a, b = others
+    if pts[a, 1] <= pts[b, 1]:
+        tr_i, bl_i = a, b
+    else:
+        tr_i, bl_i = b, a
+    return np.array([pts[tl_i], pts[tr_i], pts[br_i], pts[bl_i]], dtype=np.float32)
+
+
+def _quad_max_tilt_deg(quad: np.ndarray) -> float:
+    """四边形四条边相对水平/垂直轴的最大夹角（度）。轴对齐矩形为 0。"""
+    tl, tr, br, bl = _order_points(quad)
+    edges = [tr - tl, br - tr, bl - br, tl - bl]
+    max_tilt = 0.0
+    for e in edges:
+        angle = abs(math.degrees(math.atan2(abs(float(e[1])), abs(float(e[0])))))
+        tilt = min(angle, 90.0 - angle)
+        max_tilt = max(max_tilt, tilt)
+    return max_tilt
+
+
+def _warp_aspect_change(img: np.ndarray, quad: np.ndarray) -> float:
+    """校正前后宽高比的最大变化倍数（≥1）。"""
+    tl, tr, br, bl = _order_points(quad)
+    quad_w = max(float(np.linalg.norm(tr - tl)), float(np.linalg.norm(br - bl)))
+    quad_h = max(float(np.linalg.norm(bl - tl)), float(np.linalg.norm(br - tr)))
+    img_h, img_w = img.shape[:2]
+    orig_aspect = img_w / img_h
+    quad_aspect = quad_w / quad_h
+    return max(orig_aspect / quad_aspect, quad_aspect / orig_aspect)
 
 
 def detect_perspective_quad(img: np.ndarray) -> tuple[np.ndarray | None, str | None]:
@@ -130,7 +159,14 @@ def detect_perspective_quad(img: np.ndarray) -> tuple[np.ndarray | None, str | N
     approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
     if len(approx) != 4:
         return None, "检测到疑似纸张边缘但无法校正透视，请尽量上传正拍图"
-    return approx.reshape(4, 2).astype(np.float32), None
+    quad = approx.reshape(4, 2).astype(np.float32)
+    # 电子图自带的框/区域通常与图像轴对齐：倾斜过小则不需要透视校正
+    if _quad_max_tilt_deg(quad) <= MAX_TILT_DEG:
+        return None, None
+    # 校正前后宽高比变化过大 → 更可能是内部区域而非纸张边缘
+    if _warp_aspect_change(img, quad) > MAX_ASPECT_CHANGE:
+        return None, "疑似检测到内部区域而非纸张边缘，已跳过透视校正"
+    return quad, None
 
 
 def warp_perspective(img: np.ndarray, quad: np.ndarray) -> np.ndarray:

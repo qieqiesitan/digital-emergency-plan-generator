@@ -8,6 +8,7 @@
   - 已提交 f205ea2 fix(risk-management): keep backend bootable without cv2；同时发现并保留另一会话的 Dockerfile 镜像/超时提交 7f286d6、7c75c3d
 - 下一步：用户重新生成 e5708dad 预案验证；如需四色识别，重建 backend 镜像（requirements.txt 已含 opencv-python-headless）
 - 关键上下文：master HEAD=f205ea2，origin/master 落后 219；backend 容器 emergency-plan-backend 已重启运行；e5708dad 状态仍为 generating，属中断残留
+- 另一会话补记：四色图上传 405 已修复——重建 2-backend 镜像（含 opencv，清华 pip 镜像 + 超时配置）并 docker compose up -d backend；端到端验证 analyze 4 分区/commit 落库成功；四色识别现已可用
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 

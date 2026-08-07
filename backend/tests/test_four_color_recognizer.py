@@ -50,6 +50,29 @@ def _four_rect_rgb(width=600, height=450):
     return img
 
 
+def _rotated_rect_quad(cx, cy, w, h, deg):
+    """围绕中心旋转 deg 度的矩形四点（float32）。"""
+    ang = np.radians(deg)
+    c, s = np.cos(ang), np.sin(ang)
+    corners = np.array(
+        [[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2]],
+        dtype=np.float32,
+    )
+    rot = np.array([[c, -s], [s, c]], dtype=np.float32)
+    return (corners - np.array([cx, cy], dtype=np.float32)) @ rot.T + np.array([cx, cy], dtype=np.float32)
+
+
+def _clean_map_with_dominant_rect():
+    """1200x900 干净电子图：红色方形区域占面积 24%（轴对齐），不应触发透视校正。"""
+    img = Image.new("RGB", (1200, 900), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([80, 80, 700, 500], fill=(255, 0, 0))
+    d.rectangle([750, 80, 1120, 500], fill=(0, 0, 255))
+    d.rectangle([80, 560, 700, 840], fill=(255, 127, 0))
+    d.rectangle([750, 560, 1120, 840], fill=(255, 255, 0))
+    return img
+
+
 def test_classify_pixels_assigns_each_palette_color():
     img = _bgr_img()
     for i, name in enumerate(PALETTE_BGR):
@@ -112,11 +135,12 @@ def test_normalize_points_clamps_and_rounds():
     assert out == [{"x": 0.0, "y": 55.0}, {"x": 100.0, "y": 33.33}, {"x": 25.0, "y": 0.0}]
 
 
-def test_detect_perspective_quad_finds_inset_border():
+def test_detect_perspective_quad_skips_axis_aligned_frame():
+    """电子图自带的轴对齐边框/区域不应被当成纸张做透视校正。"""
     img = _bgr_img(400, 500)
-    img[50:350, 50:450] = 0  # 深色边框围出的"纸面"
+    img[50:350, 50:450] = 0  # 轴对齐矩形
     quad, warning = detect_perspective_quad(img)
-    assert quad is not None and len(quad) == 4
+    assert quad is None
     assert warning is None
 
 
@@ -127,19 +151,78 @@ def test_detect_perspective_quad_returns_none_for_full_image():
     assert warning is None
 
 
-def test_warp_perspective_makes_quad_full_frame():
-    img = _bgr_img(400, 500)
-    img[50:350, 50:450] = 0
+def test_detect_perspective_quad_finds_tilted_paper():
+    """倾斜的照片纸面（旋转 12°）应被识别为需要校正的四边形。"""
+    img = _bgr_img(500, 400)
+    pts = _rotated_rect_quad(250, 200, 380, 260, 12)
+    cv2.fillPoly(img, [pts.astype(np.int32)], (0, 0, 0))
+    quad, warning = detect_perspective_quad(img)
+    assert quad is not None and len(quad) == 4
+    assert warning is None
+
+
+def test_detect_perspective_quad_skips_extreme_aspect_region():
+    """内部竖向斜条带（宽高比与整图差异过大）不应触发校正，且给出提示。"""
+    img = _bgr_img(1200, 900)
+    cv2.fillPoly(img, [np.array([[60, 40], [360, 40], [300, 860], [60, 860]], np.int32)], (0, 0, 0))
+    quad, warning = detect_perspective_quad(img)
+    assert quad is None
+    assert warning is not None and "透视校正" in warning
+
+
+def test_warp_perspective_makes_tilted_quad_full_frame():
+    img = _bgr_img(500, 400)
+    pts = _rotated_rect_quad(250, 200, 380, 260, 12)
+    cv2.fillPoly(img, [pts.astype(np.int32)], (0, 0, 0))
     quad, _ = detect_perspective_quad(img)
     assert quad is not None
     warped = warp_perspective(img, quad)
-    # 四边形轮廓 0-indexed 尺寸 299x349（测试图宽 400，黑色矩形 [50:450] 被钳制到 399）→ 校正后整图即纸面
-    assert warped.shape[0] == 299 and warped.shape[1] == 349
+    # 校正后纸面接近整图尺寸（380x260 旋转四边形）
+    assert 240 <= warped.shape[0] <= 290
+    assert 360 <= warped.shape[1] <= 410
     # 校正后检测器应认为"四边形即整图"（占比 >95%）→ 返回 None
     quad2, _ = detect_perspective_quad(warped)
     assert quad2 is None
     # 纸面内容占满全图：中心像素为黑
-    assert warped[150, 175].mean() < 128
+    assert warped[warped.shape[0] // 2, warped.shape[1] // 2].mean() < 128
+
+
+def test_recognize_from_bytes_keeps_clean_map_aspect():
+    """干净电子图：即使存在占 24% 面积的轴对齐区域，也不做透视校正，四分区位置保真。"""
+    img = _clean_map_with_dominant_rect()
+    result = recognize_from_bytes(_png_bytes(img))
+    assert (result.width, result.height) == (1200, 900)
+    assert len(result.zones) == 4
+    red = next(z for z in result.zones if z["risk_level"] == "重大")
+    xs = [p["x"] for p in red["polygons"][0]["points"]]
+    ys = [p["y"] for p in red["polygons"][0]["points"]]
+    # 红色矩形 [80,80]-[700,500] 归一化 bbox ≈ x:6.67-58.33, y:8.89-55.56
+    assert abs(min(xs) - 80 / 1200 * 100) < 2
+    assert abs(max(xs) - 700 / 1200 * 100) < 2
+    assert abs(min(ys) - 80 / 900 * 100) < 2
+    assert abs(max(ys) - 500 / 900 * 100) < 2
+
+
+def test_recognize_from_bytes_skips_warp_with_tall_legend():
+    """带竖向长图例的干净电子图：整图尺寸不变，四分区全部识别。"""
+    img = _clean_map_with_dominant_rect()
+    d = ImageDraw.Draw(img)
+    d.rectangle([1140, 100, 1190, 860], fill=(0, 0, 0))  # 窄高图例
+    result = recognize_from_bytes(_png_bytes(img))
+    assert (result.width, result.height) == (1200, 900)
+    assert len(result.zones) == 4
+
+
+def test_recognize_from_bytes_skips_warp_for_slanted_internal_region():
+    """内部斜梯形区域不再触发整图校正：三个分区全部保留。"""
+    img = Image.new("RGB", (1200, 900), "white")
+    d = ImageDraw.Draw(img)
+    d.polygon([(60, 40), (360, 40), (300, 860), (60, 860)], fill=(255, 0, 0))
+    d.rectangle([420, 80, 1120, 500], fill=(0, 0, 255))
+    d.rectangle([420, 560, 1120, 840], fill=(255, 255, 0))
+    result = recognize_from_bytes(_png_bytes(img))
+    assert (result.width, result.height) == (1200, 900)
+    assert len(result.zones) == 3
 
 
 def test_recognize_from_bytes_returns_four_zones():
