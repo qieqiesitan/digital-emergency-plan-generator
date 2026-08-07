@@ -1,4 +1,31 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-07）：讨论「四色分布图识别模块独立成微服务、供公司内系统调用」可行性（仅讨论+交付参考代码，未改代码）
+- 刚完成的动作：
+  - 读取 TASKS.md + 定位模块现状：backend/app/services/four_color_recognizer.py（OpenCV 颜色分割/形态学/轮廓/透视校正/干扰过滤管线）、backend/app/services/vision_helpers.py（RapidOCR + CLIP ONNX 视觉辅助）、backend/app/routers/risk_management.py POST /floors/{id}/four-color/analyze（当前路由内含临时文件存储 save_four_color_temp 与 DB 落库，非纯识别边界）、backend/app/schemas/risk_management.py FourColorAnalyzeResponse 契约（zones/texts/excluded/warnings/canvas 尺寸）
+  - 确认仓库无 Java/SpringCloud 工程（当前为 FastAPI + React）；HEAD=19c445a，工作区他人改动（TASKS.md/chroma.sqlite3/backend/uploads/enterprises/）保持原样
+- 下一步：向用户交付结论——可行且推荐保留 Python 做独立 AI 推理服务（方案 A），Java 端给 Feign Client + Resilience4j（超时/重试/熔断）+ WebClient/CompletableFuture 异步参考代码；接口文档按 analyze 契约给出（图片入 → zones/texts/excluded/warnings/preview 出，坐标 0-100）；等待用户决定是否落地（新建独立服务工程 / 写设计规格 docs/superpowers/specs/）
+- 关键上下文：抽取边界关键点=AI 服务保持无状态（不碰 DB/文件存储/业务鉴权），存储与落库留在 Java 侧；识别耗时秒级，同步 + 超时熔断足够，无需任务队列；仅讨论未写代码
+- 正在做什么（2026-08-07）：四色分布图导入 analyze 500 已定位并修复，等待提交
+- 刚完成的动作：
+  - 根因：recognize_from_bytes 的 texts（RapidOCR 文字框）返回原始像素坐标，而 FourColorTextItem.points（RiskPolygonPoint）要求 0-100 归一化 → Pydantic 校验失败 → 500；前端 FourColorImportModal.tsx 又按像素坐标除 canvas 换算，与 schema/规格（docs/superpowers/specs/2026-08-07-four-color-interference-filter-design.md 第 128 行）双重不一致
+  - 修复（TDD 先红后绿）：backend/app/services/four_color_recognizer.py 在管线输出前用 normalize_points 将 texts 坐标归一化（建议名匹配仍用原始像素）；frontend/src/components/enterprise/riskMapping/FourColorImportModal.tsx 文字叠显直接使用 0-100 坐标；新增 backend/tests/test_four_color_recognizer.py::test_recognize_normalizes_ocr_text_points
+  - 验证：后端全量 154 passed（含新测试）；前端 tsc + vitest 48 passed；E2E four-color-import 3 passed；真实 HTTP 复验 analyze 200（27 分区/68 文字/0 越界点/建议名正常）；已 docker restart emergency-plan-backend 加载修复
+- 下一步：提交修复（fix(risk-management): normalize OCR text coordinates…）
+- 关键上下文：master HEAD=cd505b4；工作区他人改动（TASKS.md、chroma.sqlite3、backend/uploads/enterprises/）保持原样；容器 4 worker 不热加载，改代码后需 docker restart
+- 正在做什么（2026-08-07）：「AI 助手升级强化」头脑风暴进行中（用户提出开放式需求，方向未定）
+- 刚完成的动作：
+  - 读取 TASKS.md 快照 + 项目结构；定位 AI 助手现状实现：
+    - backend/app/routers/chat.py：SSE 流式 + function calling（约 30 个工具：仪表盘/企业 CRUD/风险源/应急资源/预案/评估报告/调查报告/法规检索/法规条文语义检索/导出 Word/生成图文报告/后台生成预案内容）+ 对话持久化 + 法规引用规则系统提示词
+    - backend/app/services/chat_dispatch.py：全覆盖系统 API 操作函数分发（通用 CRUD 基础设施 + ENTITY_REGISTRY）
+    - backend/app/services/llm_client.py：统一 LLM 客户端（OpenAI/通义/DeepSeek，AES 加密 Key，流式/非流式）
+    - 前端：frontend/src/components/common/FloatingChat.tsx（浮动入口）+ frontend/src/pages/Chat/index.tsx + ChatDrawerContext
+    - 相关资产：法规库知识图谱/向量检索、四色图 OCR/CLIP 视觉、风险分级管控、预案生成引擎
+- 下一步：与用户澄清升级方向（能力延伸 / 智能增强 / 体验与可靠性），按 brainstorming 流程每次一个问题
+- 关键上下文：master HEAD=9b05904；工作区有他人改动（TASKS.md 快照、chroma.sqlite3、backend/uploads/enterprises/ 未跟踪）保持原样不触碰；本次仅讨论，未改代码
+- 正在做什么（2026-08-07，会话启动）：已读取 TASKS.md 快照，等待用户下达任务
+- 刚完成的动作：无（仅读取 TASKS.md + git status 确认工作区状态）
+- 下一步：等待用户指令；候选待办为「四色图干扰项自动剔除」执行方式选择（子代理驱动/内联），或用户新需求
+- 关键上下文：master HEAD=d20f122（四色图干扰过滤实现计划已提交）；工作区有他人改动（TASKS.md 快照、chroma.sqlite3、backend/uploads/enterprises/ 未跟踪）保持原样不触碰；风险分级管控分支 codex/risk-management-only 已完成至 acca801
 - 正在做什么（2026-08-06）：预案生成未使用风险分级管控数据已完成定位和修复
 - 刚完成的动作：
   - 根因 1：本地 Docker DB 未执行 backend/db_migration_risk_source_consolidation.sql，risk_objects 缺 legacy_source_id，新 build_risk_management_context 查询报 UndefinedColumnError；已通过 docker exec 执行迁移并验证加列/索引
@@ -9,6 +36,19 @@
 - 下一步：用户重新生成 e5708dad 预案验证；如需四色识别，重建 backend 镜像（requirements.txt 已含 opencv-python-headless）
 - 关键上下文：master HEAD=f205ea2，origin/master 落后 219；backend 容器 emergency-plan-backend 已重启运行；e5708dad 状态仍为 generating，属中断残留
 - 另一会话补记：四色图上传 405 已修复——重建 2-backend 镜像（含 opencv，清华 pip 镜像 + 超时配置）并 docker compose up -d backend；端到端验证 analyze 4 分区/commit 落库成功；四色识别现已可用
+- 另一会话补记 2：识别还原度问题已修复（commit 7e109ab）——根因：透视校正误触发（干净电子图上任意占面积 0.2-0.95 的四顶点彩色区域被当"纸张"整图 warp，导致竖向拉伸/平行四边形）；修复：轴对齐四边形跳过校正 + 宽高比变化 >2 倍跳过 + 顶点排序改质心稳健版；验证：容器内 pytest 20 passed（识别器）+ 全量 127 passed；端到端 API 三场景（普通/竖图例/斜区域）canvas 均保持 1200x900、分区数正确；后端容器已 restart 生效；注意：主检出 backend/.venv 缺 pip/numpy（疑另一会话重建导致），跑本地测试需重建 venv
+- 另一会话补记 3：头脑风暴「四色图干扰项自动剔除」进行中——已确认：干扰类型 D（图例/文字线条/背景网格/大面积 Logo 都有）、不用视觉模型、保守优先 A（高置信自动剔除 + 低置信保留并标记"疑似干扰"，预览可恢复）；视觉伴侣已起（自定义静态服务器 62356，内容在 .superpowers/brainstorm/companion/，原 brainstorm server 启动脚本在 Windows 后台模式不可用）；下一步：方案对比（管线内过滤层【推荐】/ 后处理过滤器 / 交互式框选排除）
+- 另一会话补记 4：「四色图干扰项自动剔除」设计规格已完成并提交（5ccb962，docs/superpowers/specs/2026-08-07-four-color-interference-filter-design.md）——方案 1 管线内过滤层：图例簇/细长线/贴边细框/极小噪点自动排除 + 大面积异常形状保留并标记 suspected；analyze 响应新增 excluded、分区新增 suspected；预览加"已自动排除（可恢复）"折叠区与"疑似干扰"标签；commit 契约不变；自检通过；等待用户审查规格 → 批准后 writing-plans
+- 另一会话补记 5：规格已并入 OCR + 零样本 CLIP 增强并重新提交（c8147e3）——RapidOCR 读文字做分区建议名/图例佐证/文字干扰提示；mobileCLIP 对疑似色块输出 ai_hint（仅提示不自动删）；依赖 rapidocr_onnxruntime、CLIP ONNX 资产构建期打包（拿不到则降级）；analyze 新增 texts、分区新增 suggested_name/ai_hint；等待用户审查规格 → 批准后 writing-plans
+- 另一会话补记 6：实现计划已完成并提交（d20f122，docs/superpowers/plans/2026-08-07-four-color-interference-filter.md，1414 行，11 任务 TDD，自检通过）——任务 0 依赖/venv 重建、1-2 过滤规则、3 管线集成、4-5 vision_helpers（OCR/CLIP + 资产脚本）、6 辅助接入、7 schema、8-9 前端、10 E2E、11 收尾；CLIP 资产构建期风险已设计降级；等待用户选择执行方式（1 子代理驱动【推荐，注意子代理此前环境不可用】/ 2 内联执行）
+- 另一会话补记 7：「四色图干扰项自动剔除 + OCR/CLIP 辅助」已实现完成——worktree：C:\Users\55061\Documents\数字化预案自动生成 2\.worktrees\four-color-interference-filter，分支 codex/four-color-interference-filter（HEAD=b6782fb，12 个提交，基于 master d20f122）；子代理确认不可用（消息无法投递）→ 内联执行；验证：后端 147 passed、前端 tsc/vitest 48 passed、E2E four-color 3 + workbench 12 = 15 passed；新增：过滤层（图例簇/细长线/贴边细框/极小噪点 + suspected）、vision_helpers（RapidOCR + CLIP 降级）、scripts/prepare_clip_assets.py（未执行，缺失降级）、schema excluded/texts/suspected/suggested_name/ai_hint、前端排除列表恢复/疑似 Tag/建议名预填/文字叠显、E2E 3 用例；主检出 backend/.venv 已重建（含 rapidocr，cv2 4.14）；等待用户选择收尾方式（本地合并回 master / 推送建 PR / 保持分支 / 丢弃）；Docker 镜像未重建（需部署时再构建）
+- 另一会话补记 8：CLIP 资产已准备完成（用户下载 torch-2.13.0+cpu wheel）——backend/models/clip_vision.onnx + clip_prompts.npz 已生成（fp32 351MB，gitignore 已加 backend/models/）；脚本修复 transformers 5.x API/padding/GBK 编码（f7016c6）；真实推理验证通过（0.03-0.7s，ai_hint 链路可用）；torch/transformers 仅生成用
+- 另一会话补记 9：修复"企业切换工作台串台"（d4f60f5）——根因：模块级 Zustand store 切换企业不重置，B 企业请求带着 A 的楼层 id → 后端 404 → 一直显示 A 数据；楼层选择器无匹配项时显示原始 UUID；修复：页面按 enterpriseId 重置 store；新增 E2E enterprise-switch.spec.ts（SPA popstate 导航复现，无修复时红灯、有修复时绿灯）；验证 vitest 48 + E2E 16 passed
+- 另一会话补记 10：待用户确认「默认画布尺寸」设计——等比缩放 fit 到默认画框（推荐 1600×1000 或 1200×900），小图也放大；预览拉长根因已定位（预览显示原始图 vs 画布基于处理图，宽高比不一致时拉伸），统一方案=预览与落图共用处理后缩放图
+- 另一会话补记 11：默认画布方案已实现（用户确认 A=1600×1000、小图放大，commit 0736656）——fit_canvas 等比缩放 + build_output_image 生成缩放 PNG；analyze 保存处理图作为预览/落图底图，canvas 用缩放尺寸（600×450→1333×1000）；预览拉长问题随之解决；企业切换串台修复 d4f60f5 + E2E enterprise-switch.spec.ts；验证：后端 153 passed、前端 tsc/vitest 全绿、E2E 16 passed；分支 HEAD=9b05904
+- 另一会话补记 12：「四色图干扰剔除 + OCR/CLIP + 默认画布 + 企业切换修复」已合并回 master（快进，master=9b05904）——合并结果验证：后端 153 passed、前端 tsc/vitest 全绿、E2E 16 passed；worktree .worktrees\four-color-interference-filter 与分支 codex/four-color-interference-filter 已清理（junction 先安全移除，node_modules/.venv 完好）；遗留：未推送远程、Docker 镜像未重建（部署时需重建 backend 镜像并打包 backend/models/ CLIP 资产）；graphify update 未跑
+- 另一会话补记 13：Docker 部署完成——backend 镜像已重建（master 代码 + backend/models CLIP 资产打包 + rapidocr；Dockerfile 加 opencv-python 卸载/headless 重建防双包冲突 cd505b4），容器 emergency-plan-backend 已替换为新镜像 19764c78e944；最终验证：analyze canvas=1333x1000、4 分区、CLIP/OCR 加载 True、调试数据已清理；前端 5173 容器 src 绑定挂载自动生效；遗留：未推送远程、graphify update 未跑
+- 另一会话补记 14：图例几何聚类自动剔除已停用（用户反馈密集分区图被整组误删，commit 19c445a）——移除 LEGEND_* 常量/并查集/detect_legend_clusters，图例小色块保留为普通分区由人工删除（spec 同步修订）；保留规则：极小噪点/细长线/贴边细框/疑似标记；验证：后端 151 passed，容器已重启加载生效，analyze 正常（1333x1000、4 分区）
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
