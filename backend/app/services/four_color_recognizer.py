@@ -303,10 +303,12 @@ class RecognizeResult:
     warnings: list[str]
     width: int
     height: int
+    excluded: list[dict] = field(default_factory=list)
+    texts: list[dict] = field(default_factory=list)
 
 
-def recognize_from_bytes(data: bytes) -> RecognizeResult:
-    """识别管线入口：解码 → 透视校正 → 分类 → 清理 → 轮廓 → 归一化。"""
+def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
+    """识别管线入口：解码 → 透视校正（保守门控）→ 分类 → 清理 → 轮廓 → 干扰过滤 → 分区。"""
     _require_cv2()
     img = Image.open(io.BytesIO(data))
     img = ImageOps.exif_transpose(img)
@@ -325,30 +327,57 @@ def recognize_from_bytes(data: bytes) -> RecognizeResult:
     min_area = MIN_AREA_RATIO * width * height
     epsilon = EPSILON_RATIO * diag
     kernel_size = _kernel_size(width, height)
-    zones: list[dict] = []
-    seq = 0
-    capped = False
+    components: list[ComponentInfo] = []
     for name in ("红", "橙", "黄", "蓝"):
         mask = clean_mask(masks[name], kernel_size)
         polys = mask_to_polygons(mask, width, height, min_area, epsilon)
         for poly in polys:
-            if len(zones) >= MAX_ZONES:
-                if not capped:
-                    warnings.append("识别区域过多，已保留前 200 个")
-                    capped = True
-                break
-            seq += 1
-            zones.append({
-                "client_id": f"draft-{uuid4().hex}",
-                "name": f"分区{seq}",
-                "risk_level": LEVEL_BY_COLOR[name],
-                "color": COLOR_HEX_BY_LEVEL[LEVEL_BY_COLOR[name]],
-                "polygons": [{
-                    "id": f"poly-{uuid4().hex}",
-                    "label": None,
-                    "points": normalize_points(poly, width, height),
-                }],
-            })
+            xs = poly[:, 0]
+            ys = poly[:, 1]
+            components.append(ComponentInfo(
+                color=name,
+                points=poly,
+                area=float(cv2.contourArea(poly.astype(np.float32))),
+                bbox=(int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())),
+            ))
+    filtered = classify_interference(components, width, height)
+    kept_ids = {id(c) for c in filtered.kept}
+    suspected_ids = {id(c) for c in filtered.suspected}
+    zones: list[dict] = []
+    seq = 0
+    for c in components:
+        if id(c) not in kept_ids and id(c) not in suspected_ids:
+            continue
         if len(zones) >= MAX_ZONES:
+            if "识别区域过多" not in warnings:
+                warnings.append("识别区域过多，已保留前 200 个")
             break
-    return RecognizeResult(zones=zones, warnings=warnings, width=width, height=height)
+        seq += 1
+        zones.append({
+            "client_id": f"draft-{uuid4().hex}",
+            "name": f"分区{seq}",
+            "risk_level": LEVEL_BY_COLOR[c.color],
+            "color": COLOR_HEX_BY_LEVEL[LEVEL_BY_COLOR[c.color]],
+            "suspected": id(c) in suspected_ids,
+            "polygons": [{
+                "id": f"poly-{uuid4().hex}",
+                "label": None,
+                "points": normalize_points(c.points, width, height),
+            }],
+        })
+    excluded_items = [{
+        "color": c.color,
+        "reason": reason,
+        "polygons": [{
+            "id": f"poly-{uuid4().hex}",
+            "label": None,
+            "points": normalize_points(c.points, width, height),
+        }],
+    } for c, reason in filtered.excluded]
+    return RecognizeResult(
+        zones=zones,
+        warnings=warnings,
+        width=width,
+        height=height,
+        excluded=excluded_items,
+    )

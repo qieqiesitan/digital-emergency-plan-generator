@@ -359,3 +359,41 @@ def test_classify_interference_keeps_normal_zones():
     assert len(result.kept) == 2
     assert result.excluded == []
     assert result.suspected == []
+
+
+def _legend_map():
+    """1200x900：四个分区（下移留边距）+ 右上角四色图例（紧邻小色块）。"""
+    img = Image.new("RGB", (1200, 900), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([80, 120, 700, 540], fill=(255, 0, 0))
+    d.rectangle([750, 120, 1120, 540], fill=(0, 0, 255))
+    d.rectangle([80, 600, 700, 880], fill=(255, 127, 0))
+    d.rectangle([750, 600, 1120, 880], fill=(255, 255, 0))
+    d.rectangle([1000, 40, 1030, 70], fill=(255, 0, 0))
+    d.rectangle([1040, 40, 1070, 70], fill=(255, 127, 0))
+    d.rectangle([1000, 80, 1030, 110], fill=(255, 255, 0))
+    d.rectangle([1040, 80, 1070, 110], fill=(0, 0, 255))
+    return img
+
+
+def test_recognize_excludes_legend_and_keeps_zones():
+    result = recognize_from_bytes(_png_bytes(_legend_map()))
+    assert (result.width, result.height) == (1200, 900)
+    assert len(result.zones) == 4
+    reasons = {e["reason"] for e in result.excluded}
+    assert reasons == {"legend"}
+    assert len(result.excluded) == 4
+
+
+def test_recognize_marks_suspected_odd_shape():
+    img = Image.new("RGB", (800, 800), "white")
+    d = ImageDraw.Draw(img)
+    d.polygon([(100, 100), (500, 100), (500, 200), (200, 200), (200, 500), (100, 500)], fill=(255, 0, 0))
+    result = recognize_from_bytes(_png_bytes(img))
+    assert any(z.get("suspected") for z in result.zones)
+
+
+def test_recognize_clean_map_has_no_excluded():
+    result = recognize_from_bytes(_png_bytes(_clean_map_with_dominant_rect()))
+    assert result.excluded == []
+    assert all(not z.get("suspected") for z in result.zones)
