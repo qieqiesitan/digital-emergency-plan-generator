@@ -28,3 +28,39 @@ def test_extract_texts_returns_empty_on_engine_error(monkeypatch):
 
     monkeypatch.setattr(vh, "_ocr", BrokenEngine())
     assert vh.extract_texts(np.zeros((100, 100, 3), dtype=np.uint8)) == []
+
+
+def test_classify_region_degrades_without_assets(monkeypatch):
+    monkeypatch.setattr(vh, "_clip", False)
+    assert vh.classify_region(np.zeros((100, 100, 3), dtype=np.uint8)) is None
+
+
+def test_classify_region_returns_hint_for_non_zone(monkeypatch):
+    class FakeSession:
+        def run(self, _, feed):
+            return [np.array([[0.0, 1.0, 0.0, 0.0]])]
+
+    class FakePrompts:
+        def __getitem__(self, key):
+            if key == "labels":
+                return np.array(["风险分区色块", "图标或Logo", "图例色块", "文字标签"])
+            return np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
+
+    monkeypatch.setattr(vh, "_clip", {"session": FakeSession(), "prompts": FakePrompts()})
+    hint = vh.classify_region(np.zeros((100, 100, 3), dtype=np.uint8))
+    assert hint == "疑似图标或Logo"
+
+
+def test_classify_region_returns_none_for_zone(monkeypatch):
+    class FakeSession:
+        def run(self, _, feed):
+            return [np.array([[1.0, 0.0, 0.0, 0.0]])]
+
+    class FakePrompts:
+        def __getitem__(self, key):
+            if key == "labels":
+                return np.array(["风险分区色块", "图标或Logo", "图例色块", "文字标签"])
+            return np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
+
+    monkeypatch.setattr(vh, "_clip", {"session": FakeSession(), "prompts": FakePrompts()})
+    assert vh.classify_region(np.zeros((100, 100, 3), dtype=np.uint8)) is None
