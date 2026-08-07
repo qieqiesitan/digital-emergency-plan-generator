@@ -258,7 +258,22 @@ class FourColorDraftZone(BaseModel):
     name: str
     risk_level: Literal["重大", "较大", "一般", "低"]
     color: str
+    suspected: bool = False
+    suggested_name: str | None = None
+    ai_hint: str | None = None
     polygons: list[FourColorDraftPolygon] = Field(min_length=1)
+
+
+class FourColorExcludedItem(BaseModel):
+    color: str
+    reason: Literal["legend", "thin", "border_frame", "tiny"]
+    polygons: list[FourColorDraftPolygon]
+
+
+class FourColorTextItem(BaseModel):
+    points: list[RiskPolygonPoint]
+    text: str
+    confidence: float
 
 
 class FourColorAnalyzeResponse(BaseModel):
@@ -267,6 +282,8 @@ class FourColorAnalyzeResponse(BaseModel):
     canvas_height: int
     zones: list[FourColorDraftZone]
     warnings: list[str] = []
+    excluded: list[FourColorExcludedItem] = []
+    texts: list[FourColorTextItem] = []
 
 
 class FourColorCommitPolygon(BaseModel):

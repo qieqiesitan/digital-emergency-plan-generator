@@ -9,6 +9,10 @@ from pydantic import ValidationError
 
 import app.services.floor_plan_storage_service as fss
 from app.schemas.risk_management import (
+    FourColorAnalyzeResponse,
+    FourColorDraftZone,
+    FourColorExcludedItem,
+    FourColorTextItem,
     FloorResponse,
     FourColorCommitRequest,
     FourColorCommitZone,
@@ -428,3 +432,44 @@ async def test_cancel_invalid_session_404(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await rm.cancel_four_color_import("bad-token", "f-1", "e-1", current_user=MagicMock(), db=db)
     assert exc.value.status_code == 404
+
+
+# ── Schema：干扰过滤扩展 ──
+
+
+def test_analyze_response_accepts_excluded_and_texts():
+    resp = FourColorAnalyzeResponse(
+        preview_url="/uploads/x.png",
+        canvas_width=1200,
+        canvas_height=900,
+        zones=[FourColorDraftZone(
+            client_id="d1",
+            name="分区1",
+            risk_level="重大",
+            color="#ff4d4f",
+            suspected=True,
+            suggested_name="原料库",
+            ai_hint="疑似Logo",
+            polygons=[{"id": "p1", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}]}],
+        )],
+        excluded=[FourColorExcludedItem(
+            color="红",
+            reason="legend",
+            polygons=[{"id": "p2", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}]}],
+        )],
+        texts=[FourColorTextItem(
+            points=[{"x": 1, "y": 2}, {"x": 3, "y": 2}, {"x": 3, "y": 4}, {"x": 1, "y": 4}],
+            text="原料库",
+            confidence=0.9,
+        )],
+    )
+    assert resp.zones[0].suspected is True
+    assert resp.zones[0].suggested_name == "原料库"
+    assert resp.zones[0].ai_hint == "疑似Logo"
+    assert resp.excluded[0].reason == "legend"
+    assert resp.texts[0].text == "原料库"
+
+
+def test_excluded_item_rejects_unknown_reason():
+    with pytest.raises(ValidationError):
+        FourColorExcludedItem(color="红", reason="mystery", polygons=[{"id": "p", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}]}])
