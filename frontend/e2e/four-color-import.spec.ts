@@ -32,7 +32,23 @@ const ANALYZE_DATA = {
   canvas_width: 600,
   canvas_height: 450,
   zones: ANALYZE_ZONES,
+  excluded: [],
+  texts: [],
   warnings: [],
+};
+
+const ANALYZE_DATA_AI = {
+  ...ANALYZE_DATA,
+  zones: [
+    { ...ANALYZE_DATA.zones[0], suggested_name: "原料库", suspected: true, ai_hint: "疑似Logo" },
+    ...ANALYZE_DATA.zones.slice(1),
+  ],
+  excluded: [{
+    color: "红",
+    reason: "legend",
+    polygons: [{ id: "e1", label: null, points: [{ x: 90, y: 2 }, { x: 99, y: 2 }, { x: 99, y: 8 }, { x: 90, y: 8 }] }],
+  }],
+  texts: [{ points: [{ x: 80, y: 70 }, { x: 99, y: 70 }, { x: 99, y: 74 }, { x: 80, y: 74 }], text: "原料库", confidence: 0.9 }],
 };
 
 const COMMIT_DATA = {
@@ -68,7 +84,7 @@ const USER = {
   created_at: "2026-08-06T00:00:00+08:00",
 };
 
-async function mockApis(page: Page, workbenchZones: unknown[] = []) {
+async function mockApis(page: Page, workbenchZones: unknown[] = [], analyzeData: unknown = ANALYZE_DATA) {
   const workbenchFloor = workbenchZones.length
     ? { ...FLOOR, zone_count: workbenchZones.length }
     : FLOOR;
@@ -125,7 +141,7 @@ async function mockApis(page: Page, workbenchZones: unknown[] = []) {
       return;
     }
     if (path.endsWith("/four-color/analyze") && method === "POST") {
-      await route.fulfill(json(200, { code: 0, message: "ok", data: ANALYZE_DATA }));
+      await route.fulfill(json(200, { code: 0, message: "ok", data: analyzeData }));
       return;
     }
     if (path.endsWith("/four-color/commit") && method === "POST") {
@@ -202,5 +218,25 @@ test.describe("四色分布图自动识别导入", () => {
     await expect(page.getByText("四色图导入成功")).toBeVisible();
     await expect(page.getByText("旧分区", { exact: true })).toHaveCount(0);
     await expect(page.getByText("分区1", { exact: true })).toBeVisible();
+  });
+
+  test("干扰项自动排除可恢复，疑似分区带 AI 提示，文字标注可开关", async ({ page }) => {
+    await mockApis(page, [], ANALYZE_DATA_AI);
+    await loginAndOpenWorkbench(page);
+    await page.getByRole("button", { name: "导入四色图" }).click();
+    await dialogFileInput(page).setInputFiles("e2e/fixtures/four-color-sample.png");
+    await expect(dialogZoneInput(page, 1)).toHaveValue("原料库", { timeout: 10000 });
+    await expect(page.getByText("疑似干扰", { exact: true })).toBeVisible();
+    await expect(page.getByText("已自动排除干扰项（1）", { exact: true })).toBeVisible();
+    await page.getByText("已自动排除干扰项（1）", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "恢复" })).toBeVisible();
+    await page.getByRole("button", { name: "恢复" }).click();
+    await expect(page.getByRole("button", { name: "恢复" })).toHaveCount(0);
+    await expect(dialogZoneInput(page, 5)).toHaveValue("分区5");
+    const textCheckbox = page.getByRole("dialog", { name: "导入四色分布图" }).getByText("文字标注", { exact: true });
+    await expect(textCheckbox).toBeVisible();
+    await textCheckbox.click();
+    await page.getByRole("button", { name: "确认落图" }).click();
+    await expect(page.getByText("四色图导入成功")).toBeVisible();
   });
 });
