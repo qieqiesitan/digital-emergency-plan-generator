@@ -168,6 +168,49 @@ def detect_legend_clusters(components: list[ComponentInfo], width: int, height: 
     return excluded
 
 
+@dataclass
+class InterferenceResult:
+    kept: list[ComponentInfo]
+    excluded: list[tuple[ComponentInfo, str]]
+    suspected: list[ComponentInfo]
+
+
+def classify_interference(components: list[ComponentInfo], width: int, height: int) -> InterferenceResult:
+    """按保守优先级过滤：图例簇 → 极小噪点 → 贴边细框 → 细长线 → 疑似标记。"""
+    legend_idx = detect_legend_clusters(components, width, height)
+    tiny_area = MIN_AREA_RATIO * width * height
+    border_w = BORDER_FRAME_THICKNESS_RATIO * min(width, height)
+    long_axis = 0.3 * max(width, height)
+    suspect_area = SUSPECT_AREA_RATIO * width * height
+    kept: list[ComponentInfo] = []
+    excluded: list[tuple[ComponentInfo, str]] = []
+    suspected: list[ComponentInfo] = []
+    for i, c in enumerate(components):
+        if i in legend_idx:
+            excluded.append((c, "legend"))
+            continue
+        w_c = c.bbox[2] - c.bbox[0]
+        h_c = c.bbox[3] - c.bbox[1]
+        if c.area < tiny_area:
+            excluded.append((c, "tiny"))
+            continue
+        short = max(1.0, float(min(w_c, h_c)))
+        long = float(max(w_c, h_c))
+        touches_border = c.bbox[0] <= 1 or c.bbox[1] <= 1 or c.bbox[2] >= width - 2 or c.bbox[3] >= height - 2
+        if touches_border and short < border_w and long > long_axis:
+            excluded.append((c, "border_frame"))
+            continue
+        if long / short > THIN_ASPECT_RATIO:
+            excluded.append((c, "thin"))
+            continue
+        solidity = c.area / max(1.0, float(w_c * h_c))
+        if c.area > suspect_area and solidity < SUSPECT_SOLIDITY:
+            suspected.append(c)
+        else:
+            kept.append(c)
+    return InterferenceResult(kept=kept, excluded=excluded, suspected=suspected)
+
+
 def _kernel_size(width: int, height: int) -> int:
     k = max(3, int(min(width, height) / 400))
     return k if k % 2 == 1 else k + 1

@@ -8,9 +8,11 @@ from PIL import Image, ImageDraw
 
 from app.services.four_color_recognizer import (
     ComponentInfo,
+    InterferenceResult,
     MAX_ZONES,
     classify_pixels,
     clean_mask,
+    classify_interference,
     detect_legend_clusters,
     detect_perspective_quad,
     mask_to_polygons,
@@ -321,3 +323,39 @@ def test_detect_legend_clusters_requires_three_colors():
     ]
     excluded = detect_legend_clusters(comps, 1200, 900)
     assert excluded == set()
+
+
+def test_classify_interference_marks_tiny_thin_and_border_frame():
+    comps = [
+        _comp("红", 0, 0, 30, 30, area=40),             # 极小噪点（<54）
+        _comp("红", 500, 100, 510, 900, area=8000),     # 细长
+        _comp("蓝", 0, 400, 1199, 407, area=1199 * 7),  # 贴边细框（厚度 7 < 9）
+        _comp("黄", 200, 200, 600, 600, area=160000),   # 正常分区
+    ]
+    result = classify_interference(comps, 1200, 900)
+    reasons = {r for _, r in result.excluded}
+    assert reasons == {"tiny", "thin", "border_frame"}
+    assert len(result.kept) == 1
+    assert result.kept[0].bbox == (200, 200, 600, 600)
+
+
+def test_classify_interference_marks_suspected_odd_shape():
+    # L 形：面积 70000 > 5%*640000=32000，实心度 70000/160000=0.4375 < 0.5
+    points = np.array([[100, 100], [500, 100], [500, 200], [200, 200], [200, 500], [100, 500]], dtype=np.float32)
+    area = cv2.contourArea(points)
+    comp = ComponentInfo(color="红", points=points, area=float(area), bbox=(100, 100, 500, 500))
+    result = classify_interference([comp], 800, 800)
+    assert result.kept == []
+    assert len(result.suspected) == 1
+    assert result.excluded == []
+
+
+def test_classify_interference_keeps_normal_zones():
+    comps = [
+        _comp("红", 80, 80, 700, 500, area=620 * 420),
+        _comp("蓝", 750, 80, 1120, 500, area=370 * 420),
+    ]
+    result = classify_interference(comps, 1200, 900)
+    assert len(result.kept) == 2
+    assert result.excluded == []
+    assert result.suspected == []
