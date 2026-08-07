@@ -157,7 +157,20 @@ export interface FourColorDraftZone {
   name: string;
   risk_level: RiskLevel;
   color: string;
+  suspected?: boolean;
+  suggested_name?: string | null;
+  ai_hint?: string | null;
   polygons: FourColorDraftPolygon[];
+}
+export interface FourColorExcludedItem {
+  color: string;
+  reason: "legend" | "thin" | "border_frame" | "tiny";
+  polygons: FourColorDraftPolygon[];
+}
+export interface FourColorTextItem {
+  points: { x: number; y: number }[];
+  text: string;
+  confidence: number;
 }
 export interface FourColorAnalyzeResult {
   preview_url: string;
@@ -165,6 +178,8 @@ export interface FourColorAnalyzeResult {
   canvas_height: number;
   zones: FourColorDraftZone[];
   warnings: string[];
+  excluded: FourColorExcludedItem[];
+  texts: FourColorTextItem[];
 }
 export interface FourColorCommitPolygon {
   points: { x: number; y: number }[];

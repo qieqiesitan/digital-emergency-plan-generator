@@ -22,11 +22,20 @@ describe("riskMappingWorkbenchService four-color", () => {
       canvas_height: 450,
       zones: [{
         client_id: "d1",
-        name: "分区1",
+        name: "原料库",
         risk_level: "重大",
         color: "#ff4d4f",
+        suspected: true,
+        suggested_name: "原料库",
+        ai_hint: "疑似Logo",
         polygons: [{ id: "p1", label: null, points: [{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 30, y: 40 }] }],
       }],
+      excluded: [{
+        color: "红",
+        reason: "legend",
+        polygons: [{ id: "p2", label: null, points: [{ x: 80, y: 5 }, { x: 90, y: 5 }, { x: 90, y: 10 }] }],
+      }],
+      texts: [{ points: [{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 30, y: 12 }, { x: 10, y: 12 }], text: "原料库", confidence: 0.9 }],
       warnings: [],
     };
     apiMock.post.mockResolvedValue({ data: { code: 0, message: "ok", data } });
@@ -38,6 +47,10 @@ describe("riskMappingWorkbenchService four-color", () => {
     );
     expect(result.canvas_width).toBe(600);
     expect(result.zones[0].risk_level).toBe("重大");
+    expect(result.excluded[0].reason).toBe("legend");
+    expect(result.zones[0].suggested_name).toBe("原料库");
+    expect(result.zones[0].ai_hint).toBe("疑似Logo");
+    expect(result.texts[0].text).toBe("原料库");
   });
 
   it("commitFourColorImport 提交 payload 并解包 data", async () => {
