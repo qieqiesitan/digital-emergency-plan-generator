@@ -1,0 +1,53 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: four-color-ai-client
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  cloud:
+    openfeign:
+      client:
+        config:
+          four-color-ai:
+            connectTimeout: 3000
+            readTimeout: 30000
+
+ai-service:
+  four-color:
+    base-url: http://localhost:8000
+    api-key: change-me
+
+app:
+  preview-storage:
+    dir: ${java.io.tmpdir}/four-color-previews
+
+resilience4j:
+  timelimiter:
+    instances:
+      fourColorAi:
+        timeoutDuration: 35s
+        cancelRunningFuture: true
+  circuitbreaker:
+    instances:
+      fourColorAi:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowType: COUNT_BASED
+        recordExceptions:
+          - com.example.fourcolorai.exception.FourColorAiUnavailableException
+          - feign.FeignException$ServiceUnavailable
+  retry:
+    instances:
+      fourColorAi:
+        maxAttempts: 3
+        waitDuration: 1s
+        retryExceptions:
+          - com.example.fourcolorai.exception.FourColorAiUnavailableException
+          - java.net.SocketTimeoutException
+        ignoreExceptions:
+          - com.example.fourcolorai.exception.FourColorParseException
+          - feign.FeignException$BadRequest
