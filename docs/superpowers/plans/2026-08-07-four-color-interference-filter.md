@@ -1412,3 +1412,13 @@ git commit -m "docs(risk-mapping): interference filter implementation plan"
 **3. 类型一致性：** 后端 `excluded[].reason`（legend/thin/border_frame/tiny）、`zones[].suspected/suggested_name/ai_hint`、`texts[].points/text/confidence` 与前端类型、E2E mock 三处一致；`recognize_from_bytes(data, ocr=None, clip=None)` 签名在任务 3 定义、任务 6 使用一致；`ComponentInfo`（color/points/area/bbox）在任务 1-3 一致；`classify_region` 返回"疑似<标签>"或 None 在任务 5-6 一致；CLIP 资产文件名 `clip_vision.onnx`/`clip_prompts.npz` 在脚本与加载器一致。
 
 **4. 已知取舍：** CLIP 资产获取存在构建期不确定性（脚本失败退出码 0 即降级）；RapidOCR 依赖已入 requirements 并在任务 0 安装；venv 重建是既有环境问题的一次性修复；E2E 中"恢复后计数"断言提供替代写法（Collapse 折叠导致文案不可见时的兜底）。
+
+## 执行记录（2026-08-07，实现过程中对计划的小修正）
+
+1. **执行方式**：子代理在本环境再次确认不可用（任务消息无法投递，两个代理均只做会话启动检查）；按用户约定退回内联执行，保留 TDD 红绿节奏与逐任务提交。
+2. **任务 0 环境修复**：重建主检出 backend/.venv（缺 pip/numpy）；rapidocr 拉入 opencv-python 5.0 与 headless 4.14 并存导致 cv2 损坏，已卸载 opencv-python 并 `--force-reinstall opencv-python-headless` 恢复 4.14.0。
+3. **任务 2 规则顺序**：细长判定先于贴边判定会吞掉边框规则，调整为「贴边细框 → 细长线」；两个测试数值修正（极小面积 900→40、贴边厚度 10→7、凹形改用 L 形实心度 0.4375）。
+4. **任务 3 合成图修正**：图例蓝块与蓝色分区顶边相接导致连通合并，分区下移 40px 留出边距后 4 块图例全部正确排除。
+5. **任务 10 E2E**：antd Collapse 默认折叠，恢复按钮不在 DOM——测试先点击折叠标题展开再操作。
+6. **CLIP 资产**：`scripts/prepare_clip_assets.py` 已提交未执行（需 torch/transformers 与模型下载，属构建期可选步骤，缺失时自动降级）。
+7. **验证结果**：后端 147 passed（基线 127 + 新增 20）；前端 tsc exit 0、vitest 48 passed；E2E four-color 3 + workbench 12 = 15 passed；git diff --check 干净。
