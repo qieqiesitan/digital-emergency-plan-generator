@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Button, Checkbox, Input, List, Modal, Spin, Tag, Upload, message } from "antd";
+import { Alert, Button, Checkbox, Collapse, Input, List, Modal, Spin, Tag, Upload, message } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import {
   analyzeFourColorMap,
@@ -10,7 +10,10 @@ import type {
   FourColorAnalyzeResult,
   FourColorCommitResult,
   FourColorDraftZone,
+  FourColorExcludedItem,
+  FourColorTextItem,
 } from "@/types/riskMappingWorkbench";
+import type { RiskLevel } from "@/types/riskManagement";
 
 interface FourColorImportModalProps {
   open: boolean;
@@ -32,6 +35,14 @@ const LEVEL_COLORS: Record<string, string> = {
   低: "#52c41a",
 };
 
+const COLOR_LEVEL: Record<string, RiskLevel> = { 红: "重大", 橙: "较大", 黄: "一般", 蓝: "低" };
+const REASON_LABEL: Record<string, string> = {
+  legend: "图例",
+  thin: "细长线/符号",
+  border_frame: "贴边图框",
+  tiny: "极小噪点",
+};
+
 function extractToken(previewUrl: string): string {
   return previewUrl.split("/four_color_tmp/")[1]?.split("/")[0] ?? "";
 }
@@ -51,12 +62,18 @@ export default function FourColorImportModal({
   const [zones, setZones] = useState<FourColorDraftZone[]>([]);
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [excluded, setExcluded] = useState<FourColorExcludedItem[]>([]);
+  const [texts, setTexts] = useState<FourColorTextItem[]>([]);
+  const [showTexts, setShowTexts] = useState(true);
 
   const reset = () => {
     setStage("select");
     setResult(null);
     setZones([]);
     setReplaceExisting(true);
+    setExcluded([]);
+    setTexts([]);
+    setShowTexts(true);
   };
 
   const handleClose = () => {
@@ -73,7 +90,9 @@ export default function FourColorImportModal({
     try {
       const res = await analyzeFourColorMap(enterpriseId, floorId, file);
       setResult(res);
-      setZones(res.zones);
+      setZones(res.zones.map(z => ({ ...z, name: z.suggested_name || z.name })));
+      setExcluded(res.excluded);
+      setTexts(res.texts);
       setStage("preview");
     } catch (e) {
       const err = e as { response?: { data?: { detail?: { code?: string; message?: string } } } };
@@ -111,6 +130,19 @@ export default function FourColorImportModal({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRestore = (item: FourColorExcludedItem) => {
+    const level = COLOR_LEVEL[item.color] ?? "一般";
+    const newZone: FourColorDraftZone = {
+      client_id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: `分区${zones.length + 1}`,
+      risk_level: level,
+      color: LEVEL_COLORS[level],
+      polygons: item.polygons,
+    };
+    setZones([...zones, newZone]);
+    setExcluded(excluded.filter(x => x !== item));
   };
 
   return (
@@ -189,6 +221,27 @@ export default function FourColorImportModal({
                   )),
                 )}
               </svg>
+              {texts.length > 0 && (
+                <Checkbox
+                  checked={showTexts}
+                  onChange={e => setShowTexts(e.target.checked)}
+                  style={{ position: "absolute", top: 8, right: 8, zIndex: 2, background: "rgba(255,255,255,.85)", padding: "0 6px" }}
+                >
+                  文字标注
+                </Checkbox>
+              )}
+              {showTexts && texts.map((t, i) => (
+                <svg key={`text-${i}`} viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+                  <polygon
+                    points={t.points.map(p => `${p.x / result.canvas_width * 100},${p.y / result.canvas_height * 100}`).join(" ")}
+                    fill="none"
+                    stroke="#1677ff"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+              ))}
             </div>
             <div>
               <List
@@ -218,6 +271,9 @@ export default function FourColorImportModal({
                         style={{ marginBottom: 4 }}
                       />
                       <Tag color={LEVEL_COLORS[z.risk_level]}>{z.risk_level}</Tag>
+                      {z.suspected && (
+                        <Tag color="orange" title={z.ai_hint || "形状异常，可能不是真实分区"}>疑似干扰</Tag>
+                      )}
                       <span style={{ color: "#999", fontSize: 12 }}>
                         {z.polygons.length} 个多边形 · {z.polygons[0]?.points.length ?? 0} 个顶点
                       </span>
@@ -225,6 +281,32 @@ export default function FourColorImportModal({
                   </List.Item>
                 )}
               />
+              {excluded.length > 0 && (
+                <Collapse
+                  style={{ marginTop: 12 }}
+                  items={[{
+                    key: "excluded",
+                    label: `已自动排除干扰项（${excluded.length}）`,
+                    children: (
+                      <List
+                        size="small"
+                        dataSource={excluded}
+                        renderItem={(item, i) => (
+                          <List.Item
+                            actions={[
+                              <Button key="restore" type="link" onClick={() => handleRestore(item)}>恢复</Button>,
+                            ]}
+                          >
+                            <span style={{ color: "#999", fontSize: 12 }}>
+                              {i + 1}. {REASON_LABEL[item.reason] ?? item.reason} · {item.polygons[0]?.points.length ?? 0} 个顶点
+                            </span>
+                          </List.Item>
+                        )}
+                      />
+                    ),
+                  }]}
+                />
+              )}
               {hasExistingData && (
                 <Checkbox
                   checked={replaceExisting}
