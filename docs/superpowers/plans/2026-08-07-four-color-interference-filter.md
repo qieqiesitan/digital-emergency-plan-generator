@@ -1422,3 +1422,10 @@ git commit -m "docs(risk-mapping): interference filter implementation plan"
 5. **任务 10 E2E**：antd Collapse 默认折叠，恢复按钮不在 DOM——测试先点击折叠标题展开再操作。
 6. **CLIP 资产**：`scripts/prepare_clip_assets.py` 已提交未执行（需 torch/transformers 与模型下载，属构建期可选步骤，缺失时自动降级）。
 7. **验证结果**：后端 147 passed（基线 127 + 新增 20）；前端 tsc exit 0、vitest 48 passed；E2E four-color 3 + workbench 12 = 15 passed；git diff --check 干净。
+
+## 执行记录 2（2026-08-07 用户反馈后增补）
+
+1. **企业切换串台修复**（d4f60f5）：根因=模块级 Zustand store 切换企业不重置，B 企业请求携带 A 的楼层 id → 404 → 一直显示 A 数据；楼层选择器无匹配项显示原始 UUID。修复=页面按 enterpriseId 调 `reset()`；新增 E2E `enterprise-switch.spec.ts`（SPA popstate 导航复现，无修复红灯/有修复绿灯）。
+2. **默认画布 + 预览修复**（0736656，用户确认 A=1600×1000、小图放大）：新增 `fit_canvas`（等比 fit 到 1600×1000）与 `build_output_image`（处理图缩放编码 PNG）；`RecognizeResult` 增加 `processed_image`；analyze 端点改为"识别 → 生成缩放 PNG → 保存为预览/落图底图"，canvas 用缩放尺寸（600×450 → 1333×1000）；预览与落图共用同一处理图，消除原始图 vs 画布宽高比不一致导致的"预览拉长"。
+3. **CLIP 资产启用**：用户提供 torch-2.13.0+cpu wheel，脚本修复（transformers 5.x API/padding/GBK 编码）后生成 `backend/models/`（f7016c6）；真实推理验证通过（0.03-0.7s）。
+4. **验证结果（最新）**：后端 153 passed；前端 tsc/vitest 全绿；E2E four-color 3 + workbench 12 + enterprise-switch 1 = 16 passed。
