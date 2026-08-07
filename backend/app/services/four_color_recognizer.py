@@ -108,6 +108,38 @@ def normalize_points(points: np.ndarray | list, width: int, height: int) -> list
     return out
 
 
+def _point_in_polygon(px: float, py: float, points: list[dict]) -> bool:
+    """射线法判断归一化点是否在多边形内（points 为 [{x,y}]）。"""
+    n = len(points)
+    if n < 3:
+        return False
+    inside = False
+    j = n - 1
+    for i in range(n):
+        xi, yi = points[i]["x"], points[i]["y"]
+        xj, yj = points[j]["x"], points[j]["y"]
+        if (yi > py) != (yj > py):
+            x_cross = (xj - xi) * (py - yi) / (yj - yi) + xi
+            if px < x_cross:
+                inside = not inside
+        j = i
+    return inside
+
+
+def _crop_from_zone(bgr: np.ndarray, zone: dict, width: int, height: int) -> np.ndarray:
+    """按分区多边形 bbox 带 8% 边距裁剪 BGR 图（供 CLIP 判别）。"""
+    pts = zone["polygons"][0]["points"]
+    xs = [p["x"] / 100 * width for p in pts]
+    ys = [p["y"] / 100 * height for p in pts]
+    margin_x = int(0.08 * width)
+    margin_y = int(0.08 * height)
+    x0 = max(0, int(min(xs)) - margin_x)
+    y0 = max(0, int(min(ys)) - margin_y)
+    x1 = min(width, int(max(xs)) + margin_x)
+    y1 = min(height, int(max(ys)) + margin_y)
+    return bgr[y0:y1, x0:x1]
+
+
 @dataclass(eq=False)
 class ComponentInfo:
     color: str
@@ -374,10 +406,42 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
             "points": normalize_points(c.points, width, height),
         }],
     } for c, reason in filtered.excluded]
+    if ocr is None:
+        from app.services.vision_helpers import extract_texts
+        ocr = extract_texts
+    if clip is None:
+        from app.services.vision_helpers import classify_region
+        clip = classify_region
+    try:
+        texts: list[dict] = ocr(bgr) or []
+    except Exception:
+        texts = []
+    for text in texts:
+        pts = text.get("points") or []
+        if len(pts) < 3:
+            continue
+        cx = sum(p["x"] for p in pts) / len(pts) / width * 100
+        cy = sum(p["y"] for p in pts) / len(pts) / height * 100
+        for zone in zones:
+            if zone.get("suggested_name"):
+                continue
+            for poly in zone["polygons"]:
+                if _point_in_polygon(cx, cy, poly["points"]):
+                    zone["suggested_name"] = text["text"]
+                    break
+    for zone in zones:
+        if zone.get("suspected") and not zone.get("ai_hint"):
+            try:
+                hint = clip(_crop_from_zone(bgr, zone, width, height))
+                if hint:
+                    zone["ai_hint"] = hint
+            except Exception:
+                pass
     return RecognizeResult(
         zones=zones,
         warnings=warnings,
         width=width,
         height=height,
         excluded=excluded_items,
+        texts=texts,
     )

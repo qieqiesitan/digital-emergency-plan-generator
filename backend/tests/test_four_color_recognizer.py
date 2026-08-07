@@ -397,3 +397,37 @@ def test_recognize_clean_map_has_no_excluded():
     result = recognize_from_bytes(_png_bytes(_clean_map_with_dominant_rect()))
     assert result.excluded == []
     assert all(not z.get("suspected") for z in result.zones)
+
+
+def test_recognize_uses_ocr_suggested_name():
+    img = _clean_map_with_dominant_rect()
+    called = []
+
+    def fake_ocr(_img):
+        called.append(1)
+        return [{
+            "points": [{"x": 200, "y": 100}, {"x": 300, "y": 100}, {"x": 300, "y": 120}, {"x": 200, "y": 120}],
+            "text": "原料库",
+            "confidence": 0.95,
+        }]
+
+    result = recognize_from_bytes(_png_bytes(img), ocr=fake_ocr, clip=lambda crop: None)
+    assert called
+    names = [z.get("suggested_name") for z in result.zones]
+    assert "原料库" in names
+    assert result.texts[0]["text"] == "原料库"
+
+
+def test_recognize_uses_clip_ai_hint_on_suspected():
+    img = Image.new("RGB", (800, 800), "white")
+    d = ImageDraw.Draw(img)
+    d.polygon([(100, 100), (500, 100), (500, 200), (200, 200), (200, 500), (100, 500)], fill=(255, 0, 0))
+    result = recognize_from_bytes(_png_bytes(img), ocr=lambda img: [], clip=lambda crop: "疑似Logo")
+    hints = [z.get("ai_hint") for z in result.zones]
+    assert "疑似Logo" in hints
+
+
+def test_recognize_degrades_without_ocr_clip():
+    result = recognize_from_bytes(_png_bytes(_clean_map_with_dominant_rect()))
+    assert result.texts == []
+    assert all(not z.get("ai_hint") for z in result.zones)
