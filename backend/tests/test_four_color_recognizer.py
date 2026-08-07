@@ -7,9 +7,11 @@ import pytest
 from PIL import Image, ImageDraw
 
 from app.services.four_color_recognizer import (
+    ComponentInfo,
     MAX_ZONES,
     classify_pixels,
     clean_mask,
+    detect_legend_clusters,
     detect_perspective_quad,
     mask_to_polygons,
     normalize_points,
@@ -281,3 +283,41 @@ def test_recognize_from_bytes_empty_when_no_color():
     png = _png_bytes(Image.new("RGB", (200, 150), "white"))
     result = recognize_from_bytes(png)
     assert result.zones == []
+
+
+def _comp(color, x0, y0, x1, y1, area=None):
+    return ComponentInfo(
+        color=color,
+        points=np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], dtype=np.float32),
+        area=float(area or (x1 - x0) * (y1 - y0)),
+        bbox=(x0, y0, x1, y1),
+    )
+
+
+def test_detect_legend_clusters_marks_three_color_cluster():
+    comps = [
+        _comp("红", 1000, 50, 1030, 80, area=900),
+        _comp("橙", 1040, 50, 1070, 80, area=900),
+        _comp("黄", 1000, 90, 1030, 120, area=900),
+        _comp("蓝", 1040, 90, 1070, 120, area=900),
+    ]
+    excluded = detect_legend_clusters(comps, 1200, 900)
+    assert excluded == {0, 1, 2, 3}
+
+
+def test_detect_legend_clusters_ignores_isolated_zone():
+    comps = [
+        _comp("红", 80, 80, 700, 500, area=620 * 420),
+        _comp("蓝", 750, 80, 1120, 500, area=370 * 420),
+    ]
+    excluded = detect_legend_clusters(comps, 1200, 900)
+    assert excluded == set()
+
+
+def test_detect_legend_clusters_requires_three_colors():
+    comps = [
+        _comp("红", 1000, 50, 1030, 80, area=900),
+        _comp("橙", 1040, 50, 1070, 80, area=900),
+    ]
+    excluded = detect_legend_clusters(comps, 1200, 900)
+    assert excluded == set()

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import io
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import uuid4
 
 import numpy as np
@@ -28,6 +28,15 @@ MAX_POLYGON_POINTS = 128
 MAX_ZONES = 200
 MAX_TILT_DEG = 2.0
 MAX_ASPECT_CHANGE = 2.0
+LEGEND_MIN_COLORS = 3
+LEGEND_MIN_AREA_RATIO = 2e-4
+LEGEND_MAX_AREA_RATIO = 0.02
+LEGEND_MAX_SIZE_RATIO = 3.0
+LEGEND_PROXIMITY_RATIO = 0.08
+THIN_ASPECT_RATIO = 12.0
+BORDER_FRAME_THICKNESS_RATIO = 0.01
+SUSPECT_AREA_RATIO = 0.05
+SUSPECT_SOLIDITY = 0.5
 COLOR_HEX_BY_LEVEL = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a"}
 
 
@@ -97,6 +106,66 @@ def normalize_points(points: np.ndarray | list, width: int, height: int) -> list
         ny = round(max(0.0, min(100.0, float(y) / height * 100.0)), 2)
         out.append({"x": nx, "y": ny})
     return out
+
+
+@dataclass(eq=False)
+class ComponentInfo:
+    color: str
+    points: np.ndarray
+    area: float
+    bbox: tuple[int, int, int, int]
+
+
+def _bbox_gap(a: ComponentInfo, b: ComponentInfo) -> float:
+    ax0, ay0, ax1, ay1 = a.bbox
+    bx0, by0, bx1, by1 = b.bbox
+    gap_x = max(0, bx0 - ax1, ax0 - bx1)
+    gap_y = max(0, by0 - ay1, ay0 - by1)
+    return float(max(gap_x, gap_y))
+
+
+def detect_legend_clusters(components: list[ComponentInfo], width: int, height: int) -> set[int]:
+    """并查集聚类"紧邻、尺寸相近、≥3 色"的小色块，返回应排除的索引集合。"""
+    min_area = LEGEND_MIN_AREA_RATIO * width * height
+    max_area = LEGEND_MAX_AREA_RATIO * width * height
+    cands = [i for i, c in enumerate(components) if min_area <= c.area <= max_area]
+    prox = LEGEND_PROXIMITY_RATIO * min(width, height)
+    parent = list(range(len(components)))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for i in cands:
+        for j in cands:
+            if i >= j:
+                continue
+            ci, cj = components[i], components[j]
+            if ci.color == cj.color:
+                continue
+            area_ratio = max(ci.area, cj.area) / max(1.0, min(ci.area, cj.area))
+            if area_ratio > LEGEND_MAX_SIZE_RATIO:
+                continue
+            if _bbox_gap(ci, cj) > prox:
+                continue
+            union(i, j)
+
+    clusters: dict[int, list[int]] = {}
+    for i in cands:
+        clusters.setdefault(find(i), []).append(i)
+    excluded: set[int] = set()
+    for members in clusters.values():
+        colors = {components[i].color for i in members}
+        if len(colors) >= LEGEND_MIN_COLORS:
+            excluded.update(members)
+    return excluded
 
 
 def _kernel_size(width: int, height: int) -> int:
