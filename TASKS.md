@@ -1,4 +1,15 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-07）：四色识别微服务抽取设计规格已写入并自检完成，等待用户审查
+- 刚完成的动作：
+  - 新建 docs/superpowers/specs/2026-08-07-four-color-ai-microservice-design.md：方案 A（Python 无状态独立 FastAPI 服务 + Java Feign/Resilience4j 调用）、AI 服务接口契约（POST /api/v1/four-color/analyze，base64 入参，zones/texts/excluded/preview_png_base64 出参，坐标 0-100）、Java 调用方设计（Feign + ErrorDecoder + 超时/重试/熔断 yaml + CompletableFuture/WebClient 异步 + PreviewStorageService 存储转换）、实施清单与验收标准
+  - 规格自检修复：错误码表与骨架一致（400 INVALID_IMAGE / 422 NO_ZONE_DETECTED / 500 INTERNAL / 503 MODEL_UNAVAILABLE）、PreviewStorageService 定为「接口+本地磁盘实现（后续切 MinIO）」、options 字段注明契约预留
+  - 修改前已 git save（保存点 2817dd4）；仅新增文档，未改业务代码；他人改动（TASKS.md/chroma.sqlite3/backend/uploads/enterprises/）保持原样
+- 下一步：用户审查规格 → 批准后调用 writing-plans 技能制定实现计划（brainstorming 流程终止状态）
+- 关键上下文：方案已获用户批准推进（用户回复「1」= 写设计规格文档）；未跑 codegraph/graphify（纯文档变更，无代码改动）
+- 正在做什么（2026-08-07）：「AI 助手升级强化」头脑风暴——方向已锁定：A 复合指令自动编排 + B 专业知识质量；使用对象=内部+企业客户共用
+- 刚完成的动作：用户确认自动编排候选场景（批量生成汇总 / 数据治理 / 文档图导入全流程），选择 D「都要，排优先级」；已给出排序建议：1 批量生成+汇总（复用现有生成引擎，最稳的第一个里程碑）→ 2 数据治理（依赖编排框架+人工确认）→ 3 文档/图全流程导入（依赖视觉识别质量，放最后）
+- 下一步：等用户确认排序 → 继续澄清 B（专业知识质量的具体诉求）→ 展示 2-3 种实现方案 → 分节展示设计
+- 关键上下文：master HEAD=9b05904；本次仅讨论未改代码；工作区他人改动保持原样
 - 正在做什么（2026-08-07）：讨论「四色分布图识别模块独立成微服务、供公司内系统调用」可行性（仅讨论+交付参考代码，未改代码）
 - 刚完成的动作：
   - 读取 TASKS.md + 定位模块现状：backend/app/services/four_color_recognizer.py（OpenCV 颜色分割/形态学/轮廓/透视校正/干扰过滤管线）、backend/app/services/vision_helpers.py（RapidOCR + CLIP ONNX 视觉辅助）、backend/app/routers/risk_management.py POST /floors/{id}/four-color/analyze（当前路由内含临时文件存储 save_four_color_temp 与 DB 落库，非纯识别边界）、backend/app/schemas/risk_management.py FourColorAnalyzeResponse 契约（zones/texts/excluded/warnings/canvas 尺寸）
