@@ -20,7 +20,7 @@ from app.services.risk_source_migration_service import (
 )
 from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
-from app.services.four_color_recognizer import recognize_from_bytes
+from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
 from app.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises/{enterprise_id}/risk-management", tags=["Risk Management"])
@@ -175,19 +175,20 @@ async def analyze_four_color(floor_id: str, enterprise_id: str, file: UploadFile
     if not floor:
         raise HTTPException(404, "楼层不存在")
     data = await file.read()
-    preview_url, token = save_four_color_temp(enterprise_id, floor_id, data, file.content_type)
     try:
         result = recognize_from_bytes(data)
     except Exception:
-        remove_four_color_temp_dir(enterprise_id, floor_id, token)
         raise HTTPException(422, "图片解析失败，请检查图片格式")
     if not result.zones:
-        remove_four_color_temp_dir(enterprise_id, floor_id, token)
         raise HTTPException(422, detail={"code": "NO_ZONE_DETECTED", "message": "未识别到红/橙/黄/蓝色块，请检查图片"})
+    if result.processed_image is None:
+        raise HTTPException(422, "图片处理失败，请检查图片格式")
+    png_bytes, canvas_width, canvas_height = build_output_image(result.processed_image, result.width, result.height)
+    preview_url, token = save_four_color_temp(enterprise_id, floor_id, png_bytes, "image/png")
     return ApiResponse(data=FourColorAnalyzeResponse(
         preview_url=preview_url,
-        canvas_width=result.width,
-        canvas_height=result.height,
+        canvas_width=canvas_width,
+        canvas_height=canvas_height,
         zones=result.zones,
         warnings=result.warnings,
         excluded=result.excluded,

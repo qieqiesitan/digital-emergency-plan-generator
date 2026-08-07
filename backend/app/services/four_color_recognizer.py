@@ -37,6 +37,7 @@ THIN_ASPECT_RATIO = 12.0
 BORDER_FRAME_THICKNESS_RATIO = 0.01
 SUSPECT_AREA_RATIO = 0.05
 SUSPECT_SOLIDITY = 0.5
+DEFAULT_CANVAS_MAX = (1600, 1000)
 COLOR_HEX_BY_LEVEL = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a"}
 
 
@@ -138,6 +139,28 @@ def _crop_from_zone(bgr: np.ndarray, zone: dict, width: int, height: int) -> np.
     x1 = min(width, int(max(xs)) + margin_x)
     y1 = min(height, int(max(ys)) + margin_y)
     return bgr[y0:y1, x0:x1]
+
+
+def fit_canvas(width: int, height: int, max_size: tuple[int, int] = DEFAULT_CANVAS_MAX) -> tuple[int, int]:
+    """把画布尺寸等比缩放到默认画框内（小图放大、大图缩小），返回 (w, h)。"""
+    max_w, max_h = max_size
+    scale = min(max_w / max(width, 1), max_h / max(height, 1))
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def build_output_image(processed_bgr: np.ndarray, width: int, height: int, max_size: tuple[int, int] = DEFAULT_CANVAS_MAX) -> tuple[bytes, int, int]:
+    """把处理后的 BGR 图等比缩放到默认画布，返回 (PNG bytes, scaled_w, scaled_h)。"""
+    _require_cv2()
+    sw, sh = fit_canvas(width, height, max_size)
+    resized = cv2.resize(
+        processed_bgr,
+        (sw, sh),
+        interpolation=cv2.INTER_AREA if sw < width else cv2.INTER_LINEAR,
+    )
+    ok, buf = cv2.imencode(".png", resized)
+    if not ok:
+        raise ValueError("图片编码失败")
+    return buf.tobytes(), sw, sh
 
 
 @dataclass(eq=False)
@@ -337,6 +360,7 @@ class RecognizeResult:
     height: int
     excluded: list[dict] = field(default_factory=list)
     texts: list[dict] = field(default_factory=list)
+    processed_image: np.ndarray | None = None
 
 
 def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
@@ -444,4 +468,5 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
         height=height,
         excluded=excluded_items,
         texts=texts,
+        processed_image=bgr,
     )

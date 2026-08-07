@@ -10,11 +10,13 @@ from app.services.four_color_recognizer import (
     ComponentInfo,
     InterferenceResult,
     MAX_ZONES,
+    build_output_image,
     classify_pixels,
     clean_mask,
     classify_interference,
     detect_legend_clusters,
     detect_perspective_quad,
+    fit_canvas,
     mask_to_polygons,
     normalize_points,
     recognize_from_bytes,
@@ -431,3 +433,29 @@ def test_recognize_degrades_without_ocr_clip():
     result = recognize_from_bytes(_png_bytes(_clean_map_with_dominant_rect()))
     assert result.texts == []
     assert all(not z.get("ai_hint") for z in result.zones)
+
+
+def test_fit_canvas_scales_large_image_down():
+    assert fit_canvas(3200, 2000) == (1600, 1000)
+
+
+def test_fit_canvas_scales_small_image_up():
+    assert fit_canvas(400, 300) == (1333, 1000)
+
+
+def test_fit_canvas_keeps_exact_default():
+    assert fit_canvas(1600, 1000) == (1600, 1000)
+
+
+def test_build_output_image_returns_scaled_png():
+    img = np.full((200, 400, 3), 255, dtype=np.uint8)
+    png_bytes, w, h = build_output_image(img, 400, 200)
+    assert (w, h) == (1600, 800)
+    assert png_bytes[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_recognize_returns_processed_image():
+    result = recognize_from_bytes(_png_bytes(_clean_map_with_dominant_rect()))
+    assert result.processed_image is not None
+    assert result.processed_image.shape[1] == result.width
+    assert result.processed_image.shape[0] == result.height

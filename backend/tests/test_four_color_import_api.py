@@ -2,6 +2,7 @@
 import io
 from unittest.mock import AsyncMock, MagicMock
 
+import numpy as np
 import pytest
 from fastapi import HTTPException
 from PIL import Image, ImageDraw
@@ -170,7 +171,8 @@ async def test_analyze_returns_zones_and_does_not_touch_db(monkeypatch):
     monkeypatch.setattr(rm, "save_four_color_temp", MagicMock(return_value=("/uploads/tmp/x.png", "a" * 32)))
     resp = await rm.analyze_four_color("f-1", "e-1", FakeUpload(_four_color_png()), current_user=MagicMock(), db=db)
     data = resp.data
-    assert data.canvas_width == 600 and data.canvas_height == 450
+    # 600x450 等比缩放到 1600x1000 画框 → 1333x1000
+    assert data.canvas_width == 1333 and data.canvas_height == 1000
     assert len(data.zones) == 4
     assert {z.risk_level for z in data.zones} == {"重大", "较大", "一般", "低"}
     assert db.add.call_count == 0
@@ -191,7 +193,7 @@ async def test_analyze_no_zones_returns_422(monkeypatch):
         await rm.analyze_four_color("f-1", "e-1", upload, current_user=MagicMock(), db=db)
     assert exc.value.status_code == 422
     assert exc.value.detail["code"] == "NO_ZONE_DETECTED"
-    remove_mock.assert_called_once_with("e-1", "f-1", "a" * 32)
+    remove_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -206,7 +208,7 @@ async def test_analyze_invalid_image_returns_422(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await rm.analyze_four_color("f-1", "e-1", FakeUpload(b"not-an-image"), current_user=MagicMock(), db=db)
     assert exc.value.status_code == 422
-    remove_mock.assert_called_once_with("e-1", "f-1", "a" * 32)
+    remove_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -251,6 +253,7 @@ async def test_analyze_propagates_excluded_and_texts(monkeypatch):
             "text": "原料库",
             "confidence": 0.9,
         }],
+        processed_image=np.zeros((100, 100, 3), dtype=np.uint8),
     )
     monkeypatch.setattr(rm, "recognize_from_bytes", MagicMock(return_value=fake))
     resp = await rm.analyze_four_color("f-1", "e-1", FakeUpload(_four_color_png()), current_user=MagicMock(), db=db)
