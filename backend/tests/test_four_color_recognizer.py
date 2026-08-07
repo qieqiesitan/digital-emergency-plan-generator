@@ -420,6 +420,31 @@ def test_recognize_uses_ocr_suggested_name():
     assert result.texts[0]["text"] == "原料库"
 
 
+def test_recognize_normalizes_ocr_text_points():
+    """OCR 返回的像素坐标必须在管线输出时归一化为 0-100（API schema 要求）。"""
+    img = _clean_map_with_dominant_rect()  # 1200x900
+
+    def fake_ocr(_img):
+        return [{
+            "points": [{"x": 80, "y": 80}, {"x": 160, "y": 80}, {"x": 160, "y": 120}, {"x": 80, "y": 120}],
+            "text": "原料库",
+            "confidence": 0.95,
+        }]
+
+    result = recognize_from_bytes(_png_bytes(img), ocr=fake_ocr, clip=lambda crop: None)
+    pts = result.texts[0]["points"]
+    assert len(pts) == 4
+    assert pts == [
+        {"x": 6.67, "y": 8.89},
+        {"x": 13.33, "y": 8.89},
+        {"x": 13.33, "y": 13.33},
+        {"x": 6.67, "y": 13.33},
+    ]
+    # 归一化后仍应命中分区建议名
+    names = [z.get("suggested_name") for z in result.zones]
+    assert "原料库" in names
+
+
 def test_recognize_uses_clip_ai_hint_on_suspected():
     img = Image.new("RGB", (800, 800), "white")
     d = ImageDraw.Draw(img)

@@ -233,7 +233,7 @@ export default function FourColorImportModal({
               {showTexts && texts.map((t, i) => (
                 <svg key={`text-${i}`} viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
                   <polygon
-                    points={t.points.map(p => `${p.x / result.canvas_width * 100},${p.y / result.canvas_height * 100}`).join(" ")}
+                    points={t.points.map(p => `${p.x},${p.y}`).join(" ")}
                     fill="none"
                     stroke="#1677ff"
                     strokeWidth={1}

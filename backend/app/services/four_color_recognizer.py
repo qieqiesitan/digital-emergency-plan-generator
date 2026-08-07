@@ -453,6 +453,15 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
                 if _point_in_polygon(cx, cy, poly["points"]):
                     zone["suggested_name"] = text["text"]
                     break
+    # OCR 返回像素坐标；API schema 要求 0-100 归一化，统一在管线输出前转换
+    for text in texts:
+        pts = text.get("points") or []
+        if len(pts) >= 3:
+            text["points"] = normalize_points(
+                np.array([[p["x"], p["y"]] for p in pts], dtype=np.float64),
+                width,
+                height,
+            )
     for zone in zones:
         if zone.get("suspected") and not zone.get("ai_hint"):
             try:
