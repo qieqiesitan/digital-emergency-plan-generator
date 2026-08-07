@@ -220,6 +220,45 @@ async def test_analyze_floor_not_found_404():
     assert exc.value.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_analyze_propagates_excluded_and_texts(monkeypatch):
+    """识别器算出的 excluded/texts/suspected 必须原样透传到 analyze 响应。"""
+    from app.routers import risk_management as rm
+    from app.services.four_color_recognizer import RecognizeResult
+
+    db = AsyncMock()
+    db.execute.side_effect = [_ent_exec_result(MagicMock()), _floor_exec_result(MagicMock())]
+    monkeypatch.setattr(rm, "save_four_color_temp", MagicMock(return_value=("/uploads/tmp/x.png", "a" * 32)))
+    fake = RecognizeResult(
+        zones=[{
+            "client_id": "d1",
+            "name": "分区1",
+            "risk_level": "重大",
+            "color": "#ff4d4f",
+            "suspected": True,
+            "polygons": [{"id": "p1", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}]}],
+        }],
+        warnings=[],
+        width=600,
+        height=450,
+        excluded=[{
+            "color": "红",
+            "reason": "legend",
+            "polygons": [{"id": "p2", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}]}],
+        }],
+        texts=[{
+            "points": [{"x": 1, "y": 2}, {"x": 3, "y": 2}, {"x": 3, "y": 4}, {"x": 1, "y": 4}],
+            "text": "原料库",
+            "confidence": 0.9,
+        }],
+    )
+    monkeypatch.setattr(rm, "recognize_from_bytes", MagicMock(return_value=fake))
+    resp = await rm.analyze_four_color("f-1", "e-1", FakeUpload(_four_color_png()), current_user=MagicMock(), db=db)
+    assert resp.data.excluded[0].reason == "legend"
+    assert resp.data.texts[0].text == "原料库"
+    assert resp.data.zones[0].suspected is True
+
+
 # ── 端点：commit ──
 
 

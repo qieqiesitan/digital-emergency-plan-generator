@@ -190,6 +190,8 @@ async def analyze_four_color(floor_id: str, enterprise_id: str, file: UploadFile
         canvas_height=result.height,
         zones=result.zones,
         warnings=result.warnings,
+        excluded=result.excluded,
+        texts=result.texts,
     ))
 
 @router.post("/floors/{floor_id}/four-color/commit", response_model=ApiResponse[FourColorCommitResponse])
