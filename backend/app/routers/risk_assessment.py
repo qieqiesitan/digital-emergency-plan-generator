@@ -15,7 +15,7 @@ from app.schemas.risk_assessment import (
     RiskAssessmentPreviewResponse,
 )
 from app.schemas.common import ApiResponse
-from app.services.llm_client import decrypt_api_key
+from app.services.llm_client import decrypt_api_key, llm_chat_completion, llm_stream_all, LLMError
 from app.services.markdown_utils import md_to_html
 from app.services.sse_utils import sse_event
 from app.services.risk_assessment_service import (
@@ -170,51 +170,31 @@ def _render_content_to_docx(doc, content: str):
 
 # ---- LLM streaming utilities (used by both risk_assessment and resource_investigation) ----
 
+def _guard_decrypt(ai_config) -> None:
+    """保持原 decrypt 失败 → HTTPException(500) 的语义。"""
+    try:
+        decrypt_api_key(ai_config.api_key_encrypted)
+    except Exception:
+        raise HTTPException(500, "AI config key decryption failed")
+
+
 async def _stream_llm_with_messages(messages: list[dict], ai_config: AIConfig) -> str:
-    result = ""
-    async for chunk in _stream_llm_with_messages_chunked(messages, ai_config):
-        result += chunk
-    return result
+    _guard_decrypt(ai_config)
+    try:
+        return await llm_stream_all(messages, ai_config, timeout=120)
+    except LLMError as e:
+        # 保持原 risk_assessment 文案
+        raise Exception(f"LLM call failed: {e.status_code} {e.text[:300]}")
 
 
 async def _stream_llm_with_messages_chunked(messages: list[dict], ai_config: AIConfig):
+    _guard_decrypt(ai_config)
     try:
-        api_key = decrypt_api_key(ai_config.api_key_encrypted)
-    except Exception:
-        raise HTTPException(500, "AI config key decryption failed")
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-    import httpx
-    payload = {
-        "model": ai_config.model_name,
-        "messages": messages,
-        "temperature": ai_config.temperature,
-        "max_tokens": ai_config.max_tokens,
-        "top_p": ai_config.top_p,
-        "stream": True,
-    }
-    async with httpx.AsyncClient(timeout=120) as client:
-        async with client.stream("POST", f"{base}/chat/completions", json=payload,
-                                 headers={"Authorization": f"Bearer {api_key}"}) as resp:
-            if resp.status_code != 200:
-                err = await resp.aread()
-                raise Exception(f"LLM call failed: {resp.status_code} {err[:300]}")
-            async for line in resp.aiter_lines():
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        return
-                    try:
-                        chunk = json.loads(data)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-                        content_chunk = delta.get("content", "")
-                        if content_chunk:
-                            yield content_chunk
-                    except json.JSONDecodeError:
-                        pass
+        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
+        async for chunk in gen:
+            yield chunk
+    except LLMError as e:
+        raise Exception(f"LLM call failed: {e.status_code} {e.text[:300]}")
 
 
 async def _stream_llm_with_system(prompt: str, ai_config: AIConfig) -> str:

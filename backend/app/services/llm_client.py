@@ -161,7 +161,8 @@ async def llm_stream_all(
 ) -> str:
     """流式调用并收集为完整文本。"""
     result = ""
-    async for chunk in llm_chat_completion(messages, ai_config, stream=True, timeout=timeout):
+    gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=timeout)
+    async for chunk in gen:
         result += chunk
     return result
 

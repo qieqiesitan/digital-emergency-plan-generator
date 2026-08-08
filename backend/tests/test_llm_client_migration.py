@@ -113,8 +113,12 @@ async def test_llm_stream_all_collects_chunks(monkeypatch):
 
     async def fake_gen(messages, cfg, stream=False, timeout=120, **kw):
         assert stream is True
-        for c in ["你", "好"]:
-            yield c
+
+        async def _inner():
+            for c in ["你", "好"]:
+                yield c
+
+        return _inner()
 
     monkeypatch.setattr(lc, "llm_chat_completion", fake_gen)
     assert await lc.llm_stream_all([{"role": "user", "content": "hi"}], _cfg(), timeout=120) == "你好"
@@ -178,3 +182,64 @@ async def test_chat_collect_llm_uses_llm_collect_all(monkeypatch):
     monkeypatch.setattr(chat, "llm_collect_all", fake_collect)
     assert await chat._collect_llm([{"role": "user", "content": "hi"}], _cfg()) == "collected"
     assert calls["timeout"] == 180
+
+
+@pytest.mark.asyncio
+async def test_risk_assessment_stream_uses_llm_client_and_preserves_errors(monkeypatch):
+    from app.routers import risk_assessment as ra
+    calls = {}
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        calls.update({"stream": stream, "timeout": timeout})
+
+        async def gen():
+            yield "a"
+            yield "b"
+
+        return gen()
+
+    monkeypatch.setattr(ra, "llm_chat_completion", fake_chat)
+    # llm_stream_all 内部调用的是 llm_client 模块级函数，需同时 patch
+    import app.services.llm_client as lc
+    monkeypatch.setattr(lc, "llm_chat_completion", fake_chat)
+    monkeypatch.setattr(ra, "decrypt_api_key", lambda *a: "sk-test")
+
+    chunks = [c async for c in ra._stream_llm_with_messages_chunked(
+        [{"role": "user", "content": "hi"}], _cfg())]
+    assert chunks == ["a", "b"]
+    assert calls == {"stream": True, "timeout": 120}
+
+    full = await ra._stream_llm_with_messages([{"role": "user", "content": "hi"}], _cfg())
+    assert full == "ab"
+
+
+@pytest.mark.asyncio
+async def test_risk_assessment_stream_llm_error_message(monkeypatch):
+    from app.routers import risk_assessment as ra
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        raise LLMError(500, "boom")
+
+    monkeypatch.setattr(ra, "llm_chat_completion", fake_chat)
+    monkeypatch.setattr(ra, "decrypt_api_key", lambda *a: "sk-test")
+    with pytest.raises(Exception) as exc_info:
+        async for _ in ra._stream_llm_with_messages_chunked(
+            [{"role": "user", "content": "hi"}], _cfg()):
+            pass
+    assert str(exc_info.value) == "LLM call failed: 500 boom"
+
+
+@pytest.mark.asyncio
+async def test_risk_assessment_decrypt_failure_maps_to_500(monkeypatch):
+    from app.routers import risk_assessment as ra
+
+    def bad_decrypt(*a):
+        raise Exception("bad")
+
+    monkeypatch.setattr(ra, "decrypt_api_key", bad_decrypt)
+    with pytest.raises(HTTPException) as exc_info:
+        async for _ in ra._stream_llm_with_messages_chunked(
+            [{"role": "user", "content": "hi"}], _cfg()):
+            pass
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "AI config key decryption failed"
