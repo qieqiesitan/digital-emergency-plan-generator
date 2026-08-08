@@ -133,3 +133,48 @@ async def test_llm_text_completion_maps_401_to_500(monkeypatch):
         await lc.llm_text_completion([{"role": "user", "content": "hi"}], _cfg())
     assert exc_info.value.status_code == 500
     assert "AI API Key 无效" in str(exc_info.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_chat_call_llm_uses_llm_client_with_tools(monkeypatch):
+    from app.routers import chat
+    calls = {}
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        calls.update({"stream": stream, "timeout": timeout, "tools": kw.get("tools")})
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    monkeypatch.setattr(chat, "llm_chat_completion", fake_chat)
+    cfg = _cfg()
+    result = await chat._call_llm([{"role": "user", "content": "hi"}], cfg)
+    assert result["choices"][0]["message"]["content"] == "ok"
+    assert calls == {"stream": False, "timeout": 60, "tools": chat.CHAT_TOOLS}
+
+
+@pytest.mark.asyncio
+async def test_chat_call_llm_stream_preserves_error_message(monkeypatch):
+    from app.routers import chat
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        raise LLMError(500, "boom")
+
+    monkeypatch.setattr(chat, "llm_chat_completion", fake_chat)
+    gen = chat._call_llm_stream([{"role": "user", "content": "hi"}], _cfg())
+    with pytest.raises(Exception) as exc_info:
+        async for _ in gen:
+            pass
+    assert str(exc_info.value) == "AI调用失败: 500 boom"
+
+
+@pytest.mark.asyncio
+async def test_chat_collect_llm_uses_llm_collect_all(monkeypatch):
+    from app.routers import chat
+    calls = {}
+
+    async def fake_collect(messages, cfg, timeout=120):
+        calls["timeout"] = timeout
+        return "collected"
+
+    monkeypatch.setattr(chat, "llm_collect_all", fake_collect)
+    assert await chat._collect_llm([{"role": "user", "content": "hi"}], _cfg()) == "collected"
+    assert calls["timeout"] == 180

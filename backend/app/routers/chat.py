@@ -8,7 +8,7 @@ from app.database import get_db, async_session
 from app.models.enterprise import AIConfig
 from app.models.chat import ChatConversation, ChatMessage
 from app.dependencies import get_current_user
-from app.services.llm_client import decrypt_api_key
+from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMError
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import render_mermaid_svg
 from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
@@ -16,7 +16,6 @@ from app.services.chat_dispatch import dispatch
 from datetime import datetime, timezone
 from app.services.sse_utils import sse_line
 import asyncio
-import httpx
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -86,63 +85,22 @@ def _build_tool_messages(history: list, user_message: str) -> list:
 
 
 async def _call_llm(messages: list, ai_config: AIConfig) -> dict:
-    api_key = decrypt_api_key(ai_config.api_key_encrypted)
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-    payload = {"model": ai_config.model_name, "messages": messages, "tools": CHAT_TOOLS, "temperature": ai_config.temperature, "max_tokens": ai_config.max_tokens, "top_p": ai_config.top_p, "stream": False}
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(f"{base}/chat/completions", json=payload, headers={"Authorization": f"Bearer {api_key}"})
-        if resp.status_code != 200:
-            raise Exception(f"AI调用失败: {resp.status_code} {resp.text[:300]}")
-        return resp.json()
+    return await llm_chat_completion(messages, ai_config, stream=False, timeout=60, tools=CHAT_TOOLS)
 
 
 async def _call_llm_stream(messages: list, ai_config: AIConfig):
-    api_key = decrypt_api_key(ai_config.api_key_encrypted)
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-    payload = {"model": ai_config.model_name, "messages": messages, "temperature": ai_config.temperature, "max_tokens": ai_config.max_tokens, "top_p": ai_config.top_p, "stream": True}
-    async with httpx.AsyncClient(timeout=180) as client:
-        async with client.stream("POST", f"{base}/chat/completions", json=payload, headers={"Authorization": f"Bearer {api_key}"}) as resp:
-            if resp.status_code != 200:
-                err = await resp.aread()
-                raise Exception(f"AI调用失败: {resp.status_code} {err[:300]}")
-            async for line in resp.aiter_lines():
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        return
-                    try:
-                        chunk = json.loads(data)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            yield content
-                    except json.JSONDecodeError:
-                        pass
+    try:
+        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=180)
+        async for chunk in gen:
+            yield chunk
+    except LLMError as e:
+        # 保持原 chat.py 文案（无空格）
+        raise Exception(f"AI调用失败: {e.status_code} {e.text[:300]}")
 
 
 async def _collect_llm(messages: list, ai_config: AIConfig) -> str:
     """收集 LLM 完整响应（用于需要后处理的场景）"""
-    api_key = decrypt_api_key(ai_config.api_key_encrypted)
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-    payload = {"model": ai_config.model_name, "messages": messages, "temperature": ai_config.temperature, "max_tokens": ai_config.max_tokens, "top_p": ai_config.top_p, "stream": False}
-    async with httpx.AsyncClient(timeout=180) as client:
-        resp = await client.post(f"{base}/chat/completions", json=payload, headers={"Authorization": f"Bearer {api_key}"})
-        if resp.status_code != 200:
-            raise Exception(f"AI调用失败: {resp.status_code} {resp.text[:300]}")
-        data = resp.json()
-        return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    return await llm_collect_all(messages, ai_config, timeout=180)
 
 
 async def _render_mermaid_blocks(md_text: str) -> str:
