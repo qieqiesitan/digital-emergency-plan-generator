@@ -46,6 +46,13 @@ _active_generations: dict[str, bool] = {}
 
 _background_tasks: dict[str, asyncio.Task] = {}
 
+_failed_sections: dict[str, list] = {}
+
+
+class _GenerationCancelled(Exception):
+    """内部异常：SSE 批量生成被 stop 端点取消时抛出。"""
+
+
 
 
 # Mermaid flowchart section mapping by section_key
@@ -370,6 +377,64 @@ async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*", st
     ]
     return await llm_collect_all(messages, ai_config, timeout=120)
 
+
+async def _run_batch_generation(
+    *,
+    bg_db,
+    plan_id: str,
+    section_tuples: list,
+    ai_config,
+    ent_data: dict,
+    plan_type: str,
+    accident_type: str | None = None,
+    style_preference=None,
+    advanced_overrides=None,
+    stream_fn=None,
+    on_progress=None,
+) -> dict:
+    """批量生成公共实现：逐章生成、写库、渲染 Mermaid、统计失败。
+
+    stream_fn: async 函数 (prompt, ai_config, plan_type, style_preference, advanced_overrides) -> str；
+    为 None 时使用 _stream_llm。
+    """
+    completed = 0
+    failed = 0
+    failed_sections = []
+
+    bg_sections = (await bg_db.execute(
+        select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
+    )).scalars().all()
+    bg_section_map = {s.section_key: s for s in bg_sections}
+
+    for i, (section_key, section_title) in enumerate(section_tuples):
+        if on_progress:
+            await on_progress(section_key, section_title, i)
+        s = bg_section_map.get(section_key)
+        if not s:
+            continue
+        try:
+            prompt_text = _build_section_prompt(
+                section_title, ent_data, section_number=i + 1,
+                section_key=section_key, plan_type=plan_type,
+                accident_type=accident_type, diagram_preference="mermaid",
+            )
+            if stream_fn is None:
+                full = await _stream_llm(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
+            else:
+                full = await stream_fn(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
+            s.content = md_to_html(full, normalize=True)
+            s.ai_generated = True
+            s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
+            await bg_db.commit()
+            completed += 1
+        except Exception as e:
+            logger.error(f"Section {section_key} failed: {e}")
+            failed += 1
+            failed_sections.append({"section_key": section_key, "title": section_title})
+
+    return {"completed": completed, "failed": failed, "failed_sections": failed_sections}
+
+
 @router.post("/{plan_id}/generate/batch")
 
 async def generate_batch(plan_id: str, request: Request, current_user=Depends(get_current_user), db=Depends(get_db)):
@@ -439,87 +504,65 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
 
     async def run_background():
-
-        completed = 0
-
-        failed = 0
-
         try:
-
             await event_queue.put(sse_event("progress", message=f"开始批量生成 {len(section_tuples)} 个章节...", current=0, total=len(section_tuples)))
-
             async with async_session() as bg_db:
+                _failed_sections[plan_id] = []
+                section_key_holder: dict = {}
+                outcomes: dict[str, bool] = {}
 
-                bg_sections = (await bg_db.execute(
+                async def sse_stream(prompt, cfg, pt, sp, ao):
+                    full = ""
+                    key = section_key_holder.get("key")
+                    title = section_key_holder.get("title", key)
+                    try:
+                        async for chunk in _stream_llm_chunks(prompt, cfg, pt, sp, ao):
+                            full += chunk
+                            await event_queue.put(sse_event("chunk", content=chunk, section_key=key))
+                        outcomes[key] = True
+                        return full
+                    except Exception as e:
+                        outcomes[key] = False
+                        await event_queue.put(sse_event("error", message=f"「{title}」生成失败: {e}", section_key=key))
+                        raise
 
-                    select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
-
-                )).scalars().all()
-
-                bg_section_map = {s.section_key: s for s in bg_sections}
-
-
-
-                for i, (section_key, section_title) in enumerate(section_tuples):
-
+                async def on_progress(section_key, section_title, i):
                     if not _active_generations.get(plan_id):
-
                         await event_queue.put(sse_event("error", message="生成已取消"))
-
-                        return
-
-                    s = bg_section_map.get(section_key)
-
-                    if not s:
-
-                        continue
-
+                        raise _GenerationCancelled()
+                    section_key_holder["key"] = section_key
+                    section_key_holder["title"] = section_title
+                    if i > 0:
+                        prev_key, prev_title = section_tuples[i - 1]
+                        if outcomes.get(prev_key) is True:
+                            await event_queue.put(sse_event("section_done", section_key=prev_key, message=f"「{prev_title}」生成完成"))
                     await event_queue.put(sse_event("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
 
-                    try:
+                result = await _run_batch_generation(
+                    bg_db=bg_db, plan_id=plan_id, section_tuples=section_tuples,
+                    ai_config=ai_config, ent_data=ent_data,
+                    plan_type=p.plan_type, accident_type=p.accident_type,
+                    style_preference=p.style_preference,
+                    advanced_overrides=p.advanced_prompt_overrides,
+                    stream_fn=sse_stream,
+                    on_progress=on_progress,
+                )
+                completed, failed = result["completed"], result["failed"]
+                failed_sections = result["failed_sections"]
+                _failed_sections[plan_id] = failed_sections
 
-                        prompt_text = _build_section_prompt(section_title, ent_data, section_number=i+1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference="mermaid")
-
-                        full = ""
-
-                        async for chunk_content in _stream_llm_chunks(prompt_text, ai_config, plan_type, p.style_preference, p.advanced_prompt_overrides):
-
-                            full += chunk_content
-
-                            await event_queue.put(sse_event("chunk", content=chunk_content, section_key=section_key))
-
-                        s.content = md_to_html(full, normalize=True); s.ai_generated = True
-
-                        s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
-                        await bg_db.commit()
-
-                        completed += 1
-
-                        await event_queue.put(sse_event("section_done", section_key=section_key, message=f"「{section_title}」生成完成", completed=completed, failed=failed))
-
-                    except Exception as e:
-
-                        failed += 1
-
-                        await event_queue.put(sse_event("error", message=f"「{section_title}」生成失败: {e}", section_key=section_key))
-
-
+                if section_tuples:
+                    last_key, last_title = section_tuples[-1]
+                    if outcomes.get(last_key) is True:
+                        await event_queue.put(sse_event("section_done", section_key=last_key, message=f"「{last_title}」生成完成"))
 
                 updated = (await bg_db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id))).scalars().all()
-
                 p2 = (await bg_db.execute(select(PlanProject).where(PlanProject.id == plan_id))).scalar_one_or_none()
-
                 if p2:
-
                     if all(sec.content and sec.content.strip() for sec in updated):
-
                         p2.status = "completed"
-
                     else:
-
                         p2.status = "draft"
-
-                # ponytail: auto-create version snapshot after generation
                 try:
                     ver_snapshot = _build_snapshot(p2, updated)
                     new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
@@ -530,20 +573,15 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
 
-                await event_queue.put(sse_event("batch_done", message="批量生成完成", completed=completed, failed=failed))
-
+                await event_queue.put(sse_event("batch_done", message="批量生成完成", completed=completed, failed=failed, failed_sections=failed_sections))
+        except _GenerationCancelled:
+            pass
         except Exception as e:
-
             try:
-
                 await event_queue.put(sse_event("error", message=str(e)))
-
             except Exception:
-
                 pass
-
         finally:
-
             await event_queue.put(None)  # Sentinel to close SSE
 
 
@@ -579,6 +617,22 @@ async def stop_generation(plan_id: str):
     _active_generations[plan_id] = False
 
     return {"code": 0, "message": "已请求停止生成"}
+
+
+@router.get("/{plan_id}/generate/status")
+async def get_generation_status(plan_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    p = (await db.execute(select(PlanProject).where(
+        PlanProject.id == plan_id, PlanProject.user_id == current_user.id
+    ))).scalar_one_or_none()
+    if not p:
+        raise HTTPException(404, "预案不存在")
+    return {
+        "code": 0,
+        "data": {
+            "generating": _active_generations.get(plan_id, False),
+            "failed_sections": _failed_sections.get(plan_id, []),
+        },
+    }
 
 
 
@@ -655,73 +709,28 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
 
     async def run_background():
-
-        completed = 0
-
-        failed = 0
-
         try:
-
             async with async_session() as bg_db:
-
-                # Re-fetch sections in the background session
-
-                bg_sections = (await bg_db.execute(
-
-                    select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
-
-                )).scalars().all()
-
-                bg_section_map = {s.section_key: s for s in bg_sections}
-
-
-
-                for section_key, section_title in section_ids:
-
-                    if not _active_generations.get(plan_id):
-
-                        break
-
-                    s = bg_section_map.get(section_key)
-
-                    if not s:
-
-                        continue
-
-                    try:
-
-                        full = await _stream_llm(_build_section_prompt(section_title, ent_data, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference="mermaid"), ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides)
-
-                        s.content = md_to_html(full, normalize=True)
-
-                        s.ai_generated = True
-
-                        s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
-                        await bg_db.commit()
-
-                        completed += 1
-
-                    except Exception:
-
-                        failed += 1
-
-
+                _failed_sections[plan_id] = []
+                result = await _run_batch_generation(
+                    bg_db=bg_db, plan_id=plan_id, section_tuples=section_ids,
+                    ai_config=ai_config, ent_data=ent_data,
+                    plan_type=p.plan_type, accident_type=p.accident_type,
+                    style_preference=p.style_preference,
+                    advanced_overrides=p.advanced_prompt_overrides,
+                    stream_fn=None,
+                    on_progress=None,
+                )
+                failed_sections = result["failed_sections"]
+                _failed_sections[plan_id] = failed_sections
 
                 updated = (await bg_db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id))).scalars().all()
-
                 p2 = (await bg_db.execute(select(PlanProject).where(PlanProject.id == plan_id))).scalar_one_or_none()
-
                 if p2:
-
                     if all(sec.content and sec.content.strip() for sec in updated):
-
                         p2.status = "completed"
-
                     else:
-
                         p2.status = "draft"
-
-                # ponytail: auto-create version snapshot after generation
                 try:
                     ver_snapshot = _build_snapshot(p2, updated)
                     new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
@@ -731,7 +740,6 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
                 except Exception as ver_e:
                     logger.error(f"Failed to auto-create version: {ver_e}")
                 await bg_db.commit()
-
         except Exception as e:
             logger.error(f"Background batch generation failed: {e}")
         finally:
