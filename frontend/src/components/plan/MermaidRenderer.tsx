@@ -20,11 +20,10 @@ function initMermaid() {
 function sanitizeMermaidText(text: string): string {
   let result = text;
 
-  // Replace fullwidth punctuation that confuse the Mermaid parser
-  result = result.replace(/（/g, "(").replace(/）/g, ")");
-  result = result.replace(/：/g, ":");
-  result = result.replace(/［/g, "[").replace(/］/g, "]");
-  result = result.replace(/｛/g, "{").replace(/｝/g, "}");
+  // 注意：不再把全角标点（（）［］｛｝：）转成半角。
+  // mermaid v11 中全角括号/方括号/花括号/冒号在节点文本与边标签里是安全字面量，
+  // 转成半角后反而会被当成语法符号导致解析失败（docx 用的旧版 mermaid 能容忍，
+  // 前端 v11 不能，这是「docx 正常但预览失败」的根因之一）。
 
   // Strip leading non-Mermaid lines (e.g. stray section headings before the diagram)
   const MERMAID_KEYWORDS = [
@@ -58,6 +57,21 @@ function sanitizeMermaidText(text: string): string {
   result = result.replace(/(->)\|([^|"\n]*?\([^|"\n]*?\)[^|"\n]*?)\|/g, "$1|\"$2\"|");
   // Fix: Quote subgraph/end names with parentheses
   result = result.replace(/\b(subgraph)\s+(.+)/g, '$1 "$2"');
+
+  // Fix: Wrap node labels containing English parentheses in quotes
+  // (mermaid v11 treats bare "(" inside [..]/{..} as syntax and fails;
+  //  the docx export uses an older mermaid that tolerates it.)
+  // A[text (with parens)] -> A["text (with parens)"]
+  result = result.replace(
+    /(\w+)\s*(\[|\{)([\s\S]*?\([\s\S]*?\)[\s\S]*?)(\]|\})/g,
+    (m, id, open, text, close) => {
+      const trimmed = text.trim();
+      if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+        return m;
+      }
+      return `${id}${open}"${trimmed}"${close}`;
+    }
+  );
 
   // Fix: Join broken edge definitions (arrow on one line, label on next)
   lines = result.split("\n");
