@@ -57,3 +57,16 @@ async def test_delete_plan_missing_id():
 async def test_dispatch_unknown_function():
     out = await dispatch(AsyncMock(), MagicMock(id="u1"), "no_such_fn", {})
     assert "未知操作" in out
+
+
+def test_enterprise_response_dedup_fields():
+    from app.schemas.enterprise import EnterpriseBase, EnterpriseResponse
+    base = EnterpriseBase.model_fields
+    resp = EnterpriseResponse.model_fields
+    # 5 个同类型字段不再被 Response 重新声明：注解与 Base 完全一致
+    for f in ["last_plan_filing_authority", "building_overview", "floor_plan_url", "gis_lat", "gis_lng"]:
+        assert f in resp
+        assert resp[f].annotation is base[f].annotation
+    # 3 个日期字段保留覆盖：类型不同（输出序列化格式）
+    for f in ["established_date", "fire_approval_date", "last_plan_filing_date"]:
+        assert resp[f].annotation is not base[f].annotation

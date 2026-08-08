@@ -76,18 +76,18 @@ class EnterpriseUpdate(EnterpriseBase):
     name: str | None = None  # 覆盖为可选
 
 class EnterpriseResponse(EnterpriseBase):
-    """企业响应。包含 EnterpriseBase 所有字段 + 额外响应字段。"""
+    """企业响应。包含 EnterpriseBase 所有字段 + 额外响应字段。
+
+    注意：established_date / fire_approval_date / last_plan_filing_date 在
+    Base 中为 str（输入态），此处覆盖为 DatetimeStr（输出序列化格式），
+    二者类型不同，不可合并，必须保留覆盖。
+    """
     id: str
     established_date: DatetimeStr | None = None
     fire_approval_date: DatetimeStr | None = None
     last_plan_filing_date: DatetimeStr | None = None
-    last_plan_filing_authority: str | None = None
-    building_overview: str | None = None
     org_structure: list = []
     surrounding_info: dict | None = None
-    floor_plan_url: str | None = None
-    gis_lat: float | None = None
-    gis_lng: float | None = None
     risk_sources_count: int = 0
     risk_events_count: int = 0
     resources_count: int = 0
