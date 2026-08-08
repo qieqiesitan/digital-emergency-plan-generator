@@ -133,7 +133,7 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
         "total_events": total_events,
         "risk_events": [
             {
-                "name": event.name,
+                "name": event.accident_type or (event.description or "")[:20] or "未命名风险",
                 "likelihood": event.method_params.get("l", 3) if event.method_params else 3,
                 "severity": event.method_params.get("s", 3) if event.method_params else 3,
                 "risk_level": event.risk_level or "",

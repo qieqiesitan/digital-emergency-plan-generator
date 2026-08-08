@@ -159,3 +159,56 @@ def test_attach_diagrams_reassigns_dict_for_sqlalchemy_dirty_flag():
     # 必须是新对象（不是原地改同一个 dict），确保 SQLAlchemy 能检测
     assert s.diagram_svgs is not existing
     assert "risk_matrix" in s.diagram_svgs
+
+
+import pytest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+from app.services.risk_context_builder import build_risk_management_context
+
+
+def _mock_event(accident_type=None, description=None, params=None, risk_level=None):
+    return SimpleNamespace(
+        accident_type=accident_type,
+        description=description,
+        method_params=params,
+        risk_level=risk_level,
+        measures=[],
+        risk_score=None,
+        trigger_conditions=None,
+        consequences=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_risk_management_context_risk_events_without_event_name():
+    """risk_events 不得引用 RiskEvent.name（模型无此字段），名称由 accident_type/description 组合。"""
+    ev1 = _mock_event("储罐泄漏", "储罐泄漏引发火灾", {"l": 4, "s": 5}, "较大")
+    ev2 = _mock_event(None, "电气线路老化短路引发火灾", None, None)
+    ev3 = _mock_event(None, None, {"l": 1, "s": 1}, None)
+    unit = SimpleNamespace(name="1号罐体", events=[ev2, ev3])
+    obj = SimpleNamespace(
+        name="储罐区", category="危险源", location="东侧",
+        location_x=50, location_y=50, events=[ev1], units=[unit],
+    )
+    zone = SimpleNamespace(name="生产区", floor_plan_polygon=None, objects=[obj])
+
+    ent = MagicMock(name="测试企业")
+    ent_result = MagicMock()
+    ent_result.scalar_one_or_none.return_value = ent
+    zones_result = MagicMock()
+    zones_result.scalars.return_value.all.return_value = [zone]
+    db = AsyncMock()
+    db.execute.side_effect = [ent_result, zones_result]
+
+    ctx = await build_risk_management_context("ent1", db)
+    assert [e["name"] for e in ctx["risk_events"]] == [
+        "储罐泄漏",
+        "电气线路老化短路引发火灾",
+        "未命名风险",
+    ]
+    assert ctx["risk_events"][0]["likelihood"] == 4
+    assert ctx["risk_events"][0]["severity"] == 5
+    assert ctx["risk_events"][1]["likelihood"] == 3
+    assert ctx["risk_events"][1]["severity"] == 3
