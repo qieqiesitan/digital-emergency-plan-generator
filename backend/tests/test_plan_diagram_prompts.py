@@ -17,3 +17,10 @@ def test_additional_diagram_prompts_exist():
     for key in ("org_chart", "report_sequence", "response_timeline", "drill_gantt"):
         assert get_additional_diagram_prompt(key), f"missing prompt for {key}"
     assert "org_structure" in get_additional_diagram_prompt("org_chart")
+
+
+def test_org_chart_prompt_has_data_guardrail():
+    from app.services.prompt_cache import get_additional_diagram_prompt
+    prompt = get_additional_diagram_prompt("org_chart")
+    assert "不得编造" in prompt
+    assert "数据中不存在" in prompt
