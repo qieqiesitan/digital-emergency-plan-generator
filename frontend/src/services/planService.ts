@@ -65,6 +65,11 @@ export async function updateSection(planId: string, sectionKey: string, data: Se
   return res.data.data;
 }
 
+export async function autofillSection(planId: string, sectionKey: string): Promise<PlanSection> {
+  const res = await api.post<ApiResponse<PlanSection>>(`/plans/${planId}/sections/${sectionKey}/autofill`);
+  return res.data.data;
+}
+
 // ── Templates (from templateService) ──
 
 export async function listTemplates(planType?: PlanType): Promise<PaginatedResponse<PlanTemplate>> {

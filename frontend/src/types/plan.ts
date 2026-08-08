@@ -36,6 +36,10 @@ export interface PlanSection {
   sort_order: number;
   content: string;
   ai_generated: boolean;
+  ai_generatable: boolean;
+  auto_fill: boolean;
+  auto_fill_source: string | null;
+  data_dependencies: string[];
   updated_at: string;
 }
 

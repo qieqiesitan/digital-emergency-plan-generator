@@ -3,10 +3,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Input, Button, Space, Badge, message, Progress } from "antd";
 import Modal from "antd/es/modal";
-import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined } from "@ant-design/icons";
+import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPlan, updatePlan, createVersion } from "@/services/planService";
-import { listSections, updateSection } from "@/services/planService";
+import { listSections, updateSection, autofillSection } from "@/services/planService";
 import { generateBatchStream } from "@/services/generationService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
@@ -75,6 +75,15 @@ export default function PlanEditorPage() {
     mutationFn: () => createVersion(id!, "手动保存版本"),
     onSuccess: () => { message.success("版本已保存"); queryClient.invalidateQueries({ queryKey: ["versions", id] }); },
     onError: () => message.error("保存版本失败"),
+  });
+  const autofillMut = useMutation({
+    mutationFn: (key: string) => autofillSection(id!, key),
+    onSuccess: () => {
+      message.success("自动填充完成");
+      queryClient.invalidateQueries({ queryKey: ["planSections", id] });
+      queryClient.invalidateQueries({ queryKey: ["plan", id] });
+    },
+    onError: (e: unknown) => message.error((e as Error)?.message || "自动填充失败"),
   });
 
 
@@ -243,14 +252,14 @@ export default function PlanEditorPage() {
     title: s.title,
     level: s.level,
     sort_order: s.sort_order,
-    ai_generatable: true,
+    ai_generatable: s.ai_generatable,
     user_editable: true,
     required: s.level <= 1,
-    auto_fill: false,
-    auto_fill_source: null,
+    auto_fill: s.auto_fill,
+    auto_fill_source: s.auto_fill_source,
     gb_requirement: "",
     prompt_template: null,
-    data_dependencies: [],
+    data_dependencies: s.data_dependencies,
     subsections: [],
   }));
 
@@ -339,14 +348,24 @@ export default function PlanEditorPage() {
                 <span style={{ fontWeight: 500 }}>{currentSection.title}</span>
                 <Space>
                   <Badge count={editingContent.length} overflowCount={99999} style={{ backgroundColor: "#999" }} />
-                  
-          <AIGenerateButton
+                  {currentSection.auto_fill && (
+                    <Button
+                      icon={<FileSyncOutlined />}
+                      loading={autofillMut.isPending}
+                      onClick={() => autofillMut.mutate(currentSection.section_key)}
+                    >
+                      自动填充
+                    </Button>
+                  )}
+                  {currentSection.ai_generatable && (
+                    <AIGenerateButton
                     planId={id!}
                     sectionKey={selectedKey}
                     sectionTitle={currentSection.title}
                     onContentChunk={handleAIContentChunk}
                     onGenerateComplete={handleAIGenerateComplete}
-                  />
+                    />
+                  )}
                 </Space>
               </div>
               <RichTextEditor
