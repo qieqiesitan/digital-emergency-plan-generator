@@ -164,6 +164,7 @@ class PlanSection(Base):
         kwargs.setdefault("auto_fill", False)
         kwargs.setdefault("auto_fill_source", None)
         kwargs.setdefault("data_dependencies", [])
+        kwargs.setdefault("diagram_svgs", {})
         super().__init__(**kwargs)
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
@@ -175,6 +176,7 @@ class PlanSection(Base):
     content: Mapped[Optional[str]] = mapped_column(Text)
     ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     mermaid_svgs: Mapped[Optional[dict]] = mapped_column(JSONB, default=None)
+    diagram_svgs: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     ai_generatable: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_fill: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_fill_source: Mapped[Optional[str]] = mapped_column(String(50))

@@ -1,0 +1,2 @@
+ALTER TABLE plan_sections
+  ADD COLUMN IF NOT EXISTS diagram_svgs JSONB NOT NULL DEFAULT '{}';
