@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Spin, Button, Space, message } from "antd";
+import { Spin, Button, Space, message, Alert } from "antd";
 import { DownloadOutlined, PrinterOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { getExportPreview, exportDocx } from "@/services/exportService";
+import { getExportPreview, exportDocx, validateExport } from "@/services/exportService";
 import MermaidRenderer from "@/components/plan/MermaidRenderer";
 import type { ExportTask } from "@/types/plan";
 
@@ -14,6 +14,11 @@ export default function ExportPreviewPage() {
   const { data: preview, isLoading } = useQuery({
     queryKey: ["exportPreview", id],
     queryFn: () => getExportPreview(id!),
+    enabled: !!id,
+  });
+  const { data: validation } = useQuery({
+    queryKey: ["exportValidate", id],
+    queryFn: () => validateExport(id!),
     enabled: !!id,
   });
 
@@ -67,6 +72,34 @@ export default function ExportPreviewPage() {
           </Button>
         </Space>
       </div>
+      {validation && !validation.valid && (
+        <Alert
+          type="error"
+          showIcon
+          message="导出前请修复以下问题"
+          description={
+            <ul>
+              {validation.issues.map((i, idx) => (
+                <li key={idx}>「{i.section_title}」{i.issue}</li>
+              ))}
+            </ul>
+          }
+          action={<Button onClick={() => navigate(`/plans/${id}/edit`)}>去编辑</Button>}
+        />
+      )}
+      {validation && validation.warnings.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message="质量提示"
+          description={
+            <ul>
+              {validation.warnings.map((w, idx) => <li key={idx}>{w}</li>)}
+            </ul>
+          }
+          style={{ marginTop: 8 }}
+        />
+      )}
       <div className="export-preview-container">
         {isLoading ? (
           <Spin size="large" />

@@ -11,7 +11,7 @@ from app.dependencies import get_current_user
 from app.config import settings
 from pydantic import BaseModel
 from app.services.mermaid_renderer import (
-    _extract_mermaid_code, render_mermaid_png, render_svg_to_png,
+    render_mermaid_png, render_svg_to_png,
     _mermaid_hash, replace_mermaid_with_placeholders
 )
 from app.services.docx_template import (
@@ -313,7 +313,7 @@ async def export_plan_docx(
         raise HTTPException(500, f"DOCX 生成失败: {str(e)}")
 
 
-# Route: Validate Export (unchanged)
+# Route: Validate Export
 
 @router.post("/{plan_id}/export/validate")
 async def validate_plan_export(
@@ -332,6 +332,12 @@ async def validate_plan_export(
     if not plan:
         raise HTTPException(404, "Plan not found")
 
+    enterprise = (
+        await db.execute(
+            select(Enterprise).where(Enterprise.id == plan.enterprise_id)
+        )
+    ).scalar_one_or_none()
+
     sections = (
         await db.execute(
             select(PlanSection)
@@ -340,32 +346,23 @@ async def validate_plan_export(
         )
     ).scalars().all()
 
-    issues = []
-    warnings = []
-
     if not sections:
-        issues.append({"section_key": "", "section_title": "All", "issue": "Plan has no sections"})
-    else:
-        for section in sections:
-            if not section.content or not section.content.strip():
-                issues.append({
-                    "section_key": section.section_key,
-                    "section_title": section.title,
-                    "issue": "Section content is empty",
-                })
+        return ApiResponse(data={
+            "valid": False,
+            "issues": [{"section_key": "", "section_title": "All", "issue": "预案没有章节"}],
+            "warnings": [],
+        })
 
-        for section in sections:
-            if section.content:
-                codes = _extract_mermaid_code(section.content)
-                for code in codes:
-                    if not code.strip().startswith(("flowchart", "graph", "sequenceDiagram",
-                        "classDiagram", "stateDiagram", "erDiagram", "gantt", "pie",
-                        "gitGraph", "mindmap", "timeline", "journey")):
-                        warnings.append(f"Mermaid in section '{section.title}' may be missing diagram type declaration")
-
+    from app.services.plan_quality_service import check_plan
+    result = check_plan(plan, enterprise, sections)
+    # 兼容既有响应：warnings 为字符串列表
+    warnings = [
+        f"「{w['section_title']}」{w['warning']}"
+        for w in result["warnings"]
+    ]
     return ApiResponse(data={
-        "valid": len(issues) == 0,
-        "issues": issues,
+        "valid": result["valid"],
+        "issues": result["issues"],
         "warnings": warnings,
     })
 
