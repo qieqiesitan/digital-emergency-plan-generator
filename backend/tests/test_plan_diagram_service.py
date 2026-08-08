@@ -9,3 +9,49 @@ def test_plan_section_has_diagram_svgs_column():
 def test_diagram_svgs_default():
     s = PlanSection(id="t", plan_project_id="p", section_key="s", title="t", level=1, sort_order=0)
     assert s.diagram_svgs == {}
+
+
+from app.services.plan_diagram_service import (
+    build_risk_matrix_svg, build_evacuation_svg, make_placeholder,
+)
+
+
+def test_make_placeholder_structure():
+    p = make_placeholder("risk_matrix", "missing_risk_events")
+    assert p["placeholder"] is True
+    assert p["key"] == "risk_matrix"
+    assert p["reason"] == "missing_risk_events"
+
+
+def test_build_risk_matrix_svg():
+    events = [
+        {"name": "储罐泄漏", "likelihood": 3, "severity": 4, "risk_level": "较大"},
+        {"name": "电气火灾", "likelihood": 2, "severity": 3, "risk_level": "一般"},
+    ]
+    out = build_risk_matrix_svg(events)
+    assert out["placeholder"] is False
+    assert "<svg" in out["svg"]
+    assert "储罐泄漏" in out["svg"]
+
+
+def test_build_risk_matrix_svg_no_data():
+    assert build_risk_matrix_svg([])["placeholder"] is True
+
+
+def test_build_evacuation_svg_with_points():
+    out = build_evacuation_svg(
+        floor_plan_url=None,
+        zones=[{"name": "生产区", "polygon": {"version": 2, "polygons": [
+            {"points": [[10, 10], [90, 10], [90, 90], [10, 90]]}
+        ]}}],
+        objects=[{"name": "储罐", "location_x": 50, "location_y": 50}],
+        resources=[{"name": "灭火器", "category": "消防", "location": "东墙"}],
+    )
+    assert out["placeholder"] is False
+    assert "<svg" in out["svg"]
+    assert "储罐" in out["svg"]
+
+
+def test_build_evacuation_svg_no_data():
+    out = build_evacuation_svg(None, [], [], [])
+    assert out["placeholder"] is True
