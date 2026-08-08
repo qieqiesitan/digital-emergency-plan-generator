@@ -63,13 +63,13 @@ export default function PlanEditorPage() {
   });
 
   const missingDiagrams = useMemo(() => {
-    const keys = new Set<string>();
+    const items: string[] = [];
     (sections || []).forEach((s) => {
       Object.entries(s.diagram_svgs || {}).forEach(([k, meta]) => {
-        if (meta?.placeholder) keys.add(k);
+        if (meta?.placeholder) items.push(`${s.title}：${k}`);
       });
     });
-    return Array.from(keys);
+    return items;
   }, [sections]);
 
   const regenerateDiagramsMut = useMutation({
