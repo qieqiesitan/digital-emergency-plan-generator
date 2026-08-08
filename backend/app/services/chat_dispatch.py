@@ -741,11 +741,50 @@ async def _export_plan_docx(db, user, args):
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == user.id))).scalar_one_or_none()
     if not p:
         return {"error": "预案不存在"}
-    export_dir = os.environ.get("EXPORT_DIR", "/app/exports")
-    os.makedirs(export_dir, exist_ok=True)
+    ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
+    if not ent:
+        return {"error": "企业不存在"}
+    sections = (await db.execute(
+        select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
+    )).scalars().all()
+    sections_data = []
+    for s in sections:
+        if not s.content or not s.content.strip():
+            continue
+        content = s.content
+        try:
+            from app.routers.export import _strip_section_heading
+            content = _strip_section_heading(content)
+        except Exception:
+            pass
+        sections_data.append({
+            "title": s.title, "level": s.level,
+            "content": content, "mermaid_svgs": s.mermaid_svgs or {},
+        })
+    if not p.plan_number or not p.version_number:
+        return {"error": "请先设置预案编号与版本号"}
     try:
-        filepath = await generate_plan_docx_func(p.id, db)
-        return {"message": "导出成功", "filename": os.path.basename(filepath), "verified": True}
+        from app.routers.export import _build_signers_from_org
+        import asyncio
+        import re as _re
+        signers = _build_signers_from_org(ent.org_structure or [])
+        doc = await asyncio.to_thread(
+            generate_plan_docx_func,
+            company_name=ent.name,
+            plan_title=p.title,
+            plan_type=p.plan_type,
+            plan_number=p.plan_number,
+            version_number=p.version_number,
+            sections=sections_data,
+            signers=signers or None,
+        )
+        export_dir = os.environ.get("EXPORT_DIR", "/app/exports")
+        os.makedirs(export_dir, exist_ok=True)
+        safe_title = _re.sub(r'[\/*?:"<>|]', "_", p.title)
+        filename = f"{safe_title}.docx"
+        filepath = os.path.join(export_dir, filename)
+        doc.save(filepath)
+        return {"message": "导出成功", "filename": filename, "verified": True}
     except Exception as e:
         return {"error": f"导出失败: {str(e)}"}
 
