@@ -396,13 +396,21 @@ async def _run_batch_generation(
     advanced_overrides=None,
     stream_fn=None,
     on_progress=None,
+    on_section_done=None,
     should_stop=None,
+    use_section_number: bool = True,
 ) -> dict:
     """批量生成公共实现：逐章生成、写库、渲染 Mermaid、统计失败。
 
     stream_fn: async 函数 (prompt, ai_config, plan_type, style_preference, advanced_overrides) -> str；
     为 None 时使用 _stream_llm。
+    on_progress: 可选 async 回调 (section_key, section_title, i)，每章开始前调用；
+    抛出的异常（如 _GenerationCancelled）不会被计入失败，直接中断剩余章节。
+    on_section_done: 可选 async 回调 (section_key, section_title, completed, failed)，
+    每章成功提交后调用，用于 SSE 端恢复带计数器的 section_done 事件。
     should_stop: 可选同步可调用对象，返回 True 时中断剩余章节（用于后台批量生成的取消检查）。
+    use_section_number: 为 True 时提示词传入 section_number（SSE 原行为）；为 False 时
+    不传（background 原行为，避免出现「这是应急预案的第N个章节」编号提示）。
     """
     completed = 0
     failed = 0
@@ -422,11 +430,13 @@ async def _run_batch_generation(
         if not s:
             continue
         try:
-            prompt_text = _build_section_prompt(
-                section_title, ent_data, section_number=i + 1,
+            prompt_kwargs = dict(
                 section_key=section_key, plan_type=plan_type,
                 accident_type=accident_type, diagram_preference="mermaid",
             )
+            if use_section_number:
+                prompt_kwargs["section_number"] = i + 1
+            prompt_text = _build_section_prompt(section_title, ent_data, **prompt_kwargs)
             if stream_fn is None:
                 full = await _stream_llm(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
             else:
@@ -436,12 +446,62 @@ async def _run_batch_generation(
             s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
             await bg_db.commit()
             completed += 1
+        except _GenerationCancelled:
+            # 取消信号不应当计入失败：中断剩余章节（SSE 端点捕获后静默结束流）
+            raise
         except Exception as e:
             logger.error(f"Section {section_key} failed: {e}")
             failed += 1
             failed_sections.append({"section_key": section_key, "title": section_title})
+        else:
+            if on_section_done:
+                await on_section_done(section_key, section_title, completed, failed)
 
     return {"completed": completed, "failed": failed, "failed_sections": failed_sections}
+
+
+async def _finalize_batch_result(
+    bg_db,
+    plan_id: str,
+    completed: int,
+    failed: int,
+    failed_sections: list,
+    updated=None,
+) -> dict:
+    """批量生成收尾公共实现：状态判定 + 自动版本快照 + commit。
+
+    返回 {"completed", "failed", "failed_sections", "version"}，两个批量端点复用。
+    """
+    if updated is None:
+        updated = (await bg_db.execute(
+            select(PlanSection).where(PlanSection.plan_project_id == plan_id)
+        )).scalars().all()
+    p2 = (await bg_db.execute(select(PlanProject).where(PlanProject.id == plan_id))).scalar_one_or_none()
+    if p2:
+        if all(sec.content and sec.content.strip() for sec in updated):
+            p2.status = "completed"
+        else:
+            p2.status = "draft"
+    snapshot_version = None
+    try:
+        ver_snapshot = _build_snapshot(p2, updated)
+        new_ver = PlanVersion(
+            plan_project_id=plan_id, version_number=p2.current_version + 1,
+            created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot,
+        )
+        bg_db.add(new_ver)
+        p2.current_version = p2.current_version + 1
+        snapshot_version = p2.current_version
+        logger.info(f"Auto-created version {p2.current_version} for plan {plan_id}")
+    except Exception as ver_e:
+        logger.error(f"Failed to auto-create version: {ver_e}")
+    await bg_db.commit()
+    return {
+        "completed": completed,
+        "failed": failed,
+        "failed_sections": failed_sections,
+        "version": snapshot_version,
+    }
 
 
 @router.post("/{plan_id}/generate/batch")
@@ -518,7 +578,6 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
             async with async_session() as bg_db:
                 _failed_sections[plan_id] = []
                 section_key_holder: dict = {}
-                outcomes: dict[str, bool] = {}
 
                 async def sse_stream(prompt, cfg, pt, sp, ao):
                     full = ""
@@ -528,10 +587,8 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                         async for chunk in _stream_llm_chunks(prompt, cfg, pt, sp, ao):
                             full += chunk
                             await event_queue.put(sse_event("chunk", content=chunk, section_key=key))
-                        outcomes[key] = True
                         return full
                     except Exception as e:
-                        outcomes[key] = False
                         await event_queue.put(sse_event("error", message=f"「{title}」生成失败: {e}", section_key=key))
                         raise
 
@@ -541,11 +598,15 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                         raise _GenerationCancelled()
                     section_key_holder["key"] = section_key
                     section_key_holder["title"] = section_title
-                    if i > 0:
-                        prev_key, prev_title = section_tuples[i - 1]
-                        if outcomes.get(prev_key) is True:
-                            await event_queue.put(sse_event("section_done", section_key=prev_key, message=f"「{prev_title}」生成完成"))
                     await event_queue.put(sse_event("progress", message=f"正在生成「{section_title}」({i+1}/{len(section_tuples)})", current=i+1, total=len(section_tuples), section_key=section_key))
+
+                async def on_section_done(section_key, section_title, completed, failed):
+                    # 与原实现契约一致：section_done 携带当前 completed/failed 计数
+                    await event_queue.put(sse_event(
+                        "section_done", section_key=section_key,
+                        message=f"「{section_title}」生成完成",
+                        completed=completed, failed=failed,
+                    ))
 
                 result = await _run_batch_generation(
                     bg_db=bg_db, plan_id=plan_id, section_tuples=section_tuples,
@@ -555,34 +616,19 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     advanced_overrides=p.advanced_prompt_overrides,
                     stream_fn=sse_stream,
                     on_progress=on_progress,
+                    on_section_done=on_section_done,
                 )
-                completed, failed = result["completed"], result["failed"]
                 failed_sections = result["failed_sections"]
                 _failed_sections[plan_id] = failed_sections
 
-                if section_tuples:
-                    last_key, last_title = section_tuples[-1]
-                    if outcomes.get(last_key) is True:
-                        await event_queue.put(sse_event("section_done", section_key=last_key, message=f"「{last_title}」生成完成"))
-
-                updated = (await bg_db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id))).scalars().all()
-                p2 = (await bg_db.execute(select(PlanProject).where(PlanProject.id == plan_id))).scalar_one_or_none()
-                if p2:
-                    if all(sec.content and sec.content.strip() for sec in updated):
-                        p2.status = "completed"
-                    else:
-                        p2.status = "draft"
-                try:
-                    ver_snapshot = _build_snapshot(p2, updated)
-                    new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
-                    bg_db.add(new_ver)
-                    p2.current_version = p2.current_version + 1
-                    logger.info(f"Auto-created version {p2.current_version} for plan {plan_id}")
-                except Exception as ver_e:
-                    logger.error(f"Failed to auto-create version: {ver_e}")
-                await bg_db.commit()
-
-                await event_queue.put(sse_event("batch_done", message="批量生成完成", completed=completed, failed=failed, failed_sections=failed_sections))
+                final = await _finalize_batch_result(
+                    bg_db, plan_id, result["completed"], result["failed"], failed_sections,
+                )
+                await event_queue.put(sse_event(
+                    "batch_done", message="批量生成完成",
+                    completed=final["completed"], failed=final["failed"],
+                    failed_sections=final["failed_sections"],
+                ))
         except _GenerationCancelled:
             pass
         except Exception as e:
@@ -731,26 +777,13 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
                     stream_fn=None,
                     on_progress=None,
                     should_stop=lambda: not _active_generations.get(plan_id, False),
+                    use_section_number=False,
                 )
                 failed_sections = result["failed_sections"]
                 _failed_sections[plan_id] = failed_sections
-
-                updated = (await bg_db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id))).scalars().all()
-                p2 = (await bg_db.execute(select(PlanProject).where(PlanProject.id == plan_id))).scalar_one_or_none()
-                if p2:
-                    if all(sec.content and sec.content.strip() for sec in updated):
-                        p2.status = "completed"
-                    else:
-                        p2.status = "draft"
-                try:
-                    ver_snapshot = _build_snapshot(p2, updated)
-                    new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
-                    bg_db.add(new_ver)
-                    p2.current_version = p2.current_version + 1
-                    logger.info(f"Auto-created version {p2.current_version} for plan {plan_id}")
-                except Exception as ver_e:
-                    logger.error(f"Failed to auto-create version: {ver_e}")
-                await bg_db.commit()
+                await _finalize_batch_result(
+                    bg_db, plan_id, result["completed"], result["failed"], failed_sections,
+                )
         except Exception as e:
             logger.error(f"Background batch generation failed: {e}")
         finally:

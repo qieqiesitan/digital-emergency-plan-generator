@@ -52,3 +52,182 @@ def test_clear_generation_state_resets_active_flag():
     gen._clear_generation_state("p1")
     assert gen._active_generations.get("p1", False) is False
     assert gen._failed_sections.get("p1") == [{"section_key": "sec_1", "title": "总则"}]
+
+
+@pytest.mark.asyncio
+async def test_run_batch_generation_section_number_toggle(monkeypatch):
+    """background 原行为：use_section_number=False 时不传 section_number 编号提示。"""
+    from app.routers import generation as gen
+
+    bg_db = AsyncMock()
+    sec1 = MagicMock()
+    sec1.section_key = "sec_1"
+    sec2 = MagicMock()
+    sec2.section_key = "sec_2"
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [sec1, sec2]
+    bg_db.execute.return_value = result
+
+    captured = {}
+
+    def fake_build(section_title, enterprise_data, **kwargs):
+        captured["kwargs"] = kwargs
+        return "prompt"
+
+    async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
+        return "<p>ok</p>"
+
+    monkeypatch.setattr(gen, "_build_section_prompt", fake_build)
+    out = await gen._run_batch_generation(
+        bg_db=bg_db,
+        plan_id="p1",
+        section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
+        ai_config=MagicMock(),
+        ent_data={},
+        plan_type="comprehensive",
+        accident_type=None,
+        style_preference=None,
+        advanced_overrides=None,
+        stream_fn=fake_stream,
+        use_section_number=False,
+    )
+    assert "section_number" not in captured["kwargs"]
+
+    captured.clear()
+    out = await gen._run_batch_generation(
+        bg_db=bg_db,
+        plan_id="p1",
+        section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
+        ai_config=MagicMock(),
+        ent_data={},
+        plan_type="comprehensive",
+        accident_type=None,
+        style_preference=None,
+        advanced_overrides=None,
+        stream_fn=fake_stream,
+    )
+    assert captured["kwargs"].get("section_number") == 2
+
+    assert out["completed"] == 2
+    assert out["failed"] == 0
+
+
+@pytest.mark.asyncio
+async def test_run_batch_generation_on_section_done_counts():
+    """SSE 契约：每章完成后回调携带当前 completed/failed 计数。"""
+    from app.routers import generation as gen
+
+    bg_db = AsyncMock()
+    secs = []
+    for key in ("sec_1", "sec_2"):
+        s = MagicMock()
+        s.section_key = key
+        secs.append(s)
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = secs
+    bg_db.execute.return_value = result
+
+    done_events = []
+
+    async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
+        return "<p>ok</p>"
+
+    async def on_section_done(section_key, section_title, completed, failed):
+        done_events.append((section_key, completed, failed))
+
+    out = await gen._run_batch_generation(
+        bg_db=bg_db,
+        plan_id="p1",
+        section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
+        ai_config=MagicMock(),
+        ent_data={},
+        plan_type="comprehensive",
+        accident_type=None,
+        style_preference=None,
+        advanced_overrides=None,
+        stream_fn=fake_stream,
+        on_section_done=on_section_done,
+    )
+    assert done_events == [("sec_1", 1, 0), ("sec_2", 2, 0)]
+    assert out["completed"] == 2
+    assert out["failed"] == 0
+
+
+@pytest.mark.asyncio
+async def test_run_batch_generation_cancel_not_counted_as_failure():
+    """取消信号（_GenerationCancelled）应中断剩余章节且不计数失败。"""
+    from app.routers import generation as gen
+
+    bg_db = AsyncMock()
+    secs = []
+    for key in ("sec_1", "sec_2", "sec_3"):
+        s = MagicMock()
+        s.section_key = key
+        secs.append(s)
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = secs
+    bg_db.execute.return_value = result
+
+    calls = {"n": 0}
+
+    async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
+        calls["n"] += 1
+        return "<p>ok</p>"
+
+    async def on_progress(section_key, section_title, i):
+        if i == 1:
+            raise gen._GenerationCancelled()
+
+    with pytest.raises(gen._GenerationCancelled):
+        await gen._run_batch_generation(
+            bg_db=bg_db,
+            plan_id="p1",
+            section_tuples=[("sec_1", "总则"), ("sec_2", "风险"), ("sec_3", "措施")],
+            ai_config=MagicMock(),
+            ent_data={},
+            plan_type="comprehensive",
+            accident_type=None,
+            style_preference=None,
+            advanced_overrides=None,
+            stream_fn=fake_stream,
+            on_progress=on_progress,
+        )
+    # 只有第 1 章实际生成；取消未被当作失败
+    assert calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_finalize_batch_result_sets_status_and_snapshot():
+    """收尾公共函数：状态判定 + 自动版本快照 + commit，两个端点复用。"""
+    from app.routers import generation as gen
+
+    bg_db = AsyncMock()
+    bg_db.add = MagicMock()  # 真实 add 为同步方法，避免 AsyncMock 协程警告
+    p2 = MagicMock()
+    p2.status = "generating"
+    p2.current_version = 3
+    p2.title = "预案"
+    p2.style_preference = {}
+    p2.advanced_prompt_overrides = {}
+
+    sec = MagicMock()
+    sec.content = "<p>ok</p>"
+    sec_result = MagicMock()
+    sec_result.scalars.return_value.all.return_value = [sec]
+    plan_result = MagicMock()
+    plan_result.scalar_one_or_none.return_value = p2
+    bg_db.execute.side_effect = [sec_result, plan_result]
+
+    out = await gen._finalize_batch_result(
+        bg_db, "p1", completed=1, failed=0, failed_sections=[],
+    )
+    assert p2.status == "completed"
+    assert p2.current_version == 4
+    assert out == {
+        "completed": 1,
+        "failed": 0,
+        "failed_sections": [],
+        "version": 4,
+    }
+    bg_db.add.assert_called_once()
+    bg_db.commit.assert_awaited_once()
