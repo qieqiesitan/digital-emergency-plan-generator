@@ -8,3 +8,12 @@ def test_additional_diagram_map_covers_sections():
     assert SECTION_ADDITIONAL_DIAGRAM_MAP["sec_4_2"] == "report_sequence"
     assert SECTION_ADDITIONAL_DIAGRAM_MAP["sec_5"] == "response_timeline"
     assert SECTION_ADDITIONAL_DIAGRAM_MAP["sec_9_1"] == "drill_gantt"
+
+
+from app.services.prompt_cache import get_additional_diagram_prompt
+
+
+def test_additional_diagram_prompts_exist():
+    for key in ("org_chart", "report_sequence", "response_timeline", "drill_gantt"):
+        assert get_additional_diagram_prompt(key), f"missing prompt for {key}"
+    assert "org_structure" in get_additional_diagram_prompt("org_chart")
