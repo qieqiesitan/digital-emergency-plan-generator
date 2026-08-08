@@ -46,9 +46,9 @@ const EMOJI: Record<TreeNodeMeta["type"], string> = {
   floor: "\u{1F3E2}", // 🏢
   zone: "\u{1F3ED}",
   object: "\u{1F4E6}",
-  unit: "\u2699\uFE0F",
-  event: "\u26A0\uFE0F",
-  measure: "\u{1F6E1}\uFE0F",
+  unit: "⚙️",
+  event: "⚠️",
+  measure: "\u{1F6E1}️",
 };
 
 const ACTION_ITEMS: Record<TreeNodeMeta["type"], { key: string; label: string; icon: React.ReactNode }[]> = {
@@ -120,7 +120,7 @@ function TitleRow({
       }}
     >
       <span style={{ flexShrink: 0 }}>
-        {isRiskPoint && <span style={{ color: "#ff4d4f", marginRight: 2 }}>{"\u25C6"}</span>}
+        {isRiskPoint && <span style={{ color: "#ff4d4f", marginRight: 2 }}>{"◆"}</span>}
         {EMOJI[meta.type]}
       </span>
       <span
@@ -454,7 +454,7 @@ export default function RiskHierarchyTree({ data, floors, onSelect, onAction }: 
           fontSize: 14,
         }}
       >
-        {"\u6682\u65e0\u98ce\u9669\u5206\u533a\u6570\u636e\uff0c\u8bf7\u5148\u6dfb\u52a0\u5206\u533a"}
+        {"暂无风险分区数据，请先添加分区"}
       </div>
     );
   }

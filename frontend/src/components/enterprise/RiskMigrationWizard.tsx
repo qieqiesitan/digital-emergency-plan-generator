@@ -75,7 +75,7 @@ export default function RiskMigrationWizard({
     try {
       const preview = await getMigrationPreview(enterpriseId);
       if (!preview || preview.items.length === 0) {
-        message.warning("\u672A\u68C0\u6D4B\u5230\u53EF\u8FC1\u79FB\u7684\u65E7\u7248\u98CE\u9669\u6E90\u6570\u636E");
+        message.warning("未检测到可迁移的旧版风险源数据");
         setItems([]);
         return;
       }
@@ -84,10 +84,10 @@ export default function RiskMigrationWizard({
         const aiPreview = await aiMigratePreview(enterpriseId);
         if (aiPreview?.items?.length) setItems(mapPreviewData(aiPreview));
       } catch {
-        message.info("AI \u5EFA\u8BAE\u4E0D\u53EF\u7528\uFF0C\u5DF2\u4F7F\u7528\u9ED8\u8BA4\u6620\u5C04");
+        message.info("AI 建议不可用，已使用默认映射");
       }
     } catch (e: any) {
-      message.error("\u52A0\u8F7D\u8FC1\u79FB\u9884\u89C8\u5931\u8D25: " + (e?.message || "\u8BF7\u91CD\u8BD5"));
+      message.error("加载迁移预览失败: " + (e?.message || "请重试"));
       setItems([]);
     } finally {
       setLoadingPreview(false);
@@ -151,7 +151,7 @@ export default function RiskMigrationWizard({
     mutationFn: async () => {
       const toMigrate = items.filter((it) => it.status !== "skipped");
       if (toMigrate.length === 0) {
-        throw new Error("\u6CA1\u6709\u53EF\u8FC1\u79FB\u7684\u9879\u76EE");
+        throw new Error("没有可迁移的项目");
       }
       const mappings: MigrationExecutePayload[] = toMigrate.map((it) => ({
         source_id: it.source_id,
@@ -163,18 +163,18 @@ export default function RiskMigrationWizard({
       return executeMigration(enterpriseId, mappings);
     },
     onSuccess: (data: MigrationExecuteResponse) => {
-      message.success("\u6210\u529F\u8FC1\u79FB " + data.migrated + " \u6761\u6570\u636E");
+      message.success("成功迁移 " + data.migrated + " 条数据");
       onRefresh();
       onClose();
     },
     onError: (e: Error) => {
-      message.error("\u8FC1\u79FB\u5931\u8D25: " + (e?.message || "\u672A\u77E5\u9519\u8BEF"));
+      message.error("迁移失败: " + (e?.message || "未知错误"));
     },
   });
 
   const handleNext = () => {
     if (adoptedItems.length === 0) {
-      message.warning("\u8BF7\u81F3\u5C11\u4FDD\u7559\u4E00\u4E2A\u8FC1\u79FB\u9879\u76EE");
+      message.warning("请至少保留一个迁移项目");
       return;
     }
     setStep(1);
@@ -185,19 +185,19 @@ export default function RiskMigrationWizard({
     if (step === 0) {
       return [
         <Button key="cancel" onClick={onClose}>
-          {"\u53D6\u6D88"}
+          {"取消"}
         </Button>,
         <Button key="next" type="primary" onClick={handleNext} disabled={items.length === 0}>
-          {"\u4E0B\u4E00\u6B65"}
+          {"下一步"}
         </Button>,
       ];
     }
     return [
       <Button key="back" onClick={() => setStep(0)}>
-        {"\u8FD4\u56DE\u4FEE\u6539"}
+        {"返回修改"}
       </Button>,
       <Button key="cancel" onClick={onClose}>
-        {"\u53D6\u6D88"}
+        {"取消"}
       </Button>,
       <Button
         key="migrate"
@@ -205,19 +205,19 @@ export default function RiskMigrationWizard({
         loading={migrateMut.isPending}
         onClick={() => migrateMut.mutate()}
       >
-        {"\u786E\u8BA4\u8FC1\u79FB"}
+        {"确认迁移"}
       </Button>,
     ];
   })();
 
   const stepItems = [
-    { title: "\u786E\u8BA4\u6620\u5C04\u5173\u7CFB" },
-    { title: "\u786E\u8BA4\u5E76\u6267\u884C\u8FC1\u79FB" },
+    { title: "确认映射关系" },
+    { title: "确认并执行迁移" },
   ];
 
   return (
     <Modal
-      title="\u65E7\u7248\u98CE\u9669\u6E90\u8FC1\u79FB\u5411\u5BFC"
+      title="旧版风险源迁移向导"
       open={open}
       onCancel={onClose}
       width={800}
@@ -230,14 +230,14 @@ export default function RiskMigrationWizard({
         <div style={{ textAlign: "center", padding: "60px 0" }}>
           <Spin size="large" />
           <p style={{ marginTop: 20, color: "#8c8c8c", fontSize: 14 }}>
-            {"AI \u6B63\u5728\u5206\u6790\u65E7\u7248\u98CE\u9669\u6E90\u6570\u636E\uFF0C\u751F\u6210\u8FC1\u79FB\u5EFA\u8BAE\u2026"}
+            {"AI 正在分析旧版风险源数据，生成迁移建议…"}
           </p>
         </div>
       )}
 
       {!loadingPreview && items.length === 0 && step === 0 && (
         <div style={{ textAlign: "center", padding: 40, color: "#999" }}>
-          {"\u672A\u68C0\u6D4B\u5230\u53EF\u8FC1\u79FB\u7684\u65E7\u7248\u98CE\u9669\u6E90\u6570\u636E"}
+          {"未检测到可迁移的旧版风险源数据"}
         </div>
       )}
 
@@ -246,7 +246,7 @@ export default function RiskMigrationWizard({
           <Alert
             type="info"
             showIcon
-            message={"\u4EE5\u4E0B\u662F\u65E7\u7248\u98CE\u9669\u6E90\u53CA AI \u5EFA\u8BAE\u7684\u6620\u5C04\u5173\u7CFB\uFF0C\u8BF7\u786E\u8BA4\u6216\u4FEE\u6539\u540E\u7EE7\u7EED"}
+            message={"以下是旧版风险源及 AI 建议的映射关系，请确认或修改后继续"}
             style={{ marginBottom: 16 }}
           />
 
@@ -288,7 +288,7 @@ export default function RiskMigrationWizard({
                           )}
                         </div>
                         <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
-                          {"\u4F4D\u7F6E: "}{item.source_location}
+                          {"位置: "}{item.source_location}
                         </div>
 
                         {isEditing ? (
@@ -304,7 +304,7 @@ export default function RiskMigrationWizard({
                           >
                             <div>
                               <div style={{ fontSize: 12, color: "#999", marginBottom: 2 }}>
-                                {"\u5206\u533A"}
+                                {"分区"}
                               </div>
                               <Input
                                 size="small"
@@ -317,7 +317,7 @@ export default function RiskMigrationWizard({
                             </div>
                             <div>
                               <div style={{ fontSize: 12, color: "#999", marginBottom: 2 }}>
-                                {"\u5BF9\u8C61"}
+                                {"对象"}
                               </div>
                               <Input
                                 size="small"
@@ -330,7 +330,7 @@ export default function RiskMigrationWizard({
                             </div>
                             <div>
                               <div style={{ fontSize: 12, color: "#999", marginBottom: 2 }}>
-                                {"\u4E8B\u4EF6"}
+                                {"事件"}
                               </div>
                               <Input
                                 size="small"
@@ -343,26 +343,26 @@ export default function RiskMigrationWizard({
                             </div>
                             <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
                               <Button size="small" type="link" onClick={saveEdit}>
-                                {"\u4FDD\u5B58"}
+                                {"保存"}
                               </Button>
                               <Button size="small" type="link" onClick={cancelEdit}>
-                                {"\u53D6\u6D88"}
+                                {"取消"}
                               </Button>
                             </div>
                           </div>
                         ) : (
                           <div style={{ fontSize: 13 }}>
                             <span style={{ color: "#8c8c8c" }}>
-                              {"\u6620\u5C04: "}
+                              {"映射: "}
                             </span>
                             <Tag color="blue">{item.suggested_zone}</Tag>
-                            <span style={{ color: "#d9d9d9", margin: "0 2px" }}>{"\u2192"}</span>
+                            <span style={{ color: "#d9d9d9", margin: "0 2px" }}>{"→"}</span>
                             <Tag color="green">{item.suggested_object}</Tag>
-                            <span style={{ color: "#d9d9d9", margin: "0 2px" }}>{"\u2192"}</span>
+                            <span style={{ color: "#d9d9d9", margin: "0 2px" }}>{"→"}</span>
                             <Tag color="purple">{item.suggested_event}</Tag>
                             {isModified && (
                               <Tag color="orange" style={{ marginLeft: 8 }}>
-                                {"\u5DF2\u4FEE\u6539"}
+                                {"已修改"}
                               </Tag>
                             )}
                           </div>
@@ -377,14 +377,14 @@ export default function RiskMigrationWizard({
                             icon={<CheckCircleOutlined />}
                             onClick={() => handleAdopt(item._key)}
                           >
-                            {"\u91C7\u7EB3"}
+                            {"采纳"}
                           </Button>
                           <Button
                             size="small"
                             icon={<EditOutlined />}
                             onClick={() => startEdit(item)}
                           >
-                            {"\u4FEE\u6539"}
+                            {"修改"}
                           </Button>
                           <Button
                             size="small"
@@ -393,7 +393,7 @@ export default function RiskMigrationWizard({
                             icon={<CloseOutlined />}
                             onClick={() => handleSkip(item._key)}
                           >
-                            {isSkipped ? "\u5DF2\u8DF3\u8FC7" : "\u8DF3\u8FC7"}
+                            {isSkipped ? "已跳过" : "跳过"}
                           </Button>
                         </Space>
                       )}
@@ -412,7 +412,7 @@ export default function RiskMigrationWizard({
             type="warning"
             showIcon
             icon={<ExclamationCircleOutlined />}
-            message={"\u8FC1\u79FB\u64CD\u4F5C\u5C06\u521B\u5EFA\u65B0\u7684\u98CE\u9669\u5C42\u7EA7\u7ED3\u6784\uFF0C\u4E0D\u4F1A\u5220\u9664\u539F\u6709\u6570\u636E"}
+            message={"迁移操作将创建新的风险层级结构，不会删除原有数据"}
             style={{ marginBottom: 20 }}
           />
 
@@ -426,15 +426,15 @@ export default function RiskMigrationWizard({
             }}
           >
             <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 12 }}>
-              {"\u8FC1\u79FB\u6982\u89C8"}
+              {"迁移概览"}
             </div>
             <div style={{ fontSize: 18, fontWeight: 600, color: "#389e0d" }}>
-              {"\u5C06\u521B\u5EFA "}{summary.zones}{" \u5206\u533A \u00B7 "}{summary.objects}{" \u5BF9\u8C61 \u00B7 "}{summary.events}{" \u4E8B\u4EF6"}
+              {"将创建 "}{summary.zones}{" 分区 · "}{summary.objects}{" 对象 · "}{summary.events}{" 事件"}
             </div>
           </div>
 
           <div style={{ fontWeight: 500, marginBottom: 8 }}>
-            {"\u8FC1\u79FB\u9879\u76EE\u660E\u7EC6 ("}{adoptedItems.length}{" \u6761)"}
+            {"迁移项目明细 ("}{adoptedItems.length}{" 条)"}
           </div>
 
           <div style={{ maxHeight: 280, overflow: "auto" }}>
@@ -444,13 +444,13 @@ export default function RiskMigrationWizard({
               renderItem={(item) => (
                 <List.Item>
                   <span style={{ fontWeight: 500 }}>{item.source_name}</span>
-                  <span style={{ color: "#8c8c8c", margin: "0 8px" }}>{"\u2192"}</span>
+                  <span style={{ color: "#8c8c8c", margin: "0 8px" }}>{"→"}</span>
                   <Tag color="blue">{item.suggested_zone}</Tag>
                   <Tag color="green">{item.suggested_object}</Tag>
                   <Tag color="purple">{item.suggested_event}</Tag>
                   {item.status === "modified" && (
                     <Tag color="orange" style={{ marginLeft: 8 }}>
-                      {"\u5DF2\u4FEE\u6539"}
+                      {"已修改"}
                     </Tag>
                   )}
                 </List.Item>

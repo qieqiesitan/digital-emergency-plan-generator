@@ -206,10 +206,10 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
       setEditing(false);
       setLoading(true);
       await mergeResourceInvestigation(enterpriseId, chapters);
-      message.success("\u62a5\u544a\u5408\u5e76\u5b8c\u6210");
+      message.success("报告合并完成");
       await loadReport();
     } catch (err: any) {
-      message.error(err.message || "\u5408\u5e76\u5931\u8d25");
+      message.error(err.message || "合并失败");
       setEditing(true);
       setLoading(false);
     }
@@ -422,7 +422,7 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
       <div>
         <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 16, fontWeight: 600 }}>
-            {batchProgress.message || "\u7f16\u8f91\u5404\u7ae0\u8282\uff0c\u786e\u8ba4\u65e0\u8bef\u540e\u70b9\u51fb\u5408\u5e76"}
+            {batchProgress.message || "编辑各章节，确认无误后点击合并"}
           </span>
           <Space>
             <Button onClick={() => {
@@ -434,10 +434,10 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
               setSelectedKey(null);
               setChapterStatuses({});
             }}>
-              {"\u653e\u5f03\u7f16\u8f91"}
+              {"放弃编辑"}
             </Button>
             <Button type="primary" icon={<ThunderboltOutlined />} onClick={handleMerge}>
-              {"\u5408\u5e76\u751f\u6210\u5b8c\u6574\u62a5\u544a"}
+              {"合并生成完整报告"}
             </Button>
           </Space>
         </div>
@@ -451,7 +451,7 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
               padding: "10px 12px", fontWeight: 600, fontSize: 13,
               borderBottom: "1px solid #f0f0f0", background: "#fafafa", color: "#666",
             }}>
-              {"\u62a5\u544a\u7ae0\u8282"}
+              {"报告章节"}
             </div>
             {CHAPTERS.map((ch) => (
               <div
@@ -496,12 +496,12 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
                     borderRadius: 6, padding: 12, fontSize: 14, lineHeight: 1.8,
                     fontFamily: "SimSun, serif", resize: "none", outline: "none",
                   }}
-                  placeholder={"\u7f16\u8f91\u6b64\u7ae0\u8282\u5185\u5bb9..."}
+                  placeholder={"编辑此章节内容..."}
                 />
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "60px 0", color: "#999" }}>
-                {"\u8bf7\u4ece\u5de6\u4fa7\u9009\u62e9\u7ae0\u8282\u8fdb\u884c\u7f16\u8f91"}
+                {"请从左侧选择章节进行编辑"}
               </div>
             )}
           </div>

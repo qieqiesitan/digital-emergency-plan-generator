@@ -66,11 +66,11 @@ function getNodeDisplayName(source: Record<string, unknown>, nodeType: NodeType)
     case "zone":
     case "object":
     case "unit":
-      return (source.name as string) || "\u672A\u547D\u540D";
+      return (source.name as string) || "未命名";
     case "event":
-      return (source.accident_type as string) || (source.description as string) || "\u672A\u547D\u540D\u4E8B\u4EF6";
+      return (source.accident_type as string) || (source.description as string) || "未命名事件";
     case "measure":
-      return (source.description as string) || "\u672A\u547D\u540D\u63AA\u65BD";
+      return (source.description as string) || "未命名措施";
   }
 }
 
@@ -174,14 +174,14 @@ export default function RiskSmartGuideModal({
       setStep("preview");
     },
     onError: (e: Error) => {
-      antMessage.error("AI \u5206\u6790\u5931\u8D25: " + (e?.message || "\u8BF7\u91CD\u8BD5"));
+      antMessage.error("AI 分析失败: " + (e?.message || "请重试"));
       setStep("input");
     },
   });
 
   const handleStartAnalysis = () => {
     if (!description.trim()) {
-      antMessage.warning("\u8BF7\u5148\u63CF\u8FF0\u533A\u57DF\u60C5\u51B5");
+      antMessage.warning("请先描述区域情况");
       return;
     }
     setStep("loading");
@@ -304,7 +304,7 @@ export default function RiskSmartGuideModal({
       onClose();
     },
     onError: (e: Error) => {
-      antMessage.error("\u5BFC\u5165\u5931\u8D25: " + (e?.message || "\u672A\u77E5\u9519\u8BEF"));
+      antMessage.error("导入失败: " + (e?.message || "未知错误"));
     },
   });
 
@@ -484,10 +484,10 @@ export default function RiskSmartGuideModal({
                 autoFocus
               />
               <Button size="small" type="link" onClick={saveEdit}>
-                {"\u4FDD\u5B58"}
+                {"保存"}
               </Button>
               <Button size="small" type="link" onClick={cancelEdit}>
-                {"\u53D6\u6D88"}
+                {"取消"}
               </Button>
             </span>
           ) : (
@@ -535,7 +535,7 @@ export default function RiskSmartGuideModal({
     if (step === "input") {
       return [
         <Button key="cancel" onClick={onClose}>
-          {"\u53D6\u6D88"}
+          {"取消"}
         </Button>,
         <Button
           key="analyze"
@@ -544,7 +544,7 @@ export default function RiskSmartGuideModal({
           onClick={handleStartAnalysis}
           loading={guideMut.isPending}
         >
-          {"\u4E0B\u4E00\u6B65\u2192AI \u5206\u6790"}
+          {"下一步→AI 分析"}
         </Button>,
       ];
     }
@@ -553,10 +553,10 @@ export default function RiskSmartGuideModal({
     }
     return [
       <Button key="back" onClick={() => setStep("input")}>
-        {"\u8FD4\u56DE\u4FEE\u6539"}
+        {"返回修改"}
       </Button>,
       <Button key="cancel" onClick={onClose}>
-        {"\u53D6\u6D88"}
+        {"取消"}
       </Button>,
       <Button
         key="import"
@@ -565,7 +565,7 @@ export default function RiskSmartGuideModal({
         onClick={() => importMut.mutate()}
         disabled={checkedKeys.length === 0}
       >
-        {"\u786E\u8BA4\u5E76\u5BFC\u5165\u5168\u90E8"}
+        {"确认并导入全部"}
       </Button>,
     ];
   })();
@@ -582,12 +582,12 @@ export default function RiskSmartGuideModal({
       {step === "input" && (
         <div>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>
-            {"\u8BF7\u63CF\u8FF0\u9700\u8981 AI \u5206\u6790\u7684\u533A\u57DF\u60C5\u51B5"}
+            {"请描述需要 AI 分析的区域情况"}
           </div>
           <Input.TextArea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={"\u50A8\u7F50\u533A\u67093\u4E2A5000m\u00B3\u539F\u6CB9\u50A8\u7F50..."}
+            placeholder={"储罐区有3个5000m³原油储罐..."}
             rows={6}
             maxLength={2000}
             showCount
@@ -605,9 +605,9 @@ export default function RiskSmartGuideModal({
               gap: 6,
             }}
           >
-            <span style={{ flexShrink: 0 }}>{"\uD83D\uDCA1"}</span>
+            <span style={{ flexShrink: 0 }}>{"💡"}</span>
             <span>
-              {"\u8BF7\u8BE6\u7EC6\u63CF\u8FF0\u533A\u57DF\u5185\u7684\u8BBE\u5907\u3001\u5DE5\u827A\u3001\u7269\u6599\u3001\u5468\u8FB9\u73AF\u5883\u7B49\u4FE1\u606F\uFF0C\u63CF\u8FF0\u8D8A\u8BE6\u7EC6\uFF0CAI \u751F\u6210\u7684\u5C42\u7EA7\u7ED3\u6784\u8D8A\u51C6\u786E\u3002\u652F\u6301\u4E2D\u6587\u81EA\u7136\u8BED\u8A00\u8F93\u5165\u3002"}
+              {"请详细描述区域内的设备、工艺、物料、周边环境等信息，描述越详细，AI 生成的层级结构越准确。支持中文自然语言输入。"}
             </span>
           </div>
         </div>
@@ -617,7 +617,7 @@ export default function RiskSmartGuideModal({
         <div style={{ textAlign: "center", padding: "60px 0" }}>
           <Spin size="large" />
           <p style={{ marginTop: 20, color: "#8c8c8c", fontSize: 14 }}>
-            {"AI \u6B63\u5728\u5206\u6790\u533A\u57DF\u63CF\u8FF0\uFF0C\u751F\u6210\u98CE\u9669\u5C42\u7EA7\u7ED3\u6784\u2026"}
+            {"AI 正在分析区域描述，生成风险层级结构…"}
           </p>
         </div>
       )}
@@ -642,7 +642,7 @@ export default function RiskSmartGuideModal({
           >
             {treeData.length === 0 ? (
               <div style={{ textAlign: "center", padding: 40, color: "#999" }}>
-                {"AI \u672A\u80FD\u751F\u6210\u5C42\u7EA7\u7ED3\u6784\uFF0C\u8BF7\u8FD4\u56DE\u4FEE\u6539\u63CF\u8FF0\u540E\u91CD\u8BD5"}
+                {"AI 未能生成层级结构，请返回修改描述后重试"}
               </div>
             ) : (
               <Tree
@@ -673,9 +673,9 @@ export default function RiskSmartGuideModal({
               gap: 4,
             }}
           >
-            <span style={{ fontWeight: 500 }}>{"\u9009\u4E2D\u6C47\u603B\uFF1A"}</span>
+            <span style={{ fontWeight: 500 }}>{"选中汇总："}</span>
             <span>
-              {counts.zones}{"\u5206\u533A \u00B7 "}{counts.objects}{"\u5BF9\u8C61 \u00B7 "}{counts.events}{"\u4E8B\u4EF6 \u00B7 "}{counts.measures}{"\u63AA\u65BD"}
+              {counts.zones}{"分区 · "}{counts.objects}{"对象 · "}{counts.events}{"事件 · "}{counts.measures}{"措施"}
             </span>
           </div>
         </div>

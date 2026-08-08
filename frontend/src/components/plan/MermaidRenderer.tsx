@@ -21,10 +21,10 @@ function sanitizeMermaidText(text: string): string {
   let result = text;
 
   // Replace fullwidth punctuation that confuse the Mermaid parser
-  result = result.replace(/\uff08/g, "(").replace(/\uff09/g, ")");
-  result = result.replace(/\uff1a/g, ":");
-  result = result.replace(/\uff3b/g, "[").replace(/\uff3d/g, "]");
-  result = result.replace(/\uff5b/g, "{").replace(/\uff5d/g, "}");
+  result = result.replace(/（/g, "(").replace(/）/g, ")");
+  result = result.replace(/：/g, ":");
+  result = result.replace(/［/g, "[").replace(/］/g, "]");
+  result = result.replace(/｛/g, "{").replace(/｝/g, "}");
 
   // Strip leading non-Mermaid lines (e.g. stray section headings before the diagram)
   const MERMAID_KEYWORDS = [
