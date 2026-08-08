@@ -9,6 +9,8 @@ from io import BytesIO
 
 import yaml
 
+from app.services.llm_client import decrypt_api_key, llm_chat_completion, LLMError
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -218,61 +220,47 @@ ARTICLE_EXTRACT_PROMPT = """你是一位安全生产法规数据库录入助手�
 
 async def _ai_extract_articles(raw_text: str, ai_config) -> list[dict]:
     """用 LLM 提取条文（兜底）。返回 [{"number": str, "text": str}, ...]。"""
-    import httpx
     import json as _json
     import re as _re
-    from app.routers.generation import _decrypt_api_key
 
     try:
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+        decrypt_api_key(ai_config.api_key_encrypted)
     except Exception:
         return []
 
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-
     prompt = ARTICLE_EXTRACT_PROMPT.replace("{raw_text}", raw_text)
-    payload = {
-        "model": ai_config.model_name,
-        "messages": [
-            {"role": "system", "content": "你是一个精确的JSON数据提取器。只输出JSON数组，不要解释。"},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.1,
-        "max_tokens": min(65536, (ai_config.max_tokens or 16384) * 2),
-    }
+    messages = [
+        {"role": "system", "content": "你是一个精确的JSON数据提取器。只输出JSON数组，不要解释。"},
+        {"role": "user", "content": prompt},
+    ]
 
     try:
-        async with httpx.AsyncClient(timeout=600) as client:
-            resp = await client.post(
-                f"{base}/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            if resp.status_code != 200:
-                return []
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+        data = await llm_chat_completion(
+            messages, ai_config, stream=False, timeout=600,
+            include_top_p=False,
+            payload_overrides={
+                "temperature": 0.1,
+                "max_tokens": min(65536, (ai_config.max_tokens or 16384) * 2),
+            },
+        )
+        text = data["choices"][0]["message"]["content"]
 
-            # Try multiple JSON parsing strategies
-            for extractor in [
-                lambda t: _json.loads(t),
-                lambda t: _json.loads(_re.search(r"```(?:json)?\s*\n?(.*?)\n?```", t, _re.DOTALL).group(1).strip()) if _re.search(r"```(?:json)?\s*\n?(.*?)\n?```", t, _re.DOTALL) else None,
-                lambda t: _json.loads(_re.search(r"\[.*?\]", t, _re.DOTALL).group(0)) if _re.search(r"\[.*?\]", t, _re.DOTALL) else None,
-                lambda t: _json.loads("[" + _re.search(r"\{.*", t, _re.DOTALL).group(0) + "]") if _re.search(r"\{.*", t, _re.DOTALL) else None,
-            ]:
-                try:
-                    result = extractor(text)
-                    if result:
-                        if isinstance(result, dict) and "articles" in result:
-                            return result["articles"]
-                        if isinstance(result, list):
-                            return result
-                except Exception:
-                    continue
+        # Try multiple JSON parsing strategies
+        for extractor in [
+            lambda t: _json.loads(t),
+            lambda t: _json.loads(_re.search(r"```(?:json)?\s*\n?(.*?)\n?```", t, _re.DOTALL).group(1).strip()) if _re.search(r"```(?:json)?\s*\n?(.*?)\n?```", t, _re.DOTALL) else None,
+            lambda t: _json.loads(_re.search(r"\[.*?\]", t, _re.DOTALL).group(0)) if _re.search(r"\[.*?\]", t, _re.DOTALL) else None,
+            lambda t: _json.loads("[" + _re.search(r"\{.*", t, _re.DOTALL).group(0) + "]") if _re.search(r"\{.*", t, _re.DOTALL) else None,
+        ]:
+            try:
+                result = extractor(text)
+                if result:
+                    if isinstance(result, dict) and "articles" in result:
+                        return result["articles"]
+                    if isinstance(result, list):
+                        return result
+            except Exception:
+                continue
     except Exception:
         pass
     return []
@@ -301,74 +289,59 @@ def _extract_articles_from_text(text: str) -> list[dict]:
 
 async def ai_parse(raw_text: str, ai_config) -> dict:
     """调用 AI API 解析法规全文。"""
-    import httpx
-
-    from app.routers.generation import _decrypt_api_key
     try:
-        api_key = _decrypt_api_key(ai_config.api_key_encrypted)
+        decrypt_api_key(ai_config.api_key_encrypted)
     except Exception:
         raise Exception("API Key 解密失败，请前往 设置->AI配置 重新输入并保存 API Key")
 
-    base = ai_config.base_url or {
-        "openai": "https://api.openai.com/v1",
-        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }.get(ai_config.provider, "")
-
     # 发送全文给 AI 提取元数据（输出仅元数据，max_tokens=4096 足够）
     prompt = PARSE_PROMPT.replace("{raw_text}", raw_text)
+    messages = [
+        {"role": "system", "content": "你是一个精确的JSON数据提取器。只输出JSON，不要解释。"},
+        {"role": "user", "content": prompt},
+    ]
 
-    payload = {
-        "model": ai_config.model_name,
-        "messages": [
-            {"role": "system", "content": "你是一个精确的JSON数据提取器。只输出JSON，不要解释。"},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.1,
-        "max_tokens": ai_config.max_tokens or 16384,
-        
-    }
-
-    async with httpx.AsyncClient(timeout=600) as client:
-        resp = await client.post(
-            f"{base}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {api_key}"},
+    try:
+        data = await llm_chat_completion(
+            messages, ai_config, stream=False, timeout=600,
+            include_top_p=False,
+            payload_overrides={
+                "temperature": 0.1,
+                "max_tokens": ai_config.max_tokens or 16384,
+            },
         )
-        if resp.status_code != 200:
-            detail = resp.text[:500]
-            if "Invalid API Key" in detail or "invalid" in detail.lower():
-                raise Exception("DeepSeek API Key 无效，请前往 设置->AI配置 输入正确的 API Key")
-            raise Exception(f"AI API 错误 (HTTP {resp.status_code}): {detail}")
+    except LLMError as e:
+        if "Invalid API Key" in e.text or "invalid" in e.text.lower():
+            raise Exception("DeepSeek API Key 无效，请前往 设置->AI配置 输入正确的 API Key")
+        raise Exception(f"AI API 错误 (HTTP {e.status_code}): {e.text[:500]}")
 
-        data = resp.json()
-        logger.info("DeepSeek response status: %s, model: %s", resp.status_code, data.get("model", ""))
-        text = data["choices"][0]["message"]["content"]
+    logger.info("DeepSeek response status: %s, model: %s", 200, data.get("model", ""))
+    text = data["choices"][0]["message"]["content"]
 
-        # 尝试直接解析
+    # 尝试直接解析
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # 提取 ```json ... ``` 代码块
+    m = re.search(r"```(?:json)?[\s]*\n?(.*?)\n?```", text, re.DOTALL)
+    if m:
         try:
-            return json.loads(text)
+            return json.loads(m.group(1).strip())
         except json.JSONDecodeError:
             pass
 
-        # 提取 ```json ... ``` 代码块
-        m = re.search(r"```(?:json)?[\s]*\n?(.*?)\n?```", text, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(1).strip())
-            except json.JSONDecodeError:
-                pass
+    # 提取第一个 { ... } 对象
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except json.JSONDecodeError:
+            pass
 
-        # 提取第一个 { ... } 对象
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except json.JSONDecodeError:
-                pass
-
-        logger.warning("AI raw response (first 500 chars): %s", text[:500])
-        raise Exception("AI 返回内容不是合法 JSON，请重试。如持续失败，可能是 API Key 无效或余额不足")
+    logger.warning("AI raw response (first 500 chars): %s", text[:500])
+    raise Exception("AI 返回内容不是合法 JSON，请重试。如持续失败，可能是 API Key 无效或余额不足")
 
 
 # ── 入库 ──

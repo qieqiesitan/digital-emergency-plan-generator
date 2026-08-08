@@ -243,3 +243,53 @@ async def test_risk_assessment_decrypt_failure_maps_to_500(monkeypatch):
             pass
     assert exc_info.value.status_code == 500
     assert exc_info.value.detail == "AI config key decryption failed"
+
+
+@pytest.mark.asyncio
+async def test_sync_ai_extract_articles_uses_llm_client_and_swallows_errors(monkeypatch):
+    from app.regulations import sync
+    calls = {}
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        calls.update({
+            "timeout": timeout,
+            "include_top_p": kw.get("include_top_p"),
+            "overrides": kw.get("payload_overrides"),
+        })
+        return {"choices": [{"message": {"content": '[{"number": "第一条", "text": "内容"}]'}}]}
+
+    monkeypatch.setattr(sync, "llm_chat_completion", fake_chat)
+    monkeypatch.setattr(sync, "decrypt_api_key", lambda *a: "sk-test")
+
+    out = await sync._ai_extract_articles("全文", _cfg(max_tokens=1000))
+    assert out == [{"number": "第一条", "text": "内容"}]
+    assert calls["timeout"] == 600
+    assert calls["include_top_p"] is False
+    assert calls["overrides"]["temperature"] == 0.1
+    assert calls["overrides"]["max_tokens"] == 2000
+
+
+@pytest.mark.asyncio
+async def test_sync_ai_extract_articles_returns_empty_on_failure(monkeypatch):
+    from app.regulations import sync
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        raise Exception("network down")
+
+    monkeypatch.setattr(sync, "llm_chat_completion", fake_chat)
+    monkeypatch.setattr(sync, "decrypt_api_key", lambda *a: "sk-test")
+    assert await sync._ai_extract_articles("全文", _cfg()) == []
+
+
+@pytest.mark.asyncio
+async def test_sync_ai_parse_llm_error_message(monkeypatch):
+    from app.regulations import sync
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        raise LLMError(401, "Invalid API Key")
+
+    monkeypatch.setattr(sync, "llm_chat_completion", fake_chat)
+    monkeypatch.setattr(sync, "decrypt_api_key", lambda *a: "sk-test")
+    with pytest.raises(Exception) as exc_info:
+        await sync.ai_parse("全文", _cfg())
+    assert "DeepSeek API Key 无效" in str(exc_info.value)
