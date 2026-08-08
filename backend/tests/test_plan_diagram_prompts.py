@@ -24,3 +24,26 @@ def test_org_chart_prompt_has_data_guardrail():
     prompt = get_additional_diagram_prompt("org_chart")
     assert "不得编造" in prompt
     assert "数据中不存在" in prompt
+
+
+from app.routers.generation import _build_org_chart_mermaid
+
+
+def test_build_org_chart_mermaid_from_structure():
+    org = [
+        {"group_name": "应急救援指挥部", "members": [
+            {"name": "张三", "position": "总指挥", "phone": "138", "responsibilities": "全面指挥"},
+        ]},
+        {"group_name": "抢险救援组", "members": [
+            {"name": "李四", "position": "组长", "phone": "139", "responsibilities": "灭火"},
+        ]},
+    ]
+    md = _build_org_chart_mermaid(org)
+    assert "graph TD" in md
+    assert "张三-总指挥" in md
+    assert "李四-组长" in md
+
+
+def test_build_org_chart_mermaid_empty_returns_none():
+    assert _build_org_chart_mermaid([]) is None
+    assert _build_org_chart_mermaid([{"group_name": "空组", "members": []}]) is None

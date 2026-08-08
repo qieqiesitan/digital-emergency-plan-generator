@@ -27,7 +27,7 @@ from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMErr
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import sse_event
-from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, render_template
+from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, get_additional_diagram_prompt, render_template
 from app.services.risk_context_builder import build_risk_management_context
 from app.regulations.context_builder import RegulationContextBuilder
 
@@ -106,6 +106,45 @@ SECTION_ADDITIONAL_DIAGRAM_MAP: dict[str, str] = {
     "sec_9_1": "drill_gantt",        # 培训与演练 → 演练甘特图
 }
 
+def _build_org_chart_mermaid(org_structure: list) -> str | None:
+    """企业组织架构 → Mermaid graph TD 文本；无有效数据返回 None。"""
+    groups = [g for g in (org_structure or []) if g.get("members")]
+    if not groups:
+        return None
+    lines = ["graph TD", "    HQ[应急救援指挥部]"]
+    node_id = 1
+    for g in groups:
+        group_node = f"G{node_id}[{g.get('group_name','应急小组')}]"
+        lines.append(f"    HQ --> {group_node}")
+        node_id += 1
+        for m in g.get("members", []):
+            name = m.get("name", "")
+            position = m.get("position", "")
+            if not name:
+                continue
+            label = f"{name}-{position}" if position else name
+            member_node = f"M{node_id}[{label}]"
+            lines.append(f"    {group_node} --> {member_node}")
+            node_id += 1
+    return "\n".join(lines)
+
+
+def _append_additional_diagram_prompt(prompt: str, section_key: str | None, enterprise_data: dict) -> str:
+    """按章节附加图类型追加提示词（组织架构图注入真实数据）。"""
+    additional_key = SECTION_ADDITIONAL_DIAGRAM_MAP.get(section_key or "")
+    if not additional_key:
+        return prompt
+    tmpl = get_additional_diagram_prompt(additional_key)
+    if not tmpl:
+        return prompt
+    variables = {}
+    if additional_key == "org_chart":
+        variables = {"org_structure": json.dumps(
+            enterprise_data.get("org_structure", []), ensure_ascii=False
+        )}
+    return prompt + "\n\n" + render_template(tmpl, variables)
+
+
 def _build_system_prompt(plan_type: str = "*", style_preference: dict | None = None, advanced_overrides: dict | None = None) -> str:
     """构建系统提示词，优先风格参数，fallback 到数据库模板。"""
     return build_system_prompt_with_style(plan_type, style_preference, advanced_overrides)
@@ -158,7 +197,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
             if reg_ctx:
                 prompt += "\n\n" + REGULATION_WRITING_RULE + "\n\n" + reg_ctx
 
-            return prompt
+            return _append_additional_diagram_prompt(prompt, section_key, enterprise_data)
 
     # 兜底：代码拼接
     num_hint = f"这是应急预案的第{section_number}个章节，请在正文中使用“{section_number}.”或“{section_number}.x”的编号格式。\n" if section_number is not None else ""
@@ -194,7 +233,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
     if reg_ctx:
         prompt += "\n\n" + REGULATION_WRITING_RULE + "\n\n" + reg_ctx
 
-    return prompt
+    return _append_additional_diagram_prompt(prompt, section_key, enterprise_data)
 
 def _missing(v):
     """缺失字段统一标注，防止 LLM 编造。"""
