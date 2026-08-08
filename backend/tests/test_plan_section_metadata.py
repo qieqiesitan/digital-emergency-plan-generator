@@ -104,6 +104,16 @@ def test_duplicate_plan_copies_section_metadata(monkeypatch):
 from app.schemas.plan import SectionResponse
 
 
+def test_section_response_has_diagram_svgs():
+    from app.schemas.plan import SectionResponse
+    resp = SectionResponse(
+        id="s1", section_key="sec_2", title="风险", level=1, sort_order=0,
+        content="", ai_generated=False, updated_at="2026-08-09T00:00:00",
+        diagram_svgs={"risk_matrix": {"placeholder": True, "reason": "missing"}},
+    )
+    assert resp.diagram_svgs["risk_matrix"]["placeholder"] is True
+
+
 def test_section_response_has_metadata_fields():
     resp = SectionResponse(
         id="s1", section_key="sec_3_4", title="紧急联系电话", level=2,

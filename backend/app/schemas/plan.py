@@ -25,6 +25,7 @@ class PlanResponse(BaseModel):
 class SectionResponse(BaseModel):
     id: str; section_key: str; title: str; level: int; sort_order: int
     content: str | None; ai_generated: bool; updated_at: DatetimeStr
+    diagram_svgs: dict = {}
     ai_generatable: bool = True
     auto_fill: bool = False
     auto_fill_source: str | None = None

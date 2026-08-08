@@ -93,7 +93,10 @@ export default function RichTextEditor({
 
   if (!editor) return null;
 
-  const showMermaid = readOnly && content.includes("language-mermaid");
+  const showMermaid =
+    readOnly &&
+    (content.includes("language-mermaid") ||
+      Object.keys(diagramSvgs || {}).length > 0);
 
   const wrapperStyle = aiGenerated
     ? { borderLeft: "3px solid rgba(24, 144, 255, 0.4)", background: "rgba(24, 144, 255, 0.02)" }
