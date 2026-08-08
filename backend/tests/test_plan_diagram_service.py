@@ -55,3 +55,28 @@ def test_build_evacuation_svg_with_points():
 def test_build_evacuation_svg_no_data():
     out = build_evacuation_svg(None, [], [], [])
     assert out["placeholder"] is True
+
+
+def test_risk_matrix_svg_escapes_names():
+    events = [{"name": "<script>alert(1)</script>", "likelihood": 3, "severity": 4, "risk_level": "较大"}]
+    out = build_risk_matrix_svg(events)
+    assert "<script>" not in out["svg"]
+    assert "&lt;script&gt;" in out["svg"]
+
+
+def test_build_evacuation_svg_accepts_real_zone_shape():
+    out = build_evacuation_svg(
+        floor_plan_url=None,
+        zones=[{"name": "生产区", "floor_plan_polygon": {"version": 2, "polygons": [
+            {"points": [[10, 10], [90, 10], [90, 90], [10, 90]]}
+        ]}}],
+        objects=[{"name": "储罐", "location_x": None, "location_y": None}],
+        resources=[],
+    )
+    assert out["placeholder"] is False
+
+
+def test_risk_matrix_svg_chinese_likelihood_tolerated():
+    events = [{"name": "火灾", "likelihood": "较大", "severity": 4, "risk_level": "较大"}]
+    out = build_risk_matrix_svg(events)
+    assert out["placeholder"] is False
