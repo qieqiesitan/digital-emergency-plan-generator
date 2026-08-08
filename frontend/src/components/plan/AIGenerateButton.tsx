@@ -109,14 +109,16 @@ export default function AIGenerateButton({
               fullTextRef.current += event.content;
               onContentChunk(fullTextRef.current);
             } else if (event.type === "done") {
-              setStatus("done");
               const newText = event.content || fullTextRef.current;
-              onGenerateComplete(newText);
               if (oldContent && newText !== oldContent) {
                 setDiffOld(oldContent);
                 setDiffNew(newText);
                 setDiffOpen(true);
+              } else {
+                setDiffOpen(false);
               }
+              onGenerateComplete(newText);
+              setStatus("done");
               setTimeout(() => setStatus("idle"), 1500);
             } else if (event.type === "error") {
               setStatus("error");
@@ -131,7 +133,7 @@ export default function AIGenerateButton({
     } catch {
       // form validation failed, stay in modal
     }
-  }, [planId, sectionKey, contextBefore, contextAfter, selectedText, mode, onContentChunk, onGenerateComplete, form]);
+  }, [planId, sectionKey, contextBefore, contextAfter, selectedText, oldContent, mode, onContentChunk, onGenerateComplete, form]);
 
   const handleStop = useCallback(() => {
     controllerRef.current?.abort();
@@ -141,61 +143,62 @@ export default function AIGenerateButton({
 
   const quickPrompts = getQuickPrompts();
 
-  if (status === "loading") {
-    // ponytail: in selection mode, feedback is handled by RichTextEditor toolbar; render nothing here
-    if (mode === "selection") return null;
-    return <Button icon={<LoadingOutlined />} onClick={handleStop} disabled={disabled}>生成中... 停止</Button>;
-  }
-
-  if (status === "done") {
-    return <Button icon={<CheckCircleOutlined style={{ color: "#52c41a" }} />} disabled>生成完成</Button>;
-  }
-
   const modalTitle = mode === "selection" ? "重写选中内容" : `生成「${sectionTitle || sectionKey}」`;
 
   return (
     <span>
-      <Button icon={<RobotOutlined />} onClick={handleGenerate} disabled={disabled}>AI 生成</Button>
-      {status === "error" && (
-        <Alert type="error" title={errorMsg} closable onClose={() => setStatus("idle")} style={{ marginTop: 8 }}
-          action={<Button size="small" onClick={handleConfirm}>重试</Button>}
-        />
-      )}
-      <Modal
-        title={modalTitle}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={handleConfirm}
-        okText="开始生成"
-        cancelText="取消"
-        width={560}
-      >
-        <div style={{ marginBottom: 12 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>快捷指令（点击填入）：</Text>
-          <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {quickPrompts.map((qp) => (
-              <Tag
-                key={qp.id}
-                style={{ cursor: "pointer" }}
-                onClick={() => {
-                  const current = form.getFieldValue("instruction") || "";
-                  form.setFieldsValue({ instruction: current ? `${current}\n${qp.text}` : qp.text });
-                }}
-              >
-                {qp.label}
-              </Tag>
-            ))}
-          </div>
-        </div>
-        <Form form={form} layout="vertical">
-          <Form.Item name="instruction" label="自定义提示词（可选）">
-            <Input.TextArea
-              rows={4}
-              placeholder="输入补充指令以优化生成结果，如：使用正式公文语体、补充操作步骤..."
+      {status === "loading" ? (
+        // ponytail: in selection mode, feedback is handled by RichTextEditor toolbar; render nothing here
+        mode === "selection" ? null : (
+          <Button icon={<LoadingOutlined />} onClick={handleStop} disabled={disabled}>生成中... 停止</Button>
+        )
+      ) : status === "done" ? (
+        <Button icon={<CheckCircleOutlined style={{ color: "#52c41a" }} />} disabled>生成完成</Button>
+      ) : (
+        <>
+          <Button icon={<RobotOutlined />} onClick={handleGenerate} disabled={disabled}>AI 生成</Button>
+          {status === "error" && (
+            <Alert type="error" title={errorMsg} closable onClose={() => setStatus("idle")} style={{ marginTop: 8 }}
+              action={<Button size="small" onClick={handleConfirm}>重试</Button>}
             />
-          </Form.Item>
-        </Form>
-      </Modal>
+          )}
+          <Modal
+            title={modalTitle}
+            open={modalOpen}
+            onCancel={() => setModalOpen(false)}
+            onOk={handleConfirm}
+            okText="开始生成"
+            cancelText="取消"
+            width={560}
+          >
+            <div style={{ marginBottom: 12 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>快捷指令（点击填入）：</Text>
+              <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {quickPrompts.map((qp) => (
+                  <Tag
+                    key={qp.id}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      const current = form.getFieldValue("instruction") || "";
+                      form.setFieldsValue({ instruction: current ? `${current}\n${qp.text}` : qp.text });
+                    }}
+                  >
+                    {qp.label}
+                  </Tag>
+                ))}
+              </div>
+            </div>
+            <Form form={form} layout="vertical">
+              <Form.Item name="instruction" label="自定义提示词（可选）">
+                <Input.TextArea
+                  rows={4}
+                  placeholder="输入补充指令以优化生成结果，如：使用正式公文语体、补充操作步骤..."
+                />
+              </Form.Item>
+            </Form>
+          </Modal>
+        </>
+      )}
       <DiffPreviewModal
         open={diffOpen}
         oldText={diffOld}
