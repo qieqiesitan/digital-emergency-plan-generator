@@ -147,6 +147,10 @@ export default function PlanEditorPage() {
 
   const startRealtimeGeneration = useCallback((keys?: string[]) => {
     if (!id || !sections || sections.length === 0) return;
+    // Guard against accidental direct binding (e.g. onClick passes MouseEvent as keys)
+    if (keys && !Array.isArray(keys)) {
+      keys = undefined;
+    }
 
     setIsGenerating(true);
     setBatchProgress({ current: 0, total: sections.length, message: "准备开始..." });
@@ -207,6 +211,7 @@ export default function PlanEditorPage() {
               setFailedSections(event.failed_sections);
               message.warning(`${event.failed_sections.length} 个章节生成失败`);
             } else {
+              setFailedSections([]);
               message.success(`全部生成完成，共 ${completedCount} 个章节`);
             }
             queryClient.invalidateQueries({ queryKey: ["planSections", id] });
@@ -216,6 +221,7 @@ export default function PlanEditorPage() {
           case "error":
             setIsGenerating(false);
             setGeneratingSections(new Set());
+            setFailedSections([]);
             message.error(event.message || "生成出错");
             break;
         }
@@ -224,6 +230,7 @@ export default function PlanEditorPage() {
         setIsGenerating(false);
         setGeneratingSections(new Set());
         setBatchProgress({ current: 0, total: 0, message: "" });
+        setFailedSections([]);
         message.error(error);
       },
       () => {
@@ -294,7 +301,7 @@ export default function PlanEditorPage() {
                 icon={isGenerating ? <LoadingOutlined /> : <ThunderboltOutlined />}
                 type="primary"
                 ghost
-                onClick={startRealtimeGeneration}
+                onClick={() => startRealtimeGeneration()}
                 loading={isGenerating}
                 disabled={isGenerating}
               >
@@ -420,7 +427,7 @@ export default function PlanEditorPage() {
               ) : (
                 <>
                   <span>从左侧选择一个章节开始编辑</span>
-                  <Button type="primary" icon={<ThunderboltOutlined />} onClick={startRealtimeGeneration} >
+                  <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => startRealtimeGeneration()} >
                     一键生成全部章节
                   </Button>
                 </>
