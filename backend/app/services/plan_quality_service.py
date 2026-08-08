@@ -1,6 +1,8 @@
 """预案内容质量校验：导出前检查占位符残留、档案一致性、章节完整性、疑似推断。"""
 import re
 
+from app.services.mermaid_renderer import _extract_mermaid_code
+
 
 def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text or "")
@@ -34,6 +36,20 @@ def check_plan(plan, enterprise, sections) -> dict:
                 "section_title": s.title,
                 "warning": "存在待补充占位符，请人工补全",
             })
+
+        # Mermaid 代码块缺少图表类型声明（规则 5）
+        codes = _extract_mermaid_code(s.content or "")
+        for code in codes:
+            if not code.strip().startswith((
+                "flowchart", "graph", "sequenceDiagram", "classDiagram",
+                "stateDiagram", "erDiagram", "gantt", "pie",
+                "gitGraph", "mindmap", "timeline", "journey",
+            )):
+                warnings.append({
+                    "section_key": s.section_key,
+                    "section_title": s.title,
+                    "warning": "Mermaid 代码块缺少图表类型声明",
+                })
 
         # 关键档案信息未体现（非空时正文应包含）
         norm_text = _normalize(text)

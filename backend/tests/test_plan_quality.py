@@ -50,3 +50,11 @@ def test_archive_field_match_ignores_whitespace():
         _section("sec_1", "总则", "<p>企业地址：西安市高新区\n一路1号，法人：张三</p>"),
     ])
     assert not any("地址" in w["warning"] for w in result["warnings"])
+
+
+def test_mermaid_missing_type_declaration_warning():
+    enterprise = MagicMock(address="西安市高新区一路1号", legal_representative="张三", safety_officer="李四")
+    plan = MagicMock()
+    content = '<pre><code class="language-mermaid">A --> B</code></pre>'
+    result = check_plan(plan, enterprise, [_section("sec_5", "应急响应", content)])
+    assert any("Mermaid" in w["warning"] for w in result["warnings"])
