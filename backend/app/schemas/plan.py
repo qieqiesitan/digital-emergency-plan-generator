@@ -21,6 +21,10 @@ class PlanResponse(BaseModel):
 class SectionResponse(BaseModel):
     id: str; section_key: str; title: str; level: int; sort_order: int
     content: str | None; ai_generated: bool; updated_at: DatetimeStr
+    ai_generatable: bool = True
+    auto_fill: bool = False
+    auto_fill_source: str | None = None
+    data_dependencies: list = []
     model_config = {"from_attributes": True}
 
 class SectionUpdate(BaseModel):

@@ -89,3 +89,20 @@ def test_duplicate_plan_copies_section_metadata(monkeypatch):
     assert contact.auto_fill is True
     assert contact.auto_fill_source == "org_structure"
     assert contact.data_dependencies == ["org_structure"]
+
+
+from app.schemas.plan import SectionResponse
+
+
+def test_section_response_has_metadata_fields():
+    resp = SectionResponse(
+        id="s1", section_key="sec_3_4", title="紧急联系电话", level=2,
+        sort_order=0, content="", ai_generated=False,
+        updated_at="2026-08-08T00:00:00",
+        ai_generatable=False, auto_fill=True,
+        auto_fill_source="org_structure", data_dependencies=["org_structure"],
+    )
+    assert resp.ai_generatable is False
+    assert resp.auto_fill is True
+    assert resp.auto_fill_source == "org_structure"
+    assert resp.data_dependencies == ["org_structure"]
