@@ -66,7 +66,7 @@ const DIRECT_LEVELS = [
 type MethodTypeKey = "LS" | "LEC" | "COAL_LS" | "DIRECT";
 
 interface RiskEventFormValues {
-  accident_type: string;
+  accident_type: string | string[];
   description?: string;
   trigger_conditions?: string;
   consequences?: string;
@@ -175,7 +175,7 @@ export default function RiskEventForm({
 
   const handleAcceptAI = (item: AISuggestItem) => {
     form.setFieldsValue({
-      accident_type: item.accident_type,
+      accident_type: [item.accident_type],
       description: item.description || "",
       trigger_conditions: item.trigger_conditions || "",
       consequences: item.consequences || "",
@@ -203,6 +203,7 @@ export default function RiskEventForm({
     }
     onSubmit({
       ...values,
+      accident_type: Array.isArray(values.accident_type) ? values.accident_type.join("、") : values.accident_type,
       method_type: methodType,
       method_params: params,
     });
@@ -240,6 +241,8 @@ export default function RiskEventForm({
         >
           <Select
             showSearch
+            mode="multiple"
+            allowClear
             placeholder="选择 GB6441 事故类型"
             options={ACCIDENT_TYPES.map((t) => ({ value: t, label: t }))}
             filterOption={(input, option) =>

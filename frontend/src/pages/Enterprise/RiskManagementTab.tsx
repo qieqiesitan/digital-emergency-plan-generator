@@ -42,7 +42,7 @@ interface ZoneFormValues {
   location_y?: number | null;
   is_risk_point?: boolean;
   unit_type?: string;
-  accident_type?: string;
+  accident_type?: string | string[];
   method_type?: string;
   method_params?: Record<string, number>;
   measure_category?: string;
@@ -240,7 +240,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           }
           break;
         case "event": {
-          const eventPayload = { accident_type: values.accident_type || "", description: values.description || "", method_type: (values.method_type || "LS") as MethodType, method_params: values.method_params || {} };
+          const eventPayload = { accident_type: Array.isArray(values.accident_type) ? values.accident_type.join("、") : (values.accident_type || ""), description: values.description || "", method_type: (values.method_type || "LS") as MethodType, method_params: values.method_params || {} };
           if (form.id) {
             await updateEvent(enterpriseId, form.id, eventPayload);
           } else {
