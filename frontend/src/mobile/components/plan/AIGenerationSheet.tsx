@@ -102,19 +102,24 @@ export default function AIGenerationSheet({
           )}
         </div>
 
-        {/* 生成风格 */}
-        <div>
-          <p className="text-body-sm font-semibold text-neutral-700 mb-2">生成风格（可选）</p>
-          <SegmentedControl
-            segments={[
-              { key: "standard", label: "标准化" },
-              { key: "detailed", label: "详细" },
-              { key: "concise", label: "简洁" },
-            ]}
-            activeKey={style}
-            onChange={setStyle}
-          />
-        </div>
+        {/* 生成风格
+            后端批量接口 generate_batch_background 暂不支持请求级风格覆盖，
+            只按预案 style_preference 生成，batch 模式下保留该选择会误导用户，因此隐藏。
+            single 模式保持现状。 */}
+        {mode !== "batch" && (
+          <div>
+            <p className="text-body-sm font-semibold text-neutral-700 mb-2">生成风格（可选）</p>
+            <SegmentedControl
+              segments={[
+                { key: "standard", label: "标准化" },
+                { key: "detailed", label: "详细" },
+                { key: "concise", label: "简洁" },
+              ]}
+              activeKey={style}
+              onChange={setStyle}
+            />
+          </div>
+        )}
 
         {/* batch 模式章节选择 */}
         {mode === "batch" && (

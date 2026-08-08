@@ -283,6 +283,28 @@ export default function PlanEditorScreen() {
   };
 
   // ========== AI 批量生成（后台 + 失败重试） ==========
+  // 后台批量生成通常需要 1-3 分钟，单次 5 秒查询几乎总是查不到结果。
+  // 改为多次轮询：每 15 秒查一次，最多 8 次（约 2 分钟），生成完成或出现失败即停止。
+  const pollGenerationStatus = useCallback(
+    async (planId: string, attempts = 8, intervalMs = 15000) => {
+      for (let i = 0; i < attempts; i++) {
+        await new Promise((r) => setTimeout(r, intervalMs));
+        try {
+          const status = await getGenerationStatus(planId);
+          const failed = status?.data?.failed_sections ?? [];
+          if (!status?.data?.generating || failed.length > 0) {
+            setFailedSections(failed);
+            return failed;
+          }
+        } catch {
+          // 轮询失败继续尝试
+        }
+      }
+      return [];
+    },
+    []
+  );
+
   const runBatchGeneration = useCallback(async (keys: string[]) => {
     if (!planId) return;
     if (keys.length === 0) {
@@ -295,22 +317,17 @@ export default function PlanEditorScreen() {
       showToast?.({ type: "success", message: res.message || "已在后台开始生成" });
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       statusTimerRef.current = setTimeout(async () => {
-        try {
-          const status = await getGenerationStatus(planId);
-          const failed = status.data?.failed_sections ?? [];
-          if (failed.length > 0) {
-            setFailedSections(failed);
-            showToast?.({ type: "error", message: `${failed.length} 个章节生成失败，可点击重试` });
-          }
-        } catch {
-          // 状态查询失败不阻塞刷新
+        const failed = await pollGenerationStatus(planId);
+        if (failed.length > 0) {
+          showToast?.({ type: "error", message: `${failed.length} 个章节生成失败，可点击重试` });
         }
+        // 轮询结束后刷新章节内容与失败提示条
         queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
-      }, 5000);
+      }, 0);
     } catch (e: any) {
       showToast?.({ type: "error", message: e?.message || "批量生成失败" });
     }
-  }, [planId, showToast, queryClient]);
+  }, [planId, showToast, queryClient, pollGenerationStatus]);
 
   const handleBatchGenerate = useCallback((selectedKeys: string[]) => {
     setBatchSheetOpen(false);
