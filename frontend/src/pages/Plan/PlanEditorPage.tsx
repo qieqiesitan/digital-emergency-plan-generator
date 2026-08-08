@@ -398,9 +398,9 @@ export default function PlanEditorPage() {
                     onContentChunk={handleAIContentChunk}
                     onGenerateComplete={handleAIGenerateComplete}
                     oldContent={currentSection.content || ""}
-                    onReject={() => {
+                    onReject={(oldText?: string) => {
                       if (!id || !selectedKey) return;
-                      const old = currentSection.content || "";
+                      const old = oldText ?? (currentSection.content || "");
                       saveMutation.mutate({ key: selectedKey, content: old });
                     }}
                     />

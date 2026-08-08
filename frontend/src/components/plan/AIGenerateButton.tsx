@@ -20,7 +20,7 @@ interface AIGenerateButtonProps {
   contextBefore?: string;
   contextAfter?: string;
   oldContent?: string;
-  onReject?: () => void;
+  onReject?: (oldText?: string) => void;
 }
 
 type GenStatus = "idle" | "loading" | "done" | "error";
@@ -203,7 +203,7 @@ export default function AIGenerateButton({
         onAccept={() => setDiffOpen(false)}
         onReject={() => {
           setDiffOpen(false);
-          onReject?.();
+          onReject?.(diffOld);
         }}
         onClose={() => setDiffOpen(false)}
       />
