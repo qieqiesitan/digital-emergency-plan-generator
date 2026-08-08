@@ -1,7 +1,7 @@
 # 后端三连重构设计规格：LLM 调用统一 / 批量生成合并 / chat_dispatch 收尾
 
 > 生成日期：2026-08-08
-> 状态：已获用户批准（brainstorming 流程）
+> 状态：v2（2026-08-08 用户完成一轮代码优化后重新评估更新；v1 已获批准）
 > 前置文档：`docs/codebase-optimization-plan.md`（2026-07-20，本规格是其 1.1/1.2/1.3/2.3 项的收尾落地）
 
 ---
@@ -14,14 +14,16 @@
 - `generate_batch` 与 `generate_batch_background` 共享约 90% 的准备代码和生成循环，但各自维护一份。
 - `chat_dispatch.py` 的 generic CRUD 基础设施已存在，但遗留 3 个未接线的死函数，8 个委托函数各自复制 try/except 样板；`EnterpriseResponse` 与 `EnterpriseBase` 重复声明 8 个字段。
 
-本规格目标：在不改变任何外部行为的前提下，消除上述三处重复，并为重构后的代码补齐回归测试。
+2026-08-08 用户完成的一轮代码优化（plan-generation 增强，commit `d5216ae` 等）已经实现了「批量生成公共引擎」：`_run_batch_generation`、`_finalize_batch_result`、`_clear_generation_state`、`_GenerationCancelled`、`_failed_sections` 记录，并配套 `backend/tests/test_generation_batch_refactor.py`（6 个引擎级测试）。阶段 2 因此从「合并两个函数」缩小为「消除残余准备块重复 + 补测试」。
+
+本规格目标（v2）：在不改变当前基线行为的前提下，完成阶段 1（LLM 调用统一）、阶段 2 收尾（批量准备块去重）、阶段 3（chat_dispatch 收尾），并为重构后的代码补齐回归测试。
 
 ## 2. 范围
 
 ### 2.1 包含
 
 - 阶段 1：LLM 调用统一（`llm_client.py` 接口扩展 + 9 处调用迁移 + base URL/解密收敛）。
-- 阶段 2：批量生成合并（`generation.py` 公共准备函数 + 公共生成引擎）。
+- 阶段 2：批量生成收尾（`generation.py` 公共准备函数提取；公共生成引擎已由 2026-08-08 优化实现，不再重复设计）。
 - 阶段 3：chat_dispatch 收尾（死代码删除、委托样板收口、`EnterpriseResponse` 字段去重）。
 - 顺带清理（与上述改动同文件，随阶段完成）：
   - `ai_config.py` 的厂商 base URL 映射改为复用 `llm_client.API_BASE_MAP` / `_get_api_base`；
@@ -53,6 +55,7 @@
    - `/generate/batch` SSE 批量生成一次（观察事件序列正常）；
    - `/generate/batch/background` 后台生成一次（观察最终状态与版本快照）；
    - chat 工具调用一次（如导出 DOCX 或生成报告）。
+   - 冒烟时同时确认新基线行为：SSE/后台结束后 `_active_generations[plan_id]` 被清除为 False、`_failed_sections` 有值（失败时）、batch_done 事件携带 `failed_sections`。
 
 ## 4. 现状盘点（证据）
 
@@ -76,20 +79,31 @@
 
 ### 4.2 批量生成重复点
 
-- `generate_batch`（`generation.py:365`）与 `generate_batch_background`（`generation.py:579`）的公共准备块（plan 查询、AI 配置、企业上下文收集、`_enrich_with_reports`、keys 解析、章节过滤、置 generating 状态）逐行一致。
-- 生成循环（后台会话、逐章 prompt→LLM→md_to_html→Mermaid 预渲染→commit、计数、completed/draft 判定、版本快照自动创建）高度一致。
+2026-08-08 优化后，`generation.py`（当前 1043 行）已有：
 
-两端的 5 处有意差异（合并时必须保持）：
+- 公共引擎 `_run_batch_generation`（`generation.py:386`）：逐章生成、写库、Mermaid 预渲染、失败统计、`stream_fn`/`on_progress`/`on_section_done`/`should_stop`/`use_section_number` 回调与开关；
+- 公共收尾 `_finalize_batch_result`（`generation.py:463`）：completed/draft 判定 + 版本快照（复用 `versions._build_snapshot`）；
+- 状态与失败清单：`_clear_generation_state`（置 False，不再 pop）、`_failed_sections`（供 `get_generation_status` 轮询）、`_GenerationCancelled`（取消不算失败）。
 
-| 差异点 | SSE 版 `generate_batch` | 后台版 `generate_batch_background` |
-|---|---|---|
-| stale 状态守卫 | 无 | 有（generating + 无活跃任务 → 重置 draft） |
-| 重复触发 | 无防护 | 返回 "正在生成中" |
-| 空章节守卫 | 无（事件正常结束） | 返回 "没有可生成的章节" |
-| 生成方式 | `_stream_llm_chunks` 逐 chunk 发事件 | `_stream_llm` 非流式收集 |
-| 取消 | 发 "生成已取消" 事件后 return | 静默 break |
-| `_active_generations` 清理 | 不清理（现状如此，保留） | finally 中 pop |
-| 初始 progress 事件 | 发 "开始批量生成 N 个章节..." | 不发 |
+**残余重复**：公共准备块（p 404 → ai_config 400 → 企业/资源/风险上下文收集 → `_enrich_with_reports` → body keys 解析 → 章节过滤）在以下 5 个函数中重复出现：
+
+- `generate_batch`（`generation.py:509`，准备块 517-549）
+- `generate_batch_background`（`generation.py:699`，准备块 704-747）
+- `generate_section`（`generation.py:800`，准备块 804-826）
+- `regenerate_selection`（`generation.py:903`，准备块 ~920）
+- `generate_preview`（`generation.py:984`，准备块 ~1012）
+
+其中两个批量端点的准备块逐字一致；另外 3 个函数在准备块之后各有不同逻辑（如 `custom_instruction` 解析、单章重试），本次不纳入提取范围，避免扩大改动面。
+
+**新基线行为（阶段 2 收尾必须保持，不再视为"差异项"）**：
+
+- SSE 与后台都在 finally 中 `_clear_generation_state(plan_id)`（置 False），即旧版「SSE 不清理」的怪癖已被修复；
+- `_failed_sections` 在生成开始时清空、结束时写入，`batch_done` 事件携带 `failed_sections`；
+- `generate_batch_background` 保留 stale 状态守卫（generating + 无活跃任务 → 重置 draft）与"正在生成中"防重、空章节守卫；
+- SSE 用 `_stream_llm_chunks` 逐 chunk 发事件（取消发"生成已取消"并抛 `_GenerationCancelled` 中断）；后台用 `_stream_llm` 非流式收集、取消静默 break（`should_stop`）；
+- `use_section_number`：SSE 传 `section_number=i+1`，后台不传（历史行为）。
+
+另有一个冗余：`generate_batch` 函数内 `import asyncio as _asyncio`（`generation.py:563`）与顶层 `asyncio` 导入（`generation.py:22`）重复，收尾时顺手删除。
 
 ### 4.3 chat_dispatch 现状
 
@@ -157,33 +171,31 @@
 
 ## 6. 阶段 2：批量生成合并
 
-### 6.1 抽取函数
+> v2 说明：本阶段从「合并两个批量函数」变为「收尾」。公共引擎已由 2026-08-08 优化实现并有 6 个引擎级测试（`test_generation_batch_refactor.py`），剩余工作为准备块去重与补充测试。
 
-1. `_collect_batch_context(plan_id, request, db, current_user)`：
-   - 返回 `(p, ai_config, ent_data, target_sections, section_tuples, plan_type)`；
-   - 包含：p 404、ai_config 400、企业上下文收集、`_enrich_with_reports`、body keys 解析、章节过滤；
-   - 不包含：stale 守卫、空章节守卫、置 generating、`_active_generations` 赋值（留在端点）。
-2. `_run_batch_sections(plan_id, p, ai_config, ent_data, section_tuples, plan_type, emit=None, stream_chunks=True, clear_active=False)`：
-   - 公共生成循环：async_session 后台会话、重查 sections、逐章 prompt 构建 → LLM → md_to_html → Mermaid 预渲染 → commit、completed/failed 计数、最终 completed/draft 判定、版本快照自动创建（含 try/except 保持现状日志）；
-   - `emit` 回调（async）：非 None 时按现状发事件；None 时不发；
-   - `stream_chunks=True` 用 `_stream_llm_chunks` 逐 chunk 调 emit；False 用 `_stream_llm` 收集全文；
-   - 取消语义：`if not _active_generations.get(plan_id): if emit: await emit(sse_event("error", message="生成已取消")); return else: break`；
-   - `clear_active=True` 时 finally `_active_generations.pop(plan_id, None)`，False 不清理；
-   - 外层 try/except：emit 模式 `queue.put(sse_event("error", message=str(e)))` + sentinel None；后台模式 `logger.error`。
+### 6.1 抽取函数（v2 剩余工作）
+
+1. `_get_plan_or_404(plan_id, user, db)`：抽出 p 的 404 查询（两个批量端点共用）。
+2. `_collect_batch_context(plan_id, p, request, db, current_user)`：
+   - 返回 `(p, ai_config, ent_data, target_sections)`（`section_tuples` 由调用方从 `target_sections` 现取）；
+   - 包含：ai_config 400、企业上下文收集、`_enrich_with_reports`、body keys 解析、章节过滤；
+   - 不包含：stale 守卫、空章节守卫、置 generating、`_active_generations` 赋值（留在端点，守卫逻辑不随提取而移动）。
+3. 删除 `generate_batch` 函数内冗余的 `import asyncio as _asyncio`（`generation.py:563`）。
 
 ### 6.2 端点改造
 
-- `generate_batch`：`ctx = await _collect_batch_context(...)` → 置 generating → `_active_generations[plan_id] = True` → 建 queue → `asyncio.create_task(_run_batch_sections(..., emit=queue.put, stream_chunks=True, clear_active=False))` → `EventSourceResponse(event_generator())`。
-  - 事件序列保持：`progress("开始批量生成 N 个章节...")` → 逐章 `progress("正在生成「X」(i/N)")` → `chunk` 流 → `section_done` → `batch_done` → sentinel None；取消发 `error("生成已取消")`。
-- `generate_batch_background`：先查询 p 做 stale 守卫/正在生成中判断 → `_collect_batch_context(...)` → 空章节守卫 → 置 generating → `_active_generations[plan_id] = True` → `asyncio.create_task(_run_batch_sections(..., emit=None, stream_chunks=False, clear_active=True))` → 返回 `{"code": 0, "message": f"已在后台开始生成 {len(target_sections)} 个章节"}`。
+- `generate_batch`：`p = await _get_plan_or_404(...)` → `ctx = await _collect_batch_context(plan_id, p, request, db, current_user)` → 其余逻辑（置 generating、建 queue、`_run_batch_generation` + 事件回调、`_finalize_batch_result`、finally `_clear_generation_state`）**保持现状不变**。
+- `generate_batch_background`：`p = await _get_plan_or_404(...)` → stale 守卫/正在生成中判断（保持现状）→ `ctx = await _collect_batch_context(plan_id, p, request, db, current_user)` → 空章节守卫 → 其余逻辑保持现状不变。
+
+除替换为上述两个助手外，两端点内部代码逐字不动（事件序列、回调、失败清单、状态清理均维持 2026-08-08 优化后的新基线）。
 
 ### 6.3 阶段 2 测试
 
-新增 `backend/tests/test_batch_generation_engine.py`：
+在既有 `test_generation_batch_refactor.py`（引擎级 6 测试，保留不动）基础上新增 `backend/tests/test_batch_context.py`：
 
-- 直接单测 `_run_batch_sections`：mock LLM 流与 async_session，SSE 模式断言 emit 事件序列（类型与字段）与现状一致；后台模式断言 DB 状态、版本快照、`_active_generations` 清理；
-- 断言两种模式的取消语义差异；
-- 断言 `generate_batch` 与 `generate_batch_background` 端点壳的守卫行为（stale 重置、正在生成中、空章节）保持。
+- `_collect_batch_context`：mock request/db，断言返回的 ai_config 400 分支、keys 解析分支（无 body / 空 body / 带 section_keys）、章节过滤结果；
+- `_get_plan_or_404`：404 分支与正常返回；
+- 两个端点壳（用 ASGI TestClient + mock DB/LLM）各跑一次冒烟级测试：SSE 事件序列关键事件存在（progress/batch_done）、后台返回消息与守卫分支（正在生成中 / 空章节）。
 
 ## 7. 阶段 3：chat_dispatch 收尾 + Enterprise 字段去重
 
@@ -222,10 +234,10 @@ async def _delegate_generic(op, db, user, args, cfg):
 
 ## 8. 实施顺序与提交策略
 
-按阶段顺序实施，每阶段独立提交（符合项目 `git save` / 增量提交习惯）：
+按以下顺序实施，每阶段独立提交（符合项目 `git save` / 增量提交习惯）：
 
-1. 阶段 1（LLM 统一）→ 提交：`refactor(llm): unify all LLM call sites through llm_client`
-2. 阶段 2（批量合并）→ 提交：`refactor(generation): extract shared batch engine for SSE and background`
+1. 阶段 2 收尾（最小、先稳住 generation.py 新基线）→ 提交：`refactor(generation): extract shared batch context helpers`
+2. 阶段 1（LLM 统一）→ 提交：`refactor(llm): unify all LLM call sites through llm_client`
 3. 阶段 3（chat_dispatch 收尾）→ 提交：`refactor(chat): remove dead handlers, delegate generic CRUD, dedup enterprise schema`
 
 每阶段完成标准：新增单测绿 + backend 全量 pytest 绿。全部完成后执行验收 B 的 Docker 冒烟。
@@ -233,13 +245,14 @@ async def _delegate_generic(op, db, user, args, cfg):
 ## 9. 风险与回退
 
 - **行为漂移风险**：集中在错误文案与事件序列。缓解：每个差异点都有单测断言；冒烟时逐链路核对。
-- **SSE 版 `_active_generations` 不清理**：这是现状行为（后台版的 stale 守卫依赖它触发重置），严格等价原则下保留，并在代码中加注释说明，不"顺手修"。
+- **新基线漂移风险**：阶段 2 收尾的基线是 2026-08-08 优化后的代码（状态清理、`_failed_sections`、`use_section_number` 差异），不是更早的旧版行为；提取准备块时不得顺手改动这些行为。
+- **提取边界**：`generate_section` / `regenerate_selection` / `generate_preview` 也有相似准备块，但后续逻辑不同，本次不提取，避免范围膨胀；如需提取，另行评估。
 - **回退**：每阶段一个提交，出错用 `git undo` 回退到前一 savepoint；工作区并行会话的改动（TASKS.md、.graphifyignore、上传目录）不触碰、不提交。
 - **部署**：Docker 容器 4 worker 不热加载，改代码后需 `docker restart emergency-plan-backend` 生效（冒烟步骤已包含）。
 
 ## 10. 规格自检记录
 
 - 占位符扫描：无 "待定"/TODO/未完成章节。
-- 内部一致性：迁移矩阵与错误处理契约一致；阶段 2 差异矩阵与端点改造一致。
+- 内部一致性：迁移矩阵与错误处理契约一致；阶段 2 已按 v2 新基线更新（引擎已存在，剩余为准备块去重）。
 - 范围检查：聚焦 3 个模块 + 同文件顺带清理，可被一个实现计划覆盖（writing-plans 按阶段拆任务）。
-- 模糊性处理：LLMError 消息格式已定（无空格）；日期字段去重方案已定（保留覆盖）；SSE 不清理 `_active_generations` 已明确为保留项。
+- 模糊性处理：LLMError 消息格式已定（无空格）；日期字段去重方案已定（保留覆盖）；阶段 2 的 SSE/后台状态清理已按新基线（都清理）更新，旧版"SSE 不清理"不再作为保留项。
