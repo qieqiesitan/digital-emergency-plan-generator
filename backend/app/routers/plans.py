@@ -11,6 +11,16 @@ from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/plans", tags=["Plans"])
 
+PLAN_TYPE_CODE = {"comprehensive": "ZH", "special": "ZX", "onsite": "XC"}
+
+
+def _generate_plan_number(enterprise_name: str, plan_type: str, seq: int) -> str:
+    """生成预案编号：{企业前缀}-{类型码}-{三位序号}。"""
+    prefix = (enterprise_name or "").replace(" ", "")[:4] or "企业"
+    code = PLAN_TYPE_CODE.get(plan_type, "YA")
+    return f"{prefix}-{code}-{seq:03d}"
+
+
 def _build_plan(p: PlanProject, ent_name: str = "") -> PlanResponse:
     sections = p.sections or []
     return PlanResponse(

@@ -149,6 +149,8 @@ class PlanProject(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     style_preference: Mapped[Optional[dict]] = mapped_column(JSONB, default=None)
     advanced_prompt_overrides: Mapped[Optional[dict]] = mapped_column(JSONB, default=None)
+    plan_number: Mapped[Optional[str]] = mapped_column(String(100))
+    version_number: Mapped[Optional[str]] = mapped_column(String(50))
 
     enterprise = relationship("Enterprise", back_populates="plans", lazy="selectin")
     sections = relationship("PlanSection", back_populates="plan_project", cascade="all, delete-orphan", lazy="selectin")

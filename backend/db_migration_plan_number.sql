@@ -1,0 +1,3 @@
+ALTER TABLE plan_projects
+  ADD COLUMN IF NOT EXISTS plan_number VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS version_number VARCHAR(50);
