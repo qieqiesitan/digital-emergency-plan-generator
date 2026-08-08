@@ -2,7 +2,7 @@ import json, math, os, logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, delete
+from sqlalchemy import select, func, update, delete, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.database import get_db
@@ -264,9 +264,15 @@ async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, 
         remove_floor_plan(old_url)
     saved_zones = (await db.execute(select(RiskZone).where(RiskZone.floor_id == floor_id).order_by(RiskZone.sort_order))).scalars().all()
     await db.refresh(floor)
+    zone_responses = []
+    for z in saved_zones:
+        r = RiskZoneResponse.model_validate(z)
+        # 导入的分区暂无风险对象：max_risk_level 保持 None，颜色取手动色板
+        r.effective_color = effective_color(r.floor_plan_polygon, None)
+        zone_responses.append(r)
     return ApiResponse(data=FourColorCommitResponse(
         floor=await _floor_response(db, floor),
-        zones=[RiskZoneResponse.model_validate(z) for z in saved_zones],
+        zones=zone_responses,
     ))
 
 @router.delete("/floors/{floor_id}/four-color/{file_token}")
@@ -405,8 +411,14 @@ async def load_workbench(enterprise_id: str, floor_id: str | None = Query(None),
             selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events),
         ).order_by(RiskZone.sort_order)
     )).scalars().all()
+    # 风险点可能因历史数据 floor_id 为空：只要绑定在当前楼层分区上就一并加载
+    zone_ids = select(RiskZone.id).where(RiskZone.floor_id == floor_id)
     risk_points = (await db.execute(
-        select(RiskObject).where(RiskObject.enterprise_id == enterprise_id, RiskObject.floor_id == floor_id, RiskObject.is_risk_point.is_(True))
+        select(RiskObject).where(
+            RiskObject.enterprise_id == enterprise_id,
+            RiskObject.is_risk_point.is_(True),
+            or_(RiskObject.floor_id == floor_id, RiskObject.zone_id.in_(zone_ids)),
+        )
     )).scalars().all()
     return ApiResponse(data=WorkbenchResponse(
         floors=[await _floor_response(db, f) for f in floors],
@@ -561,7 +573,11 @@ async def get_overview(enterprise_id: str, floor_id: str | None = Query(None), c
             raise HTTPException(404, "楼层不存在")
     await db.commit()
     zones = (await db.execute(select(RiskZone).where(RiskZone.floor_id == current.id).options(selectinload(RiskZone.objects)))).scalars().all()
-    points = (await db.execute(select(RiskObject).where(RiskObject.floor_id == current.id, RiskObject.is_risk_point.is_(True)))).scalars().all()
+    zone_ids = select(RiskZone.id).where(RiskZone.floor_id == current.id)
+    points = (await db.execute(select(RiskObject).where(
+        RiskObject.is_risk_point.is_(True),
+        or_(RiskObject.floor_id == current.id, RiskObject.zone_id.in_(zone_ids)),
+    ))).scalars().all()
     return ApiResponse(data=OverviewResponse(
         floor=await _floor_response(db, current),
         zones=[_to_workbench_zone(z, current) for z in zones],
