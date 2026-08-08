@@ -10,7 +10,7 @@ import json
 import logging
 import re
 
-import httpx
+from app.services.llm_client import decrypt_api_key, llm_chat_completion, LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -93,43 +93,28 @@ class LLMReranker:
 
     async def _call_llm(self, prompt: str) -> str:
         """调用 LLM API。"""
-        from app.routers.generation import _decrypt_api_key
-
         try:
-            api_key = _decrypt_api_key(self.ai_config.api_key_encrypted)
+            decrypt_api_key(self.ai_config.api_key_encrypted)
         except Exception:
             raise Exception("API Key 解密失败")
 
-        base = self.ai_config.base_url or {
-            "openai": "https://api.openai.com/v1",
-            "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            "deepseek": "https://api.deepseek.com/v1",
-        }.get(self.ai_config.provider, "")
+        messages = [
+            {
+                "role": "system",
+                "content": "你是一个精确的 JSON 数组生成器。只输出 JSON 数组，不要解释。",
+            },
+            {"role": "user", "content": prompt},
+        ]
 
-        payload = {
-            "model": self.ai_config.model_name,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "你是一个精确的 JSON 数组生成器。只输出 JSON 数组，不要解释。",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0,
-            "max_tokens": 500,
-        }
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{base}/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {api_key}"},
+        try:
+            data = await llm_chat_completion(
+                messages, self.ai_config, stream=False, timeout=30,
+                include_top_p=False,
+                payload_overrides={"temperature": 0, "max_tokens": 500},
             )
-            if resp.status_code != 200:
-                raise Exception(f"LLM API error: HTTP {resp.status_code}")
-
-            data = resp.json()
             return data["choices"][0]["message"]["content"]
+        except LLMError as e:
+            raise Exception(f"LLM API error: HTTP {e.status_code}")
 
     def _parse_response(self, text: str) -> list[str]:
         """从 LLM 响应中提取 article_id 列表。"""

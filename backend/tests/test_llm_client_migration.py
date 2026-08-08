@@ -293,3 +293,42 @@ async def test_sync_ai_parse_llm_error_message(monkeypatch):
     with pytest.raises(Exception) as exc_info:
         await sync.ai_parse("全文", _cfg())
     assert "DeepSeek API Key 无效" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_reranker_call_llm_uses_llm_client(monkeypatch):
+    from app.regulations import llm_reranker as mod
+    from app.regulations.llm_reranker import LLMReranker
+    calls = {}
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        calls.update({
+            "timeout": timeout,
+            "include_top_p": kw.get("include_top_p"),
+            "overrides": kw.get("payload_overrides"),
+        })
+        return {"choices": [{"message": {"content": "[]"}}]}
+
+    monkeypatch.setattr(mod, "llm_chat_completion", fake_chat)
+    monkeypatch.setattr(mod, "decrypt_api_key", lambda *a: "sk-test")
+
+    reranker = LLMReranker(ai_config=_cfg())
+    assert await reranker._call_llm("prompt") == "[]"
+    assert calls["timeout"] == 30
+    assert calls["include_top_p"] is False
+    assert calls["overrides"] == {"temperature": 0, "max_tokens": 500}
+
+
+@pytest.mark.asyncio
+async def test_reranker_call_llm_preserves_error_message(monkeypatch):
+    from app.regulations import llm_reranker as mod
+    from app.regulations.llm_reranker import LLMReranker
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        raise LLMError(500, "boom")
+
+    monkeypatch.setattr(mod, "llm_chat_completion", fake_chat)
+    monkeypatch.setattr(mod, "decrypt_api_key", lambda *a: "sk-test")
+    with pytest.raises(Exception) as exc_info:
+        await LLMReranker(ai_config=_cfg())._call_llm("prompt")
+    assert str(exc_info.value) == "LLM API error: HTTP 500"
