@@ -162,4 +162,5 @@ export interface SSEEvent {
   token?: string;
   chunk?: string;
   chapters?: Array<{ key: string; title: string; content: string }>;
+  failed_sections?: Array<{ section_key: string; title: string }>;
 }

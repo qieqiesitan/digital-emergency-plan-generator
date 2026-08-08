@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Spin, Input, Button, Space, Badge, message, Progress } from "antd";
+import { Spin, Input, Button, Space, Badge, message, Progress, Alert } from "antd";
 import Modal from "antd/es/modal";
 import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -44,6 +44,7 @@ export default function PlanEditorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
+  const [failedSections, setFailedSections] = useState<Array<{ section_key: string; title: string }>>([]);
   const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
   const [advancedOverrides, setAdvancedOverrides] = useState<Record<string, unknown> | null>(null);
   const [styleMode, setStyleMode] = useState<"panel" | "advanced">("panel");
@@ -144,7 +145,7 @@ export default function PlanEditorPage() {
 
 
 
-  const startRealtimeGeneration = useCallback(() => {
+  const startRealtimeGeneration = useCallback((keys?: string[]) => {
     if (!id || !sections || sections.length === 0) return;
 
     setIsGenerating(true);
@@ -158,7 +159,7 @@ export default function PlanEditorPage() {
 
     const controller = generateBatchStream(
       id,
-      allKeys,
+      keys ?? allKeys,
       (event: SSEEvent) => {
         switch (event.type) {
           case "progress":
@@ -202,7 +203,12 @@ export default function PlanEditorPage() {
             setIsGenerating(false);
             setGeneratingSections(new Set());
             setBatchProgress({ current: 0, total: 0, message: "" });
-            message.success(`全部生成完成，共 ${completedCount} 个章节`);
+            if (event.failed_sections && event.failed_sections.length > 0) {
+              setFailedSections(event.failed_sections);
+              message.warning(`${event.failed_sections.length} 个章节生成失败`);
+            } else {
+              message.success(`全部生成完成，共 ${completedCount} 个章节`);
+            }
             queryClient.invalidateQueries({ queryKey: ["planSections", id] });
             queryClient.invalidateQueries({ queryKey: ["plan", id] });
             break;
@@ -318,6 +324,26 @@ export default function PlanEditorPage() {
             {batchProgress.message}
           </div>
         </div>
+      )}
+
+      {failedSections.length > 0 && !isGenerating && (
+        <Alert
+          type="warning"
+          showIcon
+          message={`${failedSections.length} 个章节生成失败`}
+          description={failedSections.map((f) => f.title).join("、")}
+          action={
+            <Button
+              size="small"
+              onClick={() => {
+                startRealtimeGeneration(failedSections.map((f) => f.section_key));
+                setFailedSections([]);
+              }}
+            >
+              重试失败章节
+            </Button>
+          }
+        />
       )}
 
       <div style={{ flex: 1, display: "flex", gap: 16, overflow: "hidden" }}>
