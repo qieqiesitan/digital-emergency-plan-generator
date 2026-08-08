@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Tabs, Card, Descriptions, Button, Spin, Table, Collapse, Image, Badge } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<string, string> = { chief: "总指挥", deputy: "副�
 export default function EnterpriseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
   const [orgEditorVisible, setOrgEditorVisible] = useState(false);
@@ -200,7 +201,11 @@ export default function EnterpriseDetailPage() {
   return (
     <div>
       <PageHeader title={enterprise.name} onBack={() => navigate("/enterprises")} />
-      <Tabs items={tabItems} />
+      <Tabs
+        items={tabItems}
+        activeKey={tabItems.some(t => t.key === searchParams.get("tab")) ? searchParams.get("tab")! : "info"}
+        onChange={key => setSearchParams({ tab: key }, { replace: true })}
+      />
     </div>
   );
 }

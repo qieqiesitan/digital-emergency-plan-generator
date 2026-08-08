@@ -140,6 +140,8 @@ export default function WorkbenchCanvas() {
   const penCloseCandidateRef = useRef(false);
   const [isPanning, setIsPanning] = useState(false);
   const [spacePressed, setSpacePressed] = useState(false);
+  const canvasBoxRef = useRef<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     const url = floor?.floor_plan_url;
@@ -151,6 +153,16 @@ export default function WorkbenchCanvas() {
       img.onload = null;
     };
   }, [floor?.floor_plan_url]);
+
+  useEffect(() => {
+    const el = canvasBoxRef.current;
+    if (!el) return;
+    const update = () => setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!["polygon", "pen", "freehand"].includes(tool)) {
@@ -248,6 +260,18 @@ export default function WorkbenchCanvas() {
   const image = loadedImage && loadedImage.url === floor?.floor_plan_url ? loadedImage.image : null;
   const canvasWidth = floor?.canvas_width || (image ? image.naturalWidth : STAGE_WIDTH);
   const canvasHeight = floor?.canvas_height || (image ? image.naturalHeight : STAGE_HEIGHT);
+
+  // 画布尺寸或容器变化时自动适配视图（导入后画布更换也能铺满容器）
+  useEffect(() => {
+    if (!containerSize.width || !containerSize.height) return;
+    const scale = Math.min(4, Math.max(0.25, Math.min(
+      containerSize.width / canvasWidth,
+      containerSize.height / canvasHeight,
+    )));
+    const x = (containerSize.width - canvasWidth * scale) / 2;
+    const y = (containerSize.height - canvasHeight * scale) / 2;
+    useRiskMappingWorkbenchStore.setState({ viewScale: scale, viewX: x, viewY: y });
+  }, [canvasWidth, canvasHeight, containerSize.width, containerSize.height]);
 
   const pointFromEvent = (e: KonvaEventObject<MouseEvent>): RiskPolygonPoint => {
     const stage = e.target.getStage?.() ?? null;
@@ -588,6 +612,7 @@ export default function WorkbenchCanvas() {
   return (
     <>
       <div
+        ref={canvasBoxRef}
         data-testid="workbench-canvas"
         data-draft-count={draftPoints.length}
         data-floor-plan={showFloorPlan}
@@ -609,8 +634,8 @@ export default function WorkbenchCanvas() {
         }}
       >
         <Stage
-          width={canvasWidth}
-          height={canvasHeight}
+          width={containerSize.width || canvasWidth}
+          height={containerSize.height || canvasHeight}
           scaleX={viewScale}
           scaleY={viewScale}
           x={viewX}
