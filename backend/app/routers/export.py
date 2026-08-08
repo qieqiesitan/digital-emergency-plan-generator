@@ -256,9 +256,6 @@ async def export_plan_docx(
     if not sections:
         raise HTTPException(404, "Plan has no sections")
 
-    with open("export_trace.log", "a", encoding="utf-8") as _t:
-        import datetime as _dt
-        _t.write(f"EXPORT START {_dt.datetime.now()}\n")
     # 构建章节数据
     sections_data = []
     for s in sections:
@@ -293,9 +290,6 @@ async def export_plan_docx(
             signers=signers or None,
         )
 
-        with open("export_trace.log", "a", encoding="utf-8") as _t:
-            import datetime as _dt
-            _t.write(f"EXPORT DOCX DONE {_dt.datetime.now()}\n")
         # 保存
         os.makedirs(settings.EXPORT_DIR, exist_ok=True)
         safe_title = re.sub(r'[\/*?:"<>|]', "_", plan.title)

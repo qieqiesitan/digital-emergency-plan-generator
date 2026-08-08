@@ -208,7 +208,25 @@ async def delete_plan(plan_id: str, current_user=Depends(get_current_user), db=D
 async def duplicate_plan(plan_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
     if not p: raise HTTPException(404, "预案不存在")
-    dup = PlanProject(user_id=current_user.id, enterprise_id=p.enterprise_id, plan_type=p.plan_type, title=f"{p.title} (副本)", accident_type=p.accident_type)
+
+    # 自动生成编号与版本号，避免副本导出时因缺失报 400
+    ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
+    existing_count = (
+        await db.execute(
+            select(func.count()).select_from(PlanProject).where(
+                PlanProject.enterprise_id == p.enterprise_id,
+                PlanProject.plan_type == p.plan_type,
+            )
+        )
+    ).scalar() or 0
+    plan_number = _generate_plan_number(ent.name if ent else "", p.plan_type, existing_count + 1)
+    version_number = p.version_number or f"A-{datetime.now().year}-{datetime.now().month:02d}"
+
+    dup = PlanProject(
+        user_id=current_user.id, enterprise_id=p.enterprise_id, plan_type=p.plan_type,
+        title=f"{p.title} (副本)", accident_type=p.accident_type,
+        plan_number=plan_number, version_number=version_number,
+    )
     db.add(dup)
     await db.flush()
     for s in (p.sections or []):

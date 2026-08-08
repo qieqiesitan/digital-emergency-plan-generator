@@ -44,14 +44,18 @@ def test_create_sections_copies_metadata_recursively():
 
 
 from unittest.mock import AsyncMock
+from types import SimpleNamespace
 from app.models.enterprise import PlanProject, PlanSection
 from app.routers.plans import duplicate_plan
 
 
 def test_duplicate_plan_copies_section_metadata(monkeypatch):
-    """duplicate_plan 复制章节时应保留 4 个元数据字段。"""
+    """duplicate_plan 复制章节时应保留 4 个元数据字段，并生成编号与版本号。"""
     # 构造带元数据的原预案与章节
-    src = PlanProject(id="src", user_id="u1", enterprise_id="e1", plan_type="onsite", title="原预案")
+    src = PlanProject(
+        id="src", user_id="u1", enterprise_id="e1", plan_type="onsite",
+        title="原预案", version_number="B-2026-02",
+    )
     sec = PlanSection(
         id="s1", plan_project_id="src", section_key="sec_3_4", title="紧急联系电话",
         level=2, sort_order=0, content="<p>x</p>", ai_generated=False,
@@ -72,10 +76,14 @@ def test_duplicate_plan_copies_section_metadata(monkeypatch):
 
     db.flush.side_effect = fake_flush
 
-    # execute 返回带 scalar_one_or_none 的 result（duplicate_plan 内 await db.execute）
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = src
-    db.execute = AsyncMock(return_value=result)
+    # execute：第 1 次查原预案，第 2 次查企业，第 3 次统计同企业同类型数量
+    plan_result = MagicMock()
+    plan_result.scalar_one_or_none.return_value = src
+    ent_result = MagicMock()
+    ent_result.scalar_one_or_none.return_value = SimpleNamespace(name="测试企业")
+    count_result = MagicMock()
+    count_result.scalar.return_value = 2
+    db.execute = AsyncMock(side_effect=[plan_result, ent_result, count_result])
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
 
@@ -89,6 +97,8 @@ def test_duplicate_plan_copies_section_metadata(monkeypatch):
     assert contact.auto_fill is True
     assert contact.auto_fill_source == "org_structure"
     assert contact.data_dependencies == ["org_structure"]
+    assert dup.plan_number == "测试企业-XC-003"
+    assert dup.version_number == "B-2026-02"
 
 
 from app.schemas.plan import SectionResponse
