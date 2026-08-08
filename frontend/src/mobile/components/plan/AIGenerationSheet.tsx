@@ -52,6 +52,7 @@ export default function AIGenerationSheet({
   chapters = [],
   onGenerate,
 }: AIGenerationSheetProps) {
+  const generatableChapters = chapters.filter(c => c.aiGeneratable);
   const [selectedChapters, setSelectedChapters] = useState<string[]>(
     chapters.filter(c => c.aiGeneratable).map(c => c.key)
   );
@@ -120,7 +121,7 @@ export default function AIGenerationSheet({
           <div>
             <p className="text-body-sm font-semibold text-neutral-700 mb-2">选择章节</p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
-              {chapters.map(ch => (
+              {generatableChapters.map(ch => (
                 <label
                   key={ch.key}
                   className="flex items-center gap-sm px-sm py-2 rounded-md active:bg-neutral-50"

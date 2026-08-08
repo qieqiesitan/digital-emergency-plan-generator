@@ -9,6 +9,7 @@ export interface ChapterNode {
   title: string;
   level: number;
   aiGeneratable: boolean;
+  autoFill: boolean;
   required: boolean;
   children?: ChapterNode[];
 }

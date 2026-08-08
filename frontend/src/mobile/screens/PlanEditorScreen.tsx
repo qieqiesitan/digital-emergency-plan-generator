@@ -18,7 +18,7 @@ import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
 import type { ChapterNode } from "@/mobile/components/plan/ChapterTree";
 import { getPlan, createVersion } from "@/services/planService";
-import { listSections, updateSection } from "@/services/planService";
+import { listSections, updateSection, autofillSection } from "@/services/planService";
 import { useAppStore } from "@/mobile/store/appStore";
 import { useDraftStore } from "@/mobile/store/draftStore";
 
@@ -72,7 +72,8 @@ export default function PlanEditorScreen() {
         key: sec.section_key,
         title: `${sec.title}`,
         level: sec.level,
-        aiGeneratable: true,
+        aiGeneratable: sec.ai_generatable,
+        autoFill: sec.auto_fill,
         required: sec.level === 0,
       };
 
@@ -339,11 +340,11 @@ export default function PlanEditorScreen() {
           title={selectedChapter?.title ?? ""}
           showBack
           onBack={handleBackToNavigate}
-          rightActions={[{
+          rightActions={selectedChapter?.aiGeneratable ? [{
             icon: <Sparkles size={22} />,
             label: "AI生成",
             onPress: handleAIGenerate,
-          }]}
+          }] : undefined}
         />
       )}
 
@@ -430,6 +431,23 @@ export default function PlanEditorScreen() {
           </>
         ) : (
           <div className="flex-1 flex flex-col">
+            {selectedChapter?.autoFill && (
+              <button
+                className="w-full h-10 bg-indigo-600 text-white text-body-sm font-medium"
+                onClick={async () => {
+                  try {
+                    const sec = await autofillSection(planId!, selectedChapter!.key);
+                    setLocalContent(sec.content || "");
+                    autoSave(sec.content || "");
+                    showToast?.({ type: "success", message: "自动填充完成" });
+                  } catch (e: any) {
+                    showToast?.({ type: "error", message: e?.message || "自动填充失败" });
+                  }
+                }}
+              >
+                自动填充
+              </button>
+            )}
             <MobileEditor
               ref={textareaRef}
               value={localContent}
