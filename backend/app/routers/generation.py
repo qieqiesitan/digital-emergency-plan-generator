@@ -391,11 +391,13 @@ async def _run_batch_generation(
     advanced_overrides=None,
     stream_fn=None,
     on_progress=None,
+    should_stop=None,
 ) -> dict:
     """批量生成公共实现：逐章生成、写库、渲染 Mermaid、统计失败。
 
     stream_fn: async 函数 (prompt, ai_config, plan_type, style_preference, advanced_overrides) -> str；
     为 None 时使用 _stream_llm。
+    should_stop: 可选同步可调用对象，返回 True 时中断剩余章节（用于后台批量生成的取消检查）。
     """
     completed = 0
     failed = 0
@@ -407,6 +409,8 @@ async def _run_batch_generation(
     bg_section_map = {s.section_key: s for s in bg_sections}
 
     for i, (section_key, section_title) in enumerate(section_tuples):
+        if should_stop and should_stop():
+            break
         if on_progress:
             await on_progress(section_key, section_title, i)
         s = bg_section_map.get(section_key)
@@ -720,6 +724,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
                     advanced_overrides=p.advanced_prompt_overrides,
                     stream_fn=None,
                     on_progress=None,
+                    should_stop=lambda: not _active_generations.get(plan_id, False),
                 )
                 failed_sections = result["failed_sections"]
                 _failed_sections[plan_id] = failed_sections
