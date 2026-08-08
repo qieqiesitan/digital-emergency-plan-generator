@@ -128,3 +128,19 @@ def test_attach_diagrams_placeholder_when_no_data():
     s.diagram_svgs = None
     _attach_diagrams(s, "comprehensive", {})
     assert s.diagram_svgs.get("risk_matrix", {}).get("placeholder") is True
+
+
+def test_attach_diagrams_passes_resources_to_evacuation():
+    from unittest.mock import MagicMock
+    from app.routers.generation import _attach_diagrams
+    s = MagicMock()
+    s.section_key = "sec_3_3"
+    s.diagram_svgs = None
+    ent_data = {
+        "emergency_resources": [{"category": "消防", "name": "灭火器", "location": "东墙"}],
+        "zones": [],
+        "risk_objects": [{"name": "储罐", "location_x": 50, "location_y": 50}],
+    }
+    _attach_diagrams(s, "onsite", ent_data)
+    svg = s.diagram_svgs.get("evacuation", {}).get("svg", "")
+    assert "灭火器" in svg

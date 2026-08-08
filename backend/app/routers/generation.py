@@ -257,7 +257,7 @@ def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
             floor_plan_url=ent_data.get("floor_plan_url"),
             zones=ent_data.get("zones", []),
             objects=ent_data.get("risk_objects", []),
-            resources=ent_data.get("resources", []),
+            resources=ent_data.get("emergency_resources", ent_data.get("resources", [])),
         )
 
 
