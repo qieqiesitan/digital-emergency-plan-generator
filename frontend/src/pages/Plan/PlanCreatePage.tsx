@@ -29,6 +29,8 @@ export default function PlanCreatePage() {
   const [accidentType, setAccidentType] = useState<string>("");
   const [title, setTitle] = useState("");
   const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
+  const [planNumber, setPlanNumber] = useState("");
+  const [versionNumber, setVersionNumber] = useState("");
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", effectiveEnterpriseId],
@@ -173,6 +175,20 @@ export default function PlanCreatePage() {
               <Descriptions.Item label="预案标题">{title || defaultTitle}</Descriptions.Item>
             </Descriptions>
           </Card>
+          <Input
+            size="large"
+            placeholder="预案编号（留空自动生成）"
+            value={planNumber}
+            onChange={(e) => setPlanNumber(e.target.value)}
+            style={{ marginTop: 16, marginBottom: 8 }}
+          />
+          <Input
+            size="large"
+            placeholder="版本号（留空自动生成）"
+            value={versionNumber}
+            onChange={(e) => setVersionNumber(e.target.value)}
+            style={{ marginBottom: 8 }}
+          />
           <Space style={{ marginTop: 16 }}>
             <Button onClick={() => setCurrentStep(3)}>上一步</Button>
             <Button
@@ -185,6 +201,8 @@ export default function PlanCreatePage() {
                   title: title || defaultTitle,
                   accident_type: accidentType || null,
                   style_preference: stylePreference as any,
+                  plan_number: planNumber || null,
+                  version_number: versionNumber || null,
                 });
               }}
             >

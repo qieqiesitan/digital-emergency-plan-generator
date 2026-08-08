@@ -12,6 +12,8 @@ export interface PlanProject {
   current_version: number;
   sections_count: number;
   completed_sections: number;
+  plan_number: string | null;
+  version_number: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +24,8 @@ export interface PlanCreate {
   title: string;
   accident_type?: string | null;
   style_preference?: Record<string, unknown> | null;
+  plan_number?: string | null;
+  version_number?: string | null;
 }
 
 export interface PlanUpdate {
