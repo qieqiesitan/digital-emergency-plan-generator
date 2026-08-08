@@ -98,6 +98,14 @@ SECTION_DIAGRAM_TYPE_MAP: dict[str, str] = {
 
 
 
+# 每个章节除主流程图外可附加的图类型（key 对应 plan_diagram_service 的 diagram key）
+SECTION_ADDITIONAL_DIAGRAM_MAP: dict[str, str] = {
+    "sec_3":   "org_chart",          # 应急组织机构及职责 → 组织架构图
+    "sec_4_2": "report_sequence",    # 信息报告程序 → 上报时序图
+    "sec_5":   "response_timeline",  # 应急响应 → 处置时间轴
+    "sec_9_1": "drill_gantt",        # 培训与演练 → 演练甘特图
+}
+
 def _build_system_prompt(plan_type: str = "*", style_preference: dict | None = None, advanced_overrides: dict | None = None) -> str:
     """构建系统提示词，优先风格参数，fallback 到数据库模板。"""
     return build_system_prompt_with_style(plan_type, style_preference, advanced_overrides)
