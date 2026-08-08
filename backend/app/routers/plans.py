@@ -43,6 +43,10 @@ def _create_sections_from_template(db, plan_id: str, structure: list, counter: l
             sort_order=sort_order,
             content=None,
             ai_generated=False,
+            ai_generatable=item.get("ai_generatable", True),
+            auto_fill=item.get("auto_fill", False),
+            auto_fill_source=item.get("auto_fill_source"),
+            data_dependencies=item.get("data_dependencies", []),
         )
         db.add(section)
         subsections = item.get("subsections", [])
@@ -182,7 +186,14 @@ async def duplicate_plan(plan_id: str, current_user=Depends(get_current_user), d
     db.add(dup)
     await db.flush()
     for s in (p.sections or []):
-        ns = PlanSection(plan_project_id=dup.id, section_key=s.section_key, title=s.title, level=s.level, sort_order=s.sort_order, content=s.content, ai_generated=s.ai_generated)
+        ns = PlanSection(
+            plan_project_id=dup.id, section_key=s.section_key,
+            title=s.title, level=s.level, sort_order=s.sort_order,
+            content=s.content, ai_generated=s.ai_generated,
+            ai_generatable=s.ai_generatable, auto_fill=s.auto_fill,
+            auto_fill_source=s.auto_fill_source,
+            data_dependencies=s.data_dependencies,
+        )
         db.add(ns)
     await db.commit(); await db.refresh(dup)
     return ApiResponse(data=_build_plan(dup))
