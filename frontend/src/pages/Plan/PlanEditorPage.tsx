@@ -420,6 +420,7 @@ export default function PlanEditorPage() {
                 content={editingContent}
                 onChange={setEditingContent}
                 readOnly={isGenerating}
+                diagramSvgs={currentSection?.diagram_svgs}
               />
               <div style={{ marginTop: 4, fontSize: 12, textAlign: "right" }}>
                 {saveStatus === "saving" ? "保存中..." : saveStatus === "saved" ? "已保存" : saveStatus === "error" ? "保存失败" : "未保存"}

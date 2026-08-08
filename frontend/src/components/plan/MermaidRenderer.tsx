@@ -101,6 +101,12 @@ function sanitizeMermaidText(text: string): string {
 
 interface MermaidRendererProps {
   html: string;
+  diagramSvgs?: Record<string, {
+    key?: string;
+    placeholder?: boolean;
+    reason?: string;
+    svg?: string;
+  }>;
 }
 
 /**
@@ -108,7 +114,7 @@ interface MermaidRendererProps {
  * and returns the HTML with diagrams inserted after each code block.
  * Failed blocks are shown with a visible red-tinted error card.
  */
-export default function MermaidRenderer({ html }: MermaidRendererProps) {
+export default function MermaidRenderer({ html, diagramSvgs = {} }: MermaidRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -182,5 +188,22 @@ export default function MermaidRenderer({ html }: MermaidRendererProps) {
     });
   }, [html]);
 
-  return <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />;
+  // 非占位 SVG 直接内嵌
+  const svgHtml = Object.values(diagramSvgs)
+    .filter((meta) => meta?.svg && !meta?.placeholder)
+    .map((meta) => meta!.svg!)
+    .join("");
+
+  // 占位块
+  const diagramHtml = Object.entries(diagramSvgs)
+    .filter(([, meta]) => meta?.placeholder)
+    .map(([key, meta]) =>
+      `<div class="diagram-placeholder" data-diagram-key="${key}" style="border:2px dashed #d9d9d9;border-radius:8px;padding:24px;text-align:center;color:#999;margin:16px 0;">
+         <div style="font-size:14px;font-weight:500;color:#666;">【${key}】</div>
+         <div style="font-size:12px;margin-top:8px;">待补充企业数据后生成（${meta?.reason || ""}）</div>
+       </div>`
+    )
+    .join("");
+
+  return <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html + svgHtml + diagramHtml }} />;
 }

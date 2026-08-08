@@ -27,11 +27,17 @@ interface RichTextEditorProps {
   planId?: string;
   sectionKey?: string;
   sectionTitle?: string;
+  diagramSvgs?: Record<string, {
+    key?: string;
+    placeholder?: boolean;
+    reason?: string;
+    svg?: string;
+  }>;
 }
 
 export default function RichTextEditor({
   content, onChange, readOnly, placeholder,
-  aiGenerated, planId, sectionKey, sectionTitle,
+  aiGenerated, planId, sectionKey, sectionTitle, diagramSvgs,
 }: RichTextEditorProps) {
   const isInternalChange = useRef(false);
   const lastSelectionFrom = useRef(0);
@@ -135,7 +141,7 @@ export default function RichTextEditor({
       )}
 
       {showMermaid ? (
-        <MermaidRenderer html={content} />
+        <MermaidRenderer html={content} diagramSvgs={diagramSvgs} />
       ) : (
         <EditorContent editor={editor} style={{ padding: "12px 16px", minHeight: 300, maxHeight: "calc(100vh - 320px)", overflow: "auto" }} />
       )}
