@@ -397,6 +397,12 @@ export default function PlanEditorPage() {
                     sectionTitle={currentSection.title}
                     onContentChunk={handleAIContentChunk}
                     onGenerateComplete={handleAIGenerateComplete}
+                    oldContent={currentSection.content || ""}
+                    onReject={() => {
+                      if (!id || !selectedKey) return;
+                      const old = currentSection.content || "";
+                      saveMutation.mutate({ key: selectedKey, content: old });
+                    }}
                     />
                   )}
                 </Space>

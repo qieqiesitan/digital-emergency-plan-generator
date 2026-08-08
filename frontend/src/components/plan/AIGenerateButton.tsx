@@ -4,6 +4,7 @@ import { RobotOutlined, LoadingOutlined, CheckCircleOutlined } from "@ant-design
 import { generateSectionStream, stopGeneration, regenerateSelectionStream } from "@/services/generationService";
 import { getAIConfig } from "@/services/aiConfigService";
 import { getQuickPrompts } from "@/utils/quickPrompts";
+import DiffPreviewModal from "./DiffPreviewModal";
 
 const { Text } = Typography;
 
@@ -18,17 +19,22 @@ interface AIGenerateButtonProps {
   selectedText?: string;
   contextBefore?: string;
   contextAfter?: string;
+  oldContent?: string;
+  onReject?: () => void;
 }
 
 type GenStatus = "idle" | "loading" | "done" | "error";
 
 export default function AIGenerateButton({
   planId, sectionKey, sectionTitle, onContentChunk, onGenerateComplete, disabled,
-  mode = "full", selectedText, contextBefore, contextAfter,
+  mode = "full", selectedText, contextBefore, contextAfter, oldContent, onReject,
 }: AIGenerateButtonProps) {
   const [status, setStatus] = useState<GenStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [diffOpen, setDiffOpen] = useState(false);
+  const [diffOld, setDiffOld] = useState("");
+  const [diffNew, setDiffNew] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
   const fullTextRef = useRef("");
   const [form] = Form.useForm();
@@ -104,7 +110,13 @@ export default function AIGenerateButton({
               onContentChunk(fullTextRef.current);
             } else if (event.type === "done") {
               setStatus("done");
-              onGenerateComplete(event.content || fullTextRef.current);
+              const newText = event.content || fullTextRef.current;
+              onGenerateComplete(newText);
+              if (oldContent && newText !== oldContent) {
+                setDiffOld(oldContent);
+                setDiffNew(newText);
+                setDiffOpen(true);
+              }
               setTimeout(() => setStatus("idle"), 1500);
             } else if (event.type === "error") {
               setStatus("error");
@@ -184,6 +196,17 @@ export default function AIGenerateButton({
           </Form.Item>
         </Form>
       </Modal>
+      <DiffPreviewModal
+        open={diffOpen}
+        oldText={diffOld}
+        newText={diffNew}
+        onAccept={() => setDiffOpen(false)}
+        onReject={() => {
+          setDiffOpen(false);
+          onReject?.();
+        }}
+        onClose={() => setDiffOpen(false)}
+      />
     </span>
   );
 }
