@@ -161,6 +161,14 @@ async def _generic_delete(db, user, args, cfg):
     return {"message": f"{cfg['name_cn']}「{name}」已删除", "verified": True}
 
 
+async def _delegate_generic(op, db, user, args, cfg):
+    """generic CRUD 委托样板：统一捕获 _ErrorDict 返回其 data。"""
+    try:
+        return await op(db, user, args, cfg)
+    except _ErrorDict as e:
+        return e.data
+
+
 # Entity registry - config for each model
 _RS_CFG = {
     "model": None, "name_cn": None, "id_arg_name": None, "return_plural": None,
@@ -350,17 +358,11 @@ async def _create_enterprise(db, user, args):
         )).scalar_one_or_none()
         if existing:
             return {"id": existing.id, "name": existing.name, "message": "企业已存在，无需重复创建", "verified": True}
-    try:
-        return await _generic_create(db, user, args, _ENT_CFG)
-    except _ErrorDict as e:
-        return e.data
+    return await _delegate_generic(_generic_create, db, user, args, _ENT_CFG)
 
 
 async def _update_enterprise(db, user, args):
-    try:
-        return await _generic_update(db, user, args, _ENT_CFG)
-    except _ErrorDict as e:
-        return e.data
+    return await _delegate_generic(_generic_update, db, user, args, _ENT_CFG)
 
 
 async def _delete_enterprise(db, user, args):
@@ -395,62 +397,22 @@ async def _list_risk_sources(db, user, args):
     return {"risk_sources": context.get("risk_sources", [])}
 
 
-async def _create_risk_source(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_create(db, user, args, _RS_CFG)
-    except _ErrorDict as e:
-        return e.data
-
-
-async def _update_risk_source(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_update(db, user, args, _RS_CFG)
-    except _ErrorDict as e:
-        return e.data
-
-
-async def _delete_risk_source(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_delete(db, user, args, _RS_CFG)
-    except _ErrorDict as e:
-        return e.data
-
-
 # ── 应急资源 ──
 
 async def _list_resources(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_list(db, user, args, _RES_CFG)
-    except _ErrorDict as e:
-        return e.data
+    return await _delegate_generic(_generic_list, db, user, args, _RES_CFG)
 
 
 async def _create_resource(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_create(db, user, args, _RES_CFG)
-    except _ErrorDict as e:
-        return e.data
+    return await _delegate_generic(_generic_create, db, user, args, _RES_CFG)
 
 
 async def _update_resource(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_update(db, user, args, _RES_CFG)
-    except _ErrorDict as e:
-        return e.data
+    return await _delegate_generic(_generic_update, db, user, args, _RES_CFG)
 
 
 async def _delete_resource(db, user, args):
-    """Delegate to generic CRUD."""
-    try:
-        return await _generic_delete(db, user, args, _RES_CFG)
-    except _ErrorDict as e:
-        return e.data
+    return await _delegate_generic(_generic_delete, db, user, args, _RES_CFG)
 
 
 # ── 预案 ──
@@ -512,10 +474,7 @@ async def _create_plan(db, user, args):
 
 
 async def _delete_plan(db, user, args):
-    try:
-        return await _generic_delete(db, user, args, _PLAN_CFG)
-    except _ErrorDict as e:
-        return e.data
+    return await _delegate_generic(_generic_delete, db, user, args, _PLAN_CFG)
 
 
 # ── 模板 ──
