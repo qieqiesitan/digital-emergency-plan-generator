@@ -1,4 +1,5 @@
 from uuid import uuid4
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, case, and_
@@ -142,17 +143,30 @@ async def get_plan(plan_id: str, current_user=Depends(get_current_user), db=Depe
 async def create_plan(data: PlanCreate, current_user=Depends(get_current_user), db=Depends(get_db)):
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == data.enterprise_id, Enterprise.user_id == current_user.id))).scalar_one_or_none()
     if not ent: raise HTTPException(404, "企业不存在")
-        # 继承用户默认风格（前端未传时，从DB直接获取）
+    plan_data = data.model_dump(exclude_none=True)
+
+    # 预案编号为空时自动生成
+    if not plan_data.get("plan_number"):
+        existing_count = (
+            await db.execute(
+                select(func.count()).select_from(PlanProject).where(
+                    PlanProject.enterprise_id == data.enterprise_id,
+                    PlanProject.plan_type == data.plan_type,
+                )
+            )
+        ).scalar() or 0
+        plan_data["plan_number"] = _generate_plan_number(ent.name, data.plan_type, existing_count + 1)
+
+    # 版本号为空时默认 A-{year}-{month}
+    if not plan_data.get("version_number"):
+        plan_data["version_number"] = f"A-{datetime.now().year}-{datetime.now().month:02d}"
+
+    # 继承用户默认风格（前端未传时，从DB直接获取）
     if data.style_preference is None:
         user_row = (await db.execute(select(User).where(User.id == current_user.id))).scalar_one_or_none()
         if user_row and user_row.default_style_preference:
-            plan_data = data.model_dump(exclude_none=True)
             plan_data["style_preference"] = user_row.default_style_preference
-            p = PlanProject(user_id=current_user.id, **plan_data)
-        else:
-            p = PlanProject(user_id=current_user.id, **data.model_dump(exclude_none=True))
-    else:
-        p = PlanProject(user_id=current_user.id, **data.model_dump(exclude_none=True))
+    p = PlanProject(user_id=current_user.id, **plan_data)
     db.add(p)
     await db.flush()
 
