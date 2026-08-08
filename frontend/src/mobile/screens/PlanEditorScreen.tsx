@@ -16,10 +16,11 @@ import Toast, { useToast } from "@/mobile/components/ui/Toast";
 import ChapterTree from "@/mobile/components/plan/ChapterTree";
 import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
+import AIGenerationSheet from "@/mobile/components/plan/AIGenerationSheet";
 import type { ChapterNode } from "@/mobile/components/plan/ChapterTree";
 import { getPlan, createVersion } from "@/services/planService";
 import { listSections, updateSection, autofillSection } from "@/services/planService";
-import { generateBatchBackground } from "@/services/generationService";
+import { generateBatchBackground, getGenerationStatus } from "@/services/generationService";
 import { useAppStore } from "@/mobile/store/appStore";
 import { useDraftStore } from "@/mobile/store/draftStore";
 
@@ -43,10 +44,13 @@ export default function PlanEditorScreen() {
   const [generationBanner, setGenerationBanner] = useState<{
     status: "generating" | "done" | "cancelled"; message: string;
   } | null>(null);
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false);
+  const [failedSections, setFailedSections] = useState<Array<{ section_key: string; title: string }>>([]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 获取预案信息
   const { data: plan, isLoading: planLoading } = useQuery({
@@ -100,6 +104,14 @@ export default function PlanEditorScreen() {
 
     return roots;
   }, [sections]);
+
+  // 批量生成可选的章节（仅 aiGeneratable）
+  const batchChapters: Array<{ key: string; name: string; aiGeneratable: boolean }> = useMemo(() => {
+    return chapters
+      .flatMap((c) => [c, ...(c.children || [])])
+      .filter((c) => c.aiGeneratable)
+      .map((c) => ({ key: c.key, name: c.title, aiGeneratable: true }));
+  }, [chapters]);
 
   // 章节状态
   const sectionStates = useMemo(() => {
@@ -178,6 +190,7 @@ export default function PlanEditorScreen() {
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       abortRef.current?.abort();
     };
   }, []);
@@ -268,6 +281,46 @@ export default function PlanEditorScreen() {
     setGenerationBanner({ status: "cancelled", message: "已取消，已保留已生成内容" });
     setTimeout(() => setGenerationBanner(null), 2000);
   };
+
+  // ========== AI 批量生成（后台 + 失败重试） ==========
+  const runBatchGeneration = useCallback(async (keys: string[]) => {
+    if (!planId) return;
+    if (keys.length === 0) {
+      showToast?.({ type: "info", message: "请至少选择一个章节" });
+      return;
+    }
+    setFailedSections([]);
+    try {
+      const res = await generateBatchBackground(planId, keys);
+      showToast?.({ type: "success", message: res.message || "已在后台开始生成" });
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+      statusTimerRef.current = setTimeout(async () => {
+        try {
+          const status = await getGenerationStatus(planId);
+          const failed = status.data?.failed_sections ?? [];
+          if (failed.length > 0) {
+            setFailedSections(failed);
+            showToast?.({ type: "error", message: `${failed.length} 个章节生成失败，可点击重试` });
+          }
+        } catch {
+          // 状态查询失败不阻塞刷新
+        }
+        queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
+      }, 5000);
+    } catch (e: any) {
+      showToast?.({ type: "error", message: e?.message || "批量生成失败" });
+    }
+  }, [planId, showToast, queryClient]);
+
+  const handleBatchGenerate = useCallback((selectedKeys: string[]) => {
+    setBatchSheetOpen(false);
+    runBatchGeneration(selectedKeys);
+  }, [runBatchGeneration]);
+
+  const handleRetryFailed = useCallback(() => {
+    const keys = failedSections.map((f) => f.section_key);
+    runBatchGeneration(keys);
+  }, [failedSections, runBatchGeneration]);
 
   // 文本格式化
   const wrapSelection = (wrapper: string, endWrapper?: string) => {
@@ -392,6 +445,20 @@ export default function PlanEditorScreen() {
       <div className="flex-1 overflow-y-auto">
         {mode === "navigate" ? (
           <>
+            {failedSections.length > 0 && (
+              <div className="mx-md mt-sm p-sm rounded-md bg-amber-50 border border-amber-100 flex items-center gap-sm">
+                <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+                <span className="flex-1 text-body-sm text-amber-700">
+                  以下章节生成失败：{failedSections.map((f) => f.title).join("、")}
+                </span>
+                <button
+                  className="text-body-sm font-medium text-amber-700 underline shrink-0"
+                  onClick={handleRetryFailed}
+                >
+                  重试
+                </button>
+              </div>
+            )}
             <ChapterTree
               chapters={chapters}
               sectionStates={sectionStates}
@@ -402,22 +469,12 @@ export default function PlanEditorScreen() {
                  style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
               <button
                 className="flex-1 flex items-center justify-center gap-xs text-primary-600 font-medium"
-                onClick={async () => {
-                  try {
-                    const generatable = chapters
-                      .flatMap((c) => [c, ...(c.children || [])])
-                      .filter((c) => c.aiGeneratable)
-                      .map((c) => c.key);
-                    if (generatable.length === 0) {
-                      showToast?.({ type: "info", message: "没有可生成的章节" });
-                      return;
-                    }
-                    const res = await generateBatchBackground(planId!, generatable);
-                    showToast?.({ type: "success", message: res.message || "已在后台开始生成" });
-                    setTimeout(() => queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] }), 5000);
-                  } catch (e: any) {
-                    showToast?.({ type: "error", message: e?.message || "批量生成失败" });
+                onClick={() => {
+                  if (batchChapters.length === 0) {
+                    showToast?.({ type: "info", message: "没有可生成的章节" });
+                    return;
                   }
+                  setBatchSheetOpen(true);
                 }}
               >
                 <Sparkles size={20} /> 批量生成
@@ -445,6 +502,16 @@ export default function PlanEditorScreen() {
                 <GitBranch size={22} />
               </button>
             </div>
+            <AIGenerationSheet
+              open={batchSheetOpen}
+              onClose={() => setBatchSheetOpen(false)}
+              mode="batch"
+              planId={planId!}
+              enterpriseName={plan.enterprise_name}
+              contextSummary={{ riskCount: 0, resourceCount: 0 }}
+              chapters={batchChapters}
+              onGenerate={(selectedKeys) => handleBatchGenerate(selectedKeys)}
+            />
           </>
         ) : (
           <div className="flex-1 flex flex-col">

@@ -140,6 +140,17 @@ export async function generateBatchBackground(
   }
   return res.json();
 }
+
+export async function getGenerationStatus(
+  planId: string
+): Promise<{ code: number; data: { generating: boolean; failed_sections: Array<{ section_key: string; title: string }> } }> {
+  const token = localStorage.getItem("access_token");
+  const res = await fetch(`/api/v1/plans/${planId}/generate/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("查询生成状态失败");
+  return res.json();
+}
 export async function stopGeneration(planId: string): Promise<void> {
   const token = localStorage.getItem("access_token");
   await fetch(`/api/v1/plans/${planId}/generate/stop`, {
