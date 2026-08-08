@@ -19,3 +19,18 @@ def test_render_org_structure_html_creates_tables():
 def test_render_org_structure_html_empty_members_skipped():
     org = [{"group_name": "空组", "members": []}]
     assert _render_org_structure_html(org) == ""
+
+
+def test_render_org_structure_html_escapes_user_data():
+    org = [{
+        "group_name": "<script>alert(1)</script>",
+        "members": [
+            {"name": "<img src=x onerror=alert(2)>", "position": "总指挥",
+             "phone": "13800000000", "responsibilities": "负责<应急>工作"},
+        ],
+    }]
+    html = _render_org_structure_html(org)
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+    assert "<img" not in html
+    assert "&lt;img" in html

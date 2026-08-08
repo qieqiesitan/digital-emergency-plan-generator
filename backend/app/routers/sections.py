@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+import html as _html
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
@@ -11,19 +12,22 @@ router = APIRouter(prefix="/plans", tags=["Sections"])
 
 
 def _render_org_structure_html(org_structure: list) -> str:
-    """组织架构 → HTML 表格（每组一张表）。"""
+    """组织架构 → HTML 表格（每组一张表）。用户数据一律转义，防存储型 XSS。"""
     parts = []
     for g in org_structure or []:
         members = [m for m in g.get("members", []) if m.get("name")]
         if not members:
             continue
         rows = "".join(
-            f"<tr><td>{i+1}</td><td>{m.get('name','')}</td><td>{m.get('position','')}</td>"
-            f"<td>{m.get('phone','')}</td><td>{m.get('responsibilities','')}</td></tr>"
+            f"<tr><td>{i+1}</td><td>{_html.escape(str(m.get('name','')), quote=True)}</td>"
+            f"<td>{_html.escape(str(m.get('position','')), quote=True)}</td>"
+            f"<td>{_html.escape(str(m.get('phone','')), quote=True)}</td>"
+            f"<td>{_html.escape(str(m.get('responsibilities','')), quote=True)}</td></tr>"
             for i, m in enumerate(members)
         )
+        group_name = _html.escape(str(g.get('group_name','')), quote=True)
         parts.append(
-            f"<h4>{g.get('group_name','')}</h4>"
+            f"<h4>{group_name}</h4>"
             f"<table><thead><tr><th>序号</th><th>姓名</th><th>职务</th>"
             f"<th>联系电话</th><th>职责</th></tr></thead><tbody>{rows}</tbody></table>"
         )
