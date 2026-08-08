@@ -157,6 +157,13 @@ class PlanProject(Base):
 class PlanSection(Base):
     __tablename__ = "plan_sections"
 
+    def __init__(self, **kwargs):
+        kwargs.setdefault("ai_generatable", True)
+        kwargs.setdefault("auto_fill", False)
+        kwargs.setdefault("auto_fill_source", None)
+        kwargs.setdefault("data_dependencies", [])
+        super().__init__(**kwargs)
+
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     plan_project_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("plan_projects.id", ondelete="CASCADE"), nullable=False, index=True)
     section_key: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -166,6 +173,10 @@ class PlanSection(Base):
     content: Mapped[Optional[str]] = mapped_column(Text)
     ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     mermaid_svgs: Mapped[Optional[dict]] = mapped_column(JSONB, default=None)
+    ai_generatable: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_fill: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_fill_source: Mapped[Optional[str]] = mapped_column(String(50))
+    data_dependencies: Mapped[list] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
