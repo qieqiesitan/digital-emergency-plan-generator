@@ -45,6 +45,12 @@ export interface PlanSection {
   auto_fill_source: string | null;
   data_dependencies: string[];
   updated_at: string;
+  diagram_svgs: Record<string, {
+    key?: string;
+    placeholder?: boolean;
+    reason?: string;
+    svg?: string;
+  }>;
 }
 
 export interface SectionUpdate {

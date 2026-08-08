@@ -70,6 +70,15 @@ export async function autofillSection(planId: string, sectionKey: string): Promi
   return res.data.data;
 }
 
+export async function regenerateMissingDiagrams(
+  planId: string
+): Promise<{ regenerated: number; skipped: number; placeholders_remaining: number }> {
+  const res = await api.post<ApiResponse<{ regenerated: number; skipped: number; placeholders_remaining: number }>>(
+    `/plans/${planId}/diagrams/regenerate-missing`
+  );
+  return res.data.data;
+}
+
 // ── Templates (from templateService) ──
 
 export async function listTemplates(planType?: PlanType): Promise<PaginatedResponse<PlanTemplate>> {
