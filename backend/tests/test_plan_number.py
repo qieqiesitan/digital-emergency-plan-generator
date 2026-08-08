@@ -44,3 +44,19 @@ def test_build_plan_response_includes_numbers():
     resp = _build_plan(p, "陕西宝岳")
     assert resp.plan_number == "陕西宝岳-ZH-001"
     assert resp.version_number == "A-2026-08"
+
+
+def test_build_signers_from_org_structure():
+    from app.routers.export import _build_signers_from_org
+    org = [
+        {"group_name": "指挥部", "members": [
+            {"name": "张三", "position": "总指挥"},
+            {"name": "", "position": "无姓名跳过"},
+            {"name": "李四", "position": "副总指挥"},
+        ]},
+    ]
+    signers = _build_signers_from_org(org)
+    assert signers == [
+        {"seq": 1, "name": "张三", "title": "总指挥"},
+        {"seq": 2, "name": "李四", "title": "副总指挥"},
+    ]

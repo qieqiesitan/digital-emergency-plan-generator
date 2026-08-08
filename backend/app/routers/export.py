@@ -1,5 +1,4 @@
 import os, re, markdown, io, asyncio, hashlib, logging, traceback
-from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -211,6 +210,16 @@ async def get_export_preview(
 
 # Route: Export DOCX (完全重写，使用模板引擎)
 
+def _build_signers_from_org(org_structure: list | None) -> list[dict]:
+    """组织架构 → 签署人列表（跳过无姓名成员）。"""
+    signers = []
+    for g in org_structure or []:
+        for m in g.get("members", []):
+            if m.get("name"):
+                signers.append({"seq": len(signers) + 1, "name": m["name"], "title": m.get("position", "")})
+    return signers
+
+
 @router.post("/{plan_id}/export/docx")
 async def export_plan_docx(
     plan_id: str,
@@ -267,8 +276,10 @@ async def export_plan_docx(
         })
 
     # 生成文档
+    if not plan.plan_number or not plan.version_number:
+        raise HTTPException(400, "请先设置预案编号与版本号")
+    signers = _build_signers_from_org(enterprise.org_structure or [])
     try:
-        now = datetime.now()
         import asyncio as _asyncio_dbg
         # ponytail: 在线程中运行 generate_plan_docx，避免 Playwright sync API 与 asyncio 冲突
         doc = await _asyncio_dbg.to_thread(
@@ -276,9 +287,10 @@ async def export_plan_docx(
             company_name=enterprise.name,
             plan_title=plan.title,
             plan_type=plan.plan_type,
-            plan_number=getattr(plan, 'plan_number', '') or f"XXZYT-YA-001",
-            version_number=getattr(plan, 'version_number', '') or f"A-{now.year}-{now.month:02d}",
+            plan_number=plan.plan_number,
+            version_number=plan.version_number,
             sections=sections_data,
+            signers=signers or None,
         )
 
         with open("export_trace.log", "a", encoding="utf-8") as _t:
