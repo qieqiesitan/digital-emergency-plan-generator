@@ -23,7 +23,7 @@ import asyncio
 
 import logging
 
-from app.services.llm_client import llm_chat_completion, llm_collect_all
+from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMError
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import sse_event
@@ -371,6 +371,9 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
             yield chunk
     except HTTPException:
         raise
+    except LLMError as e:
+        # 保持原 generation 文案（带空格）
+        raise HTTPException(500, f"AI 调用失败: {e.status_code} {e.text[:300]}")
     except Exception as e:
         raise HTTPException(500, str(e))
 

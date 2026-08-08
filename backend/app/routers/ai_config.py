@@ -52,11 +52,8 @@ async def delete_ai_config(current_user=Depends(get_current_user), db=Depends(ge
 @router.post("/ai-config/test", response_model=ApiResponse[AITestResult])
 async def test_ai_connection(data: AITestRequest):
     try:
-        base = data.base_url or {
-            "openai": "https://api.openai.com/v1",
-            "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            "deepseek": "https://api.deepseek.com/v1",
-        }.get(data.provider, data.base_url or "")
+        from app.services.llm_client import _get_api_base
+        base = _get_api_base(data.provider, data.base_url)
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(f"{base}/chat/completions", json={"model": data.model_name, "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 5}, headers={"Authorization": f"Bearer {data.api_key}"})
             if resp.status_code == 200:

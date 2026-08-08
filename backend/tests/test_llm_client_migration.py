@@ -332,3 +332,18 @@ async def test_reranker_call_llm_preserves_error_message(monkeypatch):
     with pytest.raises(Exception) as exc_info:
         await LLMReranker(ai_config=_cfg())._call_llm("prompt")
     assert str(exc_info.value) == "LLM API error: HTTP 500"
+
+
+@pytest.mark.asyncio
+async def test_generation_stream_llm_chunks_preserves_space_message(monkeypatch):
+    from app.routers import generation as gen
+
+    async def fake_chat(messages, cfg, stream=False, timeout=120, **kw):
+        raise LLMError(500, "boom")
+
+    monkeypatch.setattr(gen, "llm_chat_completion", fake_chat)
+    with pytest.raises(HTTPException) as exc_info:
+        async for _ in gen._stream_llm_chunks("prompt", _cfg()):
+            pass
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "AI 调用失败: 500 boom"
