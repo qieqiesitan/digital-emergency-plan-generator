@@ -19,6 +19,7 @@ import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
 import type { ChapterNode } from "@/mobile/components/plan/ChapterTree";
 import { getPlan, createVersion } from "@/services/planService";
 import { listSections, updateSection, autofillSection } from "@/services/planService";
+import { generateBatchBackground } from "@/services/generationService";
 import { useAppStore } from "@/mobile/store/appStore";
 import { useDraftStore } from "@/mobile/store/draftStore";
 
@@ -401,7 +402,23 @@ export default function PlanEditorScreen() {
                  style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
               <button
                 className="flex-1 flex items-center justify-center gap-xs text-primary-600 font-medium"
-                onClick={() => showToast?.("批量生成功能请在桌面端使用", "info")}
+                onClick={async () => {
+                  try {
+                    const generatable = chapters
+                      .flatMap((c) => [c, ...(c.children || [])])
+                      .filter((c) => c.aiGeneratable)
+                      .map((c) => c.key);
+                    if (generatable.length === 0) {
+                      showToast?.({ type: "info", message: "没有可生成的章节" });
+                      return;
+                    }
+                    const res = await generateBatchBackground(planId!, generatable);
+                    showToast?.({ type: "success", message: res.message || "已在后台开始生成" });
+                    setTimeout(() => queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] }), 5000);
+                  } catch (e: any) {
+                    showToast?.({ type: "error", message: e?.message || "批量生成失败" });
+                  }
+                }}
               >
                 <Sparkles size={20} /> 批量生成
               </button>

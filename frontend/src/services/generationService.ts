@@ -123,7 +123,7 @@ export function generateBatchStream(
 export async function generateBatchBackground(
   planId: string,
   sectionKeys: string[] | null
-): Promise<{ code: number; message: string }> {
+): Promise<{ code: number; message: string; failed_sections?: Array<{ section_key: string; title: string }> }> {
   const token = localStorage.getItem("access_token");
   const body: GenerateBatchRequest = { section_keys: sectionKeys };
   const res = await fetch(`/api/v1/plans/${planId}/generate/batch/background`, {
