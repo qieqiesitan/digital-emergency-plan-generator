@@ -4,6 +4,10 @@ import html as _html
 
 VIEW_W, VIEW_H = 1000, 700
 
+LEVEL_TO_NUM = {
+    "很低": 1, "低": 2, "一般": 3, "较大": 4, "重大": 5,
+}
+
 
 def _esc(v) -> str:
     """转义 SVG 文本内容。"""
@@ -11,12 +15,13 @@ def _esc(v) -> str:
 
 
 def _to_int(v, default: int) -> int:
-    """安全数值化（1-5 钳制）；中文等级标签映射到数值，无法解析时返回 default。"""
-    zh_map = {"低": 1, "较低": 2, "一般": 3, "较大": 4, "大": 5, "高": 5, "很高": 5}
+    """L/S 数值化：数字 / 中文等级 / 缺省均容忍。"""
+    if isinstance(v, str) and v.strip() in LEVEL_TO_NUM:
+        return LEVEL_TO_NUM[v.strip()]
     try:
         return min(max(int(float(v)), 1), 5)
     except (TypeError, ValueError):
-        return zh_map.get(str(v).strip(), default)
+        return default
 
 
 def make_placeholder(key: str, reason: str) -> dict:
@@ -25,10 +30,12 @@ def make_placeholder(key: str, reason: str) -> dict:
 
 def build_risk_matrix_svg(risk_events: list) -> dict:
     """5×5 L×S 风险矩阵热力图。risk_events: [{name, likelihood, severity, risk_level}]"""
-    events = [
-        e for e in risk_events
-        if _to_int(e.get("likelihood"), 0) and _to_int(e.get("severity"), 0)
-    ]
+    events = []
+    for e in risk_events:
+        l = _to_int(e.get("likelihood"), 0)
+        s = _to_int(e.get("severity"), 0)
+        if l and s:
+            events.append({**e, "_l": l, "_s": s})
     if not events:
         return make_placeholder("risk_matrix", "missing_risk_events")
 
@@ -52,16 +59,28 @@ def build_risk_matrix_svg(risk_events: list) -> dict:
         parts.append(f'<text x="{origin_x + i*cell + cell/2}" y="{origin_y + 25}" text-anchor="middle" font-size="14">L{i+1}</text>')
 
     for e in events:
-        l = _to_int(e.get("likelihood"), 1)
-        s = _to_int(e.get("severity"), 1)
-        x = origin_x + (l - 1) * cell + cell / 2
-        y = origin_y - s * cell + cell / 2
+        x = origin_x + (e["_l"] - 1) * cell + cell / 2
+        y = origin_y - e["_s"] * cell + cell / 2
         color = level_colors.get(e.get("risk_level", ""), "#333")
         parts.append(f'<circle cx="{x}" cy="{y}" r="14" fill="{color}" opacity="0.85"/>')
         parts.append(f'<text x="{x}" y="{y + 4}" text-anchor="middle" font-size="10" fill="#fff">{_esc(e.get("name", ""))}</text>')
 
     parts.append("</svg>")
     return {"key": "risk_matrix", "placeholder": False, "svg": "\n".join(parts)}
+
+
+def _parse_points(pts_raw) -> list:
+    """兼容 [{"x":..,"y":..}, ...] 与 [[x,y], ...] 两种 points 形态。"""
+    pts = []
+    for pt in pts_raw or []:
+        if isinstance(pt, dict) and pt.get("x") is not None and pt.get("y") is not None:
+            pts.append((float(pt["x"]), float(pt["y"])))
+        elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+            try:
+                pts.append((float(pt[0]), float(pt[1])))
+            except (TypeError, ValueError):
+                continue
+    return pts
 
 
 def _to_view(x: float, y: float) -> tuple[float, float]:
@@ -86,7 +105,7 @@ def build_evacuation_svg(floor_plan_url, zones, objects, resources) -> dict:
         poly = z.get("floor_plan_polygon") or z.get("polygon") or {}
         for p in poly.get("polygons", []):
             pts_raw = p.get("points", []) if isinstance(p, dict) else []
-            pts = [tuple(pt) for pt in pts_raw if isinstance(pt, (list, tuple)) and len(pt) >= 2]
+            pts = _parse_points(pts_raw)
             if len(pts) < 3:
                 continue
             mapped = " ".join(f"{_to_view(x, y)[0]:.1f},{_to_view(x, y)[1]:.1f}" for x, y in pts)

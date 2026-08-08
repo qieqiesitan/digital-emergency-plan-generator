@@ -80,3 +80,28 @@ def test_risk_matrix_svg_chinese_likelihood_tolerated():
     events = [{"name": "火灾", "likelihood": "较大", "severity": 4, "risk_level": "较大"}]
     out = build_risk_matrix_svg(events)
     assert out["placeholder"] is False
+
+
+def test_evacuation_svg_accepts_dict_points():
+    out = build_evacuation_svg(
+        floor_plan_url=None,
+        zones=[{"name": "生产区", "floor_plan_polygon": {"version": 2, "polygons": [
+            {"id": "p1", "points": [
+                {"x": 10, "y": 10}, {"x": 90, "y": 10},
+                {"x": 90, "y": 90}, {"x": 10, "y": 90},
+            ]}
+        ]}}],
+        objects=[],
+        resources=[],
+    )
+    assert out["placeholder"] is False
+    assert "生产区" in out["svg"]
+
+
+def test_risk_matrix_svg_chinese_levels_mapped():
+    events = [
+        {"name": "低风险", "likelihood": "低", "severity": 2, "risk_level": "低"},
+        {"name": "重大风险", "likelihood": "重大", "severity": 5, "risk_level": "重大"},
+    ]
+    out = build_risk_matrix_svg(events)
+    assert out["placeholder"] is False
