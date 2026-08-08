@@ -42,3 +42,13 @@ async def test_run_batch_generation_collects_failures():
     assert out["completed"] == 1
     assert out["failed"] == 1
     assert out["failed_sections"] == [{"section_key": "sec_1", "title": "总则"}]
+
+
+def test_clear_generation_state_resets_active_flag():
+    import app.routers.generation as gen
+
+    gen._active_generations["p1"] = True
+    gen._failed_sections["p1"] = [{"section_key": "sec_1", "title": "总则"}]
+    gen._clear_generation_state("p1")
+    assert gen._active_generations.get("p1", False) is False
+    assert gen._failed_sections.get("p1") == [{"section_key": "sec_1", "title": "总则"}]

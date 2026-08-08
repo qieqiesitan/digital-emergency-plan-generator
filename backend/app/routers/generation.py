@@ -49,6 +49,11 @@ _background_tasks: dict[str, asyncio.Task] = {}
 _failed_sections: dict[str, list] = {}
 
 
+def _clear_generation_state(plan_id: str) -> None:
+    """批量生成结束后清除生成中标记（保留失败清单供前端查询）。"""
+    _active_generations[plan_id] = False
+
+
 class _GenerationCancelled(Exception):
     """内部异常：SSE 批量生成被 stop 端点取消时抛出。"""
 
@@ -586,6 +591,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
             except Exception:
                 pass
         finally:
+            _clear_generation_state(plan_id)
             await event_queue.put(None)  # Sentinel to close SSE
 
 
@@ -748,7 +754,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
         except Exception as e:
             logger.error(f"Background batch generation failed: {e}")
         finally:
-            _active_generations.pop(plan_id, None)
+            _clear_generation_state(plan_id)
 
     task = asyncio.create_task(run_background())
 
