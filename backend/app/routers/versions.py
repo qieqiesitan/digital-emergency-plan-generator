@@ -25,6 +25,41 @@ class VersionCompare(BaseModel):
 
 router = APIRouter(prefix="/plans", tags=["Versions"])
 
+
+def _build_snapshot(plan, sections: list) -> dict:
+    """构建含风格参数与 Mermaid 图表的完整快照。"""
+    return {
+        "title": plan.title,
+        "style_preference": plan.style_preference,
+        "advanced_prompt_overrides": plan.advanced_prompt_overrides,
+        "sections": [
+            {
+                "section_key": s.section_key,
+                "title": s.title,
+                "content": s.content,
+                "ai_generated": s.ai_generated,
+                "mermaid_svgs": s.mermaid_svgs,
+            }
+            for s in sections
+        ],
+    }
+
+
+def _apply_snapshot(plan, section_map: dict, snapshot: dict) -> None:
+    """将快照恢复到 plan 与章节；旧快照缺字段时跳过对应项。"""
+    if "style_preference" in snapshot:
+        plan.style_preference = snapshot.get("style_preference")
+    if "advanced_prompt_overrides" in snapshot:
+        plan.advanced_prompt_overrides = snapshot.get("advanced_prompt_overrides")
+    for s_data in snapshot.get("sections", []):
+        s = section_map.get(s_data.get("section_key"))
+        if not s:
+            continue
+        s.content = s_data.get("content")
+        if "mermaid_svgs" in s_data:
+            s.mermaid_svgs = s_data.get("mermaid_svgs")
+
+
 @router.get("/{plan_id}/versions", response_model=ApiResponse[list[VersionResponse]])
 async def list_versions(plan_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
@@ -43,7 +78,7 @@ async def create_version(plan_id: str, data: VersionCreate, current_user=Depends
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
     if not p: raise HTTPException(404, "预案不存在")
     sections = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order))).scalars().all()
-    snapshot = {"title": p.title, "sections": [{"section_key": s.section_key, "title": s.title, "content": s.content, "ai_generated": s.ai_generated} for s in sections]}
+    snapshot = _build_snapshot(p, sections)
     new_ver = p.current_version + 1
     v = PlanVersion(plan_project_id=plan_id, version_number=new_ver, created_by="manual", description=data.description, snapshot=snapshot)
     p.current_version = new_ver
@@ -74,9 +109,17 @@ async def compare_versions(plan_id: str, a: int = Query(...), b: int = Query(...
 async def rollback_version(plan_id: str, version_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     v = (await db.execute(select(PlanVersion).where(PlanVersion.id == version_id, PlanVersion.plan_project_id == plan_id))).scalar_one_or_none()
     if not v: raise HTTPException(404, "版本不存在")
+    p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
+    if not p: raise HTTPException(404, "预案不存在")
+    section_map = {}
     for s_data in v.snapshot.get("sections", []):
-        s = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id, PlanSection.section_key == s_data["section_key"]))).scalar_one_or_none()
-        if s: s.content = s_data.get("content")
+        s = (await db.execute(select(PlanSection).where(
+            PlanSection.plan_project_id == plan_id,
+            PlanSection.section_key == s_data["section_key"],
+        ))).scalar_one_or_none()
+        if s:
+            section_map[s.section_key] = s
+    _apply_snapshot(p, section_map, v.snapshot or {})
     await db.commit()
     return {"code": 0, "message": "已回滚"}
 

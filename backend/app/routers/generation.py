@@ -32,6 +32,7 @@ from app.services.risk_context_builder import build_risk_management_context
 from app.regulations.context_builder import RegulationContextBuilder
 
 from app.schemas.plan import RegenerateRequest
+from app.routers.versions import _build_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -520,7 +521,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
                 # ponytail: auto-create version snapshot after generation
                 try:
-                    ver_snapshot = {"title": p2.title, "sections": [{"section_key": s.section_key, "title": s.title, "content": s.content, "ai_generated": s.ai_generated} for s in updated]}
+                    ver_snapshot = _build_snapshot(p2, updated)
                     new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
                     bg_db.add(new_ver)
                     p2.current_version = p2.current_version + 1
@@ -722,7 +723,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
                 # ponytail: auto-create version snapshot after generation
                 try:
-                    ver_snapshot = {"title": p2.title, "sections": [{"section_key": s.section_key, "title": s.title, "content": s.content, "ai_generated": s.ai_generated} for s in updated]}
+                    ver_snapshot = _build_snapshot(p2, updated)
                     new_ver = PlanVersion(plan_project_id=plan_id, version_number=p2.current_version + 1, created_by="auto", description="AI 一键生成完成", snapshot=ver_snapshot)
                     bg_db.add(new_ver)
                     p2.current_version = p2.current_version + 1
