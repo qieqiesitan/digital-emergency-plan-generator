@@ -245,20 +245,22 @@ def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
     from app.services.plan_diagram_service import (
         build_risk_matrix_svg, build_evacuation_svg,
     )
-    section.diagram_svgs = section.diagram_svgs or {}
+    # 复制后整体赋值：JSONB 列不检测原地变更，必须触发 SQLAlchemy 脏标记
+    diagrams = dict(section.diagram_svgs or {})
     key = section.section_key
 
     if key == "sec_2" and plan_type == "comprehensive":
-        section.diagram_svgs["risk_matrix"] = build_risk_matrix_svg(
+        diagrams["risk_matrix"] = build_risk_matrix_svg(
             ent_data.get("risk_events", [])
         )
     elif key == "sec_3_3" and plan_type == "onsite":
-        section.diagram_svgs["evacuation"] = build_evacuation_svg(
+        diagrams["evacuation"] = build_evacuation_svg(
             floor_plan_url=ent_data.get("floor_plan_url"),
             zones=ent_data.get("zones", []),
             objects=ent_data.get("risk_objects", []),
             resources=ent_data.get("emergency_resources", ent_data.get("resources", [])),
         )
+    section.diagram_svgs = diagrams
 
 
 def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list) -> dict:

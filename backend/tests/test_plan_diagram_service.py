@@ -144,3 +144,18 @@ def test_attach_diagrams_passes_resources_to_evacuation():
     _attach_diagrams(s, "onsite", ent_data)
     svg = s.diagram_svgs.get("evacuation", {}).get("svg", "")
     assert "灭火器" in svg
+
+
+def test_attach_diagrams_reassigns_dict_for_sqlalchemy_dirty_flag():
+    from unittest.mock import MagicMock
+    from app.routers.generation import _attach_diagrams
+    s = MagicMock()
+    s.section_key = "sec_2"
+    existing = {"org_chart": {"placeholder": False, "svg": "<svg/>"}}
+    s.diagram_svgs = existing
+    _attach_diagrams(s, "comprehensive", {"risk_events": [
+        {"name": "火灾", "likelihood": 3, "severity": 4, "risk_level": "较大"}
+    ]})
+    # 必须是新对象（不是原地改同一个 dict），确保 SQLAlchemy 能检测
+    assert s.diagram_svgs is not existing
+    assert "risk_matrix" in s.diagram_svgs
