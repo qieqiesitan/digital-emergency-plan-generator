@@ -383,6 +383,52 @@ async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*", st
     return await llm_collect_all(messages, ai_config, timeout=120)
 
 
+async def _get_plan_or_404(plan_id: str, user, db: AsyncSession) -> PlanProject:
+    """批量生成共用：查询预案，不存在抛 404。"""
+    p = (await db.execute(
+        select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == user.id)
+    )).scalar_one_or_none()
+    if not p:
+        raise HTTPException(404, "预案不存在")
+    return p
+
+
+async def _collect_batch_context(
+    plan_id: str, p: PlanProject, request: Request, db: AsyncSession, current_user,
+) -> tuple:
+    """批量生成公共准备：AI 配置、企业上下文、目标章节。
+
+    返回 (p, ai_config, ent_data, target_sections)。stale 守卫、空章节守卫、
+    置 generating、_active_generations 赋值等端点差异逻辑留在调用端点。
+    """
+    ai_config = (await db.execute(
+        select(AIConfig).where(AIConfig.user_id == current_user.id)
+    )).scalar_one_or_none()
+    if not ai_config:
+        raise HTTPException(400, "请先配置 AI 模型")
+
+    ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
+    resources = (await db.execute(
+        select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id)
+    )).scalars().all()
+    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
+    if ent:
+        ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
+
+    try:
+        body = await request.json()
+        keys = body.get("section_keys")
+    except Exception:
+        keys = None
+
+    all_sections = (await db.execute(
+        select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order)
+    )).scalars().all()
+    target_sections = [s for s in all_sections if (not keys or s.section_key in keys)]
+    return p, ai_config, ent_data, target_sections
+
+
 async def _run_batch_generation(
     *,
     bg_db,
@@ -507,67 +553,16 @@ async def _finalize_batch_result(
 @router.post("/{plan_id}/generate/batch")
 
 async def generate_batch(plan_id: str, request: Request, current_user=Depends(get_current_user), db=Depends(get_db)):
-
-    p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
-
-    if not p: raise HTTPException(404, "预案不存在")
-
-    ai_config = (await db.execute(select(AIConfig).where(AIConfig.user_id == current_user.id))).scalar_one_or_none()
-
-    if not ai_config: raise HTTPException(400, "请先配置 AI 模型")
-
-
-
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
-
-    resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
-
-    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
-
-    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
-
-    if ent:
-
-        ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
-
-
-
-    try:
-
-        body = await request.json()
-
-        keys = body.get("section_keys")
-
-    except Exception:
-
-        keys = None
-
-
-
-    all_sections = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order))).scalars().all()
-
-    target_sections = [s for s in all_sections if (not keys or s.section_key in keys)]
-
-
+    p = await _get_plan_or_404(plan_id, current_user, db)
+    p, ai_config, ent_data, target_sections = await _collect_batch_context(plan_id, p, request, db, current_user)
 
     p.status = "generating"
-
     await db.commit()
-
     _active_generations[plan_id] = True
-
     plan_type = p.plan_type
 
     # Use a queue to stream events from background task to SSE
-
-    import asyncio as _asyncio
-
-    event_queue: _asyncio.Queue = _asyncio.Queue()
-
-
-
-    # Collect section keys for background task
-
+    event_queue: asyncio.Queue = asyncio.Queue()
     section_tuples = [(s.section_key, s.title) for s in target_sections]
 
 
@@ -652,7 +647,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
 
 
-    task = _asyncio.create_task(run_background())
+    task = asyncio.create_task(run_background())
 
     _background_tasks[plan_id] = task
 
@@ -707,57 +702,17 @@ async def get_generation_status(plan_id: str, current_user=Depends(get_current_u
 @router.post("/{plan_id}/generate/batch/background")
 
 async def generate_batch_background(plan_id: str, request: Request, current_user=Depends(get_current_user), db=Depends(get_db)):
-
-    p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
-
-    if not p: raise HTTPException(404, "预案不存在")
-
+    p = await _get_plan_or_404(plan_id, current_user, db)
     if p.status == "generating":
-
         if not _active_generations.get(plan_id):
-
             logger.warning(f"Plan {plan_id} has stale generating status - resetting to draft")
-
             p.status = "draft"
-
             await db.commit()
-
         else:
-
             return {"code": 0, "message": "正在生成中"}
-
-    ai_config = (await db.execute(select(AIConfig).where(AIConfig.user_id == current_user.id))).scalar_one_or_none()
-
-    if not ai_config: raise HTTPException(400, "请先配置 AI 模型")
-
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
-
-    resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
-
-    risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
-
-    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
-
-    if ent:
-
-        ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
-
-    try:
-
-        body = await request.json()
-
-        keys = body.get("section_keys")
-
-    except Exception:
-
-        keys = None
-
-    all_sections = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order))).scalars().all()
-
-    target_sections = [s for s in all_sections if (not keys or s.section_key in keys)]
+    p, ai_config, ent_data, target_sections = await _collect_batch_context(plan_id, p, request, db, current_user)
 
     if not target_sections:
-
         return {"code": 0, "message": "没有可生成的章节"}
 
     p.status = "generating"
