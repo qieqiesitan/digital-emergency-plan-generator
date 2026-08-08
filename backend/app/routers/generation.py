@@ -175,45 +175,54 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
 
     return prompt
 
+def _missing(v):
+    """缺失字段统一标注，防止 LLM 编造。"""
+    return v if v not in (None, "") else "（待补充）"
+
+
 def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list) -> dict:
 
     return {
 
-        "name": enterprise.name, "address": enterprise.address,
+        "name": _missing(enterprise.name),
+        "address": _missing(enterprise.address),
 
-        "industry": enterprise.industry, "business_scope": enterprise.business_scope,
+        "industry": _missing(enterprise.industry),
+        "business_scope": _missing(enterprise.business_scope),
 
-        "employee_count": enterprise.employee_count, "building_overview": enterprise.building_overview,
+        "employee_count": enterprise.employee_count,
+        "building_overview": _missing(enterprise.building_overview),
 
-        "org_structure": enterprise.org_structure, "surrounding_info": enterprise.surrounding_info,
+        "org_structure": enterprise.org_structure,
+        "surrounding_info": _missing(enterprise.surrounding_info),
 
-        "legal_representative": enterprise.legal_representative,
+        "legal_representative": _missing(enterprise.legal_representative),
 
-        "credit_code": enterprise.credit_code,
+        "credit_code": _missing(enterprise.credit_code),
 
-        "economic_type": enterprise.economic_type,
+        "economic_type": _missing(enterprise.economic_type),
 
         "established_date": str(enterprise.established_date) if enterprise.established_date else None,
 
         "registered_capital": enterprise.registered_capital,
 
-        "phone": enterprise.phone,
+        "phone": _missing(enterprise.phone),
 
         "land_area": enterprise.land_area,
 
         "building_area": enterprise.building_area,
 
-        "safety_officer": enterprise.safety_officer,
+        "safety_officer": _missing(enterprise.safety_officer),
 
-        "safety_standardization": enterprise.safety_standardization,
+        "safety_standardization": _missing(enterprise.safety_standardization),
 
-        "fire_approval": enterprise.fire_approval,
+        "fire_approval": _missing(enterprise.fire_approval),
 
-        "main_products": enterprise.main_products,
+        "main_products": _missing(enterprise.main_products),
 
-        "hazardous_chemicals": enterprise.hazardous_chemicals,
+        "hazardous_chemicals": _missing(enterprise.hazardous_chemicals),
 
-        "special_equipment": enterprise.special_equipment,
+        "special_equipment": _missing(enterprise.special_equipment),
 
         "risk_sources": [
             {

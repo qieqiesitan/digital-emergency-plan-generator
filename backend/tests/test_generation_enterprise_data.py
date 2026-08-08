@@ -53,3 +53,41 @@ def test_collect_enterprise_data_uses_hierarchical_risk_context():
     assert data["risk_sources"][0]["categories"] == "火灾"
     assert data["risk_sources"][0]["control_measures"] == "巡检"
     assert data["risk_sources"][0]["accident_type"] == "火灾"
+
+
+def test_collect_enterprise_data_marks_missing_fields():
+    ent = MagicMock()
+    ent.name = "测试企业"
+    ent.address = None
+    ent.industry = ""
+    ent.business_scope = "生产"
+    ent.employee_count = 100
+    ent.building_overview = ""
+    ent.org_structure = []
+    ent.surrounding_info = None
+    ent.legal_representative = ""
+    ent.credit_code = None
+    ent.economic_type = ""
+    ent.established_date = None
+    ent.registered_capital = None
+    ent.phone = ""
+    ent.land_area = None
+    ent.building_area = None
+    ent.safety_officer = ""
+    ent.safety_standardization = ""
+    ent.fire_approval = ""
+    ent.main_products = ""
+    ent.hazardous_chemicals = ""
+    ent.special_equipment = ""
+
+    data = _collect_enterprise_data(ent, {"risk_sources": []}, [])
+    assert data["address"] == "（待补充）"
+    assert data["industry"] == "（待补充）"
+    assert data["legal_representative"] == "（待补充）"
+    assert data["business_scope"] == "生产"  # 非空值保持原样
+
+
+def test_compliance_block_contains_truth_guard():
+    from app.services.prompt_cache import COMPLIANCE_BLOCK
+    assert "数据真实性护栏" in COMPLIANCE_BLOCK
+    assert "禁止推断" in COMPLIANCE_BLOCK
