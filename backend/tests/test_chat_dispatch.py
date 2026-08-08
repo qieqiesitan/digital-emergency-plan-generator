@@ -70,3 +70,66 @@ def test_enterprise_response_dedup_fields():
     # 3 个日期字段保留覆盖：类型不同（输出序列化格式）
     for f in ["established_date", "fire_approval_date", "last_plan_filing_date"]:
         assert resp[f].annotation is not base[f].annotation
+
+
+@pytest.mark.asyncio
+async def test_list_enterprises_keyword_search():
+    from app.services.chat_dispatch import _list_enterprises
+    db = AsyncMock()
+    ent = MagicMock(id="e1")
+    ent.name = "宝岳"
+    ent.industry = "科技"
+    ent.address = "西安"
+    ent.plans = []
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [ent]
+    db.execute.return_value = result
+    out = await _list_enterprises(db, MagicMock(id="u1"), {"keyword": "宝岳"})
+    assert out["enterprises"][0]["name"] == "宝岳"
+
+
+@pytest.mark.asyncio
+async def test_create_enterprise_dedup():
+    from app.services.chat_dispatch import _create_enterprise
+    db = AsyncMock()
+    existing = MagicMock(id="e1")
+    existing.name = "宝岳"
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = existing
+    db.execute.return_value = result
+    out = await _create_enterprise(db, MagicMock(id="u1"), {"name": "宝岳"})
+    assert out == {"id": "e1", "name": "宝岳", "message": "企业已存在，无需重复创建", "verified": True}
+
+
+@pytest.mark.asyncio
+async def test_create_plan_with_template(monkeypatch):
+    from app.services.chat_dispatch import _create_plan
+    db = AsyncMock()
+    ent = MagicMock(id="e1")
+    tmpl = MagicMock(structure=[{"section_key": "sec_1", "title": "总则"}])
+    results = [
+        MagicMock(scalar_one_or_none=lambda: ent),     # Enterprise
+        MagicMock(scalar_one_or_none=lambda: tmpl),    # PlanTemplate
+    ]
+    db.execute = AsyncMock(side_effect=results)
+    added = {}
+
+    def fake_add(obj):
+        added["obj"] = obj
+
+    db.add = fake_add
+    db.flush = AsyncMock()
+    db.refresh = AsyncMock()
+    created = {}
+
+    def fake_create_sections(db, plan_id, structure):
+        created["plan_id"] = plan_id
+        created["structure"] = structure
+
+    monkeypatch.setattr("app.routers.plans._create_sections_from_template", fake_create_sections)
+    out = await _create_plan(db, MagicMock(id="u1"), {
+        "enterprise_id": "e1", "title": "预案A", "plan_type": "comprehensive",
+    })
+    assert out["id"] == added["obj"].id
+    assert created["plan_id"] == out["id"]
+    assert created["structure"] == tmpl.structure
