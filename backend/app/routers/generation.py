@@ -630,7 +630,17 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     failed_sections=final["failed_sections"],
                 ))
         except _GenerationCancelled:
-            pass
+            # 取消时恢复状态：避免预案永久停在 generating
+            try:
+                async with async_session() as cancel_db:
+                    p_cancel = (await cancel_db.execute(
+                        select(PlanProject).where(PlanProject.id == plan_id)
+                    )).scalar_one_or_none()
+                    if p_cancel and p_cancel.status == "generating":
+                        p_cancel.status = "draft"
+                        await cancel_db.commit()
+            except Exception as ce:
+                logger.error(f"Failed to reset plan status after cancel: {ce}")
         except Exception as e:
             try:
                 await event_queue.put(sse_event("error", message=str(e)))
@@ -853,6 +863,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
     async def event_generator():
 
+        succeeded = False
         try:
 
             yield sse_event("progress", message=f"正在生成「{s.title}」...")
@@ -884,6 +895,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
             await db.commit()
 
             yield sse_event("done", message="生成完成")
+            succeeded = True
 
         except Exception as e:
 
@@ -892,6 +904,12 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
             await db.commit()
 
             yield sse_event("error", message=str(e))
+        finally:
+            # 客户端断连/取消时 CancelledError 不会被 except Exception 捕获，
+            # 这里兜底恢复状态，避免预案永久停在 generating。
+            if not succeeded and p.status == "generating":
+                p.status = "draft"
+                await db.commit()
 
 
 

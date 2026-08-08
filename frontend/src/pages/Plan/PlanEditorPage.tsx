@@ -117,6 +117,11 @@ export default function PlanEditorPage() {
   useEffect(() => {
     if (plan?.status === "generating" && !isGenerating) {
       setIsGenerating(true);
+    } else if (plan && plan.status !== "generating" && isGenerating) {
+      // 后端状态已恢复（生成完成/失败/取消），前端同步复位
+      setIsGenerating(false);
+      setGeneratingSections(new Set());
+      setBatchProgress({ current: 0, total: 0, message: "" });
     }
   }, [plan?.status]);
 

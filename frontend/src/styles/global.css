@@ -38,6 +38,21 @@ body {
   padding: 4px 8px;
 }
 
+/* MermaidRenderer / 只读预览容器内的表格也带边框 */
+.mermaid-diagram table,
+.export-preview-container table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.mermaid-diagram table td,
+.mermaid-diagram table th,
+.export-preview-container table td,
+.export-preview-container table th {
+  border: 1px solid #d9d9d9;
+  padding: 4px 8px;
+}
+
 /* AI 生成内容标记 */
 .ai-generated-section {
   border-left: 3px solid rgba(24, 144, 255, 0.4) !important;
