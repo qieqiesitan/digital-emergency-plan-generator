@@ -240,6 +240,27 @@ def _missing(v):
     return v if v not in (None, "") else "（待补充）"
 
 
+def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
+    """生成后处理：按章节写入数据图（风险矩阵/疏散图）或占位符。"""
+    from app.services.plan_diagram_service import (
+        build_risk_matrix_svg, build_evacuation_svg,
+    )
+    section.diagram_svgs = section.diagram_svgs or {}
+    key = section.section_key
+
+    if key == "sec_2" and plan_type == "comprehensive":
+        section.diagram_svgs["risk_matrix"] = build_risk_matrix_svg(
+            ent_data.get("risk_events", [])
+        )
+    elif key == "sec_3_3" and plan_type == "onsite":
+        section.diagram_svgs["evacuation"] = build_evacuation_svg(
+            floor_plan_url=ent_data.get("floor_plan_url"),
+            zones=ent_data.get("zones", []),
+            objects=ent_data.get("risk_objects", []),
+            resources=ent_data.get("resources", []),
+        )
+
+
 def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list) -> dict:
 
     return {
@@ -303,6 +324,10 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
         ],
 
         "emergency_resources": [{"category": r.category, "name": r.name, "specification": r.specification, "quantity": r.quantity, "unit": r.unit, "location": r.location} for r in resources],
+        "risk_events": risk_context.get("risk_events", []),
+        "zones": risk_context.get("zones", []),
+        "risk_objects": risk_context.get("risk_objects", []),
+        "floor_plan_url": getattr(enterprise, "floor_plan_url", None),
 
     }
 
@@ -540,6 +565,7 @@ async def _run_batch_generation(
             s.content = md_to_html(full, normalize=True)
             s.ai_generated = True
             s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
+            _attach_diagrams(s, plan_type, ent_data)
             await bg_db.commit()
             completed += 1
         except _GenerationCancelled:
@@ -886,6 +912,8 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
             s.ai_generated = True
 
             s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
+
+            _attach_diagrams(s, p.plan_type, ent_data)
 
             all_sections = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id))).scalars().all()
 

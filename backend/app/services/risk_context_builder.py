@@ -131,4 +131,31 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
         "risk_sources": risk_sources_list,
         "zone_count": len(zones),
         "total_events": total_events,
+        "risk_events": [
+            {
+                "name": event.name,
+                "likelihood": event.method_params.get("l", 3) if event.method_params else 3,
+                "severity": event.method_params.get("s", 3) if event.method_params else 3,
+                "risk_level": event.risk_level or "",
+            }
+            for zone in zones
+            for obj in zone.objects
+            for event in list(obj.events) + [e for u in obj.units for e in u.events]
+        ],
+        "zones": [
+            {
+                "name": zone.name,
+                "polygon": zone.floor_plan_polygon,
+            }
+            for zone in zones
+        ],
+        "risk_objects": [
+            {
+                "name": obj.name,
+                "location_x": obj.location_x,
+                "location_y": obj.location_y,
+            }
+            for zone in zones
+            for obj in zone.objects
+        ],
     }

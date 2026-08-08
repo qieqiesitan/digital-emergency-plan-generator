@@ -105,3 +105,26 @@ def test_risk_matrix_svg_chinese_levels_mapped():
     ]
     out = build_risk_matrix_svg(events)
     assert out["placeholder"] is False
+
+
+from unittest.mock import MagicMock
+from app.routers.generation import _attach_diagrams
+
+
+def test_attach_diagrams_writes_risk_matrix_for_sec2():
+    s = MagicMock()
+    s.section_key = "sec_2"
+    s.diagram_svgs = None
+    ent_data = {"risk_events": [
+        {"name": "火灾", "likelihood": 3, "severity": 4, "risk_level": "较大"}
+    ]}
+    _attach_diagrams(s, "comprehensive", ent_data)
+    assert s.diagram_svgs.get("risk_matrix", {}).get("placeholder") is False
+
+
+def test_attach_diagrams_placeholder_when_no_data():
+    s = MagicMock()
+    s.section_key = "sec_2"
+    s.diagram_svgs = None
+    _attach_diagrams(s, "comprehensive", {})
+    assert s.diagram_svgs.get("risk_matrix", {}).get("placeholder") is True
