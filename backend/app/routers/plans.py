@@ -31,6 +31,8 @@ def _build_plan(p: PlanProject, ent_name: str = "") -> PlanResponse:
         status=p.status, current_version=p.current_version,
         sections_count=len(sections),
         completed_sections=sum(1 for s in sections if s.content and s.content.strip()),
+        plan_number=p.plan_number,
+        version_number=p.version_number,
         created_at=p.created_at.isoformat() if p.created_at else "",
         updated_at=p.updated_at.isoformat() if p.updated_at else "",
     )

@@ -21,3 +21,26 @@ def test_create_plan_schema_accepts_numbers():
     )
     assert p.plan_number == "自定义-001"
     assert p.version_number == "A-2026-08"
+
+
+def test_build_plan_response_includes_numbers():
+    from unittest.mock import MagicMock
+    from app.routers.plans import _build_plan
+    p = MagicMock()
+    p.id = "p1"
+    p.enterprise_id = "e1"
+    p.style_preference = None
+    p.advanced_prompt_overrides = None
+    p.plan_type = "comprehensive"
+    p.title = "测试预案"
+    p.accident_type = None
+    p.status = "draft"
+    p.current_version = 1
+    p.plan_number = "陕西宝岳-ZH-001"
+    p.version_number = "A-2026-08"
+    p.created_at = None
+    p.updated_at = None
+    p.sections = []
+    resp = _build_plan(p, "陕西宝岳")
+    assert resp.plan_number == "陕西宝岳-ZH-001"
+    assert resp.version_number == "A-2026-08"
