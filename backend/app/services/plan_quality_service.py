@@ -6,6 +6,11 @@ def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text or "")
 
 
+def _normalize(text: str) -> str:
+    """去除所有空白字符，用于档案字段模糊匹配。"""
+    return re.sub(r"\s+", "", text or "")
+
+
 def _suspected_address(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fa5]{2,8}(?:省|市|区|县).{0,8}(?:路|街|大道)", text))
 
@@ -31,12 +36,13 @@ def check_plan(plan, enterprise, sections) -> dict:
             })
 
         # 关键档案信息未体现（非空时正文应包含）
+        norm_text = _normalize(text)
         for field, label in [
             (getattr(enterprise, "address", None), "地址"),
             (getattr(enterprise, "legal_representative", None), "法定代表人"),
             (getattr(enterprise, "safety_officer", None), "安全负责人"),
         ]:
-            if field and field not in ("（待补充）",) and field not in text:
+            if field and field not in ("（待补充）",) and _normalize(field) not in norm_text:
                 warnings.append({
                     "section_key": s.section_key,
                     "section_title": s.title,
