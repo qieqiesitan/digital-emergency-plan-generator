@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Checkbox, Col, Divider, Empty, message, Modal, Row, Slider, Space } from "antd";
 import { SearchOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +28,15 @@ interface Props {
 const EMPTY_SURROUNDING: SurroundingInfo = { nearby_units: [], sensitive_targets: [], traffic_info: "" };
 
 type PoiOption = { code: string; label: string; group: "nearby" | "sensitive" };
+
+type SurroundingCandidate = CandidateItem & {
+  name: string;
+  direction: string;
+  distance_m?: number;
+  type?: string;
+  main_risk?: string;
+  target_type?: "sensitive" | "nearby";
+};
 
 // 与后端 AMAP_POI_KEYWORDS 保持同步（后端搜索响应携带 available_types，优先消费；此处为回退常量）
 const AMAP_POI_OPTIONS: PoiOption[] = [
@@ -62,12 +71,44 @@ export default function StepSurrounding({
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // 取消采纳后移回候选区的周边项（可重新编辑再采纳）
+  const [candidates, setCandidates] = useState<CandidateItem[]>([]);
 
-  const { data: surrounding = EMPTY_SURROUNDING } = useQuery({
+  const {
+    data: surrounding = EMPTY_SURROUNDING,
+    isLoading: acceptedLoading,
+  } = useQuery({
     queryKey: ["surrounding", enterpriseId],
     queryFn: () => getSurrounding(enterpriseId),
     enabled: !!enterpriseId,
   });
+
+  // 步骤回显：已采纳区数据直接派生自后端 GET（周边单位 + 敏感目标）
+  const acceptedItems = useMemo<SurroundingCandidate[]>(
+    () => [
+      ...(surrounding.nearby_units || []).map(u => ({
+        _key: `nearby-${u.name}-${u.direction}`,
+        name: u.name,
+        direction: u.direction,
+        distance_m: u.distance_m,
+        main_risk: u.main_risk,
+      })),
+      ...(surrounding.sensitive_targets || []).map(t => ({
+        _key: `sensitive-${t.name}-${t.direction}`,
+        name: t.name,
+        direction: t.direction,
+        distance_m: t.distance_m,
+        type: t.type,
+        target_type: "sensitive" as const,
+      })),
+    ],
+    [surrounding],
+  );
+
+  const displayCandidates = useMemo(
+    () => [...candidates, ...(imported || [])],
+    [candidates, imported],
+  );
 
   const refreshCompletion = () => {
     queryClient.invalidateQueries({ queryKey: ["surrounding", enterpriseId] });
@@ -126,10 +167,87 @@ export default function StepSurrounding({
     }
     try {
       await saveSurrounding.mutateAsync(next);
+      setCandidates(prev => prev.filter(x => x._key !== item._key));
       onRemoveImported?.("surrounding", item._key);
       message.success(`已采纳：${name}`);
     } catch (e: unknown) {
       message.error((e as Error)?.message || "保存失败，请重试");
+    }
+  };
+
+  const acceptAll = async () => {
+    const items = displayCandidates;
+    if (items.length === 0) return;
+    const next: SurroundingInfo = {
+      nearby_units: [...(surrounding.nearby_units || [])],
+      sensitive_targets: [...(surrounding.sensitive_targets || [])],
+      traffic_info: surrounding.traffic_info || "",
+    };
+    const skipped: string[] = [];
+    for (const item of items) {
+      const name = String(item.name || "").trim();
+      if (!name) {
+        skipped.push("缺少名称");
+        continue;
+      }
+      const direction = String(item.direction || "N").toUpperCase();
+      const distance_m = Number(item.distance_m) || 0;
+      // 与 acceptImport 保持一致的归类：带 type 无 main_risk 视为敏感目标，否则周边单位
+      const isTarget =
+        item.target_type === "sensitive" || Boolean(item.type && !item.main_risk);
+      if (isTarget) {
+        if (next.sensitive_targets.some(t => t.name === name && t.direction === direction)) {
+          skipped.push(name);
+          continue;
+        }
+        next.sensitive_targets.push({
+          name,
+          direction,
+          distance_m,
+          type: String(item.type || ""),
+        });
+      } else {
+        if (next.nearby_units.some(u => u.name === name && u.direction === direction)) {
+          skipped.push(name);
+          continue;
+        }
+        next.nearby_units.push({
+          name,
+          direction,
+          distance_m,
+          main_risk: String(item.main_risk || ""),
+        });
+      }
+    }
+    try {
+      await saveSurrounding.mutateAsync(next);
+      setCandidates([]);
+      items.forEach(x => onRemoveImported?.("surrounding", x._key));
+      const adopted = items.length - skipped.length;
+      message.success(
+        skipped.length > 0
+          ? `已采纳 ${adopted} 条，跳过 ${skipped.length} 条重复/无效项`
+          : `已全部采纳：${items.length} 条`,
+      );
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || "批量采纳失败，请重试");
+    }
+  };
+
+  const unacceptAll = async () => {
+    const items = acceptedItems;
+    if (items.length === 0) return;
+    try {
+      // 周边为整体对象保存：清空单位/敏感目标即删除已保存数据，交通状况保留
+      await saveSurrounding.mutateAsync({
+        nearby_units: [],
+        sensitive_targets: [],
+        traffic_info: surrounding.traffic_info || "",
+      });
+      setCandidates(prev => [...prev, ...items]);
+      message.success(`已全部取消采纳：${items.length} 条`);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || "删除失败，请重试");
     }
   };
 
@@ -232,10 +350,10 @@ export default function StepSurrounding({
         )}
       </div>
 
-      {(imported || []).length > 0 && (
+      {(acceptedLoading || acceptedItems.length > 0 || displayCandidates.length > 0) && (
         <CandidatesReview
-          accepted={[]}
-          candidates={imported || []}
+          accepted={acceptedItems}
+          candidates={displayCandidates}
           renderItem={(item: CandidateItem) => (
             <div>
               <b>{String(item.name || "")}</b>{" "}
@@ -259,9 +377,15 @@ export default function StepSurrounding({
           )}
           onAccept={acceptImport}
           onModify={() => message.info("修改功能后续接入")}
-          onDelete={(item) => onRemoveImported?.("surrounding", item._key)}
+          onDelete={(item) => {
+            setCandidates(prev => prev.filter(x => x._key !== item._key));
+            onRemoveImported?.("surrounding", item._key);
+          }}
           onGenerateMore={() => setImportOpen(true)}
           generateMoreLabel="继续导入文件"
+          onAcceptAll={acceptAll}
+          onUnacceptAll={unacceptAll}
+          acceptedLoading={acceptedLoading}
         />
       )}
 

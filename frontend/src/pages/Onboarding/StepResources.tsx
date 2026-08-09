@@ -1,7 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Drawer, Input, Space, message } from "antd";
 import { useQueryClient } from "@tanstack/react-query";
-import { generateResourcesAI, batchCreateResources } from "@/services/emergencyResourceService";
+import {
+  generateResourcesAI,
+  batchCreateResources,
+  listResources,
+  deleteResource,
+} from "@/services/emergencyResourceService";
 import type { EmergencyResourceCreate } from "@/types/emergencyResource";
 import EmergencyResourceForm from "@/components/enterprise/EmergencyResourceForm";
 import CandidatesReview from "./CandidatesReview";
@@ -53,6 +58,8 @@ export default function StepResources({
   const [overview, setOverview] = useState("");
   const [candidates, setCandidates] = useState<CandidateItem[]>([]);
   const [accepted, setAccepted] = useState<CandidateItem[]>([]);
+  const [acceptedLoading, setAcceptedLoading] = useState(!!enterpriseId);
+  const [acceptedHydrated, setAcceptedHydrated] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -60,6 +67,34 @@ export default function StepResources({
     () => [...candidates, ...(imported || [])],
     [candidates, imported],
   );
+
+  // 步骤回显：挂载时从后端加载已保存资源（内部+外部救援），初始化到已采纳区
+  useEffect(() => {
+    if (!enterpriseId || acceptedHydrated) return;
+    let cancelled = false;
+    listResources(enterpriseId, { page_size: 200 })
+      .then(res => {
+        if (cancelled) return;
+        setAccepted(
+          (res.data.items || []).map(r => ({
+            _key: `res-${r.id}`,
+            ...r,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) message.warning("已保存资源加载失败，仅展示当前新增项");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAcceptedLoading(false);
+          setAcceptedHydrated(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enterpriseId, acceptedHydrated]);
 
   const handleImported = (results: ImportResult[]) => {
     const result = results[0];
@@ -93,17 +128,60 @@ export default function StepResources({
   const accept = async (item: CandidateItem) => {
     try {
       // 先 await 保存成功，再移动候选到已采纳区；失败保留候选，杜绝 UI/后端不一致
-      await batchCreateResources(enterpriseId, [toCreatePayload(item)]);
+      const created = await batchCreateResources(enterpriseId, [toCreatePayload(item)]);
+      // 用后端返回的新 id 记录，保证取消采纳时可正确删除
+      const saved = created[0]
+        ? { ...item, _key: `res-${created[0].id}`, id: created[0].id }
+        : item;
       if (imported?.some(x => x._key === item._key)) {
         onRemoveImported?.("resources", item._key);
       } else {
         setCandidates(prev => prev.filter(x => x._key !== item._key));
       }
-      setAccepted(prev => [...prev, item]);
+      setAccepted(prev => [...prev, saved]);
       message.success(`已保存：${String(item.name || "")}`);
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     } catch (e: unknown) {
       message.error((e as Error)?.message || "保存失败，请重试");
+    }
+  };
+
+  const acceptAll = async () => {
+    const items = displayCandidates;
+    if (items.length === 0) return;
+    try {
+      const created = await batchCreateResources(enterpriseId, items.map(toCreatePayload));
+      const savedItems: CandidateItem[] = items.map((item, i) => {
+        const saved = created[i];
+        return saved ? { ...item, _key: `res-${saved.id}`, id: saved.id } : item;
+      });
+      setCandidates([]);
+      items.forEach(x => {
+        if (imported?.some(imp => imp._key === x._key)) onRemoveImported?.("resources", x._key);
+      });
+      setAccepted(prev => [...prev, ...savedItems]);
+      message.success(`已全部采纳：${items.length} 条`);
+      queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || "批量保存失败，请重试");
+    }
+  };
+
+  const unacceptAll = async () => {
+    const items = accepted;
+    if (items.length === 0) return;
+    try {
+      for (const item of items) {
+        const id = String(item.id || "");
+        if (id) await deleteResource(enterpriseId, id);
+      }
+      setAccepted([]);
+      // 移回候选区，可重新编辑后再采纳
+      setCandidates(prev => [...prev, ...items]);
+      message.success(`已全部取消采纳：${items.length} 条`);
+      queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || "删除失败，请重试");
     }
   };
 
@@ -168,6 +246,9 @@ export default function StepResources({
         }}
         onGenerateMore={generate}
         generating={generating}
+        onAcceptAll={acceptAll}
+        onUnacceptAll={unacceptAll}
+        acceptedLoading={acceptedLoading}
       />
       <div style={{ marginTop: 20, display: "flex", justifyContent: "space-between" }}>
         <Button onClick={onPrev}>上一步</Button>
