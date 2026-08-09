@@ -9,9 +9,11 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   menuPermissions: string[];
+  menuLoadFailed: boolean;
 }
 
 interface AuthContextValue extends AuthState {
+  menuLoadFailed: boolean;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
@@ -27,14 +29,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: false,
     isLoading: true,
     menuPermissions: [],
+    menuLoadFailed: false,
   });
 
   const loadMenuPermissions = useCallback(async () => {
     try {
       const menus = await fetchMyMenus();
-      setState((prev) => ({ ...prev, menuPermissions: menus }));
+      setState((prev) => ({ ...prev, menuPermissions: menus, menuLoadFailed: false }));
     } catch {
-      // ponytail: menu permissions fail silently, show nothing
+      // 菜单权限加载失败：降级为核心菜单（工作台/企业/预案/个人资料），并标记提示
+      setState((prev) => ({
+        ...prev,
+        menuPermissions: ["menu:dashboard", "menu:enterprises", "menu:plans", "menu:profile"],
+        menuLoadFailed: true,
+      }));
     }
   }, []);
 
@@ -58,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handler = () => {
-      setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [] });
+      setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [], menuLoadFailed: false });
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
     };
@@ -71,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("access_token", tokenResp.access_token);
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
-    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [] });
+    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoadFailed: false });
     const menus = await fetchMyMenus().catch(() => []);
     setState((prev) => ({ ...prev, menuPermissions: menus }));
   }, []);
@@ -82,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("access_token", tokenResp.access_token);
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
-    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [] });
+    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoadFailed: false });
     const menus = await fetchMyMenus().catch(() => []);
     setState((prev) => ({ ...prev, menuPermissions: menus }));
   }, []);
@@ -92,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.logout(refreshToken ?? undefined).catch(() => {});
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
-    setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [] });
+    setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [], menuLoadFailed: false });
   }, []);
 
   const updateProfile = useCallback(async (name: string) => {

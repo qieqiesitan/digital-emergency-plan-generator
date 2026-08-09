@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu, Button, Dropdown, Avatar, theme } from "antd";
+import { Layout, Menu, Button, Dropdown, Avatar, theme, Alert } from "antd";
 import {
   DashboardOutlined,
   BankOutlined,
@@ -14,10 +14,8 @@ import {
   TeamOutlined,
   SafetyCertificateOutlined,
   EditOutlined,
-  RobotOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
-import { useChatDrawer } from "@/contexts/ChatDrawerContext";
 import { EnterpriseSwitcher } from "@/components/enterprise/EnterpriseSwitcher";
 import FloatingChat from "@/components/common/FloatingChat";
 
@@ -25,7 +23,6 @@ const { Header, Sider, Content } = Layout;
 
 const MENU_MAP: Record<string, string> = {
   "/dashboard": "menu:dashboard",
-  "/chat": "menu:chat",
   "/enterprises": "menu:enterprises",
   "/plans": "menu:plans",
   "/settings/users": "menu:users",
@@ -41,8 +38,7 @@ export function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, menuPermissions } = useAuth();
-  const { setOpen } = useChatDrawer();
+  const { user, logout, menuPermissions, menuLoadFailed } = useAuth();
   const { token: themeToken } = theme.useToken();
 
   const hasMenu = (path: string) => menuPermissions.includes(MENU_MAP[path] ?? "");
@@ -52,7 +48,6 @@ export function MainLayout() {
 
   const menuItems = [
     ...(hasMenu("/dashboard") ? [{ key: "/dashboard", icon: <DashboardOutlined />, label: "工作台" }] : []),
-    { key: "/chat", icon: <RobotOutlined />, label: "AI 助手" },
     ...(hasMenu("/enterprises") ? [{ key: "/enterprises", icon: <BankOutlined />, label: "企业管理" }] : []),
     ...(hasMenu("/plans") ? [{ key: "/plans", icon: <FileTextOutlined />, label: "预案列表" }] : []),
     { type: "divider" as const },
@@ -84,7 +79,7 @@ export function MainLayout() {
       children: [
         ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
         ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <KeyOutlined />, label: "AI 配置" }] : []),
-        { key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" },
+        ...(hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" }] : []),
       ],
     },
   ];
@@ -133,13 +128,7 @@ export function MainLayout() {
           selectedKeys={[location.pathname]}
           defaultOpenKeys={defaultOpenKeys}
           items={menuItems}
-          onClick={({ key }) => {
-            if (key === "/chat") {
-              setOpen(true);
-              return;
-            }
-            navigate(key);
-          }}
+          onClick={({ key }) => navigate(key)}
           style={{ borderInlineEnd: "none" }}
         />
       </Sider>
@@ -179,6 +168,15 @@ export function MainLayout() {
             overflow: "auto",
           }}
         >
+          {menuLoadFailed && (
+            <Alert
+              type="warning"
+              showIcon
+              closable
+              message="部分菜单加载失败，已显示核心菜单"
+              style={{ marginBottom: 16 }}
+            />
+          )}
           <Outlet />
         </Content>
       </Layout>
