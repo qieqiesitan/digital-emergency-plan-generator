@@ -12,21 +12,21 @@ interface Props {
   onCreate?: (values: Record<string, unknown>) => Promise<void>;
 }
 
-const CARD_FIELDS: Array<[string, string]> = [
-  ["credit_code", "统一社会信用代码"],
-  ["legal_representative", "法定代表人"],
-  ["address", "地址"],
-  ["industry", "行业"],
-  ["business_scope", "经营范围"],
-  ["employee_count", "员工人数"],
-  ["established_date", "成立日期"],
-  ["safety_officer", "安全负责人"],
+const CARD_FIELDS: Array<{ key: keyof Enterprise | string; label: string }> = [
+  { key: "credit_code", label: "统一社会信用代码" },
+  { key: "legal_representative", label: "法定代表人" },
+  { key: "address", label: "地址" },
+  { key: "industry", label: "行业" },
+  { key: "business_scope", label: "经营范围" },
+  { key: "employee_count", label: "员工人数" },
+  { key: "established_date", label: "成立日期" },
+  { key: "safety_officer", label: "安全负责人" },
 ];
 
 function displayValue(key: string, raw: unknown): string {
   if (raw == null || raw === "") return "";
   if (key === "established_date" && !dayjs.isDayjs(raw)) {
-    return String(raw).slice(0, 10);
+    return dayjs(String(raw)).format("YYYY-MM-DD");
   }
   return String(raw);
 }
@@ -42,7 +42,9 @@ export default function EnterpriseInfoCards({
   const [autofillLoading, setAutofillLoading] = useState(false);
   const watchedValues = Form.useWatch([], form);
 
-  const fieldInit = (key: string) => (enterprise as any)?.[key] ?? undefined;
+  const enterpriseRecord = (enterprise ?? {}) as Record<string, unknown>;
+
+  const fieldInit = (key: string) => enterpriseRecord[key] ?? undefined;
 
   const handleAutofill = async () => {
     const name = form.getFieldValue("name") || enterprise?.name;
@@ -76,7 +78,9 @@ export default function EnterpriseInfoCards({
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div
+        style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "flex-start" }}
+      >
         <Form form={form} layout="vertical" style={{ flex: 1 }}>
           <Form.Item
             name="name"
@@ -84,25 +88,27 @@ export default function EnterpriseInfoCards({
             rules={[{ required: true, message: "请输入企业名称" }]}
             initialValue={enterprise?.name}
           >
-            <div style={{ display: "flex", gap: 8 }}>
-              <Input
-                placeholder="请输入企业全称"
-                readOnly={readOnly}
-                style={{
-                  flex: 1,
-                  ...(readOnly
-                    ? { background: "#f5f5f5", cursor: "not-allowed", color: "#333" }
-                    : {}),
-                }}
-              />
-              {!readOnly && (
-                <Button type="primary" loading={autofillLoading} onClick={handleAutofill}>
-                  AI 自动填充
-                </Button>
-              )}
-            </div>
+            <Input
+              placeholder="请输入企业全称"
+              readOnly={readOnly}
+              style={
+                readOnly
+                  ? { background: "#fafafa", color: "#333" }
+                  : undefined
+              }
+            />
           </Form.Item>
         </Form>
+        {!readOnly && (
+          <Button
+            type="primary"
+            loading={autofillLoading}
+            onClick={handleAutofill}
+            style={{ marginTop: 30 }}
+          >
+            AI 自动填充
+          </Button>
+        )}
       </div>
 
       <div
@@ -112,12 +118,13 @@ export default function EnterpriseInfoCards({
           gap: 8,
         }}
       >
-        {CARD_FIELDS.map(([key, label]) => {
-          const value = watchedValues?.[key] ?? (enterprise as any)?.[key];
+        {CARD_FIELDS.map(({ key, label }) => {
+          const raw = watchedValues?.[key] ?? enterpriseRecord[key];
+          const value = raw === null || raw === undefined || raw === "" ? undefined : raw;
           const text = displayValue(key, value);
           return (
             <div
-              key={key}
+              key={String(key)}
               style={{ border: "1px solid #eee", borderRadius: 8, padding: 10, fontSize: 13 }}
             >
               <div style={{ color: "#999", fontSize: 12 }}>{label}</div>
@@ -294,8 +301,14 @@ export default function EnterpriseInfoCards({
             type="primary"
             onClick={async () => {
               const values = await form.validateFields();
-              if (onCreate) await onCreate(values);
-              if (onSaved) await onSaved(values);
+              const payload: Record<string, unknown> = { ...values };
+              if (payload.established_date) {
+                payload.established_date = dayjs(
+                  payload.established_date as dayjs.Dayjs,
+                ).format("YYYY-MM-DD");
+              }
+              if (onCreate) await onCreate(payload);
+              else if (onSaved) await onSaved(payload);
               setDrawerOpen(false);
             }}
           >
