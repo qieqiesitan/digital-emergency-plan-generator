@@ -49,6 +49,10 @@ docker-compose.override.yml
 # 导出产物
 backend/exports/*.docx
 
+# 本地向量数据库（chroma 运行时数据，部署时单独生成/挂载）
+backend/app/regulations/data/chroma_db/*
+!backend/app/regulations/data/chroma_db/README.md
+
 # 二进制
 hdspace.exe
 chmod
