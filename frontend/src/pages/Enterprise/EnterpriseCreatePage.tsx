@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, message, Space } from "antd";
 import { DeleteOutlined, EnvironmentOutlined, UploadOutlined } from "@ant-design/icons";
 import axios from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createEnterprise, uploadFile } from "@/services/enterpriseService";
+import { createEnterprise, listEnterprises, uploadFile } from "@/services/enterpriseService";
 import type { EnterpriseCreate } from "@/types/enterprise";
 import { PageHeader } from "@/components/common/PageHeader";
 import EnterpriseInfoCards from "@/components/enterprise/EnterpriseInfoCards";
@@ -25,14 +25,26 @@ export default function EnterpriseCreatePage() {
   const [gisModalOpen, setGisModalOpen] = useState(false);
   const [gisPos, setGisPos] = useState<{ lat: number; lng: number } | null>(null);
   const [floorPlanUrl, setFloorPlanUrl] = useState<string | null>(null);
+  const [enterpriseCount, setEnterpriseCount] = useState<number | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+
+  // 创建前企业列表为空 = 第一个企业 → 创建成功后直接进入该企业引导（规格 6.1）
+  useEffect(() => {
+    listEnterprises({ page: 1, page_size: 1 })
+      .then(res => setEnterpriseCount(res.data.total))
+      .catch(() => setEnterpriseCount(null));
+  }, []);
 
   const mutation = useMutation({
     mutationFn: createEnterprise,
     onSuccess: (data) => {
       message.success("企业创建成功");
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
-      navigate(`/enterprises/${data.id}`);
+      if (enterpriseCount === 0) {
+        navigate(`/onboarding?enterprise_id=${data.id}`);
+      } else {
+        navigate(`/enterprises/${data.id}`);
+      }
     },
     onError: (err: unknown) => message.error(extractDetail(err) || "创建失败"),
   });

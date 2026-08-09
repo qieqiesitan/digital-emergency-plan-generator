@@ -4,8 +4,10 @@ import {
   Space, Tag, message, Divider, Modal, List, Alert,
 } from "antd";
 import { RobotOutlined } from "@ant-design/icons";
+import { useQuery } from "@tanstack/react-query";
 import { computeRiskLS, computeRiskLEC, getCellClass, ACCIDENT_TYPES, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { aiSuggestEvents } from "@/services/riskManagementService";
+import { listChemicals } from "@/services/hazardousChemicalService";
 import type { MethodType } from "@/types/riskManagement";
 
 // ─── L / S label definitions ────────────────────────────────────
@@ -72,6 +74,7 @@ interface RiskEventFormValues {
   consequences?: string;
   method_type?: string;
   method_params?: Record<string, number>;
+  chemical_id?: string | null;
 }
 
 interface Props {
@@ -112,6 +115,16 @@ export default function RiskEventForm({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResults, setAiResults] = useState<AISuggestItem[]>([]);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+
+  const { data: chemicalsData } = useQuery({
+    queryKey: ["chemicals", enterpriseId],
+    queryFn: () => listChemicals(enterpriseId, { page_size: 200 }),
+    enabled: open && !!enterpriseId,
+  });
+  const chemicalOptions = (chemicalsData?.data?.items || []).map(c => ({
+    value: c.id,
+    label: c.name,
+  }));
 
   const riskResult = useMemo(() => {
     if (methodType === "LS" || methodType === "COAL_LS") {
@@ -255,6 +268,22 @@ export default function RiskEventForm({
           <Input.TextArea
             rows={3}
             placeholder="描述该风险事件的具体情形"
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="chemical_id"
+          label="关联危化品（可空）"
+          extra="选填：关联后该事件参与危化品关联完成度，生成预案时可引用化学品属性"
+        >
+          <Select
+            allowClear
+            showSearch
+            placeholder="选择关联的危险化学品"
+            options={chemicalOptions}
+            filterOption={(input, option) =>
+              (option?.label as string)?.includes(input) ?? false
+            }
           />
         </Form.Item>
 

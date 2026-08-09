@@ -20,6 +20,7 @@ import {
 import type { ResourceInvestigationReport } from "@/types/resourceInvestigation";
 import type { SSEEvent } from "@/types/riskAssessment";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 const { Title, Paragraph } = Typography;
 
@@ -51,6 +52,7 @@ function LoadingDots() {
 
 export default function ResourceInvestigationTab({ enterpriseId }: Props) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [report, setReport] = useState<ResourceInvestigationReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -208,6 +210,10 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
       await mergeResourceInvestigation(enterpriseId, chapters);
       message.success("报告合并完成");
       await loadReport();
+      queryClient.invalidateQueries({
+        queryKey: ["enterprise", enterpriseId, "resource-investigation"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     } catch (err: any) {
       message.error(err.message || "合并失败");
       setEditing(true);

@@ -25,6 +25,7 @@ export interface TreeNodeMeta {
   id: string;
   type: "floor" | "zone" | "object" | "unit" | "event" | "measure";
   name: string;
+  chemical_id?: string | null;
   floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
   parentId?: string;
   parentType?: "zone" | "object" | "unit" | "event";
@@ -273,6 +274,7 @@ function buildTreeData(zones: HierarchyZone[], floors: EnterpriseFloor[]): DataN
           id: ev.id,
           type: "event" as const,
           name: ev.accident_type,
+          chemical_id: ev.chemical_id ?? null,
           parentId,
           parentType,
         },

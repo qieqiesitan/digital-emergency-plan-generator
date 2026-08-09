@@ -43,10 +43,15 @@ interface ZoneFormValues {
   is_risk_point?: boolean;
   unit_type?: string;
   accident_type?: string | string[];
+  chemical_id?: string | null;
   method_type?: string;
   method_params?: Record<string, number>;
   measure_category?: string;
   check_items?: CheckItem[];
+}
+
+function eventInitialValues(meta: TreeNodeMeta): Record<string, unknown> {
+  return { accident_type: meta.name, chemical_id: meta.chemical_id ?? undefined };
 }
  
 export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props) {
@@ -170,7 +175,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
             meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined, floor_id: meta.floorId ?? undefined }
             : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
             : meta.type === "unit" ? { name: meta.name }
-            : meta.type === "event" ? { accident_type: meta.name }
+            : meta.type === "event" ? eventInitialValues(meta)
             : { description: meta.name },
         });
         break;
@@ -192,7 +197,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
             meta.type === "zone" ? { name: meta.name, floor_plan_polygon: meta.floor_plan_polygon ?? undefined, floor_id: meta.floorId ?? undefined }
             : meta.type === "object" ? { name: meta.name, zone_id: meta.parentId }
             : meta.type === "unit" ? { name: meta.name }
-            : meta.type === "event" ? { accident_type: meta.name }
+            : meta.type === "event" ? eventInitialValues(meta)
             : { description: meta.name },
         });
         break;
@@ -240,7 +245,15 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           }
           break;
         case "event": {
-          const eventPayload = { accident_type: Array.isArray(values.accident_type) ? values.accident_type.join("、") : (values.accident_type || ""), description: values.description || "", method_type: (values.method_type || "LS") as MethodType, method_params: values.method_params || {} };
+          const eventPayload = {
+            accident_type: Array.isArray(values.accident_type)
+              ? values.accident_type.join("、")
+              : (values.accident_type || ""),
+            description: values.description || "",
+            method_type: (values.method_type || "LS") as MethodType,
+            method_params: values.method_params || {},
+            chemical_id: values.chemical_id ?? null,
+          };
           if (form.id) {
             await updateEvent(enterpriseId, form.id, eventPayload);
           } else {

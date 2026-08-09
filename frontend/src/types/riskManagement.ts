@@ -83,14 +83,47 @@ export interface RiskObjectCreate {
 export interface RiskUnit { id: string; object_id: string; name: string; unit_type: string | null; description: string | null; location: string | null; sort_order: number; created_at: string; event_count: number; }
 export interface RiskUnitCreate { object_id?: string; name: string; unit_type?: string; description?: string; location?: string; }
 
-export interface RiskEvent { id: string; unit_id: string | null; object_id: string | null; accident_type: string; description: string | null; trigger_conditions: string | null; consequences: string | null; method_type: MethodType; method_params: Record<string, number>; risk_level: string | null; risk_score: string | null; sort_order: number; created_at: string; measure_count: number; }
-export interface RiskEventCreate { unit_id?: string; object_id?: string; accident_type: string; description?: string; trigger_conditions?: string; consequences?: string; method_type?: MethodType; method_params?: Record<string, number>; }
+export interface RiskEvent {
+  id: string;
+  unit_id: string | null;
+  object_id: string | null;
+  chemical_id?: string | null;
+  accident_type: string;
+  description: string | null;
+  trigger_conditions: string | null;
+  consequences: string | null;
+  method_type: MethodType;
+  method_params: Record<string, number>;
+  risk_level: string | null;
+  risk_score: string | null;
+  sort_order: number;
+  created_at: string;
+  measure_count: number;
+}
+export interface RiskEventCreate {
+  unit_id?: string;
+  object_id?: string;
+  chemical_id?: string | null;
+  accident_type: string;
+  description?: string;
+  trigger_conditions?: string;
+  consequences?: string;
+  method_type?: MethodType;
+  method_params?: Record<string, number>;
+}
 
 export interface RiskMeasure { id: string; event_id: string; measure_category: MeasureCategory; measure_type: string | null; description: string; responsible_person: string | null; deadline: string | null; check_items: CheckItem[]; status: MeasureStatus; sort_order: number; created_at: string; }
 export interface RiskMeasureCreate { event_id?: string; measure_category: MeasureCategory; measure_type?: string; description: string; responsible_person?: string; deadline?: string; check_items?: CheckItem[]; }
 
 export interface HierarchyMeasure extends Pick<RiskMeasure, 'id'|'measure_category'|'measure_type'|'description'|'status'> { check_items: CheckItem[]; }
-export interface HierarchyEvent extends Pick<RiskEvent, 'id'|'accident_type'|'description'|'risk_level'|'risk_score'|'method_type'> { method_params: Record<string, number>; measures: HierarchyMeasure[]; }
+export interface HierarchyEvent
+  extends Pick<
+    RiskEvent,
+    'id'|'accident_type'|'description'|'risk_level'|'risk_score'|'method_type'|'chemical_id'
+  > {
+  method_params: Record<string, number>;
+  measures: HierarchyMeasure[];
+}
 export interface HierarchyUnit extends Pick<RiskUnit, 'id'|'name'|'unit_type'> { events: HierarchyEvent[]; }
 export interface HierarchyObject {
   id: string;
