@@ -14,6 +14,7 @@ from app.services.risk_stats_service import (
     count_enterprise_risk_events,
     count_enterprises_risk_events,
 )
+from app.services.onboarding_service import compute_completion
 
 router = APIRouter(prefix="/enterprises", tags=["Enterprises"])
 
@@ -99,7 +100,11 @@ async def list_enterprises(
     offset = (page - 1) * page_size
     rows = (await db.execute(query.order_by(Enterprise.created_at.desc()).offset(offset).limit(page_size))).scalars().all()
     event_counts = await count_enterprises_risk_events(db, [e.id for e in rows])
-    items = [_build_response(e, event_counts.get(e.id, 0)) for e in rows]
+    items = []
+    for e in rows:
+        item = _build_response(e, event_counts.get(e.id, 0))
+        item.completion = await compute_completion(e.id, db)
+        items.append(item)
     return PaginatedResponse(data=PaginatedData(items=items, total=total, page=page, page_size=page_size))
 
 @router.get("/{enterprise_id}", response_model=ApiResponse[EnterpriseResponse])

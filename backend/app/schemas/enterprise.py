@@ -92,6 +92,7 @@ class EnterpriseResponse(EnterpriseBase):
     risk_events_count: int = 0
     resources_count: int = 0
     plans_count: int = 0
+    completion: dict | None = None
     created_at: DatetimeStr
     updated_at: DatetimeStr
 
