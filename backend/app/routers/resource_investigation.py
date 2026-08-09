@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 from app.database import get_db, async_session
 from app.dependencies import get_current_user
-from app.models.enterprise import Enterprise, EmergencyResource, AIConfig
+from app.models.enterprise import Enterprise, EmergencyResource
 from app.models.resource_investigation import ResourceInvestigationReport
 from app.schemas.resource_investigation import (
     ResourceInvestigationGenerateRequest,
@@ -251,11 +251,9 @@ async def generate_resource_investigation(
         raise HTTPException(400, "ERROR")
 
     # Check AI config
-    ai_config = (
-        await db.execute(
-            select(AIConfig).where(AIConfig.user_id == current_user.id)
-        )
-    ).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
         raise HTTPException(400, "ERROR")
 

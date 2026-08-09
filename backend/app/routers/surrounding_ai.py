@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import httpx
 
 from app.database import get_db
-from app.models.enterprise import Enterprise, AIConfig
+from app.models.enterprise import Enterprise
 from app.schemas.enterprise import SurroundingInfo, NearbyUnit, SensitiveTarget
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
@@ -184,9 +184,9 @@ async def get_surrounding_ai_questions(
     await ensure_loaded()
     await ensure_loaded()
     ent_data = await _get_enterprise_data(enterprise_id, current_user.id, db)
-    ai_config = (await db.execute(
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-    )).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
         raise HTTPException(400, "请先在系统设置中配置 AI 模型")
 
@@ -268,9 +268,9 @@ async def generate_surrounding_ai(
 ):
     await ensure_loaded()
     ent_data = await _get_enterprise_data(enterprise_id, current_user.id, db)
-    ai_config = (await db.execute(
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-    )).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
         raise HTTPException(400, "请先在系统设置中配置 AI 模型")
 

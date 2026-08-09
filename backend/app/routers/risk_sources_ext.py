@@ -22,7 +22,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 from app.database import get_db
 
-from app.models.enterprise import Enterprise, RiskSource, AIConfig
+from app.models.enterprise import Enterprise, RiskSource
 
 from app.services.llm_client import llm_text_completion
 
@@ -440,11 +440,9 @@ async def get_risk_ai_questions(
 
     ent_data = await _get_enterprise_data(enterprise_id, current_user.id, db)
 
-    ai_config = (await db.execute(
+    from app.services.ai_config_service import get_system_ai_config
 
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-
-    )).scalar_one_or_none()
+    ai_config = await get_system_ai_config(db)
 
     if not ai_config:
 
@@ -614,11 +612,9 @@ async def generate_risk_sources_ai(
 
     ent_data = await _get_enterprise_data(enterprise_id, current_user.id, db)
 
-    ai_config = (await db.execute(
+    from app.services.ai_config_service import get_system_ai_config
 
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-
-    )).scalar_one_or_none()
+    ai_config = await get_system_ai_config(db)
 
     if not ai_config:
 

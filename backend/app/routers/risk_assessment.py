@@ -387,9 +387,9 @@ async def generate_risk_assessment(
     if context["total_events"] == 0:
         raise HTTPException(400, "请先录入风险分级管控数据")
 
-    ai_config = (await db.execute(
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-    )).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
         raise HTTPException(400, "请先配置 AI 模型")
 
