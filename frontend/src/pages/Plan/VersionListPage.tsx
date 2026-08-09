@@ -12,13 +12,13 @@ export default function VersionListPage() {
   const { data: versions, isLoading } = useQuery({ queryKey: ["versions", id], queryFn: () => listVersions(id!), enabled: !!id });
   const rollbackMut = useMutation({
     mutationFn: (vid: string) => rollbackVersion(id!, vid),
-    onSuccess: () => { message.success("rolled back"); queryClient.invalidateQueries({ queryKey: ["versions", id] }); queryClient.invalidateQueries({ queryKey: ["planSections", id] }); },
-    onError: () => message.error("rollback failed"),
+    onSuccess: () => { message.success("已回滚"); queryClient.invalidateQueries({ queryKey: ["versions", id] }); queryClient.invalidateQueries({ queryKey: ["planSections", id] }); },
+    onError: () => message.error("回滚失败"),
   });
 
   return (
     <div>
-      <PageHeader title="version history" onBack={() => navigate(`/plans/${id}/edit`)} />
+      <PageHeader title="版本历史" onBack={() => navigate(`/plans/${id}/edit`)} />
       <Table dataSource={versions || []} rowKey="id" loading={isLoading}
         columns={[
           { title: "version", dataIndex: "version_number", render: (v: number) => "V" + v },

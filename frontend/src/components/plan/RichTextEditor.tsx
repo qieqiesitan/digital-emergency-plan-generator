@@ -106,25 +106,25 @@ export default function RichTextEditor({
     <div style={{ border: "1px solid #d9d9d9", borderRadius: 6, overflow: "hidden", ...wrapperStyle }}>
       {!readOnly && (
         <div style={{ borderBottom: "1px solid #d9d9d9", padding: "4px 8px", background: "#fafafa", display: "flex", flexWrap: "wrap", gap: 2 }}>
-          <Tooltip title="Bold"><Button type="text" size="small" icon={<BoldOutlined />} onClick={() => editor.chain().focus().toggleBold().run()} /></Tooltip>
-          <Tooltip title="Italic"><Button type="text" size="small" icon={<ItalicOutlined />} onClick={() => editor.chain().focus().toggleItalic().run()} /></Tooltip>
-          <Tooltip title="Underline"><Button type="text" size="small" icon={<UnderlineOutlined />} onClick={() => editor.chain().focus().toggleUnderline().run()} /></Tooltip>
-          <Tooltip title="Strikethrough"><Button type="text" size="small" icon={<StrikethroughOutlined />} onClick={() => editor.chain().focus().toggleStrike().run()} /></Tooltip>
+          <Tooltip title="加粗"><Button type="text" size="small" icon={<BoldOutlined />} onClick={() => editor.chain().focus().toggleBold().run()} /></Tooltip>
+          <Tooltip title="斜体"><Button type="text" size="small" icon={<ItalicOutlined />} onClick={() => editor.chain().focus().toggleItalic().run()} /></Tooltip>
+          <Tooltip title="下划线"><Button type="text" size="small" icon={<UnderlineOutlined />} onClick={() => editor.chain().focus().toggleUnderline().run()} /></Tooltip>
+          <Tooltip title="删除线"><Button type="text" size="small" icon={<StrikethroughOutlined />} onClick={() => editor.chain().focus().toggleStrike().run()} /></Tooltip>
           <span style={{ width: 1, height: 20, background: "#d9d9d9", margin: "2px 4px", display: "inline-block" }} />
           <Tooltip title="H1"><Button type="text" size="small" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>H1</Button></Tooltip>
           <Tooltip title="H2"><Button type="text" size="small" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</Button></Tooltip>
           <Tooltip title="H3"><Button type="text" size="small" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>H3</Button></Tooltip>
           <span style={{ width: 1, height: 20, background: "#d9d9d9", margin: "2px 4px", display: "inline-block" }} />
-          <Tooltip title="Bullet List"><Button type="text" size="small" icon={<UnorderedListOutlined />} onClick={() => editor.chain().focus().toggleBulletList().run()} /></Tooltip>
-          <Tooltip title="Ordered List"><Button type="text" size="small" icon={<OrderedListOutlined />} onClick={() => editor.chain().focus().toggleOrderedList().run()} /></Tooltip>
-          <Tooltip title="Table"><Button type="text" size="small" icon={<TableOutlined />} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} /></Tooltip>
+          <Tooltip title="无序列表"><Button type="text" size="small" icon={<UnorderedListOutlined />} onClick={() => editor.chain().focus().toggleBulletList().run()} /></Tooltip>
+          <Tooltip title="有序列表"><Button type="text" size="small" icon={<OrderedListOutlined />} onClick={() => editor.chain().focus().toggleOrderedList().run()} /></Tooltip>
+          <Tooltip title="表格"><Button type="text" size="small" icon={<TableOutlined />} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} /></Tooltip>
           <span style={{ width: 1, height: 20, background: "#d9d9d9", margin: "2px 4px", display: "inline-block" }} />
-          <Tooltip title="Left"><Button type="text" size="small" icon={<AlignLeftOutlined />} onClick={() => editor.chain().focus().setTextAlign("left").run()} /></Tooltip>
-          <Tooltip title="Center"><Button type="text" size="small" icon={<AlignCenterOutlined />} onClick={() => editor.chain().focus().setTextAlign("center").run()} /></Tooltip>
-          <Tooltip title="Right"><Button type="text" size="small" icon={<AlignRightOutlined />} onClick={() => editor.chain().focus().setTextAlign("right").run()} /></Tooltip>
+          <Tooltip title="左对齐"><Button type="text" size="small" icon={<AlignLeftOutlined />} onClick={() => editor.chain().focus().setTextAlign("left").run()} /></Tooltip>
+          <Tooltip title="居中"><Button type="text" size="small" icon={<AlignCenterOutlined />} onClick={() => editor.chain().focus().setTextAlign("center").run()} /></Tooltip>
+          <Tooltip title="右对齐"><Button type="text" size="small" icon={<AlignRightOutlined />} onClick={() => editor.chain().focus().setTextAlign("right").run()} /></Tooltip>
           <span style={{ width: 1, height: 20, background: "#d9d9d9", margin: "2px 4px", display: "inline-block" }} />
-          <Tooltip title="Undo"><Button type="text" size="small" icon={<UndoOutlined />} onClick={() => editor.chain().focus().undo().run()} /></Tooltip>
-          <Tooltip title="Redo"><Button type="text" size="small" icon={<RedoOutlined />} onClick={() => editor.chain().focus().redo().run()} /></Tooltip>
+          <Tooltip title="撤销"><Button type="text" size="small" icon={<UndoOutlined />} onClick={() => editor.chain().focus().undo().run()} /></Tooltip>
+          <Tooltip title="重做"><Button type="text" size="small" icon={<RedoOutlined />} onClick={() => editor.chain().focus().redo().run()} /></Tooltip>
         </div>
       )}
 
