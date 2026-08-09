@@ -55,3 +55,7 @@ export interface AdminUserUpdateRequest {
   name?: string;
   role?: string;
 }
+
+export interface AdminResetPasswordRequest {
+  new_password: string;
+}

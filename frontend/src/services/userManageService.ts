@@ -1,5 +1,5 @@
 import api from "./api";
-import type { AdminUserListResponse, AdminUserItem, AdminUserCreateRequest, AdminUserUpdateRequest } from "@/types/role";
+import type { AdminUserListResponse, AdminUserItem, AdminUserCreateRequest, AdminUserUpdateRequest, AdminResetPasswordRequest } from "@/types/role";
 
 export function fetchUsers(params: { page?: number; page_size?: number; search?: string }): Promise<AdminUserListResponse> {
   return api.get("/admin/users", { params }).then(r => r.data.data);
@@ -19,5 +19,9 @@ export function updateUser(userId: string, data: AdminUserUpdateRequest): Promis
 
 export function deleteUser(userId: string): Promise<void> {
   return api.delete(`/admin/users/${userId}`);
+}
+
+export function resetUserPassword(userId: string, data: AdminResetPasswordRequest): Promise<AdminUserItem> {
+  return api.post(`/admin/users/${userId}/reset-password`, data).then(r => r.data.data);
 }
 

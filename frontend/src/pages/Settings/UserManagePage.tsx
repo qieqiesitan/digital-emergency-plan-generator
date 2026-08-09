@@ -8,6 +8,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  resetUserPassword,
 } from "@/services/userManageService";
 import { fetchRoles } from "@/services/roleService";
 import type { AdminUserItem } from "@/types/role";
@@ -23,6 +24,19 @@ export default function UserManagePage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [form] = Form.useForm();
+  const [resetTarget, setResetTarget] = useState<AdminUserItem | null>(null);
+  const [resetForm] = Form.useForm();
+
+  const resetMut = useMutation({
+    mutationFn: ({ id, new_password }: { id: string; new_password: string }) =>
+      resetUserPassword(id, { new_password }),
+    onSuccess: () => {
+      message.success("密码已重置");
+      setResetTarget(null);
+      resetForm.resetFields();
+    },
+    onError: () => message.error("重置失败"),
+  });
 
   const { data: listData, isLoading } = useQuery({
     queryKey: ["adminUsers", { page, pageSize, search }],
@@ -102,6 +116,7 @@ export default function UserManagePage() {
       render: (_: unknown, record: AdminUserItem) => (
         <Space>
           <Button type="link" onClick={() => handleEdit(record)}>编辑</Button>
+          <Button type="link" onClick={() => { setResetTarget(record); resetForm.resetFields(); }}>重置密码</Button>
           {record.id !== currentUser?.id && (
             <Popconfirm
               title="确定删除此用户？"
@@ -191,6 +206,31 @@ export default function UserManagePage() {
               placeholder="选择角色"
               options={roles.map(r => ({ value: r.code, label: r.name }))}
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`重置密码 · ${resetTarget?.name || ""}`}
+        open={!!resetTarget}
+        onCancel={() => setResetTarget(null)}
+        onOk={() => resetForm.validateFields().then((v: { new_password: string }) => {
+          if (!resetTarget) return;
+          resetMut.mutate({ id: resetTarget.id, new_password: v.new_password });
+        })}
+        confirmLoading={resetMut.isPending}
+        destroyOnClose
+      >
+        <Form form={resetForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="new_password"
+            label="临时密码"
+            rules={[
+              { required: true, message: "请输入临时密码" },
+              { min: 6, message: "至少 6 位" },
+            ]}
+          >
+            <Input.Password placeholder="设置后用户需用此密码登录并尽快修改" />
           </Form.Item>
         </Form>
       </Modal>
