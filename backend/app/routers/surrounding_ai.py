@@ -188,7 +188,7 @@ async def get_surrounding_ai_questions(
 
     ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     existing_summary = _build_existing_summary(ent_data["surrounding_info"])
 
@@ -272,7 +272,7 @@ async def generate_surrounding_ai(
 
     ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     existing_summary = _build_existing_summary(ent_data["surrounding_info"])
 

@@ -56,7 +56,7 @@ async def delete_ai_config(_=Depends(require_admin), db=Depends(get_db)):
     return {"code": 0, "message": "已删除"}
 
 @router.post("/ai-config/test", response_model=ApiResponse[AITestResult])
-async def test_ai_connection(data: AITestRequest):
+async def test_ai_connection(data: AITestRequest, _=Depends(require_admin)):
     try:
         from app.services.llm_client import _get_api_base
         base = _get_api_base(data.provider, data.base_url)

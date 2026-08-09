@@ -391,7 +391,7 @@ async def generate_risk_assessment(
 
     ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "请先配置 AI 模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     existing = (await db.execute(
         select(RiskAssessmentReport).where(

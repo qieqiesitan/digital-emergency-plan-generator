@@ -255,7 +255,7 @@ async def generate_resource_investigation(
 
     ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "ERROR")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     # Check for existing generating report
     existing = (

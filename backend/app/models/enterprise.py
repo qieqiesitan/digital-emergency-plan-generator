@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Optional
-from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, ForeignKey, Enum, func
+from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, ForeignKey, Enum, func, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
@@ -212,6 +212,14 @@ class PlanTemplate(Base):
 
 class AIConfig(Base):
     __tablename__ = "ai_configs"
+    __table_args__ = (
+        Index(
+            "uq_ai_configs_system",
+            "is_system",
+            unique=True,
+            postgresql_where=text("user_id IS NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     # 系统级配置 user_id 为 NULL（is_system=True）；用户级配置保留给专业模式
