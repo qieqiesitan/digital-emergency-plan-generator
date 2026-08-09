@@ -109,7 +109,24 @@ export default function StepOrg({
         module: "org",
         overview,
       });
-      setCandidates(r.data.data.items || []);
+      const ts = Date.now();
+      setCandidates(
+        ((r.data.data.items || []) as OrgCandidate[]).map((g, i) => {
+          const key = String(
+            g.group_key || g.group_name || `imp-org-${ts}-${i}`,
+          );
+          return {
+            ...g,
+            group_key: key,
+            group_name: String(g.group_name || "AI 候选组"),
+            members: Array.isArray(g.members) ? g.members : [],
+            responsibilities: g.responsibilities
+              ? String(g.responsibilities)
+              : undefined,
+            _key: String(g._key || key),
+          };
+        }),
+      );
     } catch (e) {
       message.error(errorDetail(e, "生成失败"));
     } finally {
