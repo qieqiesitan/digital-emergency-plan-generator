@@ -184,4 +184,6 @@ async def generate_org_candidates(enterprise_info: dict, db) -> list[dict]:
     )
     parsed = _parse_ai_json(raw)
     raw_groups = parsed.get("groups") or []
+    if not isinstance(raw_groups, list):
+        return []
     return [g for g in raw_groups if isinstance(g, dict)]
