@@ -55,15 +55,22 @@ export default function SectionTree({ sections, templateSections, selectedKey, o
   const treeData = buildTreeNodes(sections, templateSections, generatingKeys);
 
   return (
-    <Tree
-      treeData={treeData}
-      selectedKeys={selectedKey ? [selectedKey] : []}
-      onSelect={(keys) => {
-        if (keys.length > 0) onSelect(String(keys[0]));
-      }}
-      defaultExpandAll
-      showIcon={false}
-      style={{ background: "transparent" }}
-    />
+    <>
+      <Tree
+        treeData={treeData}
+        selectedKeys={selectedKey ? [selectedKey] : []}
+        onSelect={(keys) => {
+          if (keys.length > 0) onSelect(String(keys[0]));
+        }}
+        defaultExpandAll
+        showIcon={false}
+        style={{ background: "transparent" }}
+      />
+      <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed #eee", fontSize: 12, color: "#666", lineHeight: 1.8 }}>
+        <b>图例</b><br />
+        ✓ 已完成 · ! 必填未完成 · ⏳ 生成中 · 🤖 可 AI 生成
+        <div style={{ color: "#999", fontSize: 11 }}>必填章节为空时导出会被拦截</div>
+      </div>
+    </>
   );
 }
