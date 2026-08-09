@@ -42,7 +42,8 @@ async def compute_completion(enterprise_id: str, db: AsyncSession) -> dict:
         .where(RiskObject.enterprise_id == enterprise_id)
     )).scalars().all()
     chemicals = (await db.execute(select(HazardousChemical).where(HazardousChemical.enterprise_id == enterprise_id))).scalars().all()
-    done["risk_chemical"] = bool(events) or bool(chemicals)
+    linked = any(e.chemical_id for e in events)
+    done["risk_chemical"] = bool(events) or (bool(chemicals) and linked)
 
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == enterprise_id))).scalars().all()
     done["resources"] = bool(resources)
@@ -73,6 +74,7 @@ async def compute_completion(enterprise_id: str, db: AsyncSession) -> dict:
 def _org_done(org_structure: list | None) -> bool:
     for group in org_structure or []:
         for member in group.get("members", []):
-            if member.get("name"):
+            role = str(member.get("role", "") or "")
+            if member.get("name") and ("总指挥" in role or role == "chief" or role == "commander"):
                 return True
     return False

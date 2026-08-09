@@ -53,3 +53,31 @@ def test_completion_empty_enterprise():
     )
     result = asyncio.run(compute_completion("e1", db))
     assert result["percent"] == 0
+
+
+def test_org_requires_commander_name():
+    db = AsyncMock()
+    ent = MagicMock()
+    ent.name = "甲公司"; ent.address = "地址"; ent.industry = "化工"
+    ent.org_structure = [{"group_key": "rescue", "group_name": "抢险救援组",
+                          "members": [{"name": "李四", "role": "组长"}]}]
+    ent.surrounding_info = {"nearby_units": [], "sensitive_targets": []}
+    ent.risk_method_config = None
+
+    def fake_execute(stmt):
+        res = Mock()
+        text = str(stmt)
+        if "enterprises" in text:
+            res.scalar_one_or_none.return_value = ent
+        elif "hazardous_chemicals" in text:
+            res.scalars.return_value.all.return_value = [MagicMock(id="c1")]
+        else:
+            res.scalars.return_value.all.return_value = []
+        return res
+
+    db.execute.side_effect = fake_execute
+    result = asyncio.run(compute_completion("e1", db))
+    org = next(m for m in result["modules"] if m["key"] == "org_structure")
+    assert not org["done"]
+    risk = next(m for m in result["modules"] if m["key"] == "risk_chemical")
+    assert not risk["done"]
