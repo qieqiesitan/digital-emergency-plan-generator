@@ -1,7 +1,7 @@
 import React from "react";
 import { X } from "lucide-react";
 
-type ChipVariant = "default" | "selected";
+type ChipVariant = "default" | "selected" | "warning";
 
 interface ChipProps {
   variant?: ChipVariant;
@@ -17,6 +17,7 @@ interface ChipProps {
 const variantClasses: Record<ChipVariant, string> = {
   default: "bg-neutral-100 text-neutral-600",
   selected: "bg-primary-50 text-primary-600 border border-primary-500",
+  warning: "bg-amber-100 text-amber-800",
 };
 
 export default function Chip({

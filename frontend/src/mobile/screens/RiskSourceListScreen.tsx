@@ -69,6 +69,7 @@ export default function RiskSourceListScreen() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["risk-sources", enterpriseId] });
+      queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
       showToast?.("风险源已添加", "success");
       setAddOpen(false);
       setNewName("");
@@ -82,6 +83,7 @@ export default function RiskSourceListScreen() {
     mutationFn: (rid: string) => deleteRiskSource(enterpriseId!, rid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["risk-sources", enterpriseId] });
+      queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
       showToast?.("已删除", "success");
     },
     onError: () => showToast?.("删除失败", "danger"),

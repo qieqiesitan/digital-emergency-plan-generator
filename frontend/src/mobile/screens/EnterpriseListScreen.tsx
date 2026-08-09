@@ -28,8 +28,9 @@ export default function EnterpriseListScreen() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteEnterprise,
-    onSuccess: () => {
+    onSuccess: (_data, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
+      queryClient.invalidateQueries({ queryKey: ["completion", deletedId] });
       showToast?.("企业已删除", "success");
     },
     onError: () => showToast?.("删除失败", "danger"),

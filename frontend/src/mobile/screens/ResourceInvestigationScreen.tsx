@@ -88,6 +88,7 @@ export default function ResourceInvestigationScreen() {
           setProgressPct(100);
           setProgressMessage("生成完成");
           queryClient.invalidateQueries({ queryKey: ["resource-investigation", enterpriseId] });
+          queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
         } else if (event.type === "section_done") {
           const chunk = event.content ?? "";
           if (chunk) {
@@ -106,6 +107,7 @@ export default function ResourceInvestigationScreen() {
           setProgressPct(100);
           setProgressMessage("生成完成");
           queryClient.invalidateQueries({ queryKey: ["resource-investigation", enterpriseId] });
+          queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
         } else if (event.type === "error") {
           showToast?.({ type: "error", message: event.message ?? "生成失败" });
           setGenStatus("idle");
@@ -120,6 +122,7 @@ export default function ResourceInvestigationScreen() {
         setProgressPct(100);
         setProgressMessage("生成完成");
         queryClient.invalidateQueries({ queryKey: ["resource-investigation", enterpriseId] });
+        queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
       }
     );
     abortRef.current = controller;

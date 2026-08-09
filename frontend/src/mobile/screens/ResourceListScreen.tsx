@@ -56,6 +56,7 @@ export default function ResourceListScreen() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resources", enterpriseId] });
+      queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
       showToast?.("资源已添加", "success");
       setAddOpen(false);
       setNewName("");
@@ -70,6 +71,7 @@ export default function ResourceListScreen() {
     mutationFn: (rid: string) => deleteResource(enterpriseId!, rid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resources", enterpriseId] });
+      queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
       showToast?.("已删除", "success");
     },
     onError: () => showToast?.("删除失败", "danger"),

@@ -25,6 +25,7 @@ export default function EnterpriseCreateScreen() {
       }),
     onSuccess: (newEnt) => {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
+      queryClient.invalidateQueries({ queryKey: ["completion", newEnt.id] });
       showToast?.("企业创建成功", "success");
       navigate(`/m/enterprises/${newEnt.id}`);
     },

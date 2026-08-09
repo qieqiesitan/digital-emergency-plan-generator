@@ -34,6 +34,7 @@ export default function EnterpriseEditScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
       queryClient.invalidateQueries({ queryKey: ["enterprise", id] });
+      queryClient.invalidateQueries({ queryKey: ["completion", id] });
       showToast?.("企业信息已更新", "success");
       navigate(`/m/enterprises/${id}`);
     },
@@ -44,6 +45,7 @@ export default function EnterpriseEditScreen() {
     mutationFn: () => deleteEnterprise(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
+      queryClient.invalidateQueries({ queryKey: ["completion", id] });
       showToast?.("企业已删除", "success");
       navigate("/m/enterprises");
     },

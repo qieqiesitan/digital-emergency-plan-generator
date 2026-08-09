@@ -3,32 +3,28 @@ import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Building2, ChevronDown, ChevronRight, FileText,
-  Target, Factory, Plus, Check,
+  ChevronDown, ChevronRight, FileText,
+  Target, Factory, Check,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import Card from "@/mobile/components/ui/Card";
 import Badge from "@/mobile/components/ui/Badge";
-import Spinner from "@/mobile/components/ui/Spinner";
+import Button from "@/mobile/components/ui/Button";
+import Chip from "@/mobile/components/ui/Chip";
+import ProgressBar from "@/mobile/components/ui/ProgressBar";
 import Skeleton from "@/mobile/components/ui/Skeleton";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import FAB from "@/mobile/components/ui/FAB";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 import { useAppStore } from "@/mobile/store/appStore";
 import { getDashboard } from "@/services/dashboardService";
 import { listEnterprises } from "@/services/enterpriseService";
 import { getEnterpriseCompletion } from "@/services/onboardingService";
 import { getEnterprisePlanSummary } from "@/services/planService";
 import { fromNow } from "@/utils/formatters";
-
-const PLAN_TYPE_ICONS: Record<string, React.ReactNode> = {
-  comprehensive: <FileText size={20} />,
-  special: <Target size={20} />,
-  onsite: <Factory size={20} />,
-};
 
 const PLAN_TYPE_LABELS: Record<string, string> = {
   comprehensive: "综合",
@@ -199,57 +195,62 @@ export default function DashboardScreen() {
       <NavBar title="工作台" largeTitle />
 
       {/* 企业数据完成度卡片 */}
-      {completionQuery.data && (
-        <div
-          className="mx-md mt-md mb-md"
-          style={{ border: "1px solid #1677ff", borderRadius: 10, padding: 12, background: "#f0f7ff" }}
-        >
-          <p className="text-body font-semibold">
-            企业数据完成度 {completionQuery.data.percent}%
-          </p>
-          <div
-            style={{
-              height: 6,
-              background: "#d9d9d9",
-              borderRadius: 3,
-              overflow: "hidden",
-              marginBottom: 8,
-              marginTop: 8,
-            }}
-          >
-            <div
-              style={{
-                width: `${completionQuery.data.percent}%`,
-                height: "100%",
-                background: "#1677ff",
-              }}
-            />
+      {/* 加载中：查询 key 含企业 id，切换企业时旧企业数据不会复用，直接显示骨架屏 */}
+      {!completionQuery.isError && completionQuery.isLoading && (
+        <Card className="mx-md mt-md mb-md bg-primary-50 border border-primary-600">
+          <div className="flex items-center justify-between">
+            <Skeleton variant="text" className="h-4 w-36" />
+            <Skeleton variant="text" className="h-4 w-12" />
           </div>
+          <Skeleton variant="text" className="h-1.5 mt-sm" />
+          <div className="flex gap-xs mt-sm">
+            <Skeleton variant="text" className="h-6 w-16 rounded-full" />
+            <Skeleton variant="text" className="h-6 w-16 rounded-full" />
+          </div>
+        </Card>
+      )}
+
+      {completionQuery.isError && !completionQuery.data && (
+        <Card className="mx-md mt-md mb-md bg-primary-50 border border-primary-600">
+          <div className="flex items-center justify-between">
+            <p className="text-body font-semibold text-neutral-900">企业数据完成度</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={completionQuery.isFetching}
+              onClick={() => completionQuery.refetch()}
+            >
+              重试
+            </Button>
+          </div>
+          <p className="text-caption text-danger mt-xs">完成度加载失败，请检查网络后重试</p>
+        </Card>
+      )}
+
+      {completionQuery.data && (
+        <Card className="mx-md mt-md mb-md bg-primary-50 border border-primary-600">
+          <div className="flex items-center justify-between mb-xs">
+            <p className="text-body font-semibold text-neutral-900">企业数据完成度</p>
+            <span className="text-h3 font-bold text-primary-600">
+              {completionQuery.data.percent}%
+            </span>
+          </div>
+          <ProgressBar percent={completionQuery.data.percent} />
           {undoneModules.length > 0 && (
-            <div className="flex flex-wrap gap-xs mb-sm">
+            <div className="flex flex-wrap gap-xs mt-sm">
               {undoneModules.map((m) => (
-                <span
-                  key={m.key}
-                  style={{
-                    fontSize: 11,
-                    background: "#fff7e6",
-                    border: "1px solid #ffe7ba",
-                    borderRadius: 4,
-                    padding: "1px 6px",
-                  }}
-                >
+                <Chip key={m.key} variant="warning">
                   {m.label}
-                </span>
+                </Chip>
               ))}
             </div>
           )}
-          <button
-            className="bg-primary-500 text-white rounded-md px-sm py-xs text-body-sm"
-            onClick={handleCompletionAction}
-          >
-            {undoneModules.length === 0 ? "去生成预案" : "去补数据"}
-          </button>
-        </div>
+          <div className="mt-sm">
+            <Button size="sm" onClick={handleCompletionAction}>
+              {undoneModules.length === 0 ? "去生成预案" : "去补数据"}
+            </Button>
+          </div>
+        </Card>
       )}
 
       <div className="px-md space-y-md">
