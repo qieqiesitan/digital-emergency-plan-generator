@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { ConfirmDeleteModal } from "@/components/common/ConfirmDeleteModal";
 import { formatDate } from "@/utils/formatters";
 import { PRESET_INDUSTRIES } from "@/utils/constants";
+import type { Enterprise } from "@/types/enterprise";
 
 export default function EnterpriseListPage() {
   const navigate = useNavigate();
@@ -44,6 +45,23 @@ export default function EnterpriseListPage() {
     { title: "员工数", dataIndex: "employee_count", render: (v: number | null) => v ?? "-" },
     { title: "风险事件数", dataIndex: "risk_events_count" },
     { title: "预案数", dataIndex: "plans_count" },
+    {
+      title: "数据完成度",
+      key: "completion",
+      width: 140,
+      render: (_: unknown, record: Enterprise) => {
+        const pct = record.completion?.percent ?? 0;
+        const color = pct >= 80 ? "#52c41a" : pct >= 40 ? "#1677ff" : "#fa8c16";
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ flex: 1, height: 6, background: "#eee", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: color }} />
+            </div>
+            <span style={{ color: "#666", whiteSpace: "nowrap" }}>{pct}%</span>
+          </div>
+        );
+      },
+    },
     { title: "更新时间", dataIndex: "updated_at", render: formatDate },
     {
       title: "操作",

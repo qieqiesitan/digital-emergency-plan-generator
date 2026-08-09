@@ -54,6 +54,8 @@ export interface Enterprise {
   risk_events_count: number;
   resources_count: number;
   plans_count: number;
+  // 数据完成度（列表接口由后端 compute_completion 计算返回，详情接口不含）
+  completion?: { percent: number; modules: unknown[] } | null;
   created_at: string;
   updated_at: string;
   // extended fields from backend

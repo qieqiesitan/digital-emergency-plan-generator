@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Tabs, Card, Descriptions, Button, Spin, Table, Collapse, Image, Badge } from "antd";
+import { Tabs, Button, Spin, Table, Collapse, Image, Badge, Descriptions } from "antd";
+import type { TabsProps } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEnterprise } from "@/services/enterpriseService";
+import { getRiskAssessment } from "@/services/riskAssessmentService";
+import { getResourceInvestigation } from "@/services/resourceInvestigationService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import { PageHeader } from "@/components/common/PageHeader";
-import { formatDate } from "@/utils/formatters";
+import EnterpriseInfoCards from "@/components/enterprise/EnterpriseInfoCards";
 import OrgStructureEditor from "@/components/enterprise/OrgStructureEditor";
 import EmergencyResourceForm from "@/components/enterprise/EmergencyResourceForm";
 import SurroundingInfoPanel from "@/components/enterprise/SurroundingInfoPanel";
@@ -14,9 +17,34 @@ import RiskAssessmentTab from "@/pages/Enterprise/RiskAssessmentTab";
 import ResourceInvestigationTab from "@/pages/Enterprise/ResourceInvestigationTab";
 import HazardousChemicalsTab from "@/pages/Enterprise/HazardousChemicalsTab";
 import RiskManagementTab from "./RiskManagementTab";
-import type { OrgGroup, SurroundingInfo } from "@/types/enterprise";
+import type { OrgGroup, OrgMember, SurroundingInfo } from "@/types/enterprise";
 
 const ROLE_LABELS: Record<string, string> = { chief: "总指挥", deputy: "副总指挥", leader: "组长", member: "成员" };
+
+type ReportStatus = "none" | "draft" | "generating" | "completed";
+
+const REPORT_BADGES: Record<ReportStatus, { text: string; color: string }> = {
+  none: { text: "未生成", color: "orange" },
+  draft: { text: "待合并", color: "orange" },
+  generating: { text: "生成中", color: "blue" },
+  completed: { text: "已完成", color: "green" },
+};
+
+function reportBadge(label: string, status: ReportStatus) {
+  const { text, color } = REPORT_BADGES[status];
+  return (
+    <span style={{ whiteSpace: "nowrap" }}>
+      {label} <Badge color={color} text={text} />
+    </span>
+  );
+}
+
+type OrgMemberRow = OrgMember & { _key?: string };
+
+function memberRowKey(r: OrgMemberRow): string {
+  if (!r._key) r._key = crypto.randomUUID?.() || `k-${Math.random()}`;
+  return r._key;
+}
 
 export default function EnterpriseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,6 +66,22 @@ export default function EnterpriseDetailPage() {
     enabled: !!id,
   });
 
+  const { isError: raIsError, data: raReport } = useQuery({
+    queryKey: ["enterprise", id, "risk-assessment"],
+    queryFn: () => getRiskAssessment(id!),
+    enabled: !!id,
+    retry: false,
+  });
+  const { isError: riIsError, data: riReport } = useQuery({
+    queryKey: ["enterprise", id, "resource-investigation"],
+    queryFn: () => getResourceInvestigation(id!),
+    enabled: !!id,
+    retry: false,
+  });
+
+  const raStatus: ReportStatus = raIsError ? "none" : (raReport?.status ?? "none");
+  const riStatus: ReportStatus = riIsError ? "none" : (riReport?.status ?? "none");
+
   if (isLoading) return <Spin size="large" />;
   if (!enterprise) return <div>企业不存在</div>;
 
@@ -51,52 +95,41 @@ export default function EnterpriseDetailPage() {
     traffic_info: "",
   };
 
-  const tabItems = [
+  // antd 6.4 的 Tabs items 不支持 type: "group"，用「禁用 tab + 分组标题样式 + 虚线分隔」等价呈现分组
+  const groupItem = (label: string) => ({
+    key: `group-${label}`,
+    disabled: true,
+    label: (
+      <span
+        style={{
+          display: "inline-block",
+          color: "#999",
+          fontSize: 12,
+          fontWeight: 600,
+          letterSpacing: 1,
+          borderTop: "1px dashed #e5e5e5",
+          paddingTop: 6,
+          marginTop: 6,
+        }}
+      >
+        {label}
+      </span>
+    ),
+  });
+
+  const tabItems: TabsProps["items"] = [
+    groupItem("数据录入"),
     {
       key: "info",
       label: "基本信息",
       children: (
-        <Card extra={<Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${id}/edit`)}>编辑</Button>}>
-          <Descriptions column={2} bordered size="small" title="法定基本资料">
-            <Descriptions.Item label="企业名称">{enterprise.name}</Descriptions.Item>
-            <Descriptions.Item label="统一社会信用代码">{enterprise.credit_code || "-"}</Descriptions.Item>
-            <Descriptions.Item label="法定代表人">{enterprise.legal_representative || "-"}</Descriptions.Item>
-            <Descriptions.Item label="经济类型">{enterprise.economic_type || "-"}</Descriptions.Item>
-            <Descriptions.Item label="成立日期">{enterprise.established_date || "-"}</Descriptions.Item>
-            <Descriptions.Item label="注册资本（万元）">{enterprise.registered_capital ?? "-"}</Descriptions.Item>
-            <Descriptions.Item label="经营范围" span={2}>{enterprise.business_scope || "-"}</Descriptions.Item>
-          </Descriptions>
-
-          <Descriptions column={2} bordered size="small" title="联系与场地信息" style={{ marginTop: 16 }}>
-            <Descriptions.Item label="地址">{enterprise.address || "-"}</Descriptions.Item>
-            <Descriptions.Item label="行业">{enterprise.industry || "-"}</Descriptions.Item>
-            <Descriptions.Item label="联系电话">{enterprise.phone || "-"}</Descriptions.Item>
-            <Descriptions.Item label="传真">{enterprise.fax || "-"}</Descriptions.Item>
-            <Descriptions.Item label="邮政编码">{enterprise.postal_code || "-"}</Descriptions.Item>
-            <Descriptions.Item label="员工人数">{enterprise.employee_count ?? "-"}</Descriptions.Item>
-            <Descriptions.Item label="占地面积（㎡）">{enterprise.land_area ?? "-"}</Descriptions.Item>
-            <Descriptions.Item label="建筑面积（㎡）">{enterprise.building_area ?? "-"}</Descriptions.Item>
-            <Descriptions.Item label="建筑/厂区概况" span={2}>{enterprise.building_overview || "-"}</Descriptions.Item>
-          </Descriptions>
-
-          <Descriptions column={2} bordered size="small" title="安全管理与合规" style={{ marginTop: 16 }}>
-            <Descriptions.Item label="安全负责人">{enterprise.safety_officer || "-"}</Descriptions.Item>
-            <Descriptions.Item label="安全负责人电话">{enterprise.safety_officer_phone || "-"}</Descriptions.Item>
-            <Descriptions.Item label="安全管理人员数">{enterprise.safety_staff_count ?? "-"}</Descriptions.Item>
-            <Descriptions.Item label="安全标准化等级">{enterprise.safety_standardization || "-"}</Descriptions.Item>
-            <Descriptions.Item label="消防验收">{enterprise.fire_approval || "-"}</Descriptions.Item>
-            <Descriptions.Item label="消防验收日期">{enterprise.fire_approval_date || "-"}</Descriptions.Item>
-            <Descriptions.Item label="上次备案日期">{enterprise.last_plan_filing_date || "-"}</Descriptions.Item>
-            <Descriptions.Item label="上次备案部门">{enterprise.last_plan_filing_authority || "-"}</Descriptions.Item>
-          </Descriptions>
-
-          <Descriptions column={2} bordered size="small" title="生产与物料信息" style={{ marginTop: 16 }}>
-            <Descriptions.Item label="主要产品" span={2}>{enterprise.main_products || "-"}</Descriptions.Item>
-            <Descriptions.Item label="年生产能力" span={2}>{enterprise.annual_capacity || "-"}</Descriptions.Item>
-            <Descriptions.Item label="危险化学品" span={2}>{enterprise.hazardous_chemicals || "-"}</Descriptions.Item>
-            <Descriptions.Item label="特种设备" span={2}>{enterprise.special_equipment || "-"}</Descriptions.Item>
-          </Descriptions>
-
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${id}/edit`)}>
+              编辑
+            </Button>
+          </div>
+          <EnterpriseInfoCards enterprise={enterprise} readOnly />
           {enterprise.gis_lat != null && enterprise.gis_lng != null && (
             <Descriptions column={2} bordered size="small" title="GIS 定位" style={{ marginTop: 16 }}>
               <Descriptions.Item label="GIS 坐标" span={2}>
@@ -104,17 +137,13 @@ export default function EnterpriseDetailPage() {
               </Descriptions.Item>
             </Descriptions>
           )}
-          <Descriptions column={2} bordered size="small" title="系统信息" style={{ marginTop: 16 }}>
-            <Descriptions.Item label="创建时间">{formatDate(enterprise.created_at)}</Descriptions.Item>
-            <Descriptions.Item label="更新时间">{formatDate(enterprise.updated_at)}</Descriptions.Item>
-          </Descriptions>
           {enterprise.floor_plan_url && (
             <div style={{ marginTop: 16 }}>
               <div style={{ fontWeight: 500, marginBottom: 8 }}>厂区平面图</div>
               <Image src={enterprise.floor_plan_url} width={400} />
             </div>
           )}
-        </Card>
+        </>
       ),
     },
     {
@@ -137,7 +166,7 @@ export default function EnterpriseDetailPage() {
             children: (
               <Table
                 dataSource={g.members}
-                rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
+                rowKey={memberRowKey}
                 pagination={false}
                 columns={[
                   { title: "角色", dataIndex: "role", render: (v: string) => ROLE_LABELS[v] || v },
@@ -177,16 +206,6 @@ export default function EnterpriseDetailPage() {
       ),
     },
     {
-      key: "risk-assessment",
-      label: "风险评估",
-      children: <RiskAssessmentTab enterpriseId={id!} />,
-    },
-    {
-      key: "resource-investigation",
-      label: "应急资源调查",
-      children: <ResourceInvestigationTab enterpriseId={id!} />,
-    },
-    {
       key: "chemicals",
       label: "危险化学品",
       children: <HazardousChemicalsTab enterpriseId={id!} />,
@@ -196,17 +215,29 @@ export default function EnterpriseDetailPage() {
       label: "风险分级管控",
       children: <RiskManagementTab enterpriseId={id!} floorPlanUrl={floorPlanUrl} />,
     },
+    groupItem("报告生成"),
+    {
+      key: "risk-assessment",
+      label: reportBadge("风险评估", raStatus),
+      children: <RiskAssessmentTab enterpriseId={id!} />,
+    },
+    {
+      key: "resource-investigation",
+      label: reportBadge("应急资源调查", riStatus),
+      children: <ResourceInvestigationTab enterpriseId={id!} />,
+    },
   ];
+
+  const requestedTab = searchParams.get("tab");
 
   return (
     <div>
       <PageHeader title={enterprise.name} onBack={() => navigate("/enterprises")} />
       <Tabs
         items={tabItems}
-        activeKey={tabItems.some(t => t.key === searchParams.get("tab")) ? searchParams.get("tab")! : "info"}
+        activeKey={tabItems.some(t => t.key === requestedTab && !t.disabled) ? requestedTab! : "info"}
         onChange={key => setSearchParams({ tab: key }, { replace: true })}
       />
     </div>
   );
 }
-
