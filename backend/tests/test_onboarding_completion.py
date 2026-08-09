@@ -81,3 +81,29 @@ def test_org_requires_commander_name():
     assert not org["done"]
     risk = next(m for m in result["modules"] if m["key"] == "risk_chemical")
     assert not risk["done"]
+
+
+def test_unit_level_event_counts_for_risk_chemical():
+    db = AsyncMock()
+    ent = MagicMock()
+    ent.name = "甲公司"; ent.address = "地址"; ent.industry = "化工"
+    ent.org_structure = [{"group_key": "cmd", "group_name": "指挥部",
+                          "members": [{"name": "张三", "role": "chief"}]}]
+    ent.surrounding_info = {"nearby_units": [], "sensitive_targets": []}
+
+    def fake_execute(stmt):
+        res = Mock()
+        text = str(stmt)
+        if "enterprises" in text:
+            res.scalar_one_or_none.return_value = ent
+        elif "risk_units" in text:
+            # 仅 unit 级事件存在，object 级事件为空
+            res.scalars.return_value.all.return_value = [MagicMock(id="e1", chemical_id=None)]
+        else:
+            res.scalars.return_value.all.return_value = []
+        return res
+
+    db.execute.side_effect = fake_execute
+    result = asyncio.run(compute_completion("e1", db))
+    risk = next(m for m in result["modules"] if m["key"] == "risk_chemical")
+    assert risk["done"]

@@ -2,7 +2,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enterprise import Enterprise, EmergencyResource
-from app.models.risk_management import RiskEvent, RiskObject
+from app.models.risk_management import RiskEvent, RiskObject, RiskUnit
 from app.models.hazardous_chemicals import HazardousChemical
 from app.models.risk_assessment import RiskAssessmentReport
 from app.models.resource_investigation import ResourceInvestigationReport
@@ -36,11 +36,18 @@ async def compute_completion(enterprise_id: str, db: AsyncSession) -> dict:
     done["enterprise_info"] = bool(ent.name and ent.address and ent.industry)
     done["org_structure"] = _org_done(ent.org_structure)
 
-    # RiskEvent 无 enterprise_id 列，经 RiskObject 归属企业
-    events = (await db.execute(
+    # RiskEvent 无 enterprise_id 列，经 RiskObject 归属企业（object 级 + unit 级）
+    object_events = (await db.execute(
         select(RiskEvent).join(RiskObject, RiskEvent.object_id == RiskObject.id)
         .where(RiskObject.enterprise_id == enterprise_id)
     )).scalars().all()
+    unit_events = (await db.execute(
+        select(RiskEvent).join(RiskUnit, RiskEvent.unit_id == RiskUnit.id)
+        .join(RiskObject, RiskUnit.object_id == RiskObject.id)
+        .where(RiskObject.enterprise_id == enterprise_id)
+    )).scalars().all()
+    # 事件要么挂 object 要么挂 unit，dict 去重防重复计数
+    events = list(dict.fromkeys([*object_events, *unit_events]))
     chemicals = (await db.execute(select(HazardousChemical).where(HazardousChemical.enterprise_id == enterprise_id))).scalars().all()
     linked = any(e.chemical_id for e in events)
     done["risk_chemical"] = bool(events) or (bool(chemicals) and linked)
