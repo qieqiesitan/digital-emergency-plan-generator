@@ -37,6 +37,14 @@ function toOrgCandidates(raws: CandidateItem[], fallbackSource: string): Candida
   });
 }
 
+function normalizeMembers(members: OrgMember[] | undefined): OrgMember[] {
+  return (members || []).map(m => ({
+    ...m,
+    name: m.name || "",
+    phone: m.phone || "",
+  }));
+}
+
 export default function StepOrg({
   enterpriseId,
   onDone,
@@ -65,6 +73,19 @@ export default function StepOrg({
     () => [...candidates, ...importedGroups],
     [candidates, importedGroups],
   );
+  // 候选组成员的本地可编辑副本（姓名/电话），按 group_key 维护；采纳时随组保存
+  const [memberEdits, setMemberEdits] = useState<Record<string, OrgMember[]>>({});
+
+  const getEditedMembers = (g: OrgCandidate): OrgMember[] =>
+    memberEdits[g.group_key] ?? normalizeMembers(g.members);
+
+  const updateMember = (g: OrgCandidate, index: number, patch: Partial<OrgMember>) => {
+    setMemberEdits(prev => {
+      const current = prev[g.group_key] ?? normalizeMembers(g.members);
+      const next = current.map((m, i) => (i === index ? { ...m, ...patch } : m));
+      return { ...prev, [g.group_key]: next };
+    });
+  };
 
   const handleImported = (results: ImportResult[]) => {
     const result = results[0];
@@ -102,18 +123,59 @@ export default function StepOrg({
     onError: () => message.error("保存失败，请重试"),
   });
 
+  const adoptGroup = async (g: OrgCandidate, members: OrgMember[]) => {
+    if (isLoading || saveMut.isPending) return;
+    const key = g.group_key || g.group_name || `g-${accepted.length}`;
+    const merged = [...accepted];
+    const idx = merged.findIndex(x => x.group_key === key || x.group_name === key);
+    if (idx >= 0) merged[idx] = { ...g, group_key: key, members };
+    else merged.push({ ...g, group_key: key, members });
+    try {
+      await saveMut.mutateAsync(merged);
+      if (importedGroups.some(x => x._key === g._key)) onRemoveImported?.("org", g._key);
+      else setCandidates(prev => prev.filter(x => x._key !== g._key));
+      setMemberEdits(prev => {
+        const next = { ...prev };
+        delete next[g.group_key];
+        return next;
+      });
+    } catch {
+      // onError 已提示
+    }
+  };
+
   const adoptAll = async () => {
-    if (isLoading) return;
+    if (isLoading || saveMut.isPending) return;
     const merged = [...accepted];
     allCandidates.forEach(g => {
       const key = g.group_key || g.group_name || `g-${merged.length}`;
-      if (!merged.some(x => x.group_key === key || x.group_name === key))
-        merged.push({ ...g, group_key: key });
+      const members = getEditedMembers(g);
+      const idx = merged.findIndex(x => x.group_key === key || x.group_name === key);
+      if (idx >= 0) merged[idx] = { ...merged[idx], members };
+      else merged.push({ ...g, group_key: key, members });
     });
     try {
       await saveMut.mutateAsync(merged);
       setCandidates([]);
-      importedGroups.forEach(g => onRemoveImported?.("org", g._key));
+      allCandidates.forEach(g => onRemoveImported?.("org", g._key));
+      setMemberEdits({});
+    } catch {
+      // onError 已提示
+    }
+  };
+
+  // 组织架构取消采纳：清空已保存结构并移回候选区，可重新编辑再采纳
+  const unacceptAll = async () => {
+    const groups = accepted;
+    if (groups.length === 0 || isLoading || saveMut.isPending) return;
+    try {
+      await saveMut.mutateAsync([]);
+      const backToCandidates: OrgCandidate[] = groups.map(g => ({
+        ...g,
+        _key: g.group_key || `g-${Date.now()}`,
+      }));
+      setCandidates(prev => [...prev, ...backToCandidates]);
+      message.success(`已全部取消采纳：${groups.length} 组`);
     } catch {
       // onError 已提示
     }
@@ -150,30 +212,44 @@ export default function StepOrg({
           AI 生成候选
         </Button>
       </div>
-      {allCandidates.length > 0 && (
-        <>
-          {allCandidates.map(g => (
+      {accepted.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#52c41a" }}>
+              ✓ 已采纳（{accepted.length} 组，已保存，AI 不会改动）
+            </div>
+            <Button
+              size="small"
+              loading={saveMut.isPending}
+              disabled={isLoading}
+              onClick={unacceptAll}
+            >
+              全部取消采纳
+            </Button>
+          </div>
+          {accepted.map(g => (
             <div
-              key={g.group_key}
+              key={g.group_key || g.group_name}
               style={{
-                border: "1px solid #1677ff",
+                border: "1px solid #d9f7be",
+                background: "#f6ffed",
                 borderRadius: 8,
                 padding: 10,
                 marginBottom: 8,
-                background: "#f0f7ff",
               }}
             >
               <b>{g.group_name}</b>
-              {g.source && (
-                <div style={{ color: "#999", fontSize: 11 }}>来源：{g.source}</div>
-              )}
-              <div style={{ color: "#666", fontSize: 12, margin: "4px 0" }}>
-                {g.responsibilities}
-              </div>
               <Table
                 size="small"
                 pagination={false}
-                rowKey={(_, i) => `m-${i}`}
+                rowKey={(_, i) => `a-${i}`}
                 dataSource={g.members || []}
                 columns={[
                   { title: "角色", dataIndex: "role" },
@@ -183,11 +259,7 @@ export default function StepOrg({
                     render: (v: string) =>
                       v || <span style={{ color: "#fa8c16" }}>待填</span>,
                   },
-                  {
-                    title: "公司职位",
-                    dataIndex: "position",
-                    render: (v: string) => v || "-",
-                  },
+                  { title: "公司职位", dataIndex: "position", render: (v: string) => v || "-" },
                   {
                     title: "电话",
                     dataIndex: "phone",
@@ -198,13 +270,90 @@ export default function StepOrg({
               />
             </div>
           ))}
+        </div>
+      )}
+      {allCandidates.length > 0 && (
+        <>
+          {allCandidates.map(g => {
+            const members = getEditedMembers(g);
+            return (
+              <div
+                key={g.group_key}
+                style={{
+                  border: "1px solid #1677ff",
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 8,
+                  background: "#f0f7ff",
+                }}
+              >
+                <b>{g.group_name}</b>
+                {g.source && (
+                  <div style={{ color: "#999", fontSize: 11 }}>来源：{g.source}</div>
+                )}
+                <div style={{ color: "#666", fontSize: 12, margin: "4px 0" }}>
+                  {g.responsibilities}
+                </div>
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(_, i) => `m-${i}`}
+                  dataSource={members}
+                  columns={[
+                    { title: "角色", dataIndex: "role" },
+                    {
+                      title: "姓名",
+                      dataIndex: "name",
+                      render: (value: string, _record: OrgMember, index: number) => (
+                        <Input
+                          size="small"
+                          value={value}
+                          placeholder="请输入姓名"
+                          onChange={e => updateMember(g, index, { name: e.target.value })}
+                        />
+                      ),
+                    },
+                    {
+                      title: "公司职位",
+                      dataIndex: "position",
+                      render: (v: string) => v || "-",
+                    },
+                    {
+                      title: "电话",
+                      dataIndex: "phone",
+                      render: (value: string, _record: OrgMember, index: number) => (
+                        <Input
+                          size="small"
+                          value={value}
+                          placeholder="请输入电话"
+                          onChange={e => updateMember(g, index, { phone: e.target.value })}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+                <div style={{ marginTop: 6 }}>
+                  <Button
+                    size="small"
+                    type="primary"
+                    loading={saveMut.isPending}
+                    disabled={isLoading}
+                    onClick={() => adoptGroup(g, members)}
+                  >
+                    采纳本组
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
           <Button
             type="primary"
             onClick={adoptAll}
             disabled={isLoading}
+            loading={saveMut.isPending}
             style={{ marginBottom: 12 }}
           >
-            全部采纳（姓名电话请到企业详情补充）
+            全部采纳
           </Button>
         </>
       )}
