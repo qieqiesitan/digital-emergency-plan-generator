@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Drawer, Input, Space, message } from "antd";
 import { useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import {
   generateResourcesAI,
   batchCreateResources,
@@ -44,6 +45,14 @@ function toCreatePayload(item: CandidateItem): EmergencyResourceCreate {
     external_address: str(item.external_address),
     external_distance_km: num(item.external_distance_km),
   };
+}
+
+/** 解析请求错误：优先透出后端 detail（如 504「AI 响应超时」），其次 e.message，最后兜底文案 */
+function errorDetail(e: unknown, fallback: string): string {
+  if (axios.isAxiosError(e) && e.response?.data?.detail) {
+    return e.response.data.detail;
+  }
+  return e instanceof Error && e.message ? e.message : fallback;
 }
 
 export default function StepResources({
@@ -119,7 +128,7 @@ export default function StepResources({
       }));
       setCandidates(items);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "生成失败");
+      message.error(errorDetail(e, "生成失败"));
     } finally {
       setGenerating(false);
     }
@@ -142,7 +151,7 @@ export default function StepResources({
       message.success(`已保存：${String(item.name || "")}`);
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "保存失败，请重试");
+      message.error(errorDetail(e, "保存失败，请重试"));
     }
   };
 
@@ -163,7 +172,7 @@ export default function StepResources({
       message.success(`已全部采纳：${items.length} 条`);
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "批量保存失败，请重试");
+      message.error(errorDetail(e, "批量保存失败，请重试"));
     }
   };
 
@@ -181,7 +190,7 @@ export default function StepResources({
       message.success(`已全部取消采纳：${items.length} 条`);
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "删除失败，请重试");
+      message.error(errorDetail(e, "删除失败，请重试"));
     }
   };
 
@@ -212,7 +221,9 @@ export default function StepResources({
           onChange={e => setOverview(e.target.value)}
           placeholder="如：车间配备干粉灭火器、正压式空气呼吸器，厂区附近有消防站"
         />
-        <Button type="primary" loading={generating} onClick={generate}>AI 生成候选</Button>
+        <Button type="primary" loading={generating} onClick={generate}>
+          {generating ? "AI 生成中，通常需要 1-2 分钟，请耐心等待" : "AI 生成候选"}
+        </Button>
       </div>
       <CandidatesReview
         accepted={accepted}

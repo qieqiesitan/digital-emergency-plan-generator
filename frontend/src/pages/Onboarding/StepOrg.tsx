@@ -45,6 +45,14 @@ function normalizeMembers(members: OrgMember[] | undefined): OrgMember[] {
   }));
 }
 
+/** 解析请求错误：优先透出后端 detail（如 504「AI 响应超时」），其次 e.message，最后兜底文案 */
+function errorDetail(e: unknown, fallback: string): string {
+  if (axios.isAxiosError(e) && e.response?.data?.detail) {
+    return e.response.data.detail;
+  }
+  return e instanceof Error && e.message ? e.message : fallback;
+}
+
 export default function StepOrg({
   enterpriseId,
   onDone,
@@ -103,11 +111,7 @@ export default function StepOrg({
       });
       setCandidates(r.data.data.items || []);
     } catch (e) {
-      message.error(
-        axios.isAxiosError(e) && e.response?.data?.detail
-          ? e.response.data.detail
-          : "生成失败",
-      );
+      message.error(errorDetail(e, "生成失败"));
     } finally {
       setGenerating(false);
     }
@@ -120,7 +124,7 @@ export default function StepOrg({
       queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     },
-    onError: () => message.error("保存失败，请重试"),
+    onError: (e) => message.error(errorDetail(e, "保存失败，请重试")),
   });
 
   const adoptGroup = async (g: OrgCandidate, members: OrgMember[]) => {
@@ -209,7 +213,7 @@ export default function StepOrg({
           placeholder="企业概况（可留空，AI 按行业/规模自动生成）"
         />
         <Button type="primary" loading={generating} onClick={generate}>
-          AI 生成候选
+          {generating ? "AI 生成中，通常需要 1-2 分钟，请耐心等待" : "AI 生成候选"}
         </Button>
       </div>
       {accepted.length > 0 && (

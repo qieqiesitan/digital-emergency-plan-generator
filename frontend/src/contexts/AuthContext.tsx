@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { message } from "antd";
 import type { User, LoginRequest, RegisterRequest } from "@/types/auth";
 import * as authService from "@/services/authService";
 import * as userService from "@/services/authService";
@@ -66,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handler = () => {
+      // 登录过期（refresh 失败）时给出一次性友好提示，避免用户不明原因被登出
+      message.warning("登录已过期，请重新登录");
       setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [], menuLoadFailed: false });
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");

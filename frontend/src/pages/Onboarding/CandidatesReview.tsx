@@ -128,7 +128,7 @@ export default function CandidatesReview({
       )}
 
       <Button block loading={generating} onClick={onGenerateMore}>
-        {generating ? "生成中…" : generateMoreLabel}
+        {generating ? "AI 生成中，通常需要 1-2 分钟，请耐心等待" : generateMoreLabel}
       </Button>
     </div>
   );

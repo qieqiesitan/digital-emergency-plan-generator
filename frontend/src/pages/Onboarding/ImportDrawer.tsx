@@ -115,7 +115,7 @@ export default function ImportDrawer({
         <p>点击或拖拽文件到这里</p>
         <p style={{ color: "#999", fontSize: 12 }}>
           {uploading
-            ? "AI 分析提取中…"
+            ? "AI 分析提取中，通常需要 1-2 分钟，请耐心等待…"
             : isPackage
               ? "资料包（多文件）将自动识别并分流到各步骤"
               : "单文件将定点提取到当前步骤候选区"}

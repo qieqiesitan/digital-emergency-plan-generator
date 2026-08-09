@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Modal, Button, Input, Table, message, Alert, Spin, Tag, Card, Select, InputNumber } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
+import axios from "axios";
 import {
   getSurroundingAIQuestions,
   generateSurroundingAI,
@@ -34,6 +35,14 @@ interface EditableTarget extends SensitiveTarget {
 }
 
 const DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+/** 解析请求错误：优先透出后端 detail（如 504「AI 响应超时」），其次 e.message，最后兜底文案 */
+function errorDetail(e: unknown, fallback: string): string {
+  if (axios.isAxiosError(e) && e.response?.data?.detail) {
+    return e.response.data.detail;
+  }
+  return e instanceof Error && e.message ? e.message : fallback;
+}
 
 export default function SurroundingAIGenerateModal({
   enterpriseId,
@@ -118,8 +127,8 @@ export default function SurroundingAIGenerateModal({
       setSensitiveTargets([...existingTargets, ...generatedTargets]);
       setTrafficInfo(generated.traffic_info || existingSurrounding.traffic_info || "");
       setStep("preview");
-    } catch {
-      message.error("AI 生成失败，请重试");
+    } catch (e) {
+      message.error(errorDetail(e, "AI 生成失败，请重试"));
       setStep("answer");
     }
   };
@@ -255,7 +264,7 @@ export default function SurroundingAIGenerateModal({
       {step === "generating" && (
         <div style={{ textAlign: "center", padding: 40 }}>
           <Spin size="large" />
-          <p style={{ marginTop: 16 }}>AI 正在根据您的回答生成周边环境信息...</p>
+          <p style={{ marginTop: 16 }}>AI 生成中，通常需要 1-2 分钟，请耐心等待…</p>
         </div>
       )}
 

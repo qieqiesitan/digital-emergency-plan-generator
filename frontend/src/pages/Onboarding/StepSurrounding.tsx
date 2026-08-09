@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Button, Checkbox, Col, Divider, Empty, message, Modal, Row, Slider, Space } from "antd";
 import { SearchOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import {
   getSurrounding,
   searchAmapSurrounding,
@@ -50,6 +51,14 @@ const AMAP_POI_OPTIONS: PoiOption[] = [
   { code: "住宅区|小区", label: "住宅区", group: "sensitive" },
   { code: "公园|广场", label: "公园/广场", group: "sensitive" },
 ];
+
+/** 解析请求错误：优先透出后端 detail（如 504「AI 响应超时」），其次 e.message，最后兜底文案 */
+function errorDetail(e: unknown, fallback: string): string {
+  if (axios.isAxiosError(e) && e.response?.data?.detail) {
+    return e.response.data.detail;
+  }
+  return e instanceof Error && e.message ? e.message : fallback;
+}
 
 export default function StepSurrounding({
   enterpriseId,
@@ -171,7 +180,7 @@ export default function StepSurrounding({
       onRemoveImported?.("surrounding", item._key);
       message.success(`已采纳：${name}`);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "保存失败，请重试");
+      message.error(errorDetail(e, "保存失败，请重试"));
     }
   };
 
@@ -230,7 +239,7 @@ export default function StepSurrounding({
           : `已全部采纳：${items.length} 条`,
       );
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "批量采纳失败，请重试");
+      message.error(errorDetail(e, "批量采纳失败，请重试"));
     }
   };
 
@@ -247,7 +256,7 @@ export default function StepSurrounding({
       setCandidates(prev => [...prev, ...items]);
       message.success(`已全部取消采纳：${items.length} 条`);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "删除失败，请重试");
+      message.error(errorDetail(e, "删除失败，请重试"));
     }
   };
 
@@ -281,11 +290,7 @@ export default function StepSurrounding({
       setAmapSearchedAddress(result.searched_address);
       setAmapResultOpen(true);
     } catch (e) {
-      const detail =
-        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        (e as Error)?.message ||
-        "高德搜索失败";
-      message.error(detail);
+      message.error(errorDetail(e, "高德搜索失败"));
     } finally {
       setAmapSearching(false);
     }
