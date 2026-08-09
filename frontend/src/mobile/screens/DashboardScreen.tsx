@@ -20,6 +20,7 @@ import Toast, { useToast } from "@/mobile/components/ui/Toast";
 import { useAppStore } from "@/mobile/store/appStore";
 import { getDashboard } from "@/services/dashboardService";
 import { listEnterprises } from "@/services/enterpriseService";
+import { getEnterpriseCompletion } from "@/services/onboardingService";
 import { getEnterprisePlanSummary } from "@/services/planService";
 import { fromNow } from "@/utils/formatters";
 
@@ -116,9 +117,18 @@ export default function DashboardScreen() {
     staleTime: 60000,
   });
 
+  // 获取企业数据完成度
+  const completionQuery = useQuery({
+    queryKey: ["completion", activeEnterpriseId],
+    queryFn: () => getEnterpriseCompletion(activeEnterpriseId!),
+    enabled: !!activeEnterpriseId,
+    staleTime: 60000,
+  });
+
   const stats = dashboardQuery.data?.stats;
   const recentPlans = dashboardQuery.data?.recent_plans ?? [];
   const isLoading = dashboardQuery.isLoading || summaryQuery.isLoading;
+  const undoneModules = (completionQuery.data?.modules ?? []).filter(m => !m.done);
 
   // 计算当前企业的预案统计
   const planStats = useMemo(() => {
@@ -143,6 +153,15 @@ export default function DashboardScreen() {
       return;
     }
     navigate(`/m/plans/new?enterprise_id=${activeEnterpriseId}&type=${type}`);
+  };
+
+  const handleCompletionAction = () => {
+    if (!activeEnterpriseId) return;
+    if (undoneModules.length === 0) {
+      navigate(`/m/plans/new?enterprise_id=${activeEnterpriseId}`);
+    } else {
+      navigate(`/m/enterprises/${activeEnterpriseId}`);
+    }
   };
 
   const SPEED_DIAL_ACTIONS = QUICK_ACTIONS.map(a => ({
@@ -178,6 +197,60 @@ export default function DashboardScreen() {
   return (
     <SafeArea className="bg-neutral-50 min-h-dvh pb-[calc(var(--tabbar-height)+80px)]">
       <NavBar title="工作台" largeTitle />
+
+      {/* 企业数据完成度卡片 */}
+      {completionQuery.data && (
+        <div
+          className="mx-md mt-md mb-md"
+          style={{ border: "1px solid #1677ff", borderRadius: 10, padding: 12, background: "#f0f7ff" }}
+        >
+          <p className="text-body font-semibold">
+            企业数据完成度 {completionQuery.data.percent}%
+          </p>
+          <div
+            style={{
+              height: 6,
+              background: "#d9d9d9",
+              borderRadius: 3,
+              overflow: "hidden",
+              marginBottom: 8,
+              marginTop: 8,
+            }}
+          >
+            <div
+              style={{
+                width: `${completionQuery.data.percent}%`,
+                height: "100%",
+                background: "#1677ff",
+              }}
+            />
+          </div>
+          {undoneModules.length > 0 && (
+            <div className="flex flex-wrap gap-xs mb-sm">
+              {undoneModules.map((m) => (
+                <span
+                  key={m.key}
+                  style={{
+                    fontSize: 11,
+                    background: "#fff7e6",
+                    border: "1px solid #ffe7ba",
+                    borderRadius: 4,
+                    padding: "1px 6px",
+                  }}
+                >
+                  {m.label}
+                </span>
+              ))}
+            </div>
+          )}
+          <button
+            className="bg-primary-500 text-white rounded-md px-sm py-xs text-body-sm"
+            onClick={handleCompletionAction}
+          >
+            {undoneModules.length === 0 ? "去生成预案" : "去补数据"}
+          </button>
+        </div>
+      )}
 
       <div className="px-md space-y-md">
 
