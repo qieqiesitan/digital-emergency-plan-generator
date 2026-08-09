@@ -43,12 +43,10 @@ export default function AIGenerateButton({
     try {
       const config = await getAIConfig();
       if (!config) {
-        Modal.confirm({
-          title: "未配置 AI 模型",
-          content: "使用 AI 生成前需配置大语言模型。",
-          okText: "去配置",
-          cancelText: "取消",
-          onOk: () => { window.location.href = "/settings/ai-config"; },
+        Modal.warning({
+          title: "AI 未配置",
+          content: "AI 生成功能暂不可用，请联系管理员配置 AI 模型后重试。",
+          okText: "知道了",
         });
         return false;
       }
