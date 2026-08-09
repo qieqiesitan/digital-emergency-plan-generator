@@ -29,6 +29,7 @@ import RiskMethodListPage from "@/pages/Enterprise/RiskMethodListPage";
 import RiskMethodEditorPage from "@/pages/Enterprise/RiskMethodEditorPage";
 import RiskMappingWorkbenchPage from "@/pages/Enterprise/RiskMappingWorkbenchPage";
 import ChatPage from "@/pages/Chat";
+import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
 
 function MobileRedirect() {
   window.location.replace(window.location.pathname + window.location.search);
@@ -39,6 +40,7 @@ const contentRoutes = [
   { index: true, element: <Navigate to="/dashboard" replace /> },
   { path: "/dashboard", element: <DashboardPage /> },
   { path: "/chat", element: <ChatPage /> },
+  { path: "/onboarding", element: <OnboardingPage /> },
   { path: "/enterprises", element: <EnterpriseListPage /> },
   { path: "/enterprises/new", element: <EnterpriseCreatePage /> },
   { path: "/enterprises/:id", element: <EnterpriseDetailPage /> },
