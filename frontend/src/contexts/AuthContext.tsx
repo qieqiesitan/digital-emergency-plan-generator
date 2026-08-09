@@ -13,7 +13,6 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  menuLoadFailed: boolean;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
@@ -38,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({ ...prev, menuPermissions: menus, menuLoadFailed: false }));
     } catch {
       // 菜单权限加载失败：降级为核心菜单（工作台/企业/预案/个人资料），并标记提示
+      console.warn("菜单权限加载失败，已降级为核心菜单");
       setState((prev) => ({
         ...prev,
         menuPermissions: ["menu:dashboard", "menu:enterprises", "menu:plans", "menu:profile"],
@@ -80,8 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
     setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoadFailed: false });
-    const menus = await fetchMyMenus().catch(() => []);
-    setState((prev) => ({ ...prev, menuPermissions: menus }));
+    await loadMenuPermissions();
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
@@ -91,8 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
     setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoadFailed: false });
-    const menus = await fetchMyMenus().catch(() => []);
-    setState((prev) => ({ ...prev, menuPermissions: menus }));
+    await loadMenuPermissions();
   }, []);
 
   const logout = useCallback(() => {
