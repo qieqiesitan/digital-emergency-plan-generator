@@ -100,12 +100,16 @@ SECTION_DIAGRAM_TYPE_MAP: dict[str, str] = {
 
 
 
-# 每个章节除主流程图外可附加的图类型（key 对应 plan_diagram_service 的 diagram key）
-SECTION_ADDITIONAL_DIAGRAM_MAP: dict[str, str] = {
-    "sec_3":   "org_chart",          # 应急组织机构及职责 → 组织架构图
-    "sec_4_2": "report_sequence",    # 信息报告程序 → 上报时序图
-    "sec_5":   "response_timeline",  # 应急响应 → 处置时间轴
-    "sec_9_1": "drill_gantt",        # 培训与演练 → 演练甘特图
+# 每个章节除主流程图外可附加的图类型（(plan_type, section_key) → diagram key）。
+# 综合/专项/现场的同名 sec_* key 语义不同，必须用双键区分，避免串映射。
+SECTION_ADDITIONAL_DIAGRAM_MAP: dict[tuple[str, str], str] = {
+    ("comprehensive", "sec_3"):   "org_chart",          # 应急组织机构及职责 → 组织架构图
+    ("comprehensive", "sec_4_2"): "report_sequence",    # 信息报告程序 → 上报时序图
+    ("comprehensive", "sec_5"):   "response_timeline",  # 应急响应 → 处置时间轴
+    ("comprehensive", "sec_9_1"): "drill_gantt",        # 培训与演练 → 演练甘特图
+    ("special", "sec_1"):         "risk_matrix",        # 事故风险分析 → 风险矩阵图（数据图，_attach_diagrams 处理）
+    ("special", "sec_2"):         "org_chart",          # 应急指挥机构及职责 → 组织架构图
+    ("special", "sec_3"):         "response_timeline",  # 处置程序与措施 → 处置时间轴
 }
 
 def _build_org_chart_mermaid(org_structure: list) -> str | None:
@@ -131,9 +135,9 @@ def _build_org_chart_mermaid(org_structure: list) -> str | None:
     return "\n".join(lines)
 
 
-def _append_additional_diagram_prompt(prompt: str, section_key: str | None, enterprise_data: dict) -> str:
+def _append_additional_diagram_prompt(prompt: str, plan_type: str, section_key: str | None, enterprise_data: dict) -> str:
     """按章节附加图类型追加提示词（组织架构图注入真实数据）。"""
-    additional_key = SECTION_ADDITIONAL_DIAGRAM_MAP.get(section_key or "")
+    additional_key = SECTION_ADDITIONAL_DIAGRAM_MAP.get((plan_type, section_key or ""))
     if not additional_key:
         return prompt
     tmpl = get_additional_diagram_prompt(additional_key)
@@ -199,7 +203,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
             if reg_ctx:
                 prompt += "\n\n" + REGULATION_WRITING_RULE + "\n\n" + reg_ctx
 
-            return _append_additional_diagram_prompt(prompt, section_key, enterprise_data)
+            return _append_additional_diagram_prompt(prompt, plan_type, section_key, enterprise_data)
 
     # 兜底：代码拼接
     num_hint = f"这是应急预案的第{section_number}个章节，请在正文中使用“{section_number}.”或“{section_number}.x”的编号格式。\n" if section_number is not None else ""
@@ -235,7 +239,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
     if reg_ctx:
         prompt += "\n\n" + REGULATION_WRITING_RULE + "\n\n" + reg_ctx
 
-    return _append_additional_diagram_prompt(prompt, section_key, enterprise_data)
+    return _append_additional_diagram_prompt(prompt, plan_type, section_key, enterprise_data)
 
 def _missing(v):
     """缺失字段统一标注，防止 LLM 编造。"""
@@ -251,7 +255,7 @@ def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
     diagrams = dict(section.diagram_svgs or {})
     key = section.section_key
 
-    if key == "sec_2" and plan_type == "comprehensive":
+    if (plan_type, key) in (("comprehensive", "sec_2"), ("special", "sec_1")):
         diagrams["risk_matrix"] = build_risk_matrix_svg(
             ent_data.get("risk_events", [])
         )
