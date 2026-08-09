@@ -50,7 +50,7 @@
 - 修改：`backend/app/routers/generation.py`、`chat.py`、`chat_dispatch.py`、`external.py`、`hazardous_chemicals.py`、`regulations.py`、`resources_ext.py`
 - 测试：`backend/tests/test_ai_config_system.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 新建 `backend/tests/test_ai_config_system.py`：
 
@@ -91,13 +91,13 @@ def test_risk_ai_get_config_raises_when_system_missing():
     assert exc.value.status_code == 400
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_ai_config_system.py -v`
 
 预期：FAIL，`ModuleNotFoundError: No module named 'app.services.ai_config_service'`。
 
-- [ ] **步骤 3：迁移 SQL + 模型 + 统一服务**
+- [x] **步骤 3：迁移 SQL + 模型 + 统一服务**
 
 新建 `backend/db_migration_ai_config_system.sql`：
 
@@ -153,7 +153,7 @@ async def get_system_ai_config(db: AsyncSession) -> AIConfig | None:
     return result.scalar_one_or_none()
 ```
 
-- [ ] **步骤 4：改造取配置调用点为系统级**
+- [x] **步骤 4：改造取配置调用点为系统级**
 
 `backend/app/services/risk_ai_service.py` 的 `_get_ai_config` 替换为：
 
@@ -188,7 +188,7 @@ ai_config = await get_system_ai_config(db)
 
 `backend/app/services/chat_dispatch.py`：`get_ai_config` tool 的查询替换为系统配置（返回 provider/model 供前端展示）。
 
-- [ ] **步骤 5：ai_config.py 路由改为系统级（管理员）**
+- [x] **步骤 5：ai_config.py 路由改为系统级（管理员）**
 
 `backend/app/routers/ai_config.py` 整体改造：
 
@@ -237,13 +237,13 @@ async def delete_ai_config(_=Depends(require_admin), db=Depends(get_db)):
     return {"code": 0, "message": "已删除"}
 ```
 
-- [ ] **步骤 6：运行测试验证通过**
+- [x] **步骤 6：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_ai_config_system.py -v`
 
 预期：3 个测试全部 PASS。
 
-- [ ] **步骤 7：全量后端测试 + Commit**
+- [x] **步骤 7：全量后端测试 + Commit**
 
 运行：`cd backend && python -m pytest tests/ -q`
 
@@ -266,7 +266,7 @@ git commit -m "refactor(ai): consolidate AI config to system-level singleton"
 - 修改：`backend/app/routers/generation.py`
 - 测试：`backend/tests/test_risk_event_chemical.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 新建 `backend/tests/test_risk_event_chemical.py`：
 
@@ -293,13 +293,13 @@ def test_risk_event_model_has_chemical_id_column():
     assert "chemical_id" in cols
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_risk_event_chemical.py -v`
 
 预期：FAIL，`chemical_id` 未定义。
 
-- [ ] **步骤 3：迁移 SQL + 模型 + schema**
+- [x] **步骤 3：迁移 SQL + 模型 + schema**
 
 新建 `backend/db_migration_risk_event_chemical.sql`：
 
@@ -338,7 +338,7 @@ class RiskEventUpdate(BaseModel):
     chemical_id: str | None = None
 ```
 
-- [ ] **步骤 4：路由透传 chemical_id**
+- [x] **步骤 4：路由透传 chemical_id**
 
 `backend/app/routers/risk_management.py` 中创建/更新事件（`create_event` / `update_event`）的位置，在构造/赋值时透传：
 
@@ -359,7 +359,7 @@ if data.chemical_id is not None:
     event.chemical_id = data.chemical_id
 ```
 
-- [ ] **步骤 5：生成上下文注入（chemical / risk_method_config / 备案 / 化学品清单）**
+- [x] **步骤 5：生成上下文注入（chemical / risk_method_config / 备案 / 化学品清单）**
 
 `backend/app/routers/generation.py` 的 `_collect_enterprise_data` 中：
 
@@ -402,13 +402,13 @@ chemicals = {c.id: c for c in chemicals_rows}
 
 3. `risk_context_builder.py` 的 `_risk_source_item` 增加 `"chemical_id": event.chemical_id` 字段。
 
-- [ ] **步骤 6：运行测试验证通过**
+- [x] **步骤 6：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_risk_event_chemical.py -v`
 
 预期：3 个测试 PASS。
 
-- [ ] **步骤 7：全量后端测试 + Commit**
+- [x] **步骤 7：全量后端测试 + Commit**
 
 运行：`cd backend && python -m pytest tests/ -q`
 
@@ -429,7 +429,7 @@ git commit -m "feat(risk): link risk events to hazardous chemicals and inject in
 - 修改：`backend/app/routers/enterprises.py`
 - 测试：`backend/tests/test_onboarding_completion.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 新建 `backend/tests/test_onboarding_completion.py`：
 
@@ -488,13 +488,13 @@ def test_completion_empty_enterprise():
     assert result["percent"] == 0
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_completion.py -v`
 
 预期：FAIL，`ModuleNotFoundError: No module named 'app.services.onboarding_service'`。
 
-- [ ] **步骤 3：实现完成度服务**
+- [x] **步骤 3：实现完成度服务**
 
 新建 `backend/app/services/onboarding_service.py`：
 
@@ -578,7 +578,7 @@ def _org_done(org_structure: list | None) -> bool:
 
 （注意：`RiskEvent.enterprise_id` 需在模型中存在——若事件仅通过 zone/object 间接归属企业，查询改为 `select(RiskEvent).join(RiskObject).where(RiskObject.enterprise_id == enterprise_id)`。实现时按实际模型调整。）
 
-- [ ] **步骤 4：新增 completion 接口 + 企业列表扩展**
+- [x] **步骤 4：新增 completion 接口 + 企业列表扩展**
 
 新建 `backend/app/routers/onboarding.py`：
 
@@ -619,13 +619,13 @@ for e in rows:
 
 `EnterpriseResponse` schema 增加 `completion: dict | None = None` 字段（`backend/app/schemas/enterprise.py`）。
 
-- [ ] **步骤 5：运行测试验证通过**
+- [x] **步骤 5：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_completion.py -v`
 
 预期：2 个测试 PASS。
 
-- [ ] **步骤 6：全量后端测试 + Commit**
+- [x] **步骤 6：全量后端测试 + Commit**
 
 运行：`cd backend && python -m pytest tests/ -q`
 

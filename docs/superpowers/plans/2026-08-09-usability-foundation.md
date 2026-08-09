@@ -43,7 +43,7 @@
 - 修改：`backend/app/routers/admin_users.py`
 - 测试：`backend/tests/test_admin_user_reset_password.py`
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 新建 `backend/tests/test_admin_user_reset_password.py`：
 
@@ -87,13 +87,13 @@ def test_reset_password_updates_hash():
     db.commit.assert_awaited_once()
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_admin_user_reset_password.py -v`
 
 预期：FAIL，报错 `ImportError: cannot import name 'reset_user_password'` 与 `AdminResetPassword` 未定义。
 
-- [ ] **步骤 3：实现 schema 与路由**
+- [x] **步骤 3：实现 schema 与路由**
 
 在 `backend/app/schemas/role.py` 的 `AdminUserUpdate` 之后追加：
 
@@ -123,13 +123,13 @@ async def reset_user_password(
 
 同时更新 `admin_users.py` 顶部导入：`from app.schemas.role import AdminUserCreate, AdminUserUpdate, AdminUserResponse, AdminResetPassword`。
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_admin_user_reset_password.py -v`
 
 预期：4 个测试全部 PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/schemas/role.py backend/app/routers/admin_users.py backend/tests/test_admin_user_reset_password.py
@@ -145,7 +145,7 @@ git commit -m "feat(admin): add reset password endpoint for admin users"
 - 修改：`frontend/src/services/userManageService.ts`
 - 修改：`frontend/src/pages/Settings/UserManagePage.tsx`
 
-- [ ] **步骤 1：增加类型与 service**
+- [x] **步骤 1：增加类型与 service**
 
 在 `frontend/src/types/role.ts` 的 `AdminUserUpdateRequest` 之后追加：
 
@@ -165,7 +165,7 @@ export function resetUserPassword(userId: string, data: AdminResetPasswordReques
 
 同步更新导入：`import type { AdminUserListResponse, AdminUserItem, AdminUserCreateRequest, AdminUserUpdateRequest, AdminResetPasswordRequest } from "@/types/role";`
 
-- [ ] **步骤 2：UserManagePage 增加「重置密码」按钮与弹窗**
+- [x] **步骤 2：UserManagePage 增加「重置密码」按钮与弹窗**
 
 在 `frontend/src/pages/Settings/UserManagePage.tsx` 中：
 
@@ -223,13 +223,13 @@ const resetMut = useMutation({
 </Modal>
 ```
 
-- [ ] **步骤 3：tsc 验证**
+- [x] **步骤 3：tsc 验证**
 
 运行：`cd frontend && npx tsc --noEmit`
 
 预期：无类型错误。
 
-- [ ] **步骤 4：Commit**
+- [x] **步骤 4：Commit**
 
 ```bash
 git add frontend/src/types/role.ts frontend/src/services/userManageService.ts frontend/src/pages/Settings/UserManagePage.tsx
@@ -246,7 +246,7 @@ git commit -m "feat(admin): add reset password modal in user management page"
 - 修改：`frontend/src/pages/Plan/VersionListPage.tsx`
 - 修改：`frontend/src/components/plan/RichTextEditor.tsx`
 
-- [ ] **步骤 1：AIConfigPage 全页中文化**
+- [x] **步骤 1：AIConfigPage 全页中文化**
 
 在 `frontend/src/pages/Settings/AIConfigPage.tsx` 中逐项替换：
 
@@ -275,7 +275,7 @@ git commit -m "feat(admin): add reset password modal in user management page"
 | `"not tested"` | `"尚未测试"` |
 | `"request failed"` | `"请求失败"` |
 
-- [ ] **步骤 2：ProfilePage 中文化**
+- [x] **步骤 2：ProfilePage 中文化**
 
 在 `frontend/src/pages/Settings/ProfilePage.tsx` 中替换：
 
@@ -289,7 +289,7 @@ git commit -m "feat(admin): add reset password modal in user management page"
 
 （若该文件还有其它英文 label 如 `old_password`/`new_password`，一并改为 `旧密码`/`新密码`。）
 
-- [ ] **步骤 3：VersionListPage 中文化**
+- [x] **步骤 3：VersionListPage 中文化**
 
 在 `frontend/src/pages/Plan/VersionListPage.tsx` 中替换：
 
@@ -297,7 +297,7 @@ git commit -m "feat(admin): add reset password modal in user management page"
 - `message.error("rollback failed")` → `message.error("回滚失败")`
 - `PageHeader title="version history"` → `title="版本历史"`
 
-- [ ] **步骤 4：RichTextEditor Tooltip 中文化**
+- [x] **步骤 4：RichTextEditor Tooltip 中文化**
 
 在 `frontend/src/components/plan/RichTextEditor.tsx` 工具栏中逐项替换 Tooltip：
 
@@ -318,7 +318,7 @@ git commit -m "feat(admin): add reset password modal in user management page"
 
 （`H1`/`H2`/`H3` 按钮文本保留不变。）
 
-- [ ] **步骤 5：tsc 验证并 Commit**
+- [x] **步骤 5：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -338,7 +338,7 @@ git commit -m "fix(i18n): localize AI config, profile, version list and editor t
 - 修改：`frontend/src/pages/Enterprise/EnterpriseEditPage.tsx`
 - 修改：`frontend/src/mobile/screens/LoginScreen.tsx`
 
-- [ ] **步骤 1：修复「经济类型」乱码 placeholder**
+- [x] **步骤 1：修复「经济类型」乱码 placeholder**
 
 在两个文件中将：
 
@@ -352,7 +352,7 @@ placeholder="?????????"
 placeholder="选择或输入经济类型"
 ```
 
-- [ ] **步骤 2：修复移动端忘记密码死按钮**
+- [x] **步骤 2：修复移动端忘记密码死按钮**
 
 在 `frontend/src/mobile/screens/LoginScreen.tsx` 中，将「忘记密码？」的 `<span>` 替换为静态提示（保留布局）：
 
@@ -366,7 +366,7 @@ placeholder="选择或输入经济类型"
 
 删除原 `text-primary-500 cursor-pointer` 样式，去掉可点击暗示。
 
-- [ ] **步骤 3：tsc 验证并 Commit**
+- [x] **步骤 3：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -385,7 +385,7 @@ git commit -m "fix(ui): repair garbled placeholder and dead forgot-password text
 - 修改：`frontend/src/layouts/MainLayout.tsx`
 - 修改：`frontend/src/contexts/AuthContext.tsx`
 
-- [ ] **步骤 1：AuthContext 菜单权限失败降级**
+- [x] **步骤 1：AuthContext 菜单权限失败降级**
 
 在 `frontend/src/contexts/AuthContext.tsx` 中：
 
@@ -406,7 +406,7 @@ git commit -m "fix(ui): repair garbled placeholder and dead forgot-password text
 
 4. `login` / `register` 成功后设置 `menuLoadFailed: false`；`logout` 与 `auth:logout` handler 重置 `menuLoadFailed: false`。
 
-- [ ] **步骤 2：MainLayout 增加权限失败提示、法规库权限过滤、移除 AI 助手菜单**
+- [x] **步骤 2：MainLayout 增加权限失败提示、法规库权限过滤、移除 AI 助手菜单**
 
 在 `frontend/src/layouts/MainLayout.tsx` 中：
 
@@ -445,7 +445,7 @@ const menuItems = [
 ...(hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" }] : []),
 ```
 
-- [ ] **步骤 3：tsc 验证并 Commit**
+- [x] **步骤 3：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -462,19 +462,19 @@ git commit -m "fix(menu): filter regulations menu, remove AI assistant entry, de
 
 **文件：** 无新增修改
 
-- [ ] **步骤 1：后端全量测试**
+- [x] **步骤 1：后端全量测试**
 
 运行：`cd backend && python -m pytest tests/ -q`
 
 预期：全部 PASS（含新增 4 个重置密码测试）。
 
-- [ ] **步骤 2：前端全量验证**
+- [x] **步骤 2：前端全量验证**
 
 运行：`cd frontend && npx tsc --noEmit && npx vitest run`
 
 预期：tsc 无错误，现有 vitest 全部通过。
 
-- [ ] **步骤 3：Commit（如无改动则跳过）**
+- [x] **步骤 3：Commit（如无改动则跳过）**
 
 ```bash
 git status --short

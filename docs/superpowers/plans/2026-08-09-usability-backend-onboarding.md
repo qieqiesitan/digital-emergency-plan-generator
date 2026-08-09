@@ -35,7 +35,7 @@
 - 新建：`backend/app/services/file_parser.py`
 - 测试：`backend/tests/test_file_parser.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 新建 `backend/tests/test_file_parser.py`：
 
@@ -76,13 +76,13 @@ def test_parse_xlsx_bytes():
     assert "67-56-1" in text
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_file_parser.py -v`
 
 预期：FAIL，`ModuleNotFoundError: No module named 'app.services.file_parser'`。
 
-- [ ] **步骤 3：实现解析工具**
+- [x] **步骤 3：实现解析工具**
 
 新建 `backend/app/services/file_parser.py`：
 
@@ -144,13 +144,13 @@ def _parse_pdf(data: bytes) -> str:
     return "\n".join(page.get_text() for page in doc)
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_file_parser.py -v`
 
 预期：4 个测试 PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/services/file_parser.py backend/tests/test_file_parser.py
@@ -165,7 +165,7 @@ git commit -m "feat(import): file parser for xlsx/csv/docx/pdf/txt"
 - 修改：`backend/app/services/onboarding_service.py`
 - 测试：`backend/tests/test_onboarding_extract.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 新建 `backend/tests/test_onboarding_extract.py`：
 
@@ -196,13 +196,13 @@ def test_classify_modules_parses_llm_json(monkeypatch):
     assert result == ["enterprise_info", "risk_chemical"]
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_extract.py -v`
 
 预期：FAIL，`extract_candidates` 未定义。
 
-- [ ] **步骤 3：实现提取与模块识别**
+- [x] **步骤 3：实现提取与模块识别**
 
 在 `backend/app/services/onboarding_service.py` 追加：
 
@@ -264,13 +264,13 @@ async def classify_modules(text: str, db) -> list[str]:
     return [m for m in parsed.get("modules", []) if m in MODULE_SCHEMA_HINTS]
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_extract.py -v`
 
 预期：2 个测试 PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/services/onboarding_service.py backend/tests/test_onboarding_extract.py
@@ -285,7 +285,7 @@ git commit -m "feat(onboarding): LLM extraction and module classification for im
 - 修改：`backend/app/services/onboarding_service.py`
 - 测试：`backend/tests/test_onboarding_org.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 新建 `backend/tests/test_onboarding_org.py`：
 
@@ -307,13 +307,13 @@ def test_generate_org_candidates_parses_llm_json(monkeypatch):
     assert result[0]["members"][0]["name"] == ""  # 姓名必须留空
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_org.py -v`
 
 预期：FAIL，`generate_org_candidates` 未定义。
 
-- [ ] **步骤 3：实现组织架构生成**
+- [x] **步骤 3：实现组织架构生成**
 
 在 `backend/app/services/onboarding_service.py` 追加：
 
@@ -348,13 +348,13 @@ async def generate_org_candidates(enterprise_info: dict, db) -> list[dict]:
     return parsed.get("groups", [])
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_org.py -v`
 
 预期：1 个测试 PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/services/onboarding_service.py backend/tests/test_onboarding_org.py
@@ -369,7 +369,7 @@ git commit -m "feat(onboarding): AI generate emergency org structure candidates"
 - 修改：`backend/app/routers/onboarding.py`
 - 测试：`backend/tests/test_onboarding_extract.py`（追加）
 
-- [ ] **步骤 1：编写失败测试（追加）**
+- [x] **步骤 1：编写失败测试（追加）**
 
 在 `backend/tests/test_onboarding_extract.py` 追加：
 
@@ -383,13 +383,13 @@ def test_build_candidates_request_wraps_overview():
     assert req.answers[0].answer == "生产甲醇、乙醇，有储罐区"
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_extract.py -v`
 
 预期：FAIL，`build_candidates_request` 未定义。
 
-- [ ] **步骤 3：实现引导路由**
+- [x] **步骤 3：实现引导路由**
 
 在 `backend/app/routers/onboarding.py` 追加：
 
@@ -499,13 +499,13 @@ async def get_enterprise_brief(enterprise_id: str, db) -> dict:
     }
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend && python -m pytest tests/test_onboarding_extract.py tests/test_onboarding_org.py -v`
 
 预期：全部 PASS。
 
-- [ ] **步骤 5：全量后端测试 + Commit**
+- [x] **步骤 5：全量后端测试 + Commit**
 
 运行：`cd backend && python -m pytest tests/ -q`
 

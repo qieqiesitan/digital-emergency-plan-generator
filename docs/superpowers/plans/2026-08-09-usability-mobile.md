@@ -32,7 +32,7 @@
 **文件：**
 - 修改：`frontend/src/mobile/screens/DashboardScreen.tsx`
 
-- [ ] **步骤 1：实现完成度卡片**
+- [x] **步骤 1：实现完成度卡片**
 
 在 `frontend/src/mobile/screens/DashboardScreen.tsx` 中：
 
@@ -82,7 +82,7 @@ const completionQuery = useQuery({
 
 （`/m/onboarding` 路由在 D-3 说明：移动端不建完整引导页，此按钮直接跳企业详情对应模块，或跳企业详情页；实现时选择跳转 `activeEnterpriseId` 详情页。）
 
-- [ ] **步骤 2：tsc 验证并 Commit**
+- [x] **步骤 2：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -102,7 +102,7 @@ git commit -m "feat(mobile): completion card on dashboard with module shortcuts"
 - 修改：`frontend/src/mobile/routes.tsx`
 - 修改：`frontend/src/mobile/screens/SettingsScreen.tsx`
 
-- [ ] **步骤 1：实现 ChatScreen（复用 chatService）**
+- [x] **步骤 1：实现 ChatScreen（复用 chatService）**
 
 新建 `frontend/src/mobile/screens/ChatScreen.tsx`：
 
@@ -204,7 +204,7 @@ export default function ChatScreen() {
 }
 ```
 
-- [ ] **步骤 2：路由 + 设置入口**
+- [x] **步骤 2：路由 + 设置入口**
 
 `frontend/src/mobile/routes.tsx` 增加：
 
@@ -229,7 +229,7 @@ const ChatScreen = lazy(() => import("@/mobile/screens/ChatScreen"));
 
 2. 删除 `ai-config` 菜单项（保留 `Bot` 图标导入给 AI 助手用）。
 
-- [ ] **步骤 3：tsc 验证并 Commit**
+- [x] **步骤 3：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -248,7 +248,7 @@ git commit -m "feat(mobile): AI assistant chat screen and settings entry"
 - 修改：`frontend/src/mobile/routes.tsx`
 - 删除：`frontend/src/mobile/screens/AIModelConfigScreen.tsx`
 
-- [ ] **步骤 1：移除路由与页面**
+- [x] **步骤 1：移除路由与页面**
 
 `frontend/src/mobile/routes.tsx`：
 
@@ -257,7 +257,7 @@ git commit -m "feat(mobile): AI assistant chat screen and settings entry"
 
 删除文件 `frontend/src/mobile/screens/AIModelConfigScreen.tsx`。
 
-- [ ] **步骤 2：tsc 验证并 Commit**
+- [x] **步骤 2：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -274,19 +274,19 @@ git commit -m "chore(mobile): remove user-level AI model config screen"
 
 **文件：** 无新增修改
 
-- [ ] **步骤 1：前端全量验证**
+- [x] **步骤 1：前端全量验证**
 
 运行：`cd frontend && npx tsc --noEmit && npx vitest run`
 
 预期：tsc 无错误，vitest 全部通过。
 
-- [ ] **步骤 2：移动端构建验证**
+- [x] **步骤 2：移动端构建验证**
 
 运行：`cd frontend && npm run build -- --mode mobile 2>&1 | Select-String -Pattern "error"`（或按项目现有移动端构建命令）
 
 预期：构建无错误。
 
-- [ ] **步骤 3：Commit（如有残留）**
+- [x] **步骤 3：Commit（如有残留）**
 
 ```bash
 git status --short

@@ -45,7 +45,7 @@
 - 新建：`frontend/src/services/onboardingService.ts`
 - 修改：`frontend/src/routes/index.tsx`
 
-- [ ] **步骤 1：新增类型与服务**
+- [x] **步骤 1：新增类型与服务**
 
 新建 `frontend/src/types/onboarding.ts`：
 
@@ -93,7 +93,7 @@ export function importOnboardingBatch(enterpriseId: string, files: File[]): Prom
 }
 ```
 
-- [ ] **步骤 2：挂载路由**
+- [x] **步骤 2：挂载路由**
 
 在 `frontend/src/routes/index.tsx` 的 `contentRoutes` 增加：
 
@@ -103,7 +103,7 @@ import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
 { path: "/onboarding", element: <OnboardingPage /> },
 ```
 
-- [ ] **步骤 3：tsc 验证并 Commit**
+- [x] **步骤 3：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -129,7 +129,7 @@ git commit -m "feat(onboarding): types, service and route scaffolding"
 **文件：**
 - 新建：`frontend/src/components/enterprise/EnterpriseInfoCards.tsx`
 
-- [ ] **步骤 1：实现卡片组件（填/读两态）**
+- [x] **步骤 1：实现卡片组件（填/读两态）**
 
 新建 `frontend/src/components/enterprise/EnterpriseInfoCards.tsx`：
 
@@ -298,7 +298,7 @@ export default function EnterpriseInfoCards({ enterprise, readOnly = false, onSa
 
 （字段类型 `Enterprise` 若缺少某字段，以 `any` 兼容；`readOnly` 态隐藏按钮、卡片不可编辑。）
 
-- [ ] **步骤 2：tsc 验证并 Commit**
+- [x] **步骤 2：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -316,7 +316,7 @@ git commit -m "feat(enterprise): reusable EnterpriseInfoCards component"
 **文件：**
 - 新建：`frontend/src/pages/Onboarding/CandidatesReview.tsx`
 
-- [ ] **步骤 1：实现候选核对组件**
+- [x] **步骤 1：实现候选核对组件**
 
 新建 `frontend/src/pages/Onboarding/CandidatesReview.tsx`：
 
@@ -384,7 +384,7 @@ export default function CandidatesReview({ accepted, candidates, renderItem, onA
 }
 ```
 
-- [ ] **步骤 2：tsc 验证并 Commit**
+- [x] **步骤 2：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -404,7 +404,7 @@ git commit -m "feat(onboarding): candidates review component with incremental ge
 - 新建：`frontend/src/pages/Onboarding/StepOrg.tsx`
 - 修改：`frontend/src/pages/Onboarding/OnboardingPage.tsx`
 
-- [ ] **步骤 1：OnboardingPage 骨架（左侧步骤 + 右侧内容）**
+- [x] **步骤 1：OnboardingPage 骨架（左侧步骤 + 右侧内容）**
 
 重写 `frontend/src/pages/Onboarding/OnboardingPage.tsx`：
 
@@ -490,7 +490,7 @@ export default function OnboardingPage() {
 
 （`StepRiskChemical` 等后续任务创建，先建最小占位避免 tsc 报错；`Step` 组件统一 props：`{ enterpriseId: string; onDone: () => void; onPrev: () => void }`。）
 
-- [ ] **步骤 2：第 1 步 StepEnterprise**
+- [x] **步骤 2：第 1 步 StepEnterprise**
 
 新建 `frontend/src/pages/Onboarding/StepEnterprise.tsx`：
 
@@ -518,7 +518,7 @@ export default function StepEnterprise({ enterpriseId, onDone }: Props) {
 }
 ```
 
-- [ ] **步骤 3：第 2 步 StepOrg（AI 生成 + 成员表格）**
+- [x] **步骤 3：第 2 步 StepOrg（AI 生成 + 成员表格）**
 
 新建 `frontend/src/pages/Onboarding/StepOrg.tsx`：
 
@@ -603,7 +603,7 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
 }
 ```
 
-- [ ] **步骤 4：tsc 验证并 Commit**
+- [x] **步骤 4：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -623,7 +623,7 @@ git commit -m "feat(onboarding): page skeleton and step 1-2 (enterprise info, or
 - 新建：`frontend/src/pages/Onboarding/StepResources.tsx`
 - 新建：`frontend/src/pages/Onboarding/StepSurrounding.tsx`
 
-- [ ] **步骤 1：第 3 步（复用现有 AI 生成服务 + 关联）**
+- [x] **步骤 1：第 3 步（复用现有 AI 生成服务 + 关联）**
 
 新建 `frontend/src/pages/Onboarding/StepRiskChemical.tsx`：
 
@@ -697,7 +697,7 @@ export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props
 
 （第 4 步 `StepResources`、第 5 步 `StepSurrounding` 按同一模式实现：调用 `generateResourcesAI` / `generateSurroundingAI` + 高德 `searchAmapSurrounding` 直接导入；第 6 步 `StepGenerate` 展示类型选择 + 「现在生成预案」跳转 `/plans/new?enterprise_id=xxx`。）
 
-- [ ] **步骤 2：tsc 验证并 Commit**
+- [x] **步骤 2：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -717,7 +717,7 @@ git commit -m "feat(onboarding): steps 3-6 (risk/chemical, resources, surroundin
 - 新建：`frontend/src/pages/Dashboard/CompletionCard.tsx`
 - 修改：`frontend/src/pages/Dashboard/DashboardPage.tsx`
 
-- [ ] **步骤 1：ImportDrawer（单文件 + 资料包）**
+- [x] **步骤 1：ImportDrawer（单文件 + 资料包）**
 
 新建 `frontend/src/pages/Onboarding/ImportDrawer.tsx`：
 
@@ -758,7 +758,7 @@ export default function ImportDrawer({ enterpriseId, open, onClose, onImported }
 }
 ```
 
-- [ ] **步骤 2：CompletionCard（工作台完成度卡片）**
+- [x] **步骤 2：CompletionCard（工作台完成度卡片）**
 
 新建 `frontend/src/pages/Dashboard/CompletionCard.tsx`：
 
@@ -799,7 +799,7 @@ export default function CompletionCard() {
 }
 ```
 
-- [ ] **步骤 3：Dashboard 嵌入卡片 + tsc 验证 + Commit**
+- [x] **步骤 3：Dashboard 嵌入卡片 + tsc 验证 + Commit**
 
 在 `frontend/src/pages/Dashboard/DashboardPage.tsx` 的统计卡之后、快捷新建之前插入 `<CompletionCard />`，并导入组件。
 

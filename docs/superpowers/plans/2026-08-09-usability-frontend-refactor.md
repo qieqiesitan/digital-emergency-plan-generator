@@ -41,7 +41,7 @@
 - 修改：`frontend/src/pages/Enterprise/EnterpriseDetailPage.tsx`
 - 修改：`frontend/src/pages/Enterprise/EnterpriseListPage.tsx`
 
-- [ ] **步骤 1：创建页卡片化**
+- [x] **步骤 1：创建页卡片化**
 
 `EnterpriseCreatePage.tsx` 重写主体：保留 `createEnterprise` mutation 与企查查自动填充能力（迁移到 `EnterpriseInfoCards` 内部），页面骨架：
 
@@ -74,7 +74,7 @@ export default function EnterpriseCreatePage() {
 }
 ```
 
-- [ ] **步骤 2：编辑页卡片化**
+- [x] **步骤 2：编辑页卡片化**
 
 `EnterpriseEditPage.tsx` 重写主体：查询企业后传 `enterprise` 给 `EnterpriseInfoCards`，`onSaved` 调 `updateEnterprise` 后返回详情页。
 
@@ -98,7 +98,7 @@ export default function EnterpriseEditPage() {
 }
 ```
 
-- [ ] **步骤 3：企业详情 tab 分组（虚线分隔 + 徽标）+ 基本信息卡片**
+- [x] **步骤 3：企业详情 tab 分组（虚线分隔 + 徽标）+ 基本信息卡片**
 
 `EnterpriseDetailPage.tsx`：
 
@@ -157,7 +157,7 @@ const tabItems = [
 
 3. Ant Design `Tabs` 对 `items` 中 `type: "group"` 的项渲染为分组标题；如需完全虚线分隔效果，给分组项设置自定义样式（`style: { borderTop: "1px dashed #e5e5e5" }`）。
 
-- [ ] **步骤 4：企业列表完成度列**
+- [x] **步骤 4：企业列表完成度列**
 
 `EnterpriseListPage.tsx` columns 增加：
 
@@ -183,7 +183,7 @@ const tabItems = [
 
 （`Enterprise` 类型增加可选 `completion?: { percent: number; modules: unknown[] }`。）
 
-- [ ] **步骤 5：tsc 验证并 Commit**
+- [x] **步骤 5：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -201,7 +201,7 @@ git commit -m "feat(enterprise): card-based forms, tab grouping with report badg
 **文件：**
 - 修改：`frontend/src/layouts/MainLayout.tsx`
 
-- [ ] **步骤 1：实现专业模式开关**
+- [x] **步骤 1：实现专业模式开关**
 
 `MainLayout.tsx`：
 
@@ -231,7 +231,7 @@ const togglePro = () => {
 
 （普通用户无管理权限时不显示开关；`proMode` 为 false 时隐藏管理分组。）
 
-- [ ] **步骤 2：tsc 验证并 Commit**
+- [x] **步骤 2：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -251,7 +251,7 @@ git commit -m "feat(layout): professional mode toggle to expand management menus
 - 修改：`frontend/src/pages/Plan/PlanCreatePage.tsx`
 - 修改：`frontend/src/routes/index.tsx`
 
-- [ ] **步骤 1：PlanCardsPage 卡片/列表视图切换**
+- [x] **步骤 1：PlanCardsPage 卡片/列表视图切换**
 
 `PlanCardsPage.tsx`：
 
@@ -283,11 +283,11 @@ const [view, setView] = useState<"cards" | "list">("cards");
 
 `PlanListEmbedded` 复用 `PlanListPage` 的表格逻辑（抽成可复用组件或在 PlanCardsPage 内联简单表格）。
 
-- [ ] **步骤 2：路由移除 `/plans/all`**
+- [x] **步骤 2：路由移除 `/plans/all`**
 
 `frontend/src/routes/index.tsx` 删除 `{ path: "/plans/all", element: <PlanListPage /> }`（`/enterprises/:enterprise_id/plans` 保留）。
 
-- [ ] **步骤 3：PlanCreatePage 两步化**
+- [x] **步骤 3：PlanCreatePage 两步化**
 
 `PlanCreatePage.tsx` 精简为两步（选类型 → 确认信息），删除「事故类型单独步（并入确认信息）/创作风格/编号版本号」：
 
@@ -306,7 +306,7 @@ const steps = [
 navigate(`/plans/${data.id}/edit?auto_generate=sample`);
 ```
 
-- [ ] **步骤 4：tsc 验证并 Commit**
+- [x] **步骤 4：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
@@ -325,7 +325,7 @@ git commit -m "refactor(plan): merge plan list views, slim create flow to two st
 - 修改：`frontend/src/pages/Plan/PlanEditorPage.tsx`
 - 修改：`frontend/src/components/plan/SectionTree.tsx`
 
-- [ ] **步骤 1：样章确认（auto_generate=sample）**
+- [x] **步骤 1：样章确认（auto_generate=sample）**
 
 `PlanEditorPage.tsx`：
 
@@ -361,7 +361,7 @@ const [sampleDone, setSampleDone] = useState(false);
 
 4. `auto_generate=1`（旧全量模式）逻辑保留兼容；`sample` 不自动全量。
 
-- [ ] **步骤 2：质量提示条（编辑页顶部）**
+- [x] **步骤 2：质量提示条（编辑页顶部）**
 
 `PlanEditorPage.tsx` 增加查询与提示（复用 `validateExport`）：
 
@@ -382,7 +382,7 @@ const { data: validation } = useQuery({
 )}
 ```
 
-- [ ] **步骤 3：章节树图例**
+- [x] **步骤 3：章节树图例**
 
 `SectionTree.tsx` 返回的 `<Tree>` 后追加图例：
 
@@ -394,7 +394,7 @@ const { data: validation } = useQuery({
 </div>
 ```
 
-- [ ] **步骤 4：tsc 验证并 Commit**
+- [x] **步骤 4：tsc 验证并 Commit**
 
 运行：`cd frontend && npx tsc --noEmit`
 
