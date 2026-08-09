@@ -34,14 +34,29 @@ const MENU_MAP: Record<string, string> = {
   "/settings/regulations": "menu:regulations",
 };
 
+const getStoredProMode = () => {
+  try {
+    return localStorage.getItem("pro_mode") === "1";
+  } catch {
+    return false;
+  }
+};
+
+const setStoredProMode = (v: boolean) => {
+  try {
+    localStorage.setItem("pro_mode", v ? "1" : "0");
+  } catch {
+    /* 存储不可用时忽略 */
+  }
+};
+
 export function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
-  const [proMode, setProMode] = useState(() => localStorage.getItem("pro_mode") === "1");
+  const [proMode, setProMode] = useState(getStoredProMode);
   const togglePro = () => {
-    setProMode(v => {
-      localStorage.setItem("pro_mode", v ? "0" : "1");
-      return !v;
-    });
+    const next = !proMode;
+    setProMode(next);
+    setStoredProMode(next);
   };
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,6 +67,12 @@ export function MainLayout() {
 
   const showSystemGroup = hasMenu("/settings/users") || hasMenu("/settings/roles") || hasMenu("/settings/system");
   const showAIGroup = hasMenu("/settings/prompts");
+
+  const settingsChildren = [
+    ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
+    ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <KeyOutlined />, label: "AI 配置" }] : []),
+    ...(proMode && hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" }] : []),
+  ];
 
   const menuItems = [
     ...(hasMenu("/dashboard") ? [{ key: "/dashboard", icon: <DashboardOutlined />, label: "工作台" }] : []),
@@ -79,16 +100,14 @@ export function MainLayout() {
         }]
       : []),
     { type: "divider" as const },
-    {
-      key: "settings",
-      icon: <SettingOutlined />,
-      label: "设置",
-      children: [
-        ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
-        ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <KeyOutlined />, label: "AI 配置" }] : []),
-        ...(proMode && hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" }] : []),
-      ],
-    },
+    ...(settingsChildren.length > 0
+      ? [{
+          key: "settings",
+          icon: <SettingOutlined />,
+          label: "设置",
+          children: settingsChildren,
+        }]
+      : []),
   ];
 
   const userMenuItems = [
@@ -102,9 +121,9 @@ export function MainLayout() {
     const keys: string[] = [];
     if (proMode && showSystemGroup) keys.push("system-group");
     if (proMode && showAIGroup) keys.push("ai-group");
-    keys.push("settings");
+    if (settingsChildren.length > 0) keys.push("settings");
     return keys;
-  }, [proMode, showSystemGroup, showAIGroup]);
+  }, [proMode, showSystemGroup, showAIGroup, settingsChildren.length]);
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
