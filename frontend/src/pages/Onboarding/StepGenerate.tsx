@@ -12,7 +12,7 @@ interface Props {
 const PLAN_TYPES = ["comprehensive", "special", "onsite"] as const;
 type PlanType = (typeof PLAN_TYPES)[number];
 
-export default function StepGenerate({ enterpriseId, onPrev }: Props) {
+export default function StepGenerate({ enterpriseId, onDone, onPrev }: Props) {
   const navigate = useNavigate();
   const [type, setType] = useState<PlanType>("comprehensive");
   return (
@@ -34,7 +34,10 @@ export default function StepGenerate({ enterpriseId, onPrev }: Props) {
         ))}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <Button onClick={onPrev}>上一步</Button>
+        <div>
+          <Button onClick={onPrev} style={{ marginRight: 8 }}>上一步</Button>
+          <Button onClick={onDone}>跳过生成预案，完成引导</Button>
+        </div>
         <Button
           type="primary"
           onClick={() => navigate(`/plans/new?type=${type}&enterprise_id=${enterpriseId}`)}
