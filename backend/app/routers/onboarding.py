@@ -10,6 +10,7 @@ from app.routers.hazardous_chemicals import AIGenerateRequest, AIAnswerInput
 from app.schemas.common import ApiResponse
 from app.services.file_parser import parse_file_text
 from app.services.onboarding_service import (
+    MODULE_SCHEMA_HINTS,
     classify_modules,
     compute_completion,
     extract_candidates,
@@ -18,6 +19,7 @@ from app.services.onboarding_service import (
 )
 
 router = APIRouter(tags=["Onboarding"])
+MAX_IMPORT_BYTES = 20 * 1024 * 1024
 
 
 class CandidatesBody(BaseModel):
@@ -85,7 +87,11 @@ async def onboarding_import(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if module != "auto" and module not in MODULE_SCHEMA_HINTS:
+        raise HTTPException(400, f"未知模块：{module}")
     data = await file.read()
+    if len(data) > MAX_IMPORT_BYTES:
+        raise HTTPException(413, "文件过大，最大支持 20MB")
     try:
         text = parse_file_text(file.filename or "", data)
     except ValueError as e:
@@ -109,11 +115,14 @@ async def onboarding_import_batch(
     results = []
     for file in files:
         data = await file.read()
+        if len(data) > MAX_IMPORT_BYTES:
+            raise HTTPException(413, "文件过大，最大支持 20MB")
         try:
             text = parse_file_text(file.filename or "", data)
         except ValueError as e:
             raise HTTPException(400, str(e))
         modules = await classify_modules(text, db)
+        # 批量导入为撒网模式：单文件识别不到模块则跳过，不拖累整批；单文件导入需明确反馈
         if not modules:
             continue
         for mod in modules:
