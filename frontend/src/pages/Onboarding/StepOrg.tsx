@@ -20,7 +20,7 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
   const [overview, setOverview] = useState("");
   const [candidates, setCandidates] = useState<OrgCandidate[]>([]);
   const [generating, setGenerating] = useState(false);
-  const { data: enterprise } = useQuery({
+  const { data: enterprise, isLoading } = useQuery({
     queryKey: ["enterprise", enterpriseId],
     queryFn: () => getEnterprise(enterpriseId),
     enabled: !!enterpriseId,
@@ -54,16 +54,23 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
       queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     },
+    onError: () => message.error("保存失败，请重试"),
   });
 
-  const adoptAll = () => {
+  const adoptAll = async () => {
+    if (isLoading) return;
     const merged = [...accepted];
     candidates.forEach(g => {
-      const key = g.group_key || `g-${merged.length}`;
-      if (!merged.some(x => x.group_key === key)) merged.push({ ...g, group_key: key });
+      const key = g.group_key || g.group_name || `g-${merged.length}`;
+      if (!merged.some(x => x.group_key === key || x.group_name === key))
+        merged.push({ ...g, group_key: key });
     });
-    saveMut.mutate(merged);
-    setCandidates([]);
+    try {
+      await saveMut.mutateAsync(merged);
+      setCandidates([]);
+    } catch {
+      // onError 已提示
+    }
   };
 
   return (
@@ -128,7 +135,12 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
               />
             </div>
           ))}
-          <Button type="primary" onClick={adoptAll} style={{ marginBottom: 12 }}>
+          <Button
+            type="primary"
+            onClick={adoptAll}
+            disabled={isLoading}
+            style={{ marginBottom: 12 }}
+          >
             全部采纳（姓名电话请到企业详情补充）
           </Button>
         </>

@@ -1,6 +1,7 @@
 import { Button } from "antd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getEnterprise } from "@/services/enterpriseService";
+import { getEnterprise, updateEnterprise } from "@/services/enterpriseService";
+import type { EnterpriseUpdate } from "@/types/enterprise";
 import EnterpriseInfoCards from "@/components/enterprise/EnterpriseInfoCards";
 
 interface Props {
@@ -35,7 +36,8 @@ export default function StepEnterprise({ enterpriseId, onDone, onPrev }: Props) 
       </p>
       <EnterpriseInfoCards
         enterprise={enterprise}
-        onSaved={async () => {
+        onSaved={async (values) => {
+          await updateEnterprise(enterpriseId, values as EnterpriseUpdate);
           queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] });
           queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
         }}

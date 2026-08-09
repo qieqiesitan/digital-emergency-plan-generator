@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Layout } from "antd";
 import { useQuery } from "@tanstack/react-query";
@@ -24,6 +24,15 @@ interface StepDef {
   component: ComponentType<StepProps>;
 }
 
+const MODULE_KEY_MAP: Record<string, string> = {
+  enterprise: "enterprise_info",
+  org: "org_structure",
+  risk: "risk_chemical",
+  resources: "resources",
+  surrounding: "surrounding",
+  generate: "reports",
+};
+
 const STEPS: StepDef[] = [
   { key: "enterprise", label: "企业信息", component: StepEnterprise },
   { key: "org", label: "组织架构", component: StepOrg },
@@ -38,13 +47,25 @@ export default function OnboardingPage() {
   const navigate = useNavigate();
   const enterpriseId = searchParams.get("enterprise_id");
   const [current, setCurrent] = useState(0);
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [localDone, setLocalDone] = useState<Set<string>>(new Set());
 
-  const { data: completion } = useQuery({
+  const { data: completion, isLoading } = useQuery({
     queryKey: ["completion", enterpriseId],
     queryFn: () => getEnterpriseCompletion(enterpriseId!),
     enabled: !!enterpriseId,
   });
+
+  // completed = 后端 completion.done 模块 ∪ 本地「标记完成」的步骤，两者保持一致
+  const completed = useMemo(() => {
+    const done = new Set(localDone);
+    completion?.modules.forEach(m => {
+      if (m.done) {
+        const stepKey = Object.entries(MODULE_KEY_MAP).find(([, v]) => v === m.key)?.[0];
+        if (stepKey) done.add(stepKey);
+      }
+    });
+    return done;
+  }, [completion, localDone]);
 
   if (!enterpriseId) {
     return <div style={{ padding: 48 }}>请先选择企业（缺少 enterprise_id 参数）</div>;
@@ -92,7 +113,7 @@ export default function OnboardingPage() {
           </div>
         ))}
         <div style={{ marginTop: 16, fontSize: 12, color: "#999" }}>
-          🔒 进度自动保存 · 完成度 {completion?.percent ?? 0}%
+          🔒 进度自动保存 · 完成度 {isLoading ? "–" : `${completion?.percent ?? 0}%`}
           <div style={{ marginTop: 8 }}>
             <Button size="small" onClick={() => navigate("/dashboard")}>
               稍后继续
@@ -104,9 +125,11 @@ export default function OnboardingPage() {
         <Step
           enterpriseId={enterpriseId}
           onDone={() => {
-            const next = new Set(completed);
-            next.add(STEPS[current].key);
-            setCompleted(next);
+            setLocalDone(prev => {
+              const next = new Set(prev);
+              next.add(STEPS[current].key);
+              return next;
+            });
             if (current < STEPS.length - 1) setCurrent(current + 1);
           }}
           onPrev={() => current > 0 && setCurrent(current - 1)}
