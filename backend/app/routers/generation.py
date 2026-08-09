@@ -478,11 +478,10 @@ async def _collect_batch_context(
     返回 (p, ai_config, ent_data, target_sections)。stale 守卫、空章节守卫、
     置 generating、_active_generations 赋值等端点差异逻辑留在调用端点。
     """
-    ai_config = (await db.execute(
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-    )).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "请先配置 AI 模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
     resources = (await db.execute(
@@ -850,9 +849,10 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
     if not s: raise HTTPException(404, "章节不存在")
 
-    ai_config = (await db.execute(select(AIConfig).where(AIConfig.user_id == current_user.id))).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    ai_config = await get_system_ai_config(db)
 
-    if not ai_config: raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+    if not ai_config: raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
 
 
@@ -963,8 +963,9 @@ async def regenerate_selection(
     s = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id, PlanSection.section_key == section_key))).scalar_one_or_none()
     if not s: raise HTTPException(404, "章节不存在")
 
-    ai_config = (await db.execute(select(AIConfig).where(AIConfig.user_id == current_user.id))).scalar_one_or_none()
-    if not ai_config: raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+    from app.services.ai_config_service import get_system_ai_config
+    ai_config = await get_system_ai_config(db)
+    if not ai_config: raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     # 收集企业数据
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
@@ -1050,10 +1051,9 @@ async def generate_preview(
     ))).scalar_one_or_none()
     if not s: raise HTTPException(404, "章节不存在")
 
-    ai_config = (await db.execute(select(AIConfig).where(
-        AIConfig.user_id == current_user.id
-    ))).scalar_one_or_none()
-    if not ai_config: raise HTTPException(400, "请先配置 AI 模型")
+    from app.services.ai_config_service import get_system_ai_config
+    ai_config = await get_system_ai_config(db)
+    if not ai_config: raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     ent = (await db.execute(select(Enterprise).where(
         Enterprise.id == p.enterprise_id

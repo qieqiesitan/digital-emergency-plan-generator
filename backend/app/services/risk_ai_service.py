@@ -6,7 +6,6 @@
 import json
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from fastapi import HTTPException
 from app.models.enterprise import AIConfig
 from app.services.llm_client import llm_text_completion
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_ai_config(user_id: str, db: AsyncSession) -> AIConfig:
-    """获取用户 AI 配置，未配置则抛出 400。
+    """获取系统级 AI 配置，未配置则抛出 400（user_id 参数保留兼容调用方）。
 
     Args:
         user_id: 用户 UUID
@@ -25,17 +24,12 @@ async def _get_ai_config(user_id: str, db: AsyncSession) -> AIConfig:
         AIConfig ORM 实例
 
     Raises:
-        HTTPException(400): 用户未配置 AI 模型
+        HTTPException(400): 系统未配置 AI 模型
     """
-    result = await db.execute(
-        select(AIConfig).where(
-            AIConfig.user_id == user_id,
-            AIConfig.is_active == True,
-        )
-    )
-    config = result.scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    config = await get_system_ai_config(db)
     if not config:
-        raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
     return config
 
 

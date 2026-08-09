@@ -198,9 +198,10 @@ async def list_messages(conv_id: str, current_user=Depends(get_current_user), db
 
 @router.post("")
 async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Depends(get_db)):
-    ai_config = (await db.execute(select(AIConfig).where(AIConfig.user_id == current_user.id))).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "请先在系统设置中配置AI模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     # 确保对话存在
     conv_id = body.conversation_id

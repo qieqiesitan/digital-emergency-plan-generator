@@ -214,7 +214,9 @@ class AIConfig(Base):
     __tablename__ = "ai_configs"
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
-    user_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    # 系统级配置 user_id 为 NULL（is_system=True）；用户级配置保留给专业模式
+    user_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     api_key_encrypted: Mapped[str] = mapped_column(String(1024), nullable=False)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)

@@ -21,7 +21,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 from app.database import get_db
 
-from app.models.enterprise import Enterprise, EmergencyResource, AIConfig
+from app.models.enterprise import Enterprise, EmergencyResource
 
 from app.services.llm_client import llm_text_completion
 
@@ -408,15 +408,13 @@ async def get_resource_ai_questions(
 
     ent_data = await _get_enterprise_data(enterprise_id, current_user.id, db)
 
-    ai_config = (await db.execute(
+    from app.services.ai_config_service import get_system_ai_config
 
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-
-    )).scalar_one_or_none()
+    ai_config = await get_system_ai_config(db)
 
     if not ai_config:
 
-        raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
 
 
@@ -570,15 +568,13 @@ async def generate_resources_ai(
 
     ent_data = await _get_enterprise_data(enterprise_id, current_user.id, db)
 
-    ai_config = (await db.execute(
+    from app.services.ai_config_service import get_system_ai_config
 
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-
-    )).scalar_one_or_none()
+    ai_config = await get_system_ai_config(db)
 
     if not ai_config:
 
-        raise HTTPException(400, "请先在系统设置中配置 AI 模型")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
 
 

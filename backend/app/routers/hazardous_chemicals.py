@@ -4,7 +4,6 @@ from sqlalchemy import select
 from app.database import get_db
 import json
 from pydantic import BaseModel
-from app.models.enterprise import AIConfig
 from app.services.llm_client import llm_text_completion
 from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise
@@ -187,11 +186,10 @@ async def get_chemical_ai_questions(
     db: AsyncSession = Depends(get_db),
 ):
     ent = await _get_enterprise(enterprise_id, current_user.id, db)
-    ai_config = (await db.execute(
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-    )).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "?????????? AI ??")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     # ???????
     existing = (await db.execute(
@@ -272,11 +270,10 @@ async def generate_chemicals_ai(
     db: AsyncSession = Depends(get_db),
 ):
     ent = await _get_enterprise(enterprise_id, current_user.id, db)
-    ai_config = (await db.execute(
-        select(AIConfig).where(AIConfig.user_id == current_user.id)
-    )).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise HTTPException(400, "?????????? AI ??")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
     # ?????????????
     existing = (await db.execute(

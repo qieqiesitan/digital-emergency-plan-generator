@@ -8,7 +8,7 @@ from sqlalchemy import select, func
 from app.models.user import User
 from app.models.enterprise import (
     Enterprise, RiskSource, EmergencyResource, PlanProject,
-    PlanSection, PlanTemplate, AIConfig as AIConfigModel,
+    PlanSection, PlanTemplate,
 )
 from app.models.risk_assessment import RiskAssessmentReport
 from app.models.resource_investigation import ResourceInvestigationReport
@@ -726,7 +726,8 @@ async def _search_regulation_articles(db, user, args):
 # ── AI 配置 ──
 
 async def _get_ai_config(db, user, args):
-    cfg = (await db.execute(select(AIConfigModel).where(AIConfigModel.user_id == user.id))).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    cfg = await get_system_ai_config(db)
     if not cfg:
         return {"configured": False, "message": "尚未配置 AI"}
     return {"configured": True, "provider": cfg.provider, "model": cfg.model_name}

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.models.user import User
-from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, AIConfig, EmergencyResource
+from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, EmergencyResource
 from app.schemas.common import ApiResponse
 from app.config import settings
 from app.services.external_file_store import download_external_files
@@ -87,7 +87,8 @@ async def _run_generation_then_callback(
             if not p:
                 _external_tasks[plan_id] = {"status": "failed", "error": "Plan not found"}; return
 
-            ai_config = (await db.execute(select(AIConfig).where(AIConfig.user_id == user_id))).scalar_one_or_none()
+            from app.services.ai_config_service import get_system_ai_config
+            ai_config = await get_system_ai_config(db)
             if not ai_config:
                 p.status = "failed"; await db.commit()
                 _external_tasks[plan_id] = {"status": "failed", "error": "No AI config"}; return

@@ -29,9 +29,10 @@ router = APIRouter(prefix="/regulations", tags=["法规库管理"])
 # ── 权限检查 ──
 
 async def _get_ai_config(user_id: str, db: AsyncSession) -> AIConfig:
-    r = (await db.execute(select(AIConfig).where(AIConfig.user_id == user_id))).scalar_one_or_none()
+    from app.services.ai_config_service import get_system_ai_config
+    r = await get_system_ai_config(db)
     if not r:
-        raise HTTPException(400, "请先在 设置→AI配置 中配置 AI 服务")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
     return r
 
 
