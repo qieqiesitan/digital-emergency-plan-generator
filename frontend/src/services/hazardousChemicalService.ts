@@ -76,7 +76,7 @@ export async function generateChemicalsAI(
   const res = await api.post<ApiResponse<AIGenerateChemicalsResponse>>(
     `/enterprises/${enterpriseId}/chemicals/ai/generate`,
     { answers },
-    { timeout: 120000 }
+    { timeout: 180000 }
   );
   return res.data.data.items;
 }

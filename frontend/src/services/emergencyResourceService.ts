@@ -85,7 +85,7 @@ export async function generateResourcesAI(
   const res = await api.post<ApiResponse<AIGenerateResourceResponse>>(
     `/enterprises/${enterpriseId}/resources/ai/generate`,
     { answers },
-    { timeout: 120000 },
+    { timeout: 180000 },
   );
   return res.data.data.items;
 }

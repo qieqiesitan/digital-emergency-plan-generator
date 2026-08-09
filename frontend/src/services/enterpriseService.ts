@@ -78,7 +78,7 @@ export async function generateSurroundingAI(
   const res = await api.post<ApiResponse<AIGenerateSurroundingResponse>>(
     `/enterprises/${enterpriseId}/surrounding/ai/generate`,
     { answers },
-    { timeout: 120000 },
+    { timeout: 180000 },
   );
   return res.data.data.surrounding;
 }
