@@ -108,7 +108,7 @@ export default function EnterpriseCreatePage() {
           </Form.Item>
           <Form.Item name="economic_type" label="经济类型">
             <AutoComplete
-            placeholder="?????????"
+            placeholder="选择或输入经济类型"
             options={ECONOMIC_TYPE_OPTIONS.map(t => ({ value: t, label: t }))}
             filterOption={(inputValue, option) =>
               option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1

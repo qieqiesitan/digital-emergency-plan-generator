@@ -70,8 +70,8 @@ export default function LoginScreen() {
           </div>
 
           <div className="flex justify-end mt-sm">
-            <span className="text-body-sm text-primary-500 cursor-pointer">
-              忘记密码？
+            <span className="text-body-sm text-neutral-500">
+              忘记密码？请联系管理员重置
             </span>
           </div>
 
