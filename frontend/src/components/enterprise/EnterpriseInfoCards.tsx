@@ -23,10 +23,11 @@ const CARD_FIELDS: Array<{ key: keyof Enterprise | string; label: string }> = [
   { key: "safety_officer", label: "安全负责人" },
 ];
 
-function displayValue(key: string, raw: unknown): string {
-  if (raw == null || raw === "") return "";
-  if (key === "established_date" && !dayjs.isDayjs(raw)) {
-    return dayjs(String(raw)).format("YYYY-MM-DD");
+function displayValue(key: string, raw: unknown): string | undefined {
+  if (raw === null || raw === undefined || raw === "") return undefined;
+  if (key === "established_date") {
+    const d = dayjs(raw as string | dayjs.Dayjs);
+    return d.isValid() ? d.format("YYYY-MM-DD") : undefined;
   }
   return String(raw);
 }
@@ -44,7 +45,14 @@ export default function EnterpriseInfoCards({
 
   const enterpriseRecord = (enterprise ?? {}) as Record<string, unknown>;
 
-  const fieldInit = (key: string) => enterpriseRecord[key] ?? undefined;
+  const fieldInit = (key: string) => {
+    const raw = enterpriseRecord[key];
+    if (raw === null || raw === undefined) return undefined;
+    if (key === "established_date") {
+      return raw ? dayjs(raw as string) : undefined;
+    }
+    return raw;
+  };
 
   const handleAutofill = async () => {
     const name = form.getFieldValue("name") || enterprise?.name;
@@ -304,7 +312,7 @@ export default function EnterpriseInfoCards({
               const payload: Record<string, unknown> = { ...values };
               if (payload.established_date) {
                 payload.established_date = dayjs(
-                  payload.established_date as dayjs.Dayjs,
+                  payload.established_date as dayjs.Dayjs | string,
                 ).format("YYYY-MM-DD");
               }
               if (onCreate) await onCreate(payload);
