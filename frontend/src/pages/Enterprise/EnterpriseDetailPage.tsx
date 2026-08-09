@@ -21,14 +21,22 @@ import type { OrgGroup, OrgMember, SurroundingInfo } from "@/types/enterprise";
 
 const ROLE_LABELS: Record<string, string> = { chief: "总指挥", deputy: "副总指挥", leader: "组长", member: "成员" };
 
-type ReportStatus = "none" | "draft" | "generating" | "completed";
+type ReportStatus = "none" | "draft" | "completed";
 
 const REPORT_BADGES: Record<ReportStatus, { text: string; color: string }> = {
   none: { text: "未生成", color: "orange" },
   draft: { text: "待合并", color: "orange" },
-  generating: { text: "生成中", color: "blue" },
   completed: { text: "已完成", color: "green" },
 };
+
+function toBadgeStatus(
+  status: "draft" | "generating" | "completed" | undefined,
+  isError: boolean,
+): ReportStatus {
+  if (isError || !status) return "none";
+  // 后端 GET 仅返回 completed/draft；generating 为不可达过渡态，按待合并展示
+  return status === "generating" ? "draft" : status;
+}
 
 function reportBadge(label: string, status: ReportStatus) {
   const { text, color } = REPORT_BADGES[status];
@@ -71,16 +79,18 @@ export default function EnterpriseDetailPage() {
     queryFn: () => getRiskAssessment(id!),
     enabled: !!id,
     retry: false,
+    refetchOnWindowFocus: true,
   });
   const { isError: riIsError, data: riReport } = useQuery({
     queryKey: ["enterprise", id, "resource-investigation"],
     queryFn: () => getResourceInvestigation(id!),
     enabled: !!id,
     retry: false,
+    refetchOnWindowFocus: true,
   });
 
-  const raStatus: ReportStatus = raIsError ? "none" : (raReport?.status ?? "none");
-  const riStatus: ReportStatus = riIsError ? "none" : (riReport?.status ?? "none");
+  const raStatus = toBadgeStatus(raReport?.status, raIsError);
+  const riStatus = toBadgeStatus(riReport?.status, riIsError);
 
   if (isLoading) return <Spin size="large" />;
   if (!enterprise) return <div>企业不存在</div>;

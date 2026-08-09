@@ -23,6 +23,8 @@ const CARD_FIELDS: Array<{ key: keyof Enterprise | string; label: string }> = [
   { key: "safety_officer", label: "安全负责人" },
 ];
 
+const DATE_FIELDS = ["established_date", "fire_approval_date", "last_plan_filing_date"];
+
 function displayValue(key: string, raw: unknown): string | undefined {
   if (raw === null || raw === undefined || raw === "") return undefined;
   if (key === "established_date") {
@@ -48,7 +50,7 @@ export default function EnterpriseInfoCards({
   const fieldInit = (key: string) => {
     const raw = enterpriseRecord[key];
     if (raw === null || raw === undefined) return undefined;
-    if (key === "established_date") {
+    if (DATE_FIELDS.includes(key)) {
       return raw ? dayjs(raw as string) : undefined;
     }
     return raw;
@@ -225,6 +227,21 @@ export default function EnterpriseInfoCards({
                     <Form.Item name="phone" label="联系电话" initialValue={fieldInit("phone")}>
                       <Input />
                     </Form.Item>
+                    <Form.Item name="fax" label="传真" initialValue={fieldInit("fax")}>
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="postal_code" label="邮政编码" initialValue={fieldInit("postal_code")}>
+                      <Input maxLength={6} />
+                    </Form.Item>
+                    <Form.Item name="land_area" label="占地面积（㎡）" initialValue={fieldInit("land_area")}>
+                      <InputNumber min={0} style={{ width: "100%" }} />
+                    </Form.Item>
+                    <Form.Item name="building_area" label="建筑面积（㎡）" initialValue={fieldInit("building_area")}>
+                      <InputNumber min={0} style={{ width: "100%" }} />
+                    </Form.Item>
+                    <Form.Item name="building_overview" label="建筑/厂区概况" initialValue={fieldInit("building_overview")}>
+                      <Input.TextArea rows={2} />
+                    </Form.Item>
                     <Form.Item
                       name="employee_count"
                       label="员工人数"
@@ -255,6 +272,13 @@ export default function EnterpriseInfoCards({
                       <Input />
                     </Form.Item>
                     <Form.Item
+                      name="safety_staff_count"
+                      label="安全管理人员数"
+                      initialValue={fieldInit("safety_staff_count")}
+                    >
+                      <InputNumber min={0} style={{ width: "100%" }} />
+                    </Form.Item>
+                    <Form.Item
                       name="safety_standardization"
                       label="安全标准化等级"
                       initialValue={fieldInit("safety_standardization")}
@@ -265,6 +289,27 @@ export default function EnterpriseInfoCards({
                       name="fire_approval"
                       label="消防验收"
                       initialValue={fieldInit("fire_approval")}
+                    >
+                      <Input />
+                    </Form.Item>
+                    <Form.Item
+                      name="fire_approval_date"
+                      label="消防验收日期"
+                      initialValue={fieldInit("fire_approval_date")}
+                    >
+                      <DatePicker style={{ width: "100%" }} />
+                    </Form.Item>
+                    <Form.Item
+                      name="last_plan_filing_date"
+                      label="上次备案日期"
+                      initialValue={fieldInit("last_plan_filing_date")}
+                    >
+                      <DatePicker style={{ width: "100%" }} />
+                    </Form.Item>
+                    <Form.Item
+                      name="last_plan_filing_authority"
+                      label="上次备案部门"
+                      initialValue={fieldInit("last_plan_filing_authority")}
                     >
                       <Input />
                     </Form.Item>
@@ -282,6 +327,13 @@ export default function EnterpriseInfoCards({
                       initialValue={fieldInit("main_products")}
                     >
                       <Input />
+                    </Form.Item>
+                    <Form.Item
+                      name="annual_capacity"
+                      label="年生产能力"
+                      initialValue={fieldInit("annual_capacity")}
+                    >
+                      <Input.TextArea rows={2} />
                     </Form.Item>
                     <Form.Item
                       name="hazardous_chemicals"
@@ -310,10 +362,10 @@ export default function EnterpriseInfoCards({
             onClick={async () => {
               const values = await form.validateFields();
               const payload: Record<string, unknown> = { ...values };
-              if (payload.established_date) {
-                payload.established_date = dayjs(
-                  payload.established_date as dayjs.Dayjs | string,
-                ).format("YYYY-MM-DD");
+              for (const field of DATE_FIELDS) {
+                if (payload[field]) {
+                  payload[field] = dayjs(payload[field] as dayjs.Dayjs | string).format("YYYY-MM-DD");
+                }
               }
               if (onCreate) await onCreate(payload);
               else if (onSaved) await onSaved(payload);
