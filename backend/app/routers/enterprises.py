@@ -166,11 +166,14 @@ async def update_enterprise(enterprise_id: str, data: EnterpriseUpdate, current_
             except ValueError:
                 pass
         return None
-    for k, v in data.model_dump(exclude_none=True).items():
+    # exclude_unset：未传字段不更新；显式传 null 允许清空可空字段（gis/floor_plan 等）
+    for k, v in data.model_dump(exclude_unset=True).items():
         if k in date_fields:
             v = _parse_date(v)
-        if v is not None:
-            setattr(e, k, v)
+        if v is None and k == "name":
+            # name 列 NOT NULL，显式 null 忽略以保留旧值
+            continue
+        setattr(e, k, v)
     await db.commit(); await db.refresh(e)
     return ApiResponse(data=_build_response(e))
 
