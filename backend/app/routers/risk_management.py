@@ -10,6 +10,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.enterprise import Enterprise, EnterpriseFloor, RiskSource
 from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
+from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewResponse, MigrationExecuteRequest, MigrationExecuteResponse, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse, FourColorAnalyzeResponse, FourColorCommitRequest, FourColorCommitResponse)
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config
@@ -732,6 +733,13 @@ async def create_event(unit_id: str, body: RiskEventCreate, enterprise_id: str, 
     await _get_ent(enterprise_id, current_user.id, db)
     u = (await db.execute(select(RiskUnit).where(RiskUnit.id==unit_id))).scalar_one_or_none()
     if not u: raise HTTPException(404, "单元不存在")
+    if body.chemical_id:
+        chem = (await db.execute(select(HazardousChemical).where(
+            HazardousChemical.id == body.chemical_id,
+            HazardousChemical.enterprise_id == enterprise_id,
+        ))).scalar_one_or_none()
+        if not chem:
+            raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
     rating = compute_risk(body.method_type, body.method_params, config)
     ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
@@ -745,6 +753,13 @@ async def create_object_event(object_id: str, body: RiskEventCreate, enterprise_
     await _get_ent(enterprise_id, current_user.id, db)
     obj = (await db.execute(select(RiskObject).where(RiskObject.id==object_id, RiskObject.enterprise_id==enterprise_id))).scalar_one_or_none()
     if not obj: raise HTTPException(404, "对象不存在")
+    if body.chemical_id:
+        chem = (await db.execute(select(HazardousChemical).where(
+            HazardousChemical.id == body.chemical_id,
+            HazardousChemical.enterprise_id == enterprise_id,
+        ))).scalar_one_or_none()
+        if not chem:
+            raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
     rating = compute_risk(body.method_type, body.method_params, config)
     ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
@@ -758,9 +773,14 @@ async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str,
     await _get_ent(enterprise_id, current_user.id, db)
     ev = (await db.execute(select(RiskEvent).where(RiskEvent.id==event_id))).scalar_one_or_none()
     if not ev: raise HTTPException(404, "事件不存在")
+    if body.chemical_id:
+        chem = (await db.execute(select(HazardousChemical).where(
+            HazardousChemical.id == body.chemical_id,
+            HazardousChemical.enterprise_id == enterprise_id,
+        ))).scalar_one_or_none()
+        if not chem:
+            raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     for k, v in body.model_dump(exclude_unset=True).items(): setattr(ev, k, v)
-    if body.chemical_id is not None:
-        ev.chemical_id = body.chemical_id
     if body.method_type or body.method_params:
         config = await get_active_method_config(db, enterprise_id, ev.method_type)
         rating = compute_risk(ev.method_type, ev.method_params, config)
