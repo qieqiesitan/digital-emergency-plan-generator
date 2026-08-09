@@ -139,7 +139,11 @@ export default function EnterpriseInfoCards({
             >
               <div style={{ color: "#999", fontSize: 12 }}>{label}</div>
               <Typography.Paragraph
-                ellipsis={{ rows: 2, expandable: true, symbol: "展开" }}
+                ellipsis={{
+                  rows: 2,
+                  expandable: "collapsible",
+                  symbol: (expanded) => (expanded ? "收起" : "展开"),
+                }}
                 style={{
                   marginBottom: 0,
                   fontWeight: 500,
