@@ -58,6 +58,7 @@ async def test_collect_batch_context_filters_sections():
         MagicMock(scalar_one_or_none=lambda: ai_cfg),          # AIConfig
         MagicMock(scalar_one_or_none=lambda: ent),             # Enterprise
         MagicMock(scalars=lambda: MagicMock(all=lambda: resources)),          # EmergencyResource
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [])),                  # HazardousChemical
         MagicMock(scalars=lambda: MagicMock(all=lambda: [sec1, sec2])),       # PlanSection
     ])
     request = MagicMock()
@@ -85,6 +86,7 @@ async def test_collect_batch_context_defaults_to_all_when_no_body():
         MagicMock(scalar_one_or_none=lambda: ai_cfg),
         MagicMock(scalar_one_or_none=lambda: ent),
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [])),  # HazardousChemical
         MagicMock(scalars=lambda: MagicMock(all=lambda: [sec1, sec2])),
     ])
     request = MagicMock()
@@ -124,6 +126,7 @@ async def test_generate_batch_background_empty_sections():
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # ai_config
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # enterprise
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),             # resources
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [])),             # hazardous chemicals
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),             # sections -> empty
     ])
     request = MagicMock()
@@ -171,6 +174,7 @@ async def test_generate_batch_sse_event_sequence(monkeypatch):
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # ai_config
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # enterprise
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),             # resources
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [])),             # hazardous chemicals
         MagicMock(scalars=lambda: MagicMock(all=lambda: [sec1])),         # sections
     ])
     request = MagicMock()

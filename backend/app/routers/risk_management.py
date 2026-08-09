@@ -734,7 +734,7 @@ async def create_event(unit_id: str, body: RiskEventCreate, enterprise_id: str, 
     if not u: raise HTTPException(404, "单元不存在")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
     rating = compute_risk(body.method_type, body.method_params, config)
-    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, risk_level=rating.risk_level, risk_score=rating.risk_score)
+    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -747,7 +747,7 @@ async def create_object_event(object_id: str, body: RiskEventCreate, enterprise_
     if not obj: raise HTTPException(404, "对象不存在")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
     rating = compute_risk(body.method_type, body.method_params, config)
-    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, risk_level=rating.risk_level, risk_score=rating.risk_score)
+    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -759,6 +759,8 @@ async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str,
     ev = (await db.execute(select(RiskEvent).where(RiskEvent.id==event_id))).scalar_one_or_none()
     if not ev: raise HTTPException(404, "事件不存在")
     for k, v in body.model_dump(exclude_unset=True).items(): setattr(ev, k, v)
+    if body.chemical_id is not None:
+        ev.chemical_id = body.chemical_id
     if body.method_type or body.method_params:
         config = await get_active_method_config(db, enterprise_id, ev.method_type)
         rating = compute_risk(ev.method_type, ev.method_params, config)

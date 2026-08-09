@@ -29,6 +29,7 @@ def _risk_source_item(zone: RiskZone, obj: RiskObject, unit: RiskUnit | None, ev
         "description": event.description,
         "triggers": event.trigger_conditions,
         "consequences": event.consequences,
+        "chemical_id": event.chemical_id,
         "likelihood": params.get("l", 3),
         "severity": params.get("s", 3),
         "control_measures": "；".join(m["description"] for m in measures),

@@ -79,6 +79,7 @@ class RiskEvent(Base):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     unit_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("risk_units.id", ondelete="CASCADE"), nullable=True)
     object_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("risk_objects.id", ondelete="CASCADE"), nullable=True)
+    chemical_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("hazardous_chemicals.id", ondelete="SET NULL"), nullable=True, index=True)
     accident_type: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     trigger_conditions: Mapped[Optional[str]] = mapped_column(Text)

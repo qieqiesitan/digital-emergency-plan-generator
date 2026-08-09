@@ -172,6 +172,7 @@ def _mock_event(accident_type=None, description=None, params=None, risk_level=No
     return SimpleNamespace(
         accident_type=accident_type,
         description=description,
+        chemical_id=None,
         method_params=params,
         risk_level=risk_level,
         measures=[],

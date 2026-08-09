@@ -17,6 +17,8 @@ from app.models.risk_assessment import RiskAssessmentReport
 
 from app.models.resource_investigation import ResourceInvestigationReport
 
+from app.models.hazardous_chemicals import HazardousChemical
+
 from app.dependencies import get_current_user
 
 import asyncio
@@ -263,7 +265,8 @@ def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
     section.diagram_svgs = diagrams
 
 
-def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list) -> dict:
+def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list, chemicals: dict | None = None) -> dict:
+    chemicals = chemicals or {}
 
     return {
 
@@ -307,6 +310,12 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
 
         "special_equipment": _missing(enterprise.special_equipment),
 
+        "chemicals": [
+            {"name": c.name, "cas_no": c.cas_no, "flash_point": c.flash_point,
+             "explosion_limit": c.explosion_limit, "location": c.location, "max_storage": c.max_storage}
+            for c in chemicals.values()
+        ],
+
         "risk_sources": [
             {
                 "categories": rs.get("categories", ""),
@@ -321,6 +330,12 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
                 "accident_type": rs.get("accident_type", ""),
                 "triggers": rs.get("triggers", ""),
                 "consequences": rs.get("consequences", ""),
+                "chemical": chemicals.get(rs.get("chemical_id")) and {
+                    "name": chemicals[rs["chemical_id"]].name,
+                    "cas_no": chemicals[rs["chemical_id"]].cas_no,
+                    "flash_point": chemicals[rs["chemical_id"]].flash_point,
+                    "explosion_limit": chemicals[rs["chemical_id"]].explosion_limit,
+                },
             }
             for rs in risk_context.get("risk_sources", [])
         ],
@@ -330,6 +345,9 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
         "zones": risk_context.get("zones", []),
         "risk_objects": risk_context.get("risk_objects", []),
         "floor_plan_url": getattr(enterprise, "floor_plan_url", None),
+        "risk_method_config": enterprise.risk_method_config,
+        "last_plan_filing_date": str(enterprise.last_plan_filing_date) if enterprise.last_plan_filing_date else None,
+        "last_plan_filing_authority": enterprise.last_plan_filing_authority,
 
     }
 
@@ -488,7 +506,11 @@ async def _collect_batch_context(
         select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id)
     )).scalars().all()
     risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
+    chemicals_rows = (await db.execute(
+        select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
+    )).scalars().all()
+    chemicals = {c.id: c for c in chemicals_rows}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
@@ -862,7 +884,11 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
     risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
 
-    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
+    chemicals_rows = (await db.execute(
+        select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
+    )).scalars().all()
+    chemicals = {c.id: c for c in chemicals_rows}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
 
     if ent:
 
@@ -971,7 +997,11 @@ async def regenerate_selection(
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
     risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
+    chemicals_rows = (await db.execute(
+        select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
+    )).scalars().all()
+    chemicals = {c.id: c for c in chemicals_rows}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
@@ -1062,7 +1092,11 @@ async def generate_preview(
         EmergencyResource.enterprise_id == p.enterprise_id
     ))).scalars().all()
     risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
+    chemicals_rows = (await db.execute(
+        select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
+    )).scalars().all()
+    chemicals = {c.id: c for c in chemicals_rows}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
