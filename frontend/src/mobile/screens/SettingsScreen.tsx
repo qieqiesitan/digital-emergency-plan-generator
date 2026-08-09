@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import Avatar from "@/mobile/components/ui/Avatar";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 
 const MENU_ITEMS = [
   {
@@ -22,11 +22,10 @@ const MENU_ITEMS = [
     path: "/m/change-password",
   },
   {
-    key: "ai-config",
+    key: "ai-assistant",
     icon: <Bot size={20} />,
-    label: "AI 模型配置",
-    path: "/m/settings/ai-config",
-    sub: "DeepSeek · deepseek-chat",
+    label: "AI 助手",
+    path: "/m/chat",
   },
 ];
 

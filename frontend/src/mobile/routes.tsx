@@ -26,6 +26,7 @@ const SettingsScreen = lazy(() => import("@/mobile/screens/SettingsScreen"));
 const ProfileScreen = lazy(() => import("@/mobile/screens/ProfileScreen"));
 const ChangePasswordScreen = lazy(() => import("@/mobile/screens/ChangePasswordScreen"));
 const AIModelConfigScreen = lazy(() => import("@/mobile/screens/AIModelConfigScreen"));
+const ChatScreen = lazy(() => import("@/mobile/screens/ChatScreen"));
 
 export const mobileRouter = createBrowserRouter([
   // 启动屏
@@ -70,6 +71,7 @@ export const mobileRouter = createBrowserRouter([
       { path: "settings/profile", element: <ProfileScreen /> },
       { path: "settings/password", element: <ChangePasswordScreen /> },
       { path: "settings/ai-config", element: <AIModelConfigScreen /> },
+      { path: "chat", element: <ChatScreen /> },
     ],
   },
 
