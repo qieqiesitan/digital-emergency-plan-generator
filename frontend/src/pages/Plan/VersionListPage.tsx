@@ -21,12 +21,12 @@ export default function VersionListPage() {
       <PageHeader title="版本历史" onBack={() => navigate(`/plans/${id}/edit`)} />
       <Table dataSource={versions || []} rowKey="id" loading={isLoading}
         columns={[
-          { title: "version", dataIndex: "version_number", render: (v: number) => "V" + v },
-          { title: "type", dataIndex: "created_by", render: (v: string) => v === "auto" ? "auto" : "manual" },
-          { title: "note", dataIndex: "description", render: (v: string | null) => v || "-" },
-          { title: "time", dataIndex: "created_at", render: formatDate },
+          { title: "版本", dataIndex: "version_number", render: (v: number) => "V" + v },
+          { title: "类型", dataIndex: "created_by", render: (v: string) => v === "auto" ? "自动" : "手动" },
+          { title: "说明", dataIndex: "description", render: (v: string | null) => v || "-" },
+          { title: "时间", dataIndex: "created_at", render: formatDate },
           { title: "", render: (_: unknown, r: { id: string; version_number: number }) => (
-            <Button onClick={() => Modal.confirm({ title: "rollback?", content: "rollback to V" + r.version_number + "?", onOk: () => rollbackMut.mutate(r.id) })}>rollback</Button>
+            <Button onClick={() => Modal.confirm({ title: "确定回滚？", content: "确定回滚到 V" + r.version_number + "？", onOk: () => rollbackMut.mutate(r.id) })}>回滚</Button>
           )},
         ]}
       />

@@ -76,9 +76,9 @@ export default function AIConfigPage() {
       </Card>
       <Card title="连接状态">
         {testResult ? (
-          <Alert type={testResult.ok ? "success" : "error"} title={testResult.ok ? "连接成功: " + testResult.detail : "连接失败: " + testResult.detail} showIcon />
+          <Alert type={testResult.ok ? "success" : "error"} title={testResult.ok ? "连接成功：" + testResult.detail : "连接失败：" + testResult.detail} showIcon />
         ) : config?.last_test_at ? (
-          <Alert type="success" title={"上次测试: " + new Date(config.last_test_at).toLocaleString()} showIcon />
+          <Alert type="success" title={"上次测试：" + new Date(config.last_test_at).toLocaleString()} showIcon />
         ) : (
           <Alert type="info" message="尚未测试" showIcon />
         )}
