@@ -103,7 +103,7 @@ async def list_enterprises(
     items = []
     for e in rows:
         item = _build_response(e, event_counts.get(e.id, 0))
-        item.completion = await compute_completion(e.id, db)
+        item.completion = await compute_completion(e.id, db, enterprise=e)
         items.append(item)
     return PaginatedResponse(data=PaginatedData(items=items, total=total, page=page, page_size=page_size))
 

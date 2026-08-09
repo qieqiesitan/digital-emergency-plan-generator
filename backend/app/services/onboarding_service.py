@@ -26,9 +26,13 @@ MODULE_LABELS = {
 }
 
 
-async def compute_completion(enterprise_id: str, db: AsyncSession) -> dict:
+async def compute_completion(
+    enterprise_id: str, db: AsyncSession, enterprise: Enterprise | None = None
+) -> dict:
     """返回 {percent, modules: [{key,label,weight,done}]}。"""
-    ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one_or_none()
+    ent = enterprise
+    if ent is None:
+        ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one_or_none()
     if not ent:
         raise ValueError("企业不存在")
 
@@ -80,7 +84,11 @@ async def compute_completion(enterprise_id: str, db: AsyncSession) -> dict:
 
 def _org_done(org_structure: list | None) -> bool:
     for group in org_structure or []:
-        for member in group.get("members", []):
+        if not isinstance(group, dict):
+            continue
+        for member in group.get("members") or []:
+            if not isinstance(member, dict):
+                continue
             role = str(member.get("role", "") or "")
             if member.get("name") and ("总指挥" in role or role == "chief" or role == "commander"):
                 return True
