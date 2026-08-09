@@ -59,12 +59,23 @@ async def skip_resource_investigation(
     )).scalar_one_or_none()
     if existing_completed:
         raise HTTPException(400, "报告已生成，无需跳过")
+    # upsert：已有记录（含 draft）改写为 skipped，避免「生成→未合并→跳过」产生重复行
+    existing = (await db.execute(
+        select(ResourceInvestigationReport).where(
+            ResourceInvestigationReport.enterprise_id == enterprise_id,
+            ResourceInvestigationReport.status != "skipped",
+        ).order_by(ResourceInvestigationReport.id)
+    )).scalars().first()
+    if existing:
+        existing.status = "skipped"
+        await db.commit()
+        return ApiResponse(data={}, message="已跳过资源调查报告")
     existing_skipped = (await db.execute(
         select(ResourceInvestigationReport).where(
             ResourceInvestigationReport.enterprise_id == enterprise_id,
             ResourceInvestigationReport.status == "skipped",
         )
-    )).scalar_one_or_none()
+    )).scalars().first()
     if not existing_skipped:
         db.add(ResourceInvestigationReport(enterprise_id=enterprise_id, title="", status="skipped"))
         await db.commit()
@@ -314,12 +325,13 @@ async def generate_resource_investigation(
 
     # Create or update report record
     report = (
-        await db.execute(
+        (await db.execute(
             select(ResourceInvestigationReport).where(
-                ResourceInvestigationReport.enterprise_id == enterprise_id
+                ResourceInvestigationReport.enterprise_id == enterprise_id,
+                ResourceInvestigationReport.status.in_(["generating", "draft", "completed"]),
             )
-        )
-    ).scalar_one_or_none()
+        )).scalars().first()
+    )
 
     title = f"{ent.name} 应急资源调查报告"
     if report:
@@ -462,12 +474,13 @@ async def merge_resource_investigation(
     chapters_data = request.custom_instruction  # The frontend sends chapters here
 
     report = (
-        await db.execute(
+        (await db.execute(
             select(ResourceInvestigationReport).where(
-                ResourceInvestigationReport.enterprise_id == enterprise_id
+                ResourceInvestigationReport.enterprise_id == enterprise_id,
+                ResourceInvestigationReport.status.in_(["generating", "draft", "completed"]),
             )
-        )
-    ).scalar_one_or_none()
+        )).scalars().first()
+    )
 
     if not report:
         raise HTTPException(404, "未找到报告")

@@ -62,12 +62,23 @@ async def skip_risk_assessment(
     )).scalar_one_or_none()
     if existing_completed:
         raise HTTPException(400, "报告已生成，无需跳过")
+    # upsert：已有记录（含 draft）改写为 skipped，避免「生成→未合并→跳过」产生重复行
+    existing = (await db.execute(
+        select(RiskAssessmentReport).where(
+            RiskAssessmentReport.enterprise_id == enterprise_id,
+            RiskAssessmentReport.status != "skipped",
+        ).order_by(RiskAssessmentReport.id)
+    )).scalars().first()
+    if existing:
+        existing.status = "skipped"
+        await db.commit()
+        return ApiResponse(data={}, message="已跳过风险评估报告")
     existing_skipped = (await db.execute(
         select(RiskAssessmentReport).where(
             RiskAssessmentReport.enterprise_id == enterprise_id,
             RiskAssessmentReport.status == "skipped",
         )
-    )).scalar_one_or_none()
+    )).scalars().first()
     if not existing_skipped:
         db.add(RiskAssessmentReport(enterprise_id=enterprise_id, title="", status="skipped"))
         await db.commit()
@@ -443,8 +454,11 @@ async def generate_risk_assessment(
         raise HTTPException(400, "已有正在生成的报告，请等待完成")
 
     report = (await db.execute(
-        select(RiskAssessmentReport).where(RiskAssessmentReport.enterprise_id == enterprise_id)
-    )).scalar_one_or_none()
+        select(RiskAssessmentReport).where(
+            RiskAssessmentReport.enterprise_id == enterprise_id,
+            RiskAssessmentReport.status.in_(["generating", "draft", "completed"]),
+        ).order_by(RiskAssessmentReport.id)
+    )).scalars().first()
 
     title = f"{ent.name} 事故风险评估报告"
     if report:
@@ -574,12 +588,13 @@ async def merge_risk_assessment(
     chapters_data = request.custom_instruction
 
     report = (
-        await db.execute(
+        (await db.execute(
             select(RiskAssessmentReport).where(
-                RiskAssessmentReport.enterprise_id == enterprise_id
+                RiskAssessmentReport.enterprise_id == enterprise_id,
+                RiskAssessmentReport.status.in_(["generating", "draft", "completed"]),
             )
-        )
-    ).scalar_one_or_none()
+        )).scalars().first()
+    )
 
     if not report:
         report = RiskAssessmentReport(
