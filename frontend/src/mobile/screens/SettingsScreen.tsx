@@ -13,13 +13,13 @@ const MENU_ITEMS = [
     key: "profile",
     icon: <User size={20} />,
     label: "个人资料",
-    path: "/m/profile",
+    path: "/m/settings/profile",
   },
   {
     key: "password",
     icon: <Key size={20} />,
     label: "修改密码",
-    path: "/m/change-password",
+    path: "/m/settings/password",
   },
   {
     key: "ai-assistant",
@@ -51,7 +51,7 @@ export default function SettingsScreen() {
         <motion.div whileTap={{ scale: 0.99 }}>
           <button
             className="w-full bg-white rounded-md shadow-card p-md flex items-center gap-md"
-            onClick={() => navigate("/m/profile")}
+            onClick={() => navigate("/m/settings/profile")}
           >
             <Avatar name="用户" size="md" />
             <div className="flex-1 text-left">
