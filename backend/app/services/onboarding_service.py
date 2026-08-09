@@ -156,3 +156,32 @@ async def classify_modules(text: str, db) -> list[str]:
     if not isinstance(raw_modules, list):
         return []
     return [m for m in raw_modules if isinstance(m, str) and m in MODULE_SCHEMA_HINTS]
+
+
+async def generate_org_candidates(enterprise_info: dict, db) -> list[dict]:
+    """根据企业概况生成应急组织框架候选（角色+职责；姓名/电话一律留空）。"""
+    ai_config = await _get_ai_config_or_400(db)
+    ent_text = (
+        f"企业名称：{enterprise_info.get('name', '')}\n"
+        f"行业：{enterprise_info.get('industry', '')}\n"
+        f"经营范围：{enterprise_info.get('business_scope', '')}\n"
+        f"员工人数：{enterprise_info.get('employee_count', '')}"
+    )
+    prompt = (
+        "根据企业概况生成应急预案应急组织机构框架建议。\n"
+        "包含：应急救援指挥部（总指挥、副总指挥）与必要应急小组（抢险救援组、疏散引导组、"
+        "医疗救护组、通讯联络组、后勤保障组等，按企业规模取舍）。\n"
+        "每个组给出 group_key、group_name、职责描述 responsibilities，成员给 role，"
+        "**姓名 name、电话 phone、公司职位 position 一律输出空字符串**，由用户填写。\n"
+        "输出严格 JSON：{\"groups\": [{\"group_key\": \"cmd\", \"group_name\": \"应急救援指挥部\", "
+        "\"responsibilities\": \"...\", \"members\": [{\"role\": \"总指挥\", \"name\": \"\", \"position\": \"\", \"phone\": \"\"}]}]}，只输出 JSON。\n\n"
+        f"企业概况：\n{ent_text}"
+    )
+    raw = await llm_text_completion(
+        [{"role": "system", "content": "你是应急预案编制专家，只输出 JSON。"},
+         {"role": "user", "content": prompt}],
+        ai_config,
+    )
+    parsed = _parse_ai_json(raw)
+    raw_groups = parsed.get("groups") or []
+    return [g for g in raw_groups if isinstance(g, dict)]
