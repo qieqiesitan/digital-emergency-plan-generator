@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Col, Row, Input, Select, Button, Space, Spin, Empty } from "antd";
 import { Segmented, Table, Progress } from "antd";
@@ -133,8 +133,25 @@ export default function PlanCardsPage() {
   const [view, setView] = useState<"cards" | "list">("cards");
   const [search, setSearch] = useState("");
   const [listSearch, setListSearch] = useState("");
+  const [debouncedListSearch, setDebouncedListSearch] = useState("");
+  const listSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [listPage, setListPage] = useState(1);
   const [industry, setIndustry] = useState<string | undefined>();
+
+  // 列表视图搜索防抖：停顿 300ms 后再发请求，避免每击键请求
+  useEffect(() => {
+    if (listSearchTimerRef.current) {
+      clearTimeout(listSearchTimerRef.current);
+    }
+    listSearchTimerRef.current = setTimeout(() => {
+      setDebouncedListSearch(listSearch);
+    }, 300);
+    return () => {
+      if (listSearchTimerRef.current) {
+        clearTimeout(listSearchTimerRef.current);
+      }
+    };
+  }, [listSearch]);
 
   const { data: summaries, isLoading } = useQuery({
     queryKey: ["plan-enterprise-summary"],
@@ -205,7 +222,7 @@ export default function PlanCardsPage() {
 
       {view === "list" ? (
         <PlanListTable
-          listSearch={listSearch}
+          listSearch={debouncedListSearch}
           listPage={listPage}
           onPageChange={setListPage}
         />
