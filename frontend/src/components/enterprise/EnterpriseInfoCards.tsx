@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Collapse, DatePicker, Drawer, Form, Input, InputNumber, message } from "antd";
+import { Button, Collapse, DatePicker, Drawer, Form, Input, InputNumber, message, Typography } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Enterprise } from "@/types/enterprise";
@@ -138,9 +138,16 @@ export default function EnterpriseInfoCards({
               style={{ border: "1px solid #eee", borderRadius: 8, padding: 10, fontSize: 13 }}
             >
               <div style={{ color: "#999", fontSize: 12 }}>{label}</div>
-              <div style={{ fontWeight: 500, color: text ? "#333" : "#fa8c16" }}>
+              <Typography.Paragraph
+                ellipsis={{ rows: 2, expandable: true, symbol: "展开" }}
+                style={{
+                  marginBottom: 0,
+                  fontWeight: 500,
+                  color: text ? "#333" : "#fa8c16",
+                }}
+              >
                 {text || "（待补充）"}
-              </div>
+              </Typography.Paragraph>
             </div>
           );
         })}
