@@ -38,6 +38,7 @@ export default function PlanCreatePage() {
     onSuccess: (data) => {
       message.success("预案创建成功");
       queryClient.invalidateQueries({ queryKey: ["plans"] });
+      // auto_generate=sample：C2-4（样章确认）在 PlanEditorPage 支持该参数前，创建后不自动生成；依赖记录见 TASKS.md
       navigate(`/plans/${data.id}/edit?auto_generate=sample`);
     },
     onError: () => message.error("创建失败"),

@@ -17,7 +17,8 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { fromNow } from "@/utils/formatters";
 import { PLAN_TYPE_LABELS, PRESET_INDUSTRIES } from "@/utils/constants";
 import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
-import type { PlanProject } from "@/types/plan";
+import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
+import type { PlanProject, PlanStatus } from "@/types/plan";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   comprehensive: <SafetyCertificateOutlined />,
@@ -31,13 +32,22 @@ const TYPE_COLORS: Record<string, string> = {
   onsite: "#52c41a",
 };
 
-function PlanListTable() {
+function PlanListTable({
+  listSearch,
+  listPage,
+  onPageChange,
+}: {
+  listSearch: string;
+  listPage: number;
+  onPageChange: (page: number) => void;
+}) {
   const navigate = useNavigate();
-  const { data, isLoading } = useQuery({
-    queryKey: ["plans", { page: 1, page_size: 100 }],
-    queryFn: () => listPlans({ page: 1, page_size: 100 }),
+  const listQuery = useQuery({
+    queryKey: ["plans", "list", listPage, listSearch],
+    queryFn: () => listPlans({ page: listPage, page_size: 20, search: listSearch || undefined }),
   });
-  const plans = data?.data.items || [];
+
+  const plans = listQuery.data?.data.items || [];
 
   const columns: TableColumnsType<PlanProject> = [
     { title: "预案标题", dataIndex: "title", ellipsis: true },
@@ -63,6 +73,12 @@ function PlanListTable() {
           />
         );
       },
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 100,
+      render: (v: string) => <PlanStatusTag status={v as PlanStatus} />,
     },
     {
       title: "更新时间",
@@ -94,11 +110,14 @@ function PlanListTable() {
       columns={columns}
       dataSource={plans}
       rowKey="id"
-      loading={isLoading}
+      loading={listQuery.isLoading}
       pagination={{
-        pageSize: 10,
+        current: listPage,
+        pageSize: 20,
+        total: listQuery.data?.data.total || 0,
         showSizeChanger: false,
         showTotal: (t: number) => `共 ${t} 条`,
+        onChange: onPageChange,
       }}
       onRow={(record) => ({
         style: { cursor: "pointer" },
@@ -113,6 +132,8 @@ export default function PlanCardsPage() {
   const navigate = useNavigate();
   const [view, setView] = useState<"cards" | "list">("cards");
   const [search, setSearch] = useState("");
+  const [listSearch, setListSearch] = useState("");
+  const [listPage, setListPage] = useState(1);
   const [industry, setIndustry] = useState<string | undefined>();
 
   const { data: summaries, isLoading } = useQuery({
@@ -157,24 +178,37 @@ export default function PlanCardsPage() {
         />
         <Input
           prefix={<SearchOutlined />}
-          placeholder="搜索企业名称"
+          placeholder={view === "list" ? "搜索预案标题" : "搜索企业名称"}
           allowClear
           style={{ width: 240 }}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={view === "list" ? listSearch : search}
+          onChange={(e) => {
+            if (view === "list") {
+              setListSearch(e.target.value);
+              setListPage(1);
+            } else {
+              setSearch(e.target.value);
+            }
+          }}
         />
-        <Select
-          placeholder="行业筛选"
-          allowClear
-          style={{ width: 160 }}
-          value={industry}
-          onChange={setIndustry}
-          options={[...PRESET_INDUSTRIES].map((i) => ({ value: i, label: i }))}
-        />
+        {view === "cards" && (
+          <Select
+            placeholder="行业筛选"
+            allowClear
+            style={{ width: 160 }}
+            value={industry}
+            onChange={setIndustry}
+            options={[...PRESET_INDUSTRIES].map((i) => ({ value: i, label: i }))}
+          />
+        )}
       </Space>
 
       {view === "list" ? (
-        <PlanListTable />
+        <PlanListTable
+          listSearch={listSearch}
+          listPage={listPage}
+          onPageChange={setListPage}
+        />
       ) : isLoading ? (
         <div style={{ textAlign: "center", padding: 80 }}>
           <Spin size="large" />
