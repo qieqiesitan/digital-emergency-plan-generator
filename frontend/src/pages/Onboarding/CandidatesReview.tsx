@@ -1,4 +1,4 @@
-import { Empty } from "antd";
+import { Button, Empty } from "antd";
 import type React from "react";
 import type { CandidateItem } from "@/types/onboarding";
 
@@ -48,22 +48,18 @@ export default function CandidatesReview({
             <div key={item._key} style={{ border: "1px solid #1677ff", background: "#f0f7ff", borderRadius: 8, padding: 8 }}>
               {renderItem(item)}
               <div style={{ marginTop: 6, display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <span style={{ color: "#1677ff", cursor: "pointer" }} onClick={() => onModify(item)}>修改</span>
-                <span style={{ color: "#52c41a", fontWeight: 600, cursor: "pointer" }} onClick={() => onAccept(item)}>采纳 ✓</span>
-                <span style={{ color: "#999", cursor: "pointer" }} onClick={() => onDelete(item)}>删除</span>
+                <Button type="link" size="small" onClick={() => onModify(item)}>修改</Button>
+                <Button type="link" size="small" style={{ color: "#52c41a" }} onClick={() => onAccept(item)}>采纳 ✓</Button>
+                <Button type="link" size="small" onClick={() => onDelete(item)}>删除</Button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <button
-        onClick={onGenerateMore}
-        disabled={generating}
-        style={{ width: "100%", padding: 6, cursor: generating ? "not-allowed" : "pointer" }}
-      >
+      <Button block loading={generating} onClick={onGenerateMore}>
         {generating ? "生成中…" : generateMoreLabel}
-      </button>
+      </Button>
     </div>
   );
 }
