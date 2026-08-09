@@ -191,7 +191,7 @@ export default function PlanEditorPage() {
     }
 
     setIsGenerating(true);
-    setBatchProgress({ current: 0, total: sections.length, message: "准备开始..." });
+    setBatchProgress({ current: 0, total: keys ? keys.length : sections.length, message: "准备开始..." });
     genContentRef.current = {};
     selectedKeyRef.current = null;
     setGeneratingSections(new Set());
@@ -245,13 +245,13 @@ export default function PlanEditorPage() {
             setIsGenerating(false);
             setGeneratingSections(new Set());
             setBatchProgress({ current: 0, total: 0, message: "" });
-            onBatchDone?.();
             if (event.failed_sections && event.failed_sections.length > 0) {
               setFailedSections(event.failed_sections);
               message.warning(`${event.failed_sections.length} 个章节生成失败`);
             } else {
               setFailedSections([]);
               message.success(`全部生成完成，共 ${completedCount} 个章节`);
+              onBatchDone?.(); // 样章：仅无失败时进入确认态
             }
             queryClient.invalidateQueries({ queryKey: ["planSections", id] });
             queryClient.invalidateQueries({ queryKey: ["plan", id] });
@@ -365,7 +365,14 @@ export default function PlanEditorPage() {
           <div style={{ fontSize: 13, color: "#555", marginBottom: 8 }}>满意后生成全部章节；不满意可换风格重新生成样章</div>
           <Space>
             <Button type="primary" onClick={() => { setSampleMode(false); startRealtimeGeneration(); }}>满意，生成全部章节</Button>
-            <Button onClick={() => startRealtimeGeneration([sections![0].section_key])}>换风格重新生成样章</Button>
+            <Button
+              onClick={() => {
+                setSampleDone(false);
+                startRealtimeGeneration([sections![0].section_key]);
+              }}
+            >
+              换风格重新生成样章
+            </Button>
           </Space>
         </div>
       )}
