@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 from app.database import get_db
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.role import AdminUserCreate, AdminUserUpdate, AdminUserResponse
+from app.schemas.role import AdminUserCreate, AdminUserUpdate, AdminUserResponse, AdminResetPassword
 from app.schemas.common import ApiResponse
 from app.services.auth_service import hash_password
 from app.dependencies import require_admin, require_super_admin, get_current_user
@@ -103,3 +103,19 @@ async def delete_user(
     await db.delete(user)
     await db.commit()
     return {"code": 0, "message": "已删除"}
+
+
+@router.post("/{user_id}/reset-password", response_model=ApiResponse[AdminUserResponse])
+async def reset_user_password(
+    user_id: str,
+    data: AdminResetPassword,
+    _=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "用户不存在")
+    user.password_hash = hash_password(data.new_password)
+    await db.commit()
+    await db.refresh(user)
+    return ApiResponse(data=AdminUserResponse.model_validate(user))

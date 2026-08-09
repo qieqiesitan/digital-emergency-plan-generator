@@ -33,6 +33,9 @@ class AdminUserUpdate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=100)
     role: Optional[str] = Field(default=None, max_length=30)
 
+class AdminResetPassword(BaseModel):
+    new_password: str = Field(..., min_length=6, max_length=128)
+
 class AdminUserResponse(BaseModel):
     id: str; email: str; name: str; role: str; created_at: Optional[DatetimeStr] = None
     model_config = {"from_attributes": True}
