@@ -11,11 +11,18 @@ import {
 import type { SurroundingInfo } from "@/types/enterprise";
 import AmapSearchResultModal from "@/components/enterprise/AmapSearchResultModal";
 import SurroundingAIGenerateModal from "@/components/enterprise/SurroundingAIGenerateModal";
+import SurroundingInfoForm from "@/components/enterprise/SurroundingInfoForm";
+import CandidatesReview from "./CandidatesReview";
+import ImportDrawer from "./ImportDrawer";
+import type { CandidateItem, ImportResult } from "@/types/onboarding";
 
 interface Props {
   enterpriseId: string;
   onDone: () => void;
   onPrev: () => void;
+  imported?: CandidateItem[];
+  onAddImported?: (stepKey: string, items: CandidateItem[]) => void;
+  onRemoveImported?: (stepKey: string, itemKey: string) => void;
 }
 
 const EMPTY_SURROUNDING: SurroundingInfo = { nearby_units: [], sensitive_targets: [], traffic_info: "" };
@@ -35,7 +42,14 @@ const AMAP_POI_OPTIONS: PoiOption[] = [
   { code: "公园|广场", label: "公园/广场", group: "sensitive" },
 ];
 
-export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props) {
+export default function StepSurrounding({
+  enterpriseId,
+  onDone,
+  onPrev,
+  imported,
+  onAddImported,
+  onRemoveImported,
+}: Props) {
   const queryClient = useQueryClient();
   const [amapConfigOpen, setAmapConfigOpen] = useState(false);
   const [amapRadius, setAmapRadius] = useState(5000);
@@ -46,6 +60,8 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
   const [amapResultOpen, setAmapResultOpen] = useState(false);
   const [amapSearchedAddress, setAmapSearchedAddress] = useState("");
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: surrounding = EMPTY_SURROUNDING } = useQuery({
     queryKey: ["surrounding", enterpriseId],
@@ -56,6 +72,65 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
   const refreshCompletion = () => {
     queryClient.invalidateQueries({ queryKey: ["surrounding", enterpriseId] });
     queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
+  };
+
+  const handleImported = (results: ImportResult[]) => {
+    const result = results[0];
+    if (!result) return;
+    const items: CandidateItem[] = (result.candidates || []).map((raw, i) => ({
+      ...raw,
+      _key: raw._key || `imp-sur-${Date.now()}-${i}`,
+      source: raw.source || result.source,
+    }));
+    onAddImported?.("surrounding", items);
+  };
+
+  const acceptImport = async (item: CandidateItem) => {
+    const name = String(item.name || "").trim();
+    if (!name) {
+      message.info("候选缺少名称");
+      return;
+    }
+    const next: SurroundingInfo = {
+      nearby_units: [...(surrounding.nearby_units || [])],
+      sensitive_targets: [...(surrounding.sensitive_targets || [])],
+      traffic_info: surrounding.traffic_info || "",
+    };
+    const direction = String(item.direction || "N").toUpperCase();
+    const distance_m = Number(item.distance_m) || 0;
+    // 提取结果区分：带 type 无 main_risk 视为敏感目标，否则周边单位
+    const isTarget =
+      item.target_type === "sensitive" || Boolean(item.type && !item.main_risk);
+    if (isTarget) {
+      if (next.sensitive_targets.some(t => t.name === name && t.direction === direction)) {
+        message.warning("已存在相同敏感目标");
+        return;
+      }
+      next.sensitive_targets.push({
+        name,
+        direction,
+        distance_m,
+        type: String(item.type || ""),
+      });
+    } else {
+      if (next.nearby_units.some(u => u.name === name && u.direction === direction)) {
+        message.warning("已存在相同周边单位");
+        return;
+      }
+      next.nearby_units.push({
+        name,
+        direction,
+        distance_m,
+        main_risk: String(item.main_risk || ""),
+      });
+    }
+    try {
+      await saveSurrounding.mutateAsync(next);
+      onRemoveImported?.("surrounding", item._key);
+      message.success(`已采纳：${name}`);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || "保存失败，请重试");
+    }
   };
 
   const saveSurrounding = useMutation({
@@ -127,6 +202,8 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
         <Button icon={<ThunderboltOutlined />} onClick={() => setAiModalOpen(true)}>
           AI 生成周边环境
         </Button>
+        <Button onClick={() => setManualOpen(true)}>✍️ 手动填写</Button>
+        <Button onClick={() => setImportOpen(true)}>📄 导入现有数据</Button>
       </Space>
 
       <div
@@ -154,6 +231,39 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
           </div>
         )}
       </div>
+
+      {(imported || []).length > 0 && (
+        <CandidatesReview
+          accepted={[]}
+          candidates={imported || []}
+          renderItem={(item: CandidateItem) => (
+            <div>
+              <b>{String(item.name || "")}</b>{" "}
+              <span style={{ color: "#999", fontSize: 12 }}>
+                {item.type && !item.main_risk ? "[敏感目标]" : "[周边单位]"}
+                {item.direction ? ` ${String(item.direction)}` : ""}
+              </span>
+              <div style={{ color: "#666", fontSize: 12 }}>
+                {[
+                  item.distance_m ? `距离 ${String(item.distance_m)} 米` : "",
+                  item.type ? `类型 ${String(item.type)}` : "",
+                  item.main_risk ? `主要风险 ${String(item.main_risk)}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "信息待补充"}
+              </div>
+              {item.source && (
+                <div style={{ color: "#999", fontSize: 11 }}>来源：{String(item.source)}</div>
+              )}
+            </div>
+          )}
+          onAccept={acceptImport}
+          onModify={() => message.info("修改功能后续接入")}
+          onDelete={(item) => onRemoveImported?.("surrounding", item._key)}
+          onGenerateMore={() => setImportOpen(true)}
+          generateMoreLabel="继续导入文件"
+        />
+      )}
 
       <Divider style={{ margin: "12px 0" }} />
       <div style={{ fontSize: 12, color: "#999", marginBottom: 12 }}>
@@ -219,6 +329,23 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
         visible={aiModalOpen}
         onClose={() => setAiModalOpen(false)}
         onImported={refreshCompletion}
+      />
+      <SurroundingInfoForm
+        enterpriseId={enterpriseId}
+        surroundingInfo={surrounding}
+        visible={manualOpen}
+        onClose={() => {
+          setManualOpen(false);
+          refreshCompletion();
+        }}
+      />
+      <ImportDrawer
+        enterpriseId={enterpriseId}
+        open={importOpen}
+        mode="single"
+        module="surrounding"
+        onClose={() => setImportOpen(false)}
+        onImported={handleImported}
       />
     </div>
   );

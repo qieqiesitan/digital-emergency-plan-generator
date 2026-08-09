@@ -1,31 +1,76 @@
-import { useState } from "react";
-import { Button, Input, Table, message } from "antd";
+import { useMemo, useState } from "react";
+import { Button, Input, Space, Table, message } from "antd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { getEnterprise, updateOrgStructure } from "@/services/enterpriseService";
 import api from "@/services/api";
-import type { OrgGroup } from "@/types/enterprise";
+import type { OrgGroup, OrgMember } from "@/types/enterprise";
+import OrgStructureEditor from "@/components/enterprise/OrgStructureEditor";
+import ImportDrawer from "./ImportDrawer";
+import type { CandidateItem, ImportResult } from "@/types/onboarding";
 
 interface Props {
   enterpriseId: string;
   onDone: () => void;
   onPrev: () => void;
+  imported?: CandidateItem[];
+  onAddImported?: (stepKey: string, items: CandidateItem[]) => void;
+  onRemoveImported?: (stepKey: string, itemKey: string) => void;
 }
 
 // 后端候选额外返回组级职责描述，前端类型未声明该字段
-type OrgCandidate = OrgGroup & { responsibilities?: string };
+type OrgCandidate = OrgGroup & { responsibilities?: string; source?: string; _key: string };
 
-export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
+function toOrgCandidates(raws: CandidateItem[], fallbackSource: string): CandidateItem[] {
+  const ts = Date.now();
+  return raws.map((raw, i) => {
+    const g = raw as unknown as OrgCandidate;
+    return {
+      ...g,
+      group_key: String(raw.group_key || raw.group_name || `imp-org-${ts}-${i}`),
+      group_name: String(raw.group_name || "导入组织"),
+      members: Array.isArray(raw.members) ? (raw.members as OrgMember[]) : [],
+      responsibilities: raw.responsibilities ? String(raw.responsibilities) : undefined,
+      source: raw.source ? String(raw.source) : fallbackSource || undefined,
+      _key: String(raw._key || `imp-org-${ts}-${i}`),
+    };
+  });
+}
+
+export default function StepOrg({
+  enterpriseId,
+  onDone,
+  onPrev,
+  imported,
+  onAddImported,
+  onRemoveImported,
+}: Props) {
   const queryClient = useQueryClient();
   const [overview, setOverview] = useState("");
   const [candidates, setCandidates] = useState<OrgCandidate[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const { data: enterprise, isLoading } = useQuery({
     queryKey: ["enterprise", enterpriseId],
     queryFn: () => getEnterprise(enterpriseId),
     enabled: !!enterpriseId,
   });
   const accepted = enterprise?.org_structure || [];
+  const importedGroups = useMemo(
+    () => toOrgCandidates(imported || [], "") as unknown as OrgCandidate[],
+    [imported],
+  );
+  const allCandidates = useMemo(
+    () => [...candidates, ...importedGroups],
+    [candidates, importedGroups],
+  );
+
+  const handleImported = (results: ImportResult[]) => {
+    const result = results[0];
+    if (!result) return;
+    onAddImported?.("org", toOrgCandidates(result.candidates || [], result.source));
+  };
 
   const generate = async () => {
     setGenerating(true);
@@ -60,7 +105,7 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
   const adoptAll = async () => {
     if (isLoading) return;
     const merged = [...accepted];
-    candidates.forEach(g => {
+    allCandidates.forEach(g => {
       const key = g.group_key || g.group_name || `g-${merged.length}`;
       if (!merged.some(x => x.group_key === key || x.group_name === key))
         merged.push({ ...g, group_key: key });
@@ -68,6 +113,7 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
     try {
       await saveMut.mutateAsync(merged);
       setCandidates([]);
+      importedGroups.forEach(g => onRemoveImported?.("org", g._key));
     } catch {
       // onError 已提示
     }
@@ -75,10 +121,24 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <h3>组织架构</h3>
-      <p style={{ color: "#666", fontSize: 13 }}>
-        突发事件谁来指挥、谁负责什么——预案「应急组织机构及职责」章节直接用它
-      </p>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
+        <div>
+          <h3>组织架构</h3>
+          <p style={{ color: "#666", fontSize: 13 }}>
+            突发事件谁来指挥、谁负责什么——预案「应急组织机构及职责」章节直接用它
+          </p>
+        </div>
+        <Space>
+          <Button onClick={() => setManualOpen(true)}>✍️ 手动填写</Button>
+          <Button onClick={() => setImportOpen(true)}>📄 导入现有数据</Button>
+        </Space>
+      </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <Input.TextArea
           rows={2}
@@ -90,9 +150,9 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
           AI 生成候选
         </Button>
       </div>
-      {candidates.length > 0 && (
+      {allCandidates.length > 0 && (
         <>
-          {candidates.map(g => (
+          {allCandidates.map(g => (
             <div
               key={g.group_key}
               style={{
@@ -104,6 +164,9 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
               }}
             >
               <b>{g.group_name}</b>
+              {g.source && (
+                <div style={{ color: "#999", fontSize: 11 }}>来源：{g.source}</div>
+              )}
               <div style={{ color: "#666", fontSize: 12, margin: "4px 0" }}>
                 {g.responsibilities}
               </div>
@@ -151,6 +214,23 @@ export default function StepOrg({ enterpriseId, onDone, onPrev }: Props) {
           标记完成，下一步 →
         </Button>
       </div>
+      <OrgStructureEditor
+        enterpriseId={enterpriseId}
+        orgStructure={accepted}
+        visible={manualOpen}
+        onClose={() => {
+          setManualOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
+        }}
+      />
+      <ImportDrawer
+        enterpriseId={enterpriseId}
+        open={importOpen}
+        mode="single"
+        module="org_structure"
+        onClose={() => setImportOpen(false)}
+        onImported={handleImported}
+      />
     </div>
   );
 }

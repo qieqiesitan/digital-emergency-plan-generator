@@ -15,3 +15,10 @@ export interface CandidateItem {
   source?: string;
   [key: string]: unknown;
 }
+
+/** 单文件/资料包导入结果：模块归属 + 候选 + 来源（文件名） */
+export interface ImportResult {
+  module: string;
+  candidates: CandidateItem[];
+  source: string;
+}

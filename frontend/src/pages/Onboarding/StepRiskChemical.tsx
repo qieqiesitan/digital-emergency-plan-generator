@@ -1,15 +1,20 @@
-import { useState } from "react";
-import { Button, Input, message } from "antd";
+import { useMemo, useState } from "react";
+import { Button, Drawer, Input, Space, message } from "antd";
 import { useQueryClient } from "@tanstack/react-query";
 import { generateChemicalsAI, batchCreateChemicals } from "@/services/hazardousChemicalService";
 import type { HazardousChemicalCreate } from "@/types/hazardousChemical";
+import HazardousChemicalsTab from "@/pages/Enterprise/HazardousChemicalsTab";
 import CandidatesReview from "./CandidatesReview";
-import type { CandidateItem } from "@/types/onboarding";
+import ImportDrawer from "./ImportDrawer";
+import type { CandidateItem, ImportResult } from "@/types/onboarding";
 
 interface Props {
   enterpriseId: string;
   onDone: () => void;
   onPrev: () => void;
+  imported?: CandidateItem[];
+  onAddImported?: (stepKey: string, items: CandidateItem[]) => void;
+  onRemoveImported?: (stepKey: string, itemKey: string) => void;
 }
 
 /** 候选 dict 收窄为 HazardousChemicalCreate（全部显式字符串转换 + name 必填校验） */
@@ -39,12 +44,36 @@ function toCreatePayload(item: CandidateItem): HazardousChemicalCreate {
   };
 }
 
-export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props) {
+export default function StepRiskChemical({
+  enterpriseId,
+  onDone,
+  onPrev,
+  imported,
+  onAddImported,
+  onRemoveImported,
+}: Props) {
   const queryClient = useQueryClient();
   const [overview, setOverview] = useState("");
   const [candidates, setCandidates] = useState<CandidateItem[]>([]);
   const [accepted, setAccepted] = useState<CandidateItem[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const displayCandidates = useMemo(
+    () => [...candidates, ...(imported || [])],
+    [candidates, imported],
+  );
+
+  const handleImported = (results: ImportResult[]) => {
+    const result = results[0];
+    if (!result) return;
+    const items: CandidateItem[] = (result.candidates || []).map((raw, i) => ({
+      ...raw,
+      _key: raw._key || `imp-risk-${Date.now()}-${i}`,
+      source: raw.source || result.source,
+    }));
+    onAddImported?.("risk", items);
+  };
 
   const generate = async () => {
     setGenerating(true);
@@ -68,7 +97,11 @@ export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props
     try {
       // 先 await 保存成功，再移动候选到已采纳区；失败保留候选，杜绝 UI/后端不一致
       await batchCreateChemicals(enterpriseId, [toCreatePayload(item)]);
-      setCandidates(prev => prev.filter(x => x._key !== item._key));
+      if (imported?.some(x => x._key === item._key)) {
+        onRemoveImported?.("risk", item._key);
+      } else {
+        setCandidates(prev => prev.filter(x => x._key !== item._key));
+      }
       setAccepted(prev => [...prev, item]);
       message.success(`已保存：${String(item.name || "")}`);
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
@@ -79,8 +112,24 @@ export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <h3>风险与危化品</h3>
-      <p style={{ color: "#666", fontSize: 13 }}>企业有什么风险、存了什么危化品——事故风险描述的核心数据</p>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
+        <div>
+          <h3>风险与危化品</h3>
+          <p style={{ color: "#666", fontSize: 13 }}>
+            企业有什么风险、存了什么危化品——事故风险描述的核心数据
+          </p>
+        </div>
+        <Space>
+          <Button onClick={() => setManualOpen(true)}>✍️ 手动填写</Button>
+          <Button onClick={() => setImportOpen(true)}>📄 导入现有数据</Button>
+        </Space>
+      </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <Input.TextArea
           rows={2}
@@ -92,17 +141,26 @@ export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props
       </div>
       <CandidatesReview
         accepted={accepted}
-        candidates={candidates}
+        candidates={displayCandidates}
         renderItem={(item: CandidateItem) => (
           <div>
             <b>{String(item.name || "")}</b>{" "}
             <span style={{ color: "#999", fontSize: 12 }}>{item.cas_no ? `CAS ${String(item.cas_no)}` : ""}</span>
             <div style={{ color: "#666", fontSize: 12 }}>{item.location ? String(item.location) : "位置待补充"}</div>
+            {item.source && (
+              <div style={{ color: "#999", fontSize: 11 }}>来源：{String(item.source)}</div>
+            )}
           </div>
         )}
         onAccept={accept}
         onModify={() => message.info("修改功能后续接入")}
-        onDelete={(item) => setCandidates(prev => prev.filter(x => x._key !== item._key))}
+        onDelete={(item) => {
+          if (imported?.some(x => x._key === item._key)) {
+            onRemoveImported?.("risk", item._key);
+          } else {
+            setCandidates(prev => prev.filter(x => x._key !== item._key));
+          }
+        }}
         onGenerateMore={generate}
         generating={generating}
       />
@@ -110,6 +168,25 @@ export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props
         <Button onClick={onPrev}>上一步</Button>
         <Button type="primary" onClick={onDone}>标记完成，下一步 →</Button>
       </div>
+      <Drawer
+        title="✍️ 手动填写危化品"
+        open={manualOpen}
+        onClose={() => {
+          setManualOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
+        }}
+        width={760}
+      >
+        <HazardousChemicalsTab enterpriseId={enterpriseId} />
+      </Drawer>
+      <ImportDrawer
+        enterpriseId={enterpriseId}
+        open={importOpen}
+        mode="single"
+        module="risk_chemical"
+        onClose={() => setImportOpen(false)}
+        onImported={handleImported}
+      />
     </div>
   );
 }

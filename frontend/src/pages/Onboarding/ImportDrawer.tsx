@@ -1,39 +1,99 @@
 import { useState } from "react";
-import axios from "axios";
 import { Drawer, Upload, message } from "antd";
-import { importOnboardingBatch } from "@/services/onboardingService";
+import {
+  importOnboardingBatch,
+  importOnboardingFile,
+} from "@/services/onboardingService";
+import type { ImportResult } from "@/types/onboarding";
 
 interface Props {
   enterpriseId: string;
   open: boolean;
+  /** package=资料包（一次多文件自动分流）；single=定点单文件导入（需 module） */
+  mode: "package" | "single";
+  /** single 模式目标模块（enterprise_info/org_structure/risk_chemical/resources/surrounding） */
+  module?: string;
   onClose: () => void;
-  onImported: (items: unknown[]) => void;
+  onImported: (results: ImportResult[]) => void;
 }
 
-export default function ImportDrawer({ enterpriseId, open, onClose, onImported }: Props) {
+function errorMessage(e: unknown): string {
+  if (e && typeof e === "object" && "response" in e) {
+    const resp = (e as { response?: { data?: { detail?: unknown } } }).response;
+    const detail = resp?.data?.detail;
+    if (typeof detail === "string" && detail) return detail;
+  }
+  return e instanceof Error && e.message ? e.message : "导入失败";
+}
+
+export default function ImportDrawer({
+  enterpriseId,
+  open,
+  mode,
+  module,
+  onClose,
+  onImported,
+}: Props) {
   const [uploading, setUploading] = useState(false);
+  const isPackage = mode === "package";
+
+  const handleFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      if (isPackage) {
+        // 资料包：一次请求走 batch 分流，不做逐文件 N 次并发
+        const results = await importOnboardingBatch(enterpriseId, files);
+        if (results.length === 0) {
+          message.warning("未能从这些文件中识别出企业数据模块，可改用各步骤「导入现有数据」定点导入");
+        } else {
+          const count = results.reduce((n, r) => n + (r.candidates || []).length, 0);
+          const skipped = files.length - results.length;
+          onImported(results);
+          message.success(
+            `已提取 ${count} 条候选，分流至 ${results.length} 个模块` +
+              (skipped > 0 ? `，${skipped} 个文件未识别模块已跳过` : ""),
+          );
+        }
+      } else {
+        const targetModule = module || "auto";
+        const result = await importOnboardingFile(enterpriseId, targetModule, files[0]);
+        const items = result.candidates || [];
+        if (items.length === 0) {
+          message.warning("未从该文件中提取到候选，请检查文件内容或换一个文件");
+        } else {
+          onImported([result]);
+          message.success(`已提取 ${items.length} 条候选，来源：${result.source}`);
+        }
+      }
+      onClose();
+    } catch (e: unknown) {
+      message.error(errorMessage(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
-    <Drawer title="导入现有数据" open={open} onClose={onClose} width={520}>
+    <Drawer
+      title={isPackage ? "导入企业资料包" : "导入现有数据"}
+      open={open}
+      onClose={onClose}
+      width={520}
+    >
       <p style={{ color: "#666", fontSize: 13 }}>
-        支持 .xlsx / .csv / .docx / .pdf，AI 自动提取为候选供核对；也可上传多个文件作为「资料包」自动分流。
+        支持 .xlsx / .csv / .docx / .pdf / .txt，AI 自动提取为候选供逐条核对；
+        {isPackage
+          ? "可一次上传多个文件，自动识别模块并分流到各步骤候选区。"
+          : "导入结果将进入本步骤候选区（标注来源文件与行号）。"}
       </p>
       <Upload.Dragger
-        multiple
+        multiple={isPackage}
         accept=".xlsx,.csv,.docx,.pdf,.txt"
-        beforeUpload={async (file) => {
-          setUploading(true);
-          try {
-            const result = await importOnboardingBatch(enterpriseId, [file as unknown as File]);
-            const items = result.flatMap(r => r.candidates || []);
-            onImported(items);
-            message.success(`已提取 ${items.length} 条候选`);
-          } catch (e: unknown) {
-            const err = e as { response?: { data?: { detail?: unknown } } };
-            const detail = axios.isAxiosError(e) ? e.response?.data?.detail : err?.response?.data?.detail;
-            const fallbackMsg = (e as Error | undefined)?.message || "导入失败";
-            message.error(typeof detail === "string" ? detail : fallbackMsg);
-          } finally {
-            setUploading(false);
+        beforeUpload={(file, fileList) => {
+          // beforeUpload 逐文件触发；仅第一个文件触发整批处理，避免重复请求
+          if (file.uid === fileList[0]?.uid) {
+            void handleFiles(fileList as unknown as File[]);
           }
           return false;
         }}
@@ -41,7 +101,11 @@ export default function ImportDrawer({ enterpriseId, open, onClose, onImported }
       >
         <p>点击或拖拽文件到这里</p>
         <p style={{ color: "#999", fontSize: 12 }}>
-          {uploading ? "AI 分析提取中…" : "资料包（多文件）将自动识别并分流到各步骤"}
+          {uploading
+            ? "AI 分析提取中…"
+            : isPackage
+              ? "资料包（多文件）将自动识别并分流到各步骤"
+              : "单文件将定点提取到当前步骤候选区"}
         </p>
       </Upload.Dragger>
     </Drawer>

@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Layout } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { getEnterpriseCompletion } from "@/services/onboardingService";
+import type { CandidateItem, ImportResult } from "@/types/onboarding";
+import ImportDrawer from "./ImportDrawer";
 import StepEnterprise from "./StepEnterprise";
 import StepOrg from "./StepOrg";
 import StepRiskChemical from "./StepRiskChemical";
@@ -15,6 +17,12 @@ interface StepProps {
   enterpriseId: string;
   onDone: () => void;
   onPrev: () => void;
+  /** 资料包导入后按模块分发的候选（含来源文件） */
+  imported?: CandidateItem[];
+  /** 步骤内单文件导入：把新候选加入本步骤导入区 */
+  onAddImported?: (stepKey: string, items: CandidateItem[]) => void;
+  /** 步骤采纳/删除某条导入候选后通知页面移除（空则清除挂起标记） */
+  onRemoveImported?: (stepKey: string, itemKey: string) => void;
 }
 
 interface StepDef {
@@ -48,6 +56,47 @@ export default function OnboardingPage() {
   const enterpriseId = searchParams.get("enterprise_id");
   const [current, setCurrent] = useState(0);
   const [localDone, setLocalDone] = useState<Set<string>>(new Set());
+  const [packageOpen, setPackageOpen] = useState(false);
+  // 资料包分流结果：step key → 候选（不落库，标注来源文件）
+  const [importedByStep, setImportedByStep] = useState<Record<string, CandidateItem[]>>({});
+
+  const handlePackageImported = useCallback((results: ImportResult[]) => {
+    setImportedByStep(prev => {
+      const next = { ...prev };
+      results.forEach(result => {
+        const stepKey = Object.entries(MODULE_KEY_MAP).find(([, v]) => v === result.module)?.[0];
+        if (!stepKey) return;
+        const items = (result.candidates || []).map((raw, i) => ({
+          ...raw,
+          _key: raw._key || `imp-${stepKey}-${Date.now()}-${i}`,
+          source: result.source,
+        }));
+        next[stepKey] = [...(next[stepKey] || []), ...items];
+      });
+      return next;
+    });
+    setPackageOpen(false);
+  }, []);
+
+  const addImported = useCallback((stepKey: string, items: CandidateItem[]) => {
+    setImportedByStep(prev => {
+      const next = { ...prev };
+      next[stepKey] = [...(prev[stepKey] || []), ...items];
+      return next;
+    });
+  }, []);
+
+  const removeImported = useCallback((stepKey: string, itemKey: string) => {
+    setImportedByStep(prev => {
+      const items = prev[stepKey];
+      if (!items) return prev;
+      const nextItems = items.filter(x => x._key !== itemKey);
+      const next = { ...prev };
+      if (nextItems.length === 0) delete next[stepKey];
+      else next[stepKey] = nextItems;
+      return next;
+    });
+  }, []);
 
   const { data: completion, isLoading } = useQuery({
     queryKey: ["completion", enterpriseId],
@@ -81,6 +130,13 @@ export default function OnboardingPage() {
         style={{ borderRight: "1px solid #f0f0f0", padding: 16 }}
       >
         <div style={{ fontWeight: 600, marginBottom: 12 }}>完成企业数据</div>
+        <Button
+          block
+          style={{ marginBottom: 12 }}
+          onClick={() => setPackageOpen(true)}
+        >
+          📦 导入企业资料包
+        </Button>
         {STEPS.map((s, i) => (
           <div
             key={s.key}
@@ -97,6 +153,19 @@ export default function OnboardingPage() {
           >
             {completed.has(s.key) ? "✓ " : i === current ? "▶ " : ""}
             {i + 1} {s.label}
+            {(importedByStep[s.key] || []).length > 0 && (
+              <span
+                style={{
+                  fontSize: 10,
+                  background: "#e6f4ff",
+                  borderRadius: 4,
+                  padding: "0 4px",
+                  marginLeft: 4,
+                }}
+              >
+                资料包
+              </span>
+            )}
             {s.optional && (
               <span
                 style={{
@@ -124,6 +193,9 @@ export default function OnboardingPage() {
       <Layout.Content style={{ padding: 24 }}>
         <Step
           enterpriseId={enterpriseId}
+          imported={importedByStep[STEPS[current].key]}
+          onAddImported={addImported}
+          onRemoveImported={removeImported}
           onDone={() => {
             setLocalDone(prev => {
               const next = new Set(prev);
@@ -135,6 +207,13 @@ export default function OnboardingPage() {
           onPrev={() => current > 0 && setCurrent(current - 1)}
         />
       </Layout.Content>
+      <ImportDrawer
+        enterpriseId={enterpriseId}
+        open={packageOpen}
+        mode="package"
+        onClose={() => setPackageOpen(false)}
+        onImported={handlePackageImported}
+      />
     </Layout>
   );
 }
