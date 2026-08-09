@@ -2,7 +2,12 @@ import { useState } from "react";
 import { Button, Checkbox, Col, Divider, Empty, message, Modal, Row, Slider, Space } from "antd";
 import { SearchOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSurrounding, searchAmapSurrounding, updateSurrounding } from "@/services/enterpriseService";
+import {
+  getSurrounding,
+  searchAmapSurrounding,
+  updateSurrounding,
+  type AmapPoiTypeItem,
+} from "@/services/enterpriseService";
 import type { SurroundingInfo } from "@/types/enterprise";
 import AmapSearchResultModal from "@/components/enterprise/AmapSearchResultModal";
 import SurroundingAIGenerateModal from "@/components/enterprise/SurroundingAIGenerateModal";
@@ -15,8 +20,10 @@ interface Props {
 
 const EMPTY_SURROUNDING: SurroundingInfo = { nearby_units: [], sensitive_targets: [], traffic_info: "" };
 
-// 与后端 AMAP_POI_KEYWORDS 保持同步（后端仅在搜索返回时携带 available_types）
-const AMAP_POI_OPTIONS: { code: string; label: string; group: "nearby" | "sensitive" }[] = [
+type PoiOption = { code: string; label: string; group: "nearby" | "sensitive" };
+
+// 与后端 AMAP_POI_KEYWORDS 保持同步（后端搜索响应携带 available_types，优先消费；此处为回退常量）
+const AMAP_POI_OPTIONS: PoiOption[] = [
   { code: "消防站", label: "消防站", group: "nearby" },
   { code: "派出所", label: "派出所", group: "nearby" },
   { code: "综合医院", label: "综合医院", group: "nearby" },
@@ -33,6 +40,7 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
   const [amapConfigOpen, setAmapConfigOpen] = useState(false);
   const [amapRadius, setAmapRadius] = useState(5000);
   const [amapTypes, setAmapTypes] = useState<string[]>(AMAP_POI_OPTIONS.map(o => o.code));
+  const [poiOptions, setPoiOptions] = useState<PoiOption[]>(AMAP_POI_OPTIONS);
   const [amapSearching, setAmapSearching] = useState(false);
   const [amapResult, setAmapResult] = useState<SurroundingInfo | null>(null);
   const [amapResultOpen, setAmapResultOpen] = useState(false);
@@ -63,6 +71,19 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
         radius: amapRadius,
         types: amapTypes.length > 0 ? amapTypes.join(",") : undefined,
       });
+      // POI 类型选项优先用后端 available_types，若存在则更新，否则保留本地回退常量
+      if (result.available_types && result.available_types.length > 0) {
+        const mapped: PoiOption[] = result.available_types.map((t: AmapPoiTypeItem) => ({
+          code: t.code,
+          label: t.label,
+          group: t.target_type,
+        }));
+        setPoiOptions(mapped);
+        setAmapTypes(prev => {
+          const valid = prev.filter(code => mapped.some(o => o.code === code));
+          return valid.length > 0 ? valid : mapped.map(o => o.code);
+        });
+      }
       setAmapResult(result.surrounding);
       setAmapSearchedAddress(result.searched_address);
       setAmapResultOpen(true);
@@ -167,7 +188,7 @@ export default function StepSurrounding({ enterpriseId, onDone, onPrev }: Props)
         <div style={{ marginBottom: 8, fontWeight: 500 }}>搜索类型（不选则搜索全部）</div>
         <Checkbox.Group value={amapTypes} onChange={(vals) => setAmapTypes(vals as string[])}>
           <Row gutter={[8, 8]}>
-            {AMAP_POI_OPTIONS.map(o => (
+            {poiOptions.map(o => (
               <Col span={12} key={o.code}>
                 <Checkbox value={o.code}>{o.label}</Checkbox>
               </Col>

@@ -62,14 +62,15 @@ export default function StepResources({ enterpriseId, onDone, onPrev }: Props) {
   };
 
   const accept = async (item: CandidateItem) => {
-    setCandidates(prev => prev.filter(x => x._key !== item._key));
-    setAccepted(prev => [...prev, item]);
     try {
+      // 先 await 保存成功，再移动候选到已采纳区；失败保留候选，杜绝 UI/后端不一致
       await batchCreateResources(enterpriseId, [toCreatePayload(item)]);
+      setCandidates(prev => prev.filter(x => x._key !== item._key));
+      setAccepted(prev => [...prev, item]);
       message.success(`已保存：${String(item.name || "")}`);
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "保存失败");
+      message.error((e as Error)?.message || "保存失败，请重试");
     }
   };
 

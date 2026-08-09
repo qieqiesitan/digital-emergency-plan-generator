@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Input, message } from "antd";
 import { useQueryClient } from "@tanstack/react-query";
-import { generateChemicalsAI, createChemical } from "@/services/hazardousChemicalService";
+import { generateChemicalsAI, batchCreateChemicals } from "@/services/hazardousChemicalService";
 import type { HazardousChemicalCreate } from "@/types/hazardousChemical";
 import CandidatesReview from "./CandidatesReview";
 import type { CandidateItem } from "@/types/onboarding";
@@ -12,21 +12,31 @@ interface Props {
   onPrev: () => void;
 }
 
-const CHEMICAL_CREATE_FIELDS = [
-  "name", "cas_no", "un_no", "physical_state", "flash_point",
-  "explosion_limit", "ignition_temp", "density", "boiling_point",
-  "health_hazard", "fire_hazard", "leak_response", "storage_transport",
-  "first_aid", "protective_measures", "location", "max_storage",
-] as const;
-
-/** 候选 dict 收窄为 HazardousChemicalCreate（丢弃 _key/source 等前端字段） */
+/** 候选 dict 收窄为 HazardousChemicalCreate（全部显式字符串转换 + name 必填校验） */
 function toCreatePayload(item: CandidateItem): HazardousChemicalCreate {
-  const payload: Record<string, unknown> = {};
-  CHEMICAL_CREATE_FIELDS.forEach(f => {
-    const v = item[f];
-    if (v !== undefined) payload[f] = v;
-  });
-  return payload as unknown as HazardousChemicalCreate;
+  const str = (v: unknown): string | undefined =>
+    v === null || v === undefined || String(v).trim() === "" ? undefined : String(v);
+  const name = str(item.name) || "";
+  if (!name) throw new Error("候选缺少化学品名称");
+  return {
+    name,
+    cas_no: str(item.cas_no),
+    un_no: str(item.un_no),
+    physical_state: str(item.physical_state),
+    flash_point: str(item.flash_point),
+    explosion_limit: str(item.explosion_limit),
+    ignition_temp: str(item.ignition_temp),
+    density: str(item.density),
+    boiling_point: str(item.boiling_point),
+    health_hazard: str(item.health_hazard),
+    fire_hazard: str(item.fire_hazard),
+    leak_response: str(item.leak_response),
+    storage_transport: str(item.storage_transport),
+    first_aid: str(item.first_aid),
+    protective_measures: str(item.protective_measures),
+    location: str(item.location),
+    max_storage: str(item.max_storage),
+  };
 }
 
 export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props) {
@@ -55,14 +65,15 @@ export default function StepRiskChemical({ enterpriseId, onDone, onPrev }: Props
   };
 
   const accept = async (item: CandidateItem) => {
-    setCandidates(prev => prev.filter(x => x._key !== item._key));
-    setAccepted(prev => [...prev, item]);
     try {
-      await createChemical(enterpriseId, toCreatePayload(item));
+      // 先 await 保存成功，再移动候选到已采纳区；失败保留候选，杜绝 UI/后端不一致
+      await batchCreateChemicals(enterpriseId, [toCreatePayload(item)]);
+      setCandidates(prev => prev.filter(x => x._key !== item._key));
+      setAccepted(prev => [...prev, item]);
       message.success(`已保存：${String(item.name || "")}`);
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "保存失败");
+      message.error((e as Error)?.message || "保存失败，请重试");
     }
   };
 
