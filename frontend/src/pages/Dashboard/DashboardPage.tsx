@@ -16,6 +16,8 @@ import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
 import { fromNow } from "@/utils/formatters";
 import type { PlanType } from "@/types/plan";
+import type { Enterprise } from "@/types/enterprise";
+import CompletionCard from "./CompletionCard";
 
 const { Title } = Typography;
 
@@ -55,7 +57,7 @@ export default function DashboardPage() {
   }
 
   const stats = data.stats;
-  const enterprises = (enterprisePage as any)?.data?.items ?? [];
+  const enterprises = enterprisePage?.data?.items ?? [];
 
   const handleQuickCreate = (type: PlanType) => {
     setSelectedType(type);
@@ -97,6 +99,8 @@ export default function DashboardPage() {
           </Card>
         </Col>
       </Row>
+
+      <CompletionCard />
 
       <Title level={5} style={{ marginBottom: 16 }}>快捷新建</Title>
       <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
@@ -149,7 +153,7 @@ export default function DashboardPage() {
         ) : (
           <List
             dataSource={enterprises}
-            renderItem={(enterprise: any) => (
+            renderItem={(enterprise: Enterprise) => (
               <List.Item
                 style={{ cursor: "pointer", padding: "12px 8px" }}
                 onClick={() => handleSelectEnterprise(enterprise.id)}
