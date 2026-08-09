@@ -50,8 +50,21 @@ export default function PlanEditorPage() {
   const [advancedOverrides, setAdvancedOverrides] = useState<Record<string, unknown> | null>(null);
   const [styleMode, setStyleMode] = useState<"panel" | "advanced">("panel");
   const [styleModalOpen, setStyleModalOpen] = useState(false);
-  const [sampleMode, setSampleMode] = useState(autoGenerate === "sample");
-  const [sampleDone, setSampleDone] = useState(false);
+  const [sampleMode, setSampleMode] = useState(() => {
+    if (autoGenerate === "sample") return true;
+    try { return sessionStorage.getItem(`plan_sample_mode_${id}`) === "1"; } catch { return false; }
+  });
+  const [sampleDone, setSampleDone] = useState(() => {
+    try { return sessionStorage.getItem(`plan_sample_done_${id}`) === "1"; } catch { return false; }
+  });
+  const setSampleDoneSafe = (v: boolean) => {
+    setSampleDone(v);
+    try { sessionStorage.setItem(`plan_sample_done_${id}`, v ? "1" : "0"); } catch { /* ignore */ }
+  };
+  const setSampleModeSafe = (v: boolean) => {
+    setSampleMode(v);
+    try { sessionStorage.setItem(`plan_sample_mode_${id}`, v ? "1" : "0"); } catch { /* ignore */ }
+  };
 
   const { data: plan, isLoading: planLoading } = useQuery({
     queryKey: ["plan", id],
@@ -68,7 +81,7 @@ export default function PlanEditorPage() {
   const { data: validation } = useQuery({
     queryKey: ["exportValidate", id],
     queryFn: () => validateExport(id!),
-    enabled: !!id && !isGenerating,
+    enabled: !!id && !isGenerating && !sampleMode,
   });
 
   const missingDiagrams = useMemo(() => {
@@ -167,7 +180,8 @@ export default function PlanEditorPage() {
     }
     if (autoGenerate === "sample") {
       // 样章模式：只生成第一章，完成后进入样章确认状态
-      startRealtimeGeneration([sections[0].section_key], () => setSampleDone(true));
+      try { sessionStorage.setItem(`plan_sample_mode_${id}`, "1"); } catch { /* ignore */ }
+      startRealtimeGeneration([sections[0].section_key], () => setSampleDoneSafe(true));
     } else {
       startRealtimeGeneration();
     }
@@ -184,6 +198,7 @@ export default function PlanEditorPage() {
 
 
   const startRealtimeGeneration = useCallback((keys?: string[], onBatchDone?: () => void) => {
+    if (isGenerating) return; // 重入守卫：生成期间禁止再次启动批量流
     if (!id || !sections || sections.length === 0) return;
     // Guard against accidental direct binding (e.g. onClick passes MouseEvent as keys)
     if (keys && !Array.isArray(keys)) {
@@ -260,7 +275,6 @@ export default function PlanEditorPage() {
           case "error":
             setIsGenerating(false);
             setGeneratingSections(new Set());
-            setFailedSections([]);
             message.error(event.message || "生成出错");
             break;
         }
@@ -269,7 +283,6 @@ export default function PlanEditorPage() {
         setIsGenerating(false);
         setGeneratingSections(new Set());
         setBatchProgress({ current: 0, total: 0, message: "" });
-        setFailedSections([]);
         message.error(error);
       },
       () => {
@@ -279,7 +292,7 @@ export default function PlanEditorPage() {
 
     // Store controller for potential cancel
     (window as any).__genController = controller;
-  }, [id, sections, queryClient, saveMutation]);
+  }, [id, sections, queryClient, saveMutation, isGenerating]);
 
 
 
@@ -364,11 +377,12 @@ export default function PlanEditorPage() {
           <div style={{ fontWeight: 600, marginBottom: 4 }}>样章已生成（第一章）——先看风格和内容</div>
           <div style={{ fontSize: 13, color: "#555", marginBottom: 8 }}>满意后生成全部章节；不满意可换风格重新生成样章</div>
           <Space>
-            <Button type="primary" onClick={() => { setSampleMode(false); startRealtimeGeneration(); }}>满意，生成全部章节</Button>
+            <Button type="primary" disabled={isGenerating} onClick={() => { setSampleModeSafe(false); startRealtimeGeneration(); }}>满意，生成全部章节</Button>
             <Button
+              disabled={isGenerating}
               onClick={() => {
-                setSampleDone(false);
-                startRealtimeGeneration([sections![0].section_key], () => setSampleDone(true));
+                setSampleDoneSafe(false);
+                startRealtimeGeneration([sections![0].section_key], () => setSampleDoneSafe(true));
               }}
             >
               换风格重新生成样章
@@ -396,14 +410,14 @@ export default function PlanEditorPage() {
         />
       )}
 
-      {validation && !validation.valid && (
+      {!isGenerating && validation && !validation.valid && (
         <Alert
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
           message="⚠ 部分章节可能未覆盖完整要点"
           description={validation.issues.slice(0, 3).map((i) => `「${i.section_title}」${i.issue}`).join("；")}
-          action={<Button size="small" onClick={() => message.info("可在导出预览页查看全部校验结果")}>查看要点清单</Button>}
+          action={<Button size="small" onClick={() => navigate(`/plans/${id}/preview`)}>查看要点清单</Button>}
         />
       )}
 
@@ -430,7 +444,7 @@ export default function PlanEditorPage() {
             <Button
               size="small"
               onClick={() => {
-                startRealtimeGeneration(failedSections.map((f) => f.section_key), () => setSampleDone(true));
+                startRealtimeGeneration(failedSections.map((f) => f.section_key), () => setSampleDoneSafe(true));
                 setFailedSections([]);
               }}
             >

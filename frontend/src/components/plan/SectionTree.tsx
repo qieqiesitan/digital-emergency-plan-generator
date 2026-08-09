@@ -69,7 +69,7 @@ export default function SectionTree({ sections, templateSections, selectedKey, o
       <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed #eee", fontSize: 12, color: "#666", lineHeight: 1.8 }}>
         <b>图例</b><br />
         ✓ 已完成 · ! 必填未完成 · ⏳ 生成中 · 🤖 可 AI 生成
-        <div style={{ color: "#999", fontSize: 11 }}>必填章节为空时导出会被拦截</div>
+        <div style={{ color: "#999", fontSize: 11 }}>空章节会列入导出校验清单</div>
       </div>
     </>
   );
