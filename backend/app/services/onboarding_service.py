@@ -20,6 +20,9 @@ MODULE_WEIGHTS = {
     "reports": 20,
 }
 
+# 单份报告权重（风险评估 / 资源调查各占 reports 权重一半）
+REPORT_WEIGHT_PER = MODULE_WEIGHTS["reports"] // 2
+
 MODULE_LABELS = {
     "enterprise_info": "企业信息",
     "org_structure": "组织架构",
@@ -74,11 +77,29 @@ async def compute_completion(
         ResourceInvestigationReport.enterprise_id == enterprise_id,
         ResourceInvestigationReport.status == "completed",
     ))).scalars().all()
-    done["reports"] = bool(ra) and bool(ri)
+    ra_skipped = bool((await db.execute(select(RiskAssessmentReport).where(
+        RiskAssessmentReport.enterprise_id == enterprise_id,
+        RiskAssessmentReport.status == "skipped",
+    ))).scalars().all())
+    ri_skipped = bool((await db.execute(select(ResourceInvestigationReport).where(
+        ResourceInvestigationReport.enterprise_id == enterprise_id,
+        ResourceInvestigationReport.status == "skipped",
+    ))).scalars().all())
+
+    # 规格 6.6：报告可跳过，跳过时该报告权重归入对应数据模块；
+    # 已生成 completed 报告时跳过自动失效，权重不调整
+    weights = dict(MODULE_WEIGHTS)
+    if ra_skipped and not bool(ra):
+        weights["risk_chemical"] += REPORT_WEIGHT_PER
+        weights["reports"] -= REPORT_WEIGHT_PER
+    if ri_skipped and not bool(ri):
+        weights["resources"] += REPORT_WEIGHT_PER
+        weights["reports"] -= REPORT_WEIGHT_PER
+    done["reports"] = (bool(ra) or ra_skipped) and (bool(ri) or ri_skipped)
 
     total = 0
     modules = []
-    for key, weight in MODULE_WEIGHTS.items():
+    for key, weight in weights.items():
         d = done[key]
         if d:
             total += weight

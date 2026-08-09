@@ -31,6 +31,46 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Resource Investigation"])
 
 
+@router.post("/{enterprise_id}/resource-investigation/skip")
+async def skip_resource_investigation(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """标记资源调查报告跳过（规格 6.6：跳过时完成度权重归入应急资源）。"""
+    ent = (await db.execute(
+        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
+    )).scalar_one_or_none()
+    if not ent:
+        raise HTTPException(404, "企业不存在")
+    generating = (await db.execute(
+        select(ResourceInvestigationReport).where(
+            ResourceInvestigationReport.enterprise_id == enterprise_id,
+            ResourceInvestigationReport.status == "generating",
+        )
+    )).scalar_one_or_none()
+    if generating:
+        raise HTTPException(400, "报告正在生成中，无法跳过")
+    existing_completed = (await db.execute(
+        select(ResourceInvestigationReport).where(
+            ResourceInvestigationReport.enterprise_id == enterprise_id,
+            ResourceInvestigationReport.status == "completed",
+        )
+    )).scalar_one_or_none()
+    if existing_completed:
+        raise HTTPException(400, "报告已生成，无需跳过")
+    existing_skipped = (await db.execute(
+        select(ResourceInvestigationReport).where(
+            ResourceInvestigationReport.enterprise_id == enterprise_id,
+            ResourceInvestigationReport.status == "skipped",
+        )
+    )).scalar_one_or_none()
+    if not existing_skipped:
+        db.add(ResourceInvestigationReport(enterprise_id=enterprise_id, title="", status="skipped"))
+        await db.commit()
+    return ApiResponse(data={}, message="已跳过资源调查报告")
+
+
 @router.get("/{enterprise_id}/resource-investigation")
 async def get_resource_investigation(
     enterprise_id: str,

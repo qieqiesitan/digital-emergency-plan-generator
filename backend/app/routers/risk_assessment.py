@@ -34,6 +34,46 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Risk Assessment"])
 
 
+@router.post("/{enterprise_id}/risk-assessment/skip")
+async def skip_risk_assessment(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """标记风险评估报告跳过（规格 6.6：跳过时完成度权重归入风险与危化品）。"""
+    ent = (await db.execute(
+        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
+    )).scalar_one_or_none()
+    if not ent:
+        raise HTTPException(404, "企业不存在")
+    generating = (await db.execute(
+        select(RiskAssessmentReport).where(
+            RiskAssessmentReport.enterprise_id == enterprise_id,
+            RiskAssessmentReport.status == "generating",
+        )
+    )).scalar_one_or_none()
+    if generating:
+        raise HTTPException(400, "报告正在生成中，无法跳过")
+    existing_completed = (await db.execute(
+        select(RiskAssessmentReport).where(
+            RiskAssessmentReport.enterprise_id == enterprise_id,
+            RiskAssessmentReport.status == "completed",
+        )
+    )).scalar_one_or_none()
+    if existing_completed:
+        raise HTTPException(400, "报告已生成，无需跳过")
+    existing_skipped = (await db.execute(
+        select(RiskAssessmentReport).where(
+            RiskAssessmentReport.enterprise_id == enterprise_id,
+            RiskAssessmentReport.status == "skipped",
+        )
+    )).scalar_one_or_none()
+    if not existing_skipped:
+        db.add(RiskAssessmentReport(enterprise_id=enterprise_id, title="", status="skipped"))
+        await db.commit()
+    return ApiResponse(data={}, message="已跳过风险评估报告")
+
+
 def _html_table_to_docx(doc, html_table: str):
     """将 HTML <table> 渲染为 python-docx 表格"""
     from docx.shared import Pt, Inches, RGBColor
