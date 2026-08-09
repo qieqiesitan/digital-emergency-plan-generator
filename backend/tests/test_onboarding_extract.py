@@ -5,6 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.services.onboarding_service import extract_candidates, classify_modules
+from app.routers.onboarding import build_candidates_request
 
 
 def test_extract_candidates_parses_llm_json(monkeypatch):
@@ -42,3 +43,9 @@ def test_extract_raises_when_no_ai_config(monkeypatch):
         asyncio.run(extract_candidates("risk_chemical", "文本", AsyncMock()))
     assert exc_info.value.status_code == 400
     assert "系统未配置 AI 模型" in str(exc_info.value.detail)
+
+
+def test_build_candidates_request_wraps_overview():
+    req = build_candidates_request("企业概况", "生产甲醇、乙醇，有储罐区")
+    assert req.answers[0].question == "企业概况"
+    assert req.answers[0].answer == "生产甲醇、乙醇，有储罐区"

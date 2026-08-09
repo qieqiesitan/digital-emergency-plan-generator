@@ -187,3 +187,21 @@ async def generate_org_candidates(enterprise_info: dict, db) -> list[dict]:
     if not isinstance(raw_groups, list):
         return []
     return [g for g in raw_groups if isinstance(g, dict)]
+
+
+async def get_enterprise_brief(
+    enterprise_id: str, db, enterprise: Enterprise | None = None
+) -> dict:
+    """返回企业概况摘要，供 AI 生成候选使用（已归属校验时可传已加载实例）。"""
+    ent = enterprise
+    if ent is None:
+        result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))
+        ent = result.scalar_one_or_none()
+    if not ent:
+        raise HTTPException(404, "企业不存在")
+    return {
+        "name": ent.name,
+        "industry": ent.industry,
+        "business_scope": ent.business_scope,
+        "employee_count": ent.employee_count,
+    }
