@@ -368,7 +368,7 @@ export default function PlanEditorPage() {
             <Button
               onClick={() => {
                 setSampleDone(false);
-                startRealtimeGeneration([sections![0].section_key]);
+                startRealtimeGeneration([sections![0].section_key], () => setSampleDone(true));
               }}
             >
               换风格重新生成样章
@@ -430,7 +430,7 @@ export default function PlanEditorPage() {
             <Button
               size="small"
               onClick={() => {
-                startRealtimeGeneration(failedSections.map((f) => f.section_key));
+                startRealtimeGeneration(failedSections.map((f) => f.section_key), () => setSampleDone(true));
                 setFailedSections([]);
               }}
             >
