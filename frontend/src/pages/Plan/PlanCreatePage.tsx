@@ -8,8 +8,6 @@ import { getEnterprise } from "@/services/enterpriseService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PLAN_TYPE_LABELS } from "@/utils/constants";
-import { StylePanel, DEFAULT_STYLE } from "@/components/plan/StylePanel";
-import type { StylePreference } from "@/components/plan/StylePanel";
 import type { PlanType } from "@/types/plan";
 
 const { Title, Text } = Typography;
@@ -28,9 +26,6 @@ export default function PlanCreatePage() {
   const [planType, setPlanType] = useState<PlanType | null>(initType);
   const [accidentType, setAccidentType] = useState<string>("");
   const [title, setTitle] = useState("");
-  const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
-  const [planNumber, setPlanNumber] = useState("");
-  const [versionNumber, setVersionNumber] = useState("");
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", effectiveEnterpriseId],
@@ -43,7 +38,7 @@ export default function PlanCreatePage() {
     onSuccess: (data) => {
       message.success("预案创建成功");
       queryClient.invalidateQueries({ queryKey: ["plans"] });
-      navigate(`/plans/${data.id}/edit?auto_generate=1`);
+      navigate(`/plans/${data.id}/edit?auto_generate=sample`);
     },
     onError: () => message.error("创建失败"),
   });
@@ -55,10 +50,7 @@ export default function PlanCreatePage() {
 
   const steps = [
     { title: "选择类型" },
-    { title: "事故类型" },
-    { title: "填写信息" },
-    { title: "创作风格" },
-    { title: "确认创建" },
+    { title: "确认信息" },
   ];
 
   return (
@@ -90,13 +82,12 @@ export default function PlanCreatePage() {
               </Card>
             ))}
           </Space>
-          <Button type="primary" disabled={!planType} onClick={() => {
-            if (planType === "comprehensive") {
-              setCurrentStep(2);
-            } else {
-              setCurrentStep(1);
-            }
-          }} style={{ marginTop: 16 }}>
+          <Button
+            type="primary"
+            disabled={!planType}
+            onClick={() => setCurrentStep(1)}
+            style={{ marginTop: 16 }}
+          >
             下一步
           </Button>
         </div>
@@ -104,10 +95,25 @@ export default function PlanCreatePage() {
 
       {currentStep === 1 && (
         <div>
-          <Title level={5}>选择事故类型</Title>
+          <Title level={5}>确认信息</Title>
+          <Descriptions column={1} style={{ marginBottom: 16 }}>
+            <Descriptions.Item label="企业">{curEnterprise?.name || "-"}</Descriptions.Item>
+            <Descriptions.Item label="预案类型">
+              {planType ? PLAN_TYPE_LABELS[planType] : "-"}
+            </Descriptions.Item>
+          </Descriptions>
+          <Input
+            size="large"
+            placeholder="预案标题"
+            value={title || defaultTitle}
+            onChange={(e) => setTitle(e.target.value)}
+            style={{ marginBottom: 16 }}
+          />
+          <Text type="secondary">事故类型</Text>
           <Select
             style={{ width: "100%" }}
-            placeholder="选择事故类型"
+            placeholder="选择事故类型（可留空）"
+            allowClear
             value={accidentType || undefined}
             onChange={setAccidentType}
             options={[
@@ -117,92 +123,16 @@ export default function PlanCreatePage() {
           />
           <Space style={{ marginTop: 16 }}>
             <Button onClick={() => setCurrentStep(0)}>上一步</Button>
-            <Button type="primary" disabled={!accidentType} onClick={() => setCurrentStep(2)}>下一步</Button>
-          </Space>
-        </div>
-      )}
-
-      {currentStep === 2 && (
-        <div>
-          <Title level={5}>填写预案信息</Title>
-          <div style={{ marginBottom: 16 }}>
-            <Text type="secondary">企业：{curEnterprise?.name || "-"}</Text>
-            <br />
-            <Text type="secondary">类型：{planType ? PLAN_TYPE_LABELS[planType] : "-"}</Text>
-            {accidentType && <><br /><Text type="secondary">事故类型：{accidentType}</Text></>}
-          </div>
-          <Input
-            size="large"
-            placeholder="预案标题"
-            value={title || defaultTitle}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <Space style={{ marginTop: 16 }}>
-            <Button onClick={() => setCurrentStep(planType === "comprehensive" ? 0 : 1)}>上一步</Button>
-            <Button type="primary" disabled={!planType || !(title || defaultTitle)} onClick={() => setCurrentStep(3)}>
-              下一步
-            </Button>
-          </Space>
-        </div>
-      )}
-
-      {currentStep === 3 && (
-        <div>
-          <Title level={5}>选择创作风格</Title>
-          <StylePanel
-            value={stylePreference}
-            onChange={setStylePreference}
-            onPreview={() => message.info("创建预案后可在编辑页面预览生成效果")}
-            showAdvanced={false}
-          />
-          <Space style={{ marginTop: 16 }}>
-            <Button onClick={() => setCurrentStep(2)}>上一步</Button>
-            <Button type="primary" onClick={() => setCurrentStep(4)}>
-              下一步
-            </Button>
-          </Space>
-        </div>
-      )}
-
-      {currentStep === 4 && (
-        <div>
-          <Title level={5}>确认创建</Title>
-          <Card>
-            <Descriptions column={1}>
-              <Descriptions.Item label="企业">{curEnterprise?.name}</Descriptions.Item>
-              <Descriptions.Item label="预案类型">{planType ? PLAN_TYPE_LABELS[planType] : ""}</Descriptions.Item>
-              {accidentType && <Descriptions.Item label="事故类型">{accidentType}</Descriptions.Item>}
-              <Descriptions.Item label="预案标题">{title || defaultTitle}</Descriptions.Item>
-            </Descriptions>
-          </Card>
-          <Input
-            size="large"
-            placeholder="预案编号（留空自动生成）"
-            value={planNumber}
-            onChange={(e) => setPlanNumber(e.target.value)}
-            style={{ marginTop: 16, marginBottom: 8 }}
-          />
-          <Input
-            size="large"
-            placeholder="版本号（留空自动生成）"
-            value={versionNumber}
-            onChange={(e) => setVersionNumber(e.target.value)}
-            style={{ marginBottom: 8 }}
-          />
-          <Space style={{ marginTop: 16 }}>
-            <Button onClick={() => setCurrentStep(3)}>上一步</Button>
             <Button
               type="primary"
               loading={mutation.isPending}
+              disabled={!effectiveEnterpriseId || !planType || !(title || defaultTitle)}
               onClick={() => {
                 mutation.mutate({
                   enterprise_id: effectiveEnterpriseId!,
                   plan_type: planType!,
                   title: title || defaultTitle,
                   accident_type: accidentType || null,
-                  style_preference: stylePreference as any,
-                  plan_number: planNumber || null,
-                  version_number: versionNumber || null,
                 });
               }}
             >

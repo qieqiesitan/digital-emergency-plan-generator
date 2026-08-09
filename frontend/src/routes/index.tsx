@@ -52,7 +52,6 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-methods/:methodId", element: <RiskMethodEditorPage /> },
   { path: "/enterprises/:id/risk-mapping-workbench", element: <RiskMappingWorkbenchPage /> },
   { path: "/plans", element: <PlanCardsPage /> },
-  { path: "/plans/all", element: <PlanListPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
   { path: "/plans/new", element: <PlanCreatePage /> },
   { path: "/plans/:id/edit", element: <PlanEditorPage /> },

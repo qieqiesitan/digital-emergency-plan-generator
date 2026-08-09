@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Col, Row, Input, Select, Button, Space, Spin, Empty } from "antd";
+import { Segmented, Table, Progress } from "antd";
+import type { TableColumnsType } from "antd";
 import {
   BankOutlined,
   PlusOutlined,
@@ -8,13 +10,14 @@ import {
   ThunderboltOutlined,
   ToolOutlined,
   SearchOutlined,
-  UnorderedListOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { getEnterprisePlanSummary } from "@/services/planService";
+import { getEnterprisePlanSummary, listPlans } from "@/services/planService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { fromNow } from "@/utils/formatters";
 import { PLAN_TYPE_LABELS, PRESET_INDUSTRIES } from "@/utils/constants";
+import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
+import type { PlanProject } from "@/types/plan";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   comprehensive: <SafetyCertificateOutlined />,
@@ -28,8 +31,87 @@ const TYPE_COLORS: Record<string, string> = {
   onsite: "#52c41a",
 };
 
+function PlanListTable() {
+  const navigate = useNavigate();
+  const { data, isLoading } = useQuery({
+    queryKey: ["plans", { page: 1, page_size: 100 }],
+    queryFn: () => listPlans({ page: 1, page_size: 100 }),
+  });
+  const plans = data?.data.items || [];
+
+  const columns: TableColumnsType<PlanProject> = [
+    { title: "预案标题", dataIndex: "title", ellipsis: true },
+    { title: "所属企业", dataIndex: "enterprise_name", width: 180, ellipsis: true },
+    {
+      title: "类型",
+      dataIndex: "plan_type",
+      width: 130,
+      render: (type: PlanProject["plan_type"]) => <PlanTypeTag type={type} />,
+    },
+    {
+      title: "完成度",
+      key: "progress",
+      width: 150,
+      render: (_: unknown, record: PlanProject) => {
+        const sec = record.sections_count || 0;
+        const comp = record.completed_sections || 0;
+        return (
+          <Progress
+            percent={sec > 0 ? Math.round((comp / sec) * 100) : 0}
+            size="small"
+            format={() => `${comp}/${sec}`}
+          />
+        );
+      },
+    },
+    {
+      title: "更新时间",
+      dataIndex: "updated_at",
+      width: 130,
+      render: (t: string) => <span style={{ color: "#999", fontSize: 12 }}>{fromNow(t)}</span>,
+    },
+    {
+      title: "操作",
+      key: "actions",
+      width: 90,
+      render: (_: unknown, record: PlanProject) => (
+        <Button
+          type="link"
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/plans/${record.id}/edit`);
+          }}
+        >
+          编辑
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <Table<PlanProject>
+      columns={columns}
+      dataSource={plans}
+      rowKey="id"
+      loading={isLoading}
+      pagination={{
+        pageSize: 10,
+        showSizeChanger: false,
+        showTotal: (t: number) => `共 ${t} 条`,
+      }}
+      onRow={(record) => ({
+        style: { cursor: "pointer" },
+        onClick: () => navigate(`/plans/${record.id}/edit`),
+      })}
+      locale={{ emptyText: "暂无预案" }}
+    />
+  );
+}
+
 export default function PlanCardsPage() {
   const navigate = useNavigate();
+  const [view, setView] = useState<"cards" | "list">("cards");
   const [search, setSearch] = useState("");
   const [industry, setIndustry] = useState<string | undefined>();
 
@@ -38,7 +120,7 @@ export default function PlanCardsPage() {
     queryFn: getEnterprisePlanSummary,
   });
 
-  const allItems = summaries || [];
+  const allItems = useMemo(() => summaries || [], [summaries]);
 
   // client-side filter: enterprise name + industry
   const filtered = useMemo(() => {
@@ -57,12 +139,6 @@ export default function PlanCardsPage() {
         title="预案总览"
         extra={
           <Space>
-            <Button
-              icon={<UnorderedListOutlined />}
-              onClick={() => navigate("/plans/all")}
-            >
-              全部预案列表
-            </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/plans/new")}>
               新建预案
             </Button>
@@ -71,6 +147,14 @@ export default function PlanCardsPage() {
       />
 
       <Space style={{ marginBottom: 16 }}>
+        <Segmented
+          options={[
+            { label: "卡片视图", value: "cards" },
+            { label: "列表视图", value: "list" },
+          ]}
+          value={view}
+          onChange={(v) => setView(v as "cards" | "list")}
+        />
         <Input
           prefix={<SearchOutlined />}
           placeholder="搜索企业名称"
@@ -89,7 +173,9 @@ export default function PlanCardsPage() {
         />
       </Space>
 
-      {isLoading ? (
+      {view === "list" ? (
+        <PlanListTable />
+      ) : isLoading ? (
         <div style={{ textAlign: "center", padding: 80 }}>
           <Spin size="large" />
         </div>
