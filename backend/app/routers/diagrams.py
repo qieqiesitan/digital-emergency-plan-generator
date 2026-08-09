@@ -4,6 +4,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.enterprise import PlanProject, PlanSection, Enterprise, EmergencyResource
+from app.models.hazardous_chemicals import HazardousChemical
 from app.routers.generation import _attach_diagrams, _collect_enterprise_data
 from app.services.risk_context_builder import build_risk_management_context
 
@@ -50,6 +51,10 @@ async def regenerate_missing(plan_id: str, current_user=Depends(get_current_user
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
     resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == p.enterprise_id))).scalars().all()
     risk_context = await build_risk_management_context(p.enterprise_id, db) if ent else {}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
+    chemicals_rows = (await db.execute(
+        select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
+    )).scalars().all()
+    chemicals = {c.id: c for c in chemicals_rows}
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
     result = await regenerate_missing_diagrams(db, p, sections, ent_data)
     return {"code": 0, "data": result}

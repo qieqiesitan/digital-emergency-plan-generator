@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import async_session
 from app.models.user import User
 from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, EmergencyResource
+from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.common import ApiResponse
 from app.config import settings
 from app.services.external_file_store import download_external_files
@@ -96,7 +97,11 @@ async def _run_generation_then_callback(
             ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one_or_none()
             resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == enterprise_id))).scalars().all()
             risk_context = await build_risk_management_context(enterprise_id, db) if ent else {}
-            ent_data = _collect_enterprise_data(ent, risk_context, resources) if ent else {}
+            chemicals_rows = (await db.execute(
+                select(HazardousChemical).where(HazardousChemical.enterprise_id == enterprise_id)
+            )).scalars().all()
+            chemicals = {c.id: c for c in chemicals_rows}
+            ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
             if ent:
                 ent_data = await _enrich_with_reports(ent_data, enterprise_id, db)
 
