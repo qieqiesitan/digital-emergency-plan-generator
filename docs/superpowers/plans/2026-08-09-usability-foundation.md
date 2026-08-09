@@ -10,6 +10,8 @@
 
 **规格依据：** `docs/superpowers/specs/2026-08-08-usability-enhancement-design.md` 第 11、12、4.4、5 节。
 
+**基线：** master 已合入预案附图扩展（94cc4bf）。本计划不涉及附图扩展改动文件，无冲突。
+
 ---
 
 ## 文件结构

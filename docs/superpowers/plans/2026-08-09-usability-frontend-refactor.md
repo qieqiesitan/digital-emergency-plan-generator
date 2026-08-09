@@ -12,6 +12,8 @@
 
 **依赖：** 先执行计划 A、C1。
 
+**基线：** master 已合入预案附图扩展（94cc4bf）。`PlanEditorPage.tsx` 已被附图扩展改动（新增 missingDiagrams 提示与 regenerateMissingDiagrams），本计划任务 C2-4 在其基础上**叠加**样章确认横幅与质量提示条（均为新增区块，auto_generate 逻辑未被附图扩展改动）；`RichTextEditor.tsx` 附图扩展仅新增 `diagramSvgs` prop，本计划不涉及该文件（Tooltip 中文化在计划 A）。
+
 ---
 
 ## 文件结构

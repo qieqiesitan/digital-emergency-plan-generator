@@ -12,6 +12,8 @@
 
 **依赖：** 先执行计划 A（基础层）。
 
+**基线：** master 已合入预案附图扩展（94cc4bf）。`generation.py::_collect_enterprise_data` 现已有 `risk_events/zones/risk_objects` 字段（附图用），本计划任务 B2 在其基础上**追加** `chemicals/chemical 属性/risk_method_config/备案` 字段，签名不变，无冲突；`risk_context_builder.py` 的 `_risk_source_item` 未被附图扩展改动，任务 B2 直接追加 `chemical_id` 字段。
+
 ---
 
 ## 文件结构
