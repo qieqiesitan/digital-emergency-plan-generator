@@ -25,7 +25,6 @@ const VersionListScreen = lazy(() => import("@/mobile/screens/VersionListScreen"
 const SettingsScreen = lazy(() => import("@/mobile/screens/SettingsScreen"));
 const ProfileScreen = lazy(() => import("@/mobile/screens/ProfileScreen"));
 const ChangePasswordScreen = lazy(() => import("@/mobile/screens/ChangePasswordScreen"));
-const AIModelConfigScreen = lazy(() => import("@/mobile/screens/AIModelConfigScreen"));
 const ChatScreen = lazy(() => import("@/mobile/screens/ChatScreen"));
 
 export const mobileRouter = createBrowserRouter([
@@ -70,7 +69,6 @@ export const mobileRouter = createBrowserRouter([
       { path: "settings", element: <SettingsScreen /> },
       { path: "settings/profile", element: <ProfileScreen /> },
       { path: "settings/password", element: <ChangePasswordScreen /> },
-      { path: "settings/ai-config", element: <AIModelConfigScreen /> },
       { path: "chat", element: <ChatScreen /> },
     ],
   },
