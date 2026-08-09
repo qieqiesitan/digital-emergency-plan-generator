@@ -1,4 +1,4 @@
-import os, re, markdown, io, asyncio, hashlib, logging, traceback
+import os, re, markdown, io, asyncio, hashlib, html, logging, traceback
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,7 +120,71 @@ def _build_section_numbers(sections: list) -> dict:
     return numbers
 
 
-# Route: Export Preview (unchanged)
+def _build_preview_section_html(section, sec_numbers: dict) -> str:
+    """构建单个章节的导出预览 HTML（标题 + 正文 + 附图）。
+
+    section: PlanSection ORM 对象（或等效 mock），需要 title/level/content/
+             mermaid_svgs/diagram_svgs 属性。
+    sec_numbers: {id(section): "1.2"} 章节编号映射。
+    """
+    content = section.content or ""
+    content = _strip_section_heading(content)
+    # 仅当内容不含已被包裹的 Mermaid 时才包装原始代码
+    if '<code class="language-mermaid"' not in content and '```mermaid' not in content:
+        content = _wrap_raw_mermaid(content)
+
+    level = min(section.level + 1, 6)
+    num = sec_numbers.get(id(section), "")
+    parts = [f"<h{level}>{num} {section.title}</h{level}>"]
+
+    # 仅在内容不是 HTML 时才做 Markdown 转换（DB 中已存 HTML）
+    if not content.strip().startswith('<'):
+        content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
+
+    content = fix_markdown_tables(content)
+
+    # 服务端嵌入 Mermaid SVG（预览直接显示，不依赖前端 MermaidRenderer）
+    mermaid_svgs = section.mermaid_svgs or {}
+    if mermaid_svgs:
+        import hashlib as _hl
+
+        def _embed_preview_svgs(m):
+            code = html.unescape(m.group(1).strip())
+            h = _hl.sha256(code.encode('utf-8')).hexdigest()[:16]
+            svg = mermaid_svgs.get(h)
+            if svg:
+                _m = re.search(r'<svg[^>]*>.*?</svg>', svg, re.DOTALL)
+                svg_clean = _m.group(0) if _m else svg
+                return '<div class="mermaid-diagram" style="margin:16px 0;padding:16px;background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;overflow-x:auto;"><div style="font-size:12px;color:#999;margin-bottom:8px;font-weight:500;">流程图</div><div style="text-align:center;">' + svg_clean + '</div></div>'
+            return m.group(0)
+        content = re.sub(
+            r'<code class="language-mermaid"[^>]*>(.*?)</code>',
+            _embed_preview_svgs, content, flags=re.DOTALL
+        )
+
+    parts.append(content)
+
+    # 附图：非占位 SVG 内嵌，占位转文字
+    for key, meta in (section.diagram_svgs or {}).items():
+        if isinstance(meta, dict) and meta.get("placeholder"):
+            parts.append(
+                f'<p class="diagram-placeholder">【{html.escape(str(key))}】待补充数据后生成'
+                f"（{html.escape(str(meta.get('reason','')))}）</p>"
+            )
+        elif isinstance(meta, dict) and meta.get("svg"):
+            svg = meta["svg"]
+            m = re.search(r"<svg[^>]*>.*?</svg>", svg, re.DOTALL)
+            if m:
+                parts.append(
+                    '<div class="mermaid-diagram" style="margin:16px 0;padding:16px;'
+                    'background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;'
+                    'text-align:center;">' + m.group(0) + "</div>"
+                )
+
+    return "\n".join(parts)
+
+
+# Route: Export Preview
 
 @router.get("/{plan_id}/export/preview")
 async def get_export_preview(
@@ -156,38 +220,7 @@ async def get_export_preview(
     for section in sections:
         if not section.content or not section.content.strip():
             continue
-        content = section.content
-        content = _strip_section_heading(content)
-        # 仅当内容不含已被包裹的 Mermaid 时才包装原始代码
-        if '<code class="language-mermaid"' not in content and '```mermaid' not in content:
-            content = _wrap_raw_mermaid(content)
-
-        level = min(section.level + 1, 6)
-        num = sec_numbers[id(section)]
-        html_parts.append(f"<h{level}>{num} {section.title}</h{level}>")
-
-        # 仅在内容不是 HTML 时才做 Markdown 转换（DB 中已存 HTML）
-        if not content.strip().startswith('<'):
-            content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
-
-        content = fix_markdown_tables(content)
-
-        # 服务端嵌入 Mermaid SVG（预览直接显示，不依赖前端 MermaidRenderer）
-        mermaid_svgs = section.mermaid_svgs or {}
-        if mermaid_svgs:
-            import re as _re, hashlib as _hl, html as _h
-            def _embed_preview_svgs(m):
-                code = _h.unescape(m.group(1).strip())
-                h = _hl.sha256(code.encode('utf-8')).hexdigest()[:16]
-                svg = mermaid_svgs.get(h)
-                if svg:
-                    _m = _re.search(r'<svg[^>]*>.*?</svg>', svg, _re.DOTALL)
-                    svg_clean = _m.group(0) if _m else svg
-                    return '<div class="mermaid-diagram" style="margin:16px 0;padding:16px;background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;overflow-x:auto;"><div style="font-size:12px;color:#999;margin-bottom:8px;font-weight:500;">流程图</div><div style="text-align:center;">' + svg_clean + '</div></div>'
-                return m.group(0)
-            content = _re.sub(r'<code class="language-mermaid"[^>]*>(.*?)</code>', _embed_preview_svgs, content, flags=_re.DOTALL)
-
-        html_parts.append(content)
+        html_parts.append(_build_preview_section_html(section, sec_numbers))
         html_parts.append('<hr class="plan-section-separator">')
 
     full_html = "\n".join(html_parts)
@@ -270,6 +303,7 @@ async def export_plan_docx(
             "level": s.level,
             "content": content,
             "mermaid_svgs": _ms,
+            "diagram_svgs": s.diagram_svgs or {},
         })
 
     # 生成文档

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.database import engine, Base
-from app.routers import chat, auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations
+from app.routers import chat, auth, users, enterprises, enterprise_sub, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams
 from app.dependencies import get_current_user
 from app.services.mermaid_renderer import _close_browser
 from app.middleware.hmac_auth import HmacAuthMiddleware
@@ -73,6 +73,7 @@ app.include_router(roles.router, prefix="/api/v1")
 app.include_router(admin_users.router, prefix="/api/v1")
 app.include_router(external.router, prefix="/api")
 app.include_router(regulations.router, prefix="/api/v1")
+app.include_router(diagrams.router, prefix="/api/v1")
 
 @app.get("/api/health")
 async def health():

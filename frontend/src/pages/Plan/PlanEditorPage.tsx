@@ -1,11 +1,11 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Input, Button, Space, Badge, message, Progress, Alert } from "antd";
 import Modal from "antd/es/modal";
 import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPlan, updatePlan, createVersion } from "@/services/planService";
+import { getPlan, updatePlan, createVersion, regenerateMissingDiagrams } from "@/services/planService";
 import { listSections, updateSection, autofillSection } from "@/services/planService";
 import { generateBatchStream } from "@/services/generationService";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -60,6 +60,25 @@ export default function PlanEditorPage() {
     queryKey: ["planSections", id],
     queryFn: () => listSections(id!),
     enabled: !!id,
+  });
+
+  const missingDiagrams = useMemo(() => {
+    const items: string[] = [];
+    (sections || []).forEach((s) => {
+      Object.entries(s.diagram_svgs || {}).forEach(([k, meta]) => {
+        if (meta?.placeholder) items.push(`${s.title}：${k}`);
+      });
+    });
+    return items;
+  }, [sections]);
+
+  const regenerateDiagramsMut = useMutation({
+    mutationFn: () => regenerateMissingDiagrams(id!),
+    onSuccess: (r) => {
+      message.success(`已重新生成 ${r.regenerated} 张附图`);
+      queryClient.invalidateQueries({ queryKey: ["planSections", id] });
+    },
+    onError: () => message.error("重新生成附图失败"),
   });
 
   const saveMutation = useMutation({
@@ -325,6 +344,25 @@ export default function PlanEditorPage() {
         }
       />
 
+      {missingDiagrams.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={`该企业缺部分数据，${missingDiagrams.length} 张图未生成`}
+          description={missingDiagrams.join("、")}
+          action={
+            <Space>
+              <Button size="small" onClick={() => navigate("/enterprises")}>
+                去补数据
+              </Button>
+              <Button size="small" type="primary" onClick={() => regenerateDiagramsMut.mutate()}>
+                重新生成缺失附图
+              </Button>
+            </Space>
+          }
+        />
+      )}
+
       {isGenerating && batchProgress.total > 0 &&  (
         <div style={{ padding: "8px 0" }}>
           <Progress
@@ -420,6 +458,7 @@ export default function PlanEditorPage() {
                 content={editingContent}
                 onChange={setEditingContent}
                 readOnly={isGenerating}
+                diagramSvgs={currentSection?.diagram_svgs}
               />
               <div style={{ marginTop: 4, fontSize: 12, textAlign: "right" }}>
                 {saveStatus === "saving" ? "保存中..." : saveStatus === "saved" ? "已保存" : saveStatus === "error" ? "保存失败" : "未保存"}

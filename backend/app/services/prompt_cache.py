@@ -289,3 +289,49 @@ def render_template(template: str, variables: dict) -> str:
         key = match.group(1).strip()
         return str(variables.get(key, match.group(0)))
     return re.sub(r"\{\{\s*(\w+)\s*\}\}", replacer, template)
+
+
+# ── 附加图提示词模板（章节附图，独立于数据库缓存） ──
+
+ADDITIONAL_DIAGRAM_PROMPTS: dict[str, str] = {
+    "org_chart": (
+        "请根据以下企业应急组织架构数据，生成一张 Mermaid graph TD 组织架构图：\n"
+        "{{org_structure}}\n"
+        "要求：\n"
+        "1. 严格按照企业组织架构数据绘制，不得编造数据中不存在的组织、人员或职务。\n"
+        "2. 若数据含应急救援指挥部/总指挥，置于顶层；若不含，以数据中层级最高的组织为顶层。\n"
+        "3. 每个节点标注姓名与职务，格式：节点ID[姓名-职务]（节点ID用半角字母数字，正文用中文，全角括号保留原样）。\n"
+        "4. 图片放在单独的 ```mermaid 代码块中。"
+    ),
+    "report_sequence": (
+        "请为本章节生成一张 Mermaid sequenceDiagram 信息上报时序图，描述事故发生后"
+        "从发现人到总指挥、再到外部救援（119/120）的逐级报告顺序。\n"
+        "要求：\n"
+        "1. 参与者包括：发现人、值班人员、应急救援指挥部、总指挥、应急小组、外部救援。\n"
+        "2. 消息包含七要素（时间、地点、单位、类型、伤亡、影响、措施）的传递要点。\n"
+        "3. 使用中文消息文本，全角括号保留原样。\n"
+        "4. 图片放在单独的 ```mermaid 代码块中。"
+    ),
+    "response_timeline": (
+        "请为本章节生成一张 Mermaid timeline 应急处置时间轴，按时间顺序展示"
+        "从事故发生到响应结束的关键节点。\n"
+        "要求：\n"
+        "1. 时间轴按 T+分钟 标注（如 T+0 发现、T+5 报告、T+15 启动响应）。\n"
+        "2. 每个节点一句话概括动作。\n"
+        "3. 使用中文，全角括号保留原样。\n"
+        "4. 图片放在单独的 ```mermaid 代码块中。"
+    ),
+    "drill_gantt": (
+        "请为本章节生成一张 Mermaid gantt 应急演练甘特图，展示年度演练计划安排。\n"
+        "要求：\n"
+        "1. 按季度/月份安排 4-6 项演练任务（综合演练、专项演练、桌面推演、现场处置演练）。\n"
+        "2. 每项任务给出合理的日期区间。\n"
+        "3. 使用中文，全角括号保留原样。\n"
+        "4. 图片放在单独的 ```mermaid 代码块中。"
+    ),
+}
+
+
+def get_additional_diagram_prompt(diagram_key: str) -> str | None:
+    """返回附加图提示词模板（无则 None）。"""
+    return ADDITIONAL_DIAGRAM_PROMPTS.get(diagram_key)

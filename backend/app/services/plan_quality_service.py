@@ -51,6 +51,15 @@ def check_plan(plan, enterprise, sections) -> dict:
                     "warning": "Mermaid 代码块缺少图表类型声明",
                 })
 
+        # 占位附图
+        for key, meta in (s.diagram_svgs or {}).items():
+            if isinstance(meta, dict) and meta.get("placeholder"):
+                warnings.append({
+                    "section_key": s.section_key,
+                    "section_title": s.title,
+                    "warning": f"存在未生成的附图占位：{key}（{meta.get('reason', '')}）",
+                })
+
         # 关键档案信息未体现（非空时正文应包含）
         norm_text = _normalize(text)
         for field, label in [

@@ -942,6 +942,42 @@ def generate_plan_docx(
                 if doc.paragraphs:
                     doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
+        # 附图：非占位 SVG → PNG 插入；占位 → 文字行
+        for key, meta in (section.get("diagram_svgs") or {}).items():
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("placeholder"):
+                add_normal_paragraph(doc, f"【{key}】待补充企业数据后生成")
+                continue
+            svg = meta.get("svg")
+            if not svg:
+                continue
+            png_bytes = None
+            if _browser:
+                try:
+                    _page = _browser.new_page(viewport={"width": 900, "height": 600})
+                    try:
+                        _page.set_content(
+                            "<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>" + svg + "</body></html>",
+                            wait_until="domcontentloaded", timeout=10000,
+                        )
+                        _page.wait_for_selector("svg", timeout=5000)
+                        _page.wait_for_timeout(200)
+                        _el = _page.query_selector("svg")
+                        if _el:
+                            png_bytes = _el.screenshot(type="png")
+                    finally:
+                        _page.close()
+                except Exception as e:
+                    logger.warning("Diagram %s SVG->PNG failed: %s", key, e)
+            if png_bytes:
+                img_stream = io.BytesIO(png_bytes)
+                doc.add_picture(img_stream, width=Cm(14.6))
+                if doc.paragraphs:
+                    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            else:
+                add_normal_paragraph(doc, f"【{key}】附图渲染失败")
+
         if _browser:
             _browser.close()
             _pw.stop()
