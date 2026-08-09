@@ -41,6 +41,10 @@ const MODULE_KEY_MAP: Record<string, string> = {
   generate: "reports",
 };
 
+// 全局递增序号：batch 按「文件×模块」返回多个结果，同一次调用内 Date.now() 恒定，
+// 仅用候选序号会跨结果碰撞；递增计数保证 _key 跨批次/跨结果唯一
+let importSeq = 0;
+
 const STEPS: StepDef[] = [
   { key: "enterprise", label: "企业信息", component: StepEnterprise },
   { key: "org", label: "组织架构", component: StepOrg },
@@ -61,16 +65,20 @@ export default function OnboardingPage() {
   const [importedByStep, setImportedByStep] = useState<Record<string, CandidateItem[]>>({});
 
   const handlePackageImported = useCallback((results: ImportResult[]) => {
+    const incoming: Record<string, CandidateItem[]> = {};
+    results.forEach(result => {
+      const stepKey = Object.entries(MODULE_KEY_MAP).find(([, v]) => v === result.module)?.[0];
+      if (!stepKey) return;
+      const items = (result.candidates || []).map(raw => ({
+        ...raw,
+        _key: raw._key || `imp-${stepKey}-${Date.now()}-${importSeq++}`,
+        source: result.source,
+      }));
+      incoming[stepKey] = [...(incoming[stepKey] || []), ...items];
+    });
     setImportedByStep(prev => {
       const next = { ...prev };
-      results.forEach(result => {
-        const stepKey = Object.entries(MODULE_KEY_MAP).find(([, v]) => v === result.module)?.[0];
-        if (!stepKey) return;
-        const items = (result.candidates || []).map((raw, i) => ({
-          ...raw,
-          _key: raw._key || `imp-${stepKey}-${Date.now()}-${i}`,
-          source: result.source,
-        }));
+      Object.entries(incoming).forEach(([stepKey, items]) => {
         next[stepKey] = [...(next[stepKey] || []), ...items];
       });
       return next;

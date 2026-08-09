@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Drawer, Upload, message } from "antd";
+import type { UploadFile } from "antd";
 import {
   importOnboardingBatch,
   importOnboardingFile,
@@ -35,6 +36,7 @@ export default function ImportDrawer({
   onImported,
 }: Props) {
   const [uploading, setUploading] = useState(false);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
   const isPackage = mode === "package";
 
   const handleFiles = async (files: File[]) => {
@@ -46,14 +48,18 @@ export default function ImportDrawer({
         const results = await importOnboardingBatch(enterpriseId, files);
         if (results.length === 0) {
           message.warning("未能从这些文件中识别出企业数据模块，可改用各步骤「导入现有数据」定点导入");
+          return; // 保持抽屉打开，便于更换文件重试
         } else {
           const count = results.reduce((n, r) => n + (r.candidates || []).length, 0);
-          const skipped = files.length - results.length;
+          // 单文件可识别出多模块：按来源文件集合计算实际识别数，避免 skipped 为负数
+          const recognizedFiles = new Set(results.map(r => r.source)).size;
+          const skipped = files.length - recognizedFiles;
           onImported(results);
           message.success(
             `已提取 ${count} 条候选，分流至 ${results.length} 个模块` +
               (skipped > 0 ? `，${skipped} 个文件未识别模块已跳过` : ""),
           );
+          onClose();
         }
       } else {
         const targetModule = module || "auto";
@@ -61,12 +67,13 @@ export default function ImportDrawer({
         const items = result.candidates || [];
         if (items.length === 0) {
           message.warning("未从该文件中提取到候选，请检查文件内容或换一个文件");
+          return; // 保持抽屉打开，便于更换文件重试
         } else {
           onImported([result]);
           message.success(`已提取 ${items.length} 条候选，来源：${result.source}`);
+          onClose();
         }
       }
-      onClose();
     } catch (e: unknown) {
       message.error(errorMessage(e));
     } finally {
@@ -79,6 +86,10 @@ export default function ImportDrawer({
       title={isPackage ? "导入企业资料包" : "导入现有数据"}
       open={open}
       onClose={onClose}
+      afterOpenChange={nextOpen => {
+        // 抽屉重开时清空上次残留的文件，避免旧文件影响新一次导入
+        if (nextOpen) setFileList([]);
+      }}
       width={520}
     >
       <p style={{ color: "#666", fontSize: 13 }}>
@@ -90,6 +101,7 @@ export default function ImportDrawer({
       <Upload.Dragger
         multiple={isPackage}
         accept=".xlsx,.csv,.docx,.pdf,.txt"
+        fileList={fileList}
         beforeUpload={(file, fileList) => {
           // beforeUpload 逐文件触发；仅第一个文件触发整批处理，避免重复请求
           if (file.uid === fileList[0]?.uid) {
@@ -97,6 +109,7 @@ export default function ImportDrawer({
           }
           return false;
         }}
+        onChange={({ fileList: next }) => setFileList(next)}
         showUploadList={false}
       >
         <p>点击或拖拽文件到这里</p>
