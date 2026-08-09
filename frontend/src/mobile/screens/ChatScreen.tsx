@@ -81,7 +81,7 @@ export default function ChatScreen() {
 
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || initializing) return;
     abortRef.current?.abort();
 
     setInput("");
@@ -106,6 +106,10 @@ export default function ChatScreen() {
       (event: ChatSSEEvent) => {
         if (event.type === "chunk" || event.type === "progress") {
           buf += event.content || event.message || "";
+        }
+        if (event.type === "error") {
+          buf += `\n❌ ${event.message || "生成失败"}`;
+          setLoading(false);
         }
         if (event.type === "conv_id" && event.content) {
           setConvId(event.content);
@@ -149,7 +153,7 @@ export default function ChatScreen() {
       }
     );
     abortRef.current = controller;
-  }, [input, loading, messages, convId, showToast]);
+  }, [input, loading, initializing, messages, convId, showToast]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -218,15 +222,15 @@ export default function ChatScreen() {
             value={input}
             onChange={(v) => setInput(v)}
             placeholder="输入消息… 回车发送，Shift+Enter 换行"
-            disabled={loading}
+            disabled={loading || initializing}
           />
         </div>
         <Button
           variant="primary"
           size="md"
           icon={<Send size={18} />}
-          loading={loading}
-          disabled={!input.trim()}
+          loading={loading || initializing}
+          disabled={!input.trim() || initializing}
           onClick={handleSend}
           aria-label="发送"
         />

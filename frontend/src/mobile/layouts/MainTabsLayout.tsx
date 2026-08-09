@@ -28,7 +28,12 @@ const TAB_ROUTES: Record<string, string> = {
 };
 
 // 判断哪些路由应该隐藏 TabBar
-const HIDE_TABBAR_PATTERNS = [/^\/m\/login$/, /^\/m\/register$/, /^\/m\/splash$/];
+const HIDE_TABBAR_PATTERNS = [
+  /^\/m\/login$/,
+  /^\/m\/register$/,
+  /^\/m\/splash$/,
+  /^\/m\/chat$/,
+];
 
 function shouldHideTabBar(pathname: string): boolean {
   return HIDE_TABBAR_PATTERNS.some((p) => p.test(pathname));
