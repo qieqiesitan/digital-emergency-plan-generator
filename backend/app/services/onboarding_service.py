@@ -1,6 +1,7 @@
 """企业数据完成度聚合（6 模块加权）与资料 LLM 提取/模块识别。"""
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException
 from app.models.enterprise import Enterprise, EmergencyResource
 from app.models.risk_management import RiskEvent, RiskObject, RiskUnit
 from app.models.hazardous_chemicals import HazardousChemical
@@ -107,11 +108,17 @@ MODULE_SCHEMA_HINTS = {
 }
 
 
-async def extract_candidates(module: str, text: str, db) -> list[dict]:
-    """按模块 schema 从文本提取候选。返回候选 list[dict]。"""
+async def _get_ai_config_or_400(db: AsyncSession):
+    """获取系统级 AI 配置，未配置时抛 HTTPException(400)（与 risk_ai_service 语义一致）。"""
     ai_config = await get_system_ai_config(db)
     if not ai_config:
-        raise ValueError("系统未配置 AI 模型，请联系管理员")
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
+    return ai_config
+
+
+async def extract_candidates(module: str, text: str, db) -> list[dict]:
+    """按模块 schema 从文本提取候选。返回候选 list[dict]。"""
+    ai_config = await _get_ai_config_or_400(db)
     hint = MODULE_SCHEMA_HINTS.get(module, "")
     prompt = (
         "你是企业应急预案数据提取助手。请从以下资料中提取结构化数据。\n"
@@ -126,14 +133,13 @@ async def extract_candidates(module: str, text: str, db) -> list[dict]:
         ai_config,
     )
     parsed = _parse_ai_json(raw)
-    return parsed.get("items", [])
+    raw_items = parsed.get("items") or []
+    return [item for item in raw_items if isinstance(item, dict)]
 
 
 async def classify_modules(text: str, db) -> list[str]:
     """判断资料文本属于哪些模块，返回模块 key 列表。"""
-    ai_config = await get_system_ai_config(db)
-    if not ai_config:
-        raise ValueError("系统未配置 AI 模型，请联系管理员")
+    ai_config = await _get_ai_config_or_400(db)
     known = "、".join(MODULE_SCHEMA_HINTS.keys())
     prompt = (
         "判断以下企业资料属于哪些数据模块。可选模块：" + known + "。\n"
@@ -146,4 +152,7 @@ async def classify_modules(text: str, db) -> list[str]:
         ai_config,
     )
     parsed = _parse_ai_json(raw)
-    return [m for m in parsed.get("modules", []) if m in MODULE_SCHEMA_HINTS]
+    raw_modules = parsed.get("modules") or []
+    if not isinstance(raw_modules, list):
+        return []
+    return [m for m in raw_modules if isinstance(m, str) and m in MODULE_SCHEMA_HINTS]
