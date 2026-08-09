@@ -36,6 +36,13 @@ const MENU_MAP: Record<string, string> = {
 
 export function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [proMode, setProMode] = useState(() => localStorage.getItem("pro_mode") === "1");
+  const togglePro = () => {
+    setProMode(v => {
+      localStorage.setItem("pro_mode", v ? "0" : "1");
+      return !v;
+    });
+  };
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, menuPermissions, menuLoadFailed } = useAuth();
@@ -51,7 +58,7 @@ export function MainLayout() {
     ...(hasMenu("/enterprises") ? [{ key: "/enterprises", icon: <BankOutlined />, label: "企业管理" }] : []),
     ...(hasMenu("/plans") ? [{ key: "/plans", icon: <FileTextOutlined />, label: "预案列表" }] : []),
     { type: "divider" as const },
-    ...(showSystemGroup
+    ...(proMode && showSystemGroup
       ? [{
           key: "system-group",
           label: "系统管理",
@@ -62,7 +69,7 @@ export function MainLayout() {
           ],
         }]
       : []),
-    ...(showAIGroup
+    ...(proMode && showAIGroup
       ? [{
           key: "ai-group",
           label: "AI 管理",
@@ -79,7 +86,7 @@ export function MainLayout() {
       children: [
         ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
         ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <KeyOutlined />, label: "AI 配置" }] : []),
-        ...(hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" }] : []),
+        ...(proMode && hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <FileTextOutlined />, label: "法规库管理" }] : []),
       ],
     },
   ];
@@ -93,11 +100,11 @@ export function MainLayout() {
 
   const defaultOpenKeys = useMemo(() => {
     const keys: string[] = [];
-    if (showSystemGroup) keys.push("system-group");
-    if (showAIGroup) keys.push("ai-group");
+    if (proMode && showSystemGroup) keys.push("system-group");
+    if (proMode && showAIGroup) keys.push("ai-group");
     keys.push("settings");
     return keys;
-  }, [showSystemGroup, showAIGroup]);
+  }, [proMode, showSystemGroup, showAIGroup]);
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -124,6 +131,7 @@ export function MainLayout() {
           </span>
         </div>
         <Menu
+          key={proMode ? "pro" : "basic"}
           mode="inline"
           selectedKeys={[location.pathname]}
           defaultOpenKeys={defaultOpenKeys}
@@ -149,6 +157,11 @@ export function MainLayout() {
             onClick={() => setCollapsed(!collapsed)}
           />
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            {(showSystemGroup || showAIGroup || hasMenu("/settings/regulations")) && (
+              <Button size="small" onClick={togglePro}>
+                {proMode ? "专业模式 开" : "专业模式 关"}
+              </Button>
+            )}
             <EnterpriseSwitcher />
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
