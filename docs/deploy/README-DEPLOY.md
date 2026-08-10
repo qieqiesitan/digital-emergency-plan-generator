@@ -41,8 +41,10 @@ CentOS 7 无法直接跑 Node 官方二进制，统一用 node:20 容器构建�
 ```bash
 docker run --rm -v $PWD/frontend:/app -w /app \
   -e VITE_BASE_PATH=/emergency-plan-migration/ \
-  node:20 sh -c "npm config set registry https://registry.npmmirror.com && npm ci && npm run build"
+  node:20 sh -c "npm config set registry https://registry.npmmirror.com && (npm ci 2>/dev/null || npm install) && npm run build"
 ```
+
+> 说明：`npm ci` 失败（lockfile 与 package.json 不同步等）时自动回退 `npm install`，保证干净环境可构建；lockfile 同步问题见项目技术债待办。
 
 产物在 `frontend/dist/`。npm 报 ECONNRESET 时先确认 registry 已切到 npmmirror。
 

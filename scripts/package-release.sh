@@ -18,7 +18,7 @@ STAGE="$OUT_ROOT/emergency-plan-migration-$VERSION"
 
 echo "==> 1/4 构建前端（node:20 容器，VITE_BASE_PATH=$BASE_PATH）"
 docker run --rm -v "$ROOT/frontend:/app" -w /app -e VITE_BASE_PATH="$BASE_PATH" \
-  node:20 sh -c "npm config set registry https://registry.npmmirror.com && npm ci && npm run build"
+  node:20 sh -c "npm config set registry https://registry.npmmirror.com && (npm ci 2>/dev/null || npm install) && npm run build"
 
 echo "==> 2/4 组装暂存目录"
 mkdir -p "$OUT_ROOT"
