@@ -4,6 +4,43 @@ import re
 from app.services.mermaid_renderer import _extract_mermaid_code
 
 
+_reg_index_cache = None
+_reg_index_loaded = False
+
+
+def _load_regulation_index() -> list | None:
+    """加载法规库 graph.json 的 full_name 列表；失败返回 None（静默跳过）。"""
+    global _reg_index_cache, _reg_index_loaded
+    if _reg_index_loaded:
+        return _reg_index_cache
+    _reg_index_loaded = True
+    try:
+        import json as _json
+        from pathlib import Path
+        p = Path(__file__).parent.parent / "regulations" / "data" / "graph.json"
+        data = _json.loads(p.read_text(encoding="utf-8"))
+        _reg_index_cache = [n.get("full_name", "") for n in data.get("nodes", [])]
+    except Exception:
+        _reg_index_cache = None
+    return _reg_index_cache
+
+
+def _extract_regulation_refs(text: str) -> list:
+    """提取法规引用：书名号 / 标准号 / 令号。"""
+    refs = []
+    refs += re.findall(r"《([^》]{2,60})》", text)
+    refs += re.findall(r"(?:GB/T?|GB)\s*\d+[-—]\d{4}", text)
+    refs += re.findall(r"（[^）]{0,20}?第?\s*\d{3,4}\s*号）", text)
+    return [r.strip() for r in refs if r.strip()]
+
+
+def _regulation_exists(ref: str, index: list | None) -> bool:
+    if not index:
+        return True  # 库不可用时不误报
+    norm = re.sub(r"\s+", "", ref)
+    return any(norm in re.sub(r"\s+", "", full) or re.sub(r"\s+", "", full) in norm for full in index)
+
+
 def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text or "")
 
@@ -41,7 +78,7 @@ def _extract_address_fragments(address: str) -> list:
     return frags
 
 
-def check_plan(plan, enterprise, sections) -> dict:
+def check_plan(plan, enterprise, sections, required_sections: list | None = None) -> dict:
     issues = []
     warnings = []
 
@@ -210,6 +247,41 @@ def check_plan(plan, enterprise, sections) -> dict:
                 "section_key": "",
                 "section_title": "",
                 "warning": "时限表述不统一（分钟与小时数值不对应）",
+            })
+
+    # ── L1：必含章节结构合规 ──
+    if required_sections:
+        present = {s.section_key for s in sections if s.content and s.content.strip()}
+        for key in required_sections:
+            if key not in present:
+                issues.append({
+                    "section_key": key,
+                    "section_title": key,
+                    "issue": "缺少必含章节（章节缺失或内容为空）",
+                })
+
+    # ── L2：法规引用真实性 ──
+    reg_index = _load_regulation_index()
+    for s in sections:
+        text = _strip_html(s.content)
+        for ref in _extract_regulation_refs(text):
+            if not _regulation_exists(ref, reg_index):
+                warnings.append({
+                    "section_key": s.section_key,
+                    "section_title": s.title,
+                    "warning": f"疑似引用不存在的法规：《{ref}》",
+                })
+
+    # ── L3：术语统一 ──
+    TERM_PAIRS = [("应急救援指挥部", "应急指挥部"), ("应急救援小组", "应急小组")]
+    for a, b in TERM_PAIRS:
+        has_a = any(a in _strip_html(s.content) for s in sections)
+        has_b = any(b in _strip_html(s.content) for s in sections)
+        if has_a and has_b:
+            warnings.append({
+                "section_key": "",
+                "section_title": "",
+                "warning": f"术语表述不统一：{a} 与 {b} 混用",
             })
 
     return {
