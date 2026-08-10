@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Collapse, DatePicker, Drawer, Form, Input, InputNumber, message, Typography } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -50,6 +50,15 @@ export default function EnterpriseInfoCards({
 
   const enterpriseRecord = (enterprise ?? {}) as Record<string, unknown>;
 
+  // 企业数据异步加载（引导/编辑页）时 initialValue 只生效一次，名称框需在数据到达后回填；
+  // 仅在用户尚未输入时回填，避免覆盖用户手输
+  useEffect(() => {
+    const name = enterprise?.name;
+    if (name && !form.getFieldValue("name")) {
+      form.setFieldsValue({ name });
+    }
+  }, [enterprise?.name, form]);
+
   const fieldInit = (key: string) => {
     const raw = enterpriseRecord[key];
     if (raw === null || raw === undefined) return undefined;
@@ -91,7 +100,10 @@ export default function EnterpriseInfoCards({
   };
 
   const submit = async () => {
-    const values = await form.validateFields();
+    // validateFields 只校验（企业名称必填）；取全部值用 getFieldsValue(true)，
+    // 否则 AI 填充/抽屉中未挂载字段的值会被丢弃（创建时只保存到 name）
+    await form.validateFields();
+    const values = form.getFieldsValue(true);
     const payload: Record<string, unknown> = { ...values };
     for (const field of DATE_FIELDS) {
       if (payload[field]) {
