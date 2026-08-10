@@ -123,3 +123,25 @@ def test_l3_more_term_pairs():
         _section("sec_2", "应急指挥", "<p>抢险救援组负责，抢险组协调。</p>"),
     ])
     assert any("术语" in w["warning"] for w in result["warnings"])
+
+
+def test_l2_short_key_nodes_do_not_mask_missing_refs():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    with patch("app.services.plan_quality_service._load_regulation_index") as mock_load:
+        # 构造含短键的索引：单字符「1」「全」不应让任意引用命中
+        mock_load.return_value = {"1": "effective", "全": "effective", "中华人民共和国安全生产法": "effective"}
+        result = check_plan(plan, enterprise, [
+            _section("sec_1", "事故风险分析", "<p>依据《不存在的法规X》要求。</p>"),
+        ])
+    assert any("不存在" in w["warning"] for w in result["warnings"])
+
+
+def test_l2_real_index_has_no_short_keys():
+    """读真实索引，断言归一化后长度 < 4 的短键已被过滤。"""
+    from app.services.plan_quality_service import _load_regulation_index, _normalize
+
+    index = _load_regulation_index()
+    assert index is not None
+    short_keys = {k for k in index if len(_normalize(k)) < 4}
+    assert not short_keys, f"索引仍含短键: {sorted(short_keys)}"

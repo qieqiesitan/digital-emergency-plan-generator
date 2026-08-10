@@ -26,6 +26,8 @@ def _load_regulation_index() -> dict | None:
             full = n.get("full_name", "")
             if not full or n.get("node_type") not in _REG_NODE_TYPES:
                 continue
+            if len(_normalize(full)) < 4:
+                continue
             status = n.get("status", "effective")
             if full not in index or status == "effective":
                 index[full] = status
@@ -280,7 +282,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                     full_norm = _normalize(full)
                     if not full_norm:
                         continue
-                    if norm_ref in full_norm or full_norm in norm_ref:
+                    if norm_ref in full_norm:
                         matched_status = status
                         break
             if reg_index and matched_status is None:
