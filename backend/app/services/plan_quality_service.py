@@ -21,7 +21,8 @@ def _load_regulation_index() -> dict | None:
         data = _json.loads(p.read_text(encoding="utf-8"))
         _reg_index_cache = {
             n.get("full_name", ""): n.get("status", "effective")
-            for n in data.get("nodes", []) if n.get("full_name")
+            for n in data.get("nodes", [])
+            if n.get("full_name") and n.get("node_type") in ("standard", "regulation", None)
         }
     except Exception:
         _reg_index_cache = None
@@ -33,21 +34,8 @@ def _extract_regulation_refs(text: str) -> list:
     refs = []
     refs += re.findall(r"《([^》]{2,60})》", text)
     refs += re.findall(r"(?:GB/T?|GB)\s*\d+[-—]\d{4}", text)
-    refs += re.findall(r"（[^）]{0,20}?第?\s*\d{3,4}\s*号）", text)
+    refs += re.findall(r"[（(][^）)]{0,20}?第?\s*\d{1,4}\s*号[）)]", text)
     return [r.strip() for r in refs if r.strip()]
-
-
-def _regulation_exists(ref: str, index: list | None) -> bool:
-    if not index:
-        return True  # 库不可用时不误报
-    norm = _normalize(ref)
-    for full in index:
-        full_norm = _normalize(full)
-        if not full_norm:
-            continue
-        if norm in full_norm or full_norm in norm:
-            return True
-    return False
 
 
 def _strip_html(text: str) -> str:
@@ -303,7 +291,13 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                 })
 
     # ── L3：术语统一 ──
-    TERM_PAIRS = [("应急救援指挥部", "应急指挥部"), ("应急救援小组", "应急小组")]
+    TERM_PAIRS = [
+        ("应急救援指挥部", "应急指挥部"),
+        ("应急救援小组", "应急小组"),
+        ("抢险救援组", "抢险组"),
+        ("通讯联络组", "通信联络组"),
+        ("疏散引导组", "疏散组"),
+    ]
     for a, b in TERM_PAIRS:
         has_a = any(a in _strip_html(s.content) for s in sections)
         has_b = any(b in _strip_html(s.content) for s in sections)
