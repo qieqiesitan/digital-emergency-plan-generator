@@ -123,11 +123,19 @@ def check_plan(plan, enterprise, sections) -> dict:
         (r"安全负责人\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "安全负责人"),
         (r"(?<!副)组长\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "组长"),
     ]
+
+    _NAME_STOPWORDS = {"下令", "负责", "组织", "指挥", "安排", "协调", "执行", "开展", "启动", "部署", "报告", "通知", "上报", "汇报", "配合"}
+
+    def _is_plausible_name(name: str) -> bool:
+        return name not in _NAME_STOPWORDS
+
     for s in sections:
         text = _strip_html(s.content)
         for pat, role in ROLE_PATTERNS:
             for m in re.finditer(pat, text):
-                role_map.setdefault(role, []).append((s.title, m.group(1)))
+                name = m.group(1)
+                if _is_plausible_name(name):
+                    role_map.setdefault(role, []).append((s.title, name))
     for role, entries in role_map.items():
         names = {n for _, n in entries}
         if len(names) > 1:
@@ -191,8 +199,10 @@ def check_plan(plan, enterprise, sections) -> dict:
         })
 
     # 时限混用：仅当分钟与小时并存且数值不对应（如 30分钟 与 2小时）时报告
-    min_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*分钟", full_text)]
-    hr_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*小时", full_text)]
+    # 先剔除复合时长（如 1小时30分钟），避免拆分成小时+分钟误报
+    time_text = re.sub(r"\d+(?:\.\d+)?\s*小时\s*\d+(?:\.\d+)?\s*分钟", "", full_text)
+    min_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*分钟", time_text)]
+    hr_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*小时", time_text)]
     if min_vals and hr_vals:
         equivalent = any(any(abs(m - h * 60) < 1 for h in hr_vals) for m in min_vals)
         if not equivalent:

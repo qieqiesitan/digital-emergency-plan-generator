@@ -185,3 +185,35 @@ def test_c3_equivalent_time_no_warning():
         _section("sec_3", "处置程序", "<p>30分钟内上报，0.5小时后处置完毕。</p>"),
     ])
     assert not any("时限" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_verb_with_punct_not_matched():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "138", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>总指挥下令。</p>"),
+    ])
+    assert not any("姓名不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_compound_duration_no_warning():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>1小时30分钟内完成处置。</p>"),
+    ])
+    assert not any("时限" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_chinese_level_with_yingji():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>启动III级响应，执行一级应急响应程序。</p>"),
+    ])
+    assert any("响应分级" in w["warning"] for w in result["warnings"])
