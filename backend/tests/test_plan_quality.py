@@ -58,3 +58,39 @@ def test_mermaid_missing_type_declaration_warning():
     content = '<pre><code class="language-mermaid">A --> B</code></pre>'
     result = check_plan(plan, enterprise, [_section("sec_5", "应急响应", content)])
     assert any("Mermaid" in w["warning"] for w in result["warnings"])
+
+
+from app.services.plan_quality_service import (
+    check_plan, _extract_address_fragments, _must_have_section_key,
+)
+
+
+def test_must_have_section_keys():
+    assert _must_have_section_key("comprehensive") == "sec_2"
+    assert _must_have_section_key("special") == "sec_1"
+    assert _must_have_section_key("onsite") == "sec_1"
+    assert _must_have_section_key("unknown") is None
+
+
+def test_extract_address_fragments():
+    frags = _extract_address_fragments("陕西省西安市经济技术开发区民经一路726号2幢12402室")
+    assert any("民经一路726号" in f for f in frags)
+    assert any("经济技术开发区" in f for f in frags)
+
+
+def test_non_must_have_section_no_archive_warning():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号2幢12402室",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [_section("sec_3", "处置程序与措施", "<p>内容</p>")])
+    assert not any("未体现" in w["warning"] for w in result["warnings"])
+
+
+def test_must_have_section_address_fragment_match_no_warning():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号2幢12402室",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>公司位于民经一路726号，法定代表人为刘昕野，安全负责人刘昕野。</p>")
+    ])
+    assert not any("未体现" in w["warning"] for w in result["warnings"])

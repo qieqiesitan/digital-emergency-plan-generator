@@ -17,6 +17,30 @@ def _suspected_address(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fa5]{2,8}(?:省|市|区|县).{0,8}(?:路|街|大道)", text))
 
 
+MUST_HAVE_SECTION = {"comprehensive": "sec_2", "special": "sec_1", "onsite": "sec_1"}
+
+
+def _must_have_section_key(plan_type: str) -> str | None:
+    return MUST_HAVE_SECTION.get(plan_type)
+
+
+def _extract_address_fragments(address: str) -> list:
+    """从档案地址提取关键片段：区县/路街/门牌级别，用于模糊匹配。"""
+    if not address:
+        return []
+    frags = []
+    # 区县/开发区级别片段
+    m = re.search(r"[\u4e00-\u9fa5]{2,10}(?:区|县|开发区|新区)", address)
+    if m:
+        frags.append(m.group(0))
+    # 路街/门牌级别片段：从最后一个区划后缀之后提取，避免前缀过长（如带上区县名）导致正文匹配失败
+    tail = re.split(r"(?:省|市|区|县|开发区|新区)", address)[-1]
+    m = re.search(r"[\u4e00-\u9fa5]{2,6}(?:路|街|大道)[0-9０-９]*号?", tail)
+    if m:
+        frags.append(m.group(0))
+    return frags
+
+
 def check_plan(plan, enterprise, sections) -> dict:
     issues = []
     warnings = []
@@ -60,19 +84,28 @@ def check_plan(plan, enterprise, sections) -> dict:
                     "warning": f"存在未生成的附图占位：{key}（{meta.get('reason', '')}）",
                 })
 
-        # 关键档案信息未体现（非空时正文应包含）
-        norm_text = _normalize(text)
-        for field, label in [
-            (getattr(enterprise, "address", None), "地址"),
-            (getattr(enterprise, "legal_representative", None), "法定代表人"),
-            (getattr(enterprise, "safety_officer", None), "安全负责人"),
-        ]:
-            if field and field not in ("（待补充）",) and _normalize(field) not in norm_text:
-                warnings.append({
-                    "section_key": s.section_key,
-                    "section_title": s.title,
-                    "warning": f"正文未体现企业档案{label}：{field}",
-                })
+        # C0：档案字段未体现 —— 仅必含章节检查，地址用关键片段匹配
+        must_key = _must_have_section_key(getattr(plan, "plan_type", ""))
+        if s.section_key == must_key:
+            norm_text = _normalize(text)
+            for field, label, use_frag in [
+                (getattr(enterprise, "address", None), "地址", True),
+                (getattr(enterprise, "legal_representative", None), "法定代表人", False),
+                (getattr(enterprise, "safety_officer", None), "安全负责人", False),
+            ]:
+                if not field or field in ("（待补充）",):
+                    continue
+                if use_frag:
+                    frags = _extract_address_fragments(field)
+                    matched = any(_normalize(f) in norm_text for f in frags) if frags else _normalize(field) in norm_text
+                else:
+                    matched = _normalize(field) in norm_text
+                if not matched:
+                    warnings.append({
+                        "section_key": s.section_key,
+                        "section_title": s.title,
+                        "warning": f"正文未体现企业档案{label}：{field}",
+                    })
 
         # 档案缺失时正文出现疑似地址 → 可能是推断
         if getattr(enterprise, "address", None) in (None, "", "（待补充）") and _suspected_address(text):
