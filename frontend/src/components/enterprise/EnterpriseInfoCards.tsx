@@ -43,6 +43,9 @@ export default function EnterpriseInfoCards({
   const [form] = Form.useForm();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [autofillLoading, setAutofillLoading] = useState(false);
+  // AI 填充结果本地承载：antd Form.useWatch 对折叠抽屉中未挂载的字段不返回 store 值，
+  // 导致「地址/行业」等字段填充后卡片区不回显；以 state 兜底保证回显
+  const [autofillValues, setAutofillValues] = useState<Record<string, unknown> | null>(null);
   const watchedValues = Form.useWatch([], form);
 
   const enterpriseRecord = (enterprise ?? {}) as Record<string, unknown>;
@@ -77,6 +80,7 @@ export default function EnterpriseInfoCards({
       }
       if (Object.keys(values).length > 0) {
         form.setFieldsValue(values);
+        setAutofillValues(values);
         message.success(`已自动填充 ${Object.keys(values).length} 个字段，请逐项核对`);
       }
     } catch {
@@ -84,6 +88,18 @@ export default function EnterpriseInfoCards({
     } finally {
       setAutofillLoading(false);
     }
+  };
+
+  const submit = async () => {
+    const values = await form.validateFields();
+    const payload: Record<string, unknown> = { ...values };
+    for (const field of DATE_FIELDS) {
+      if (payload[field]) {
+        payload[field] = dayjs(payload[field] as dayjs.Dayjs | string).format("YYYY-MM-DD");
+      }
+    }
+    if (onCreate) await onCreate(payload);
+    else if (onSaved) await onSaved(payload);
   };
 
   return (
@@ -129,7 +145,7 @@ export default function EnterpriseInfoCards({
         }}
       >
         {CARD_FIELDS.map(({ key, label }) => {
-          const raw = watchedValues?.[key] ?? enterpriseRecord[key];
+          const raw = watchedValues?.[key] ?? autofillValues?.[key] ?? enterpriseRecord[key];
           const value = raw === null || raw === undefined || raw === "" ? undefined : raw;
           const text = displayValue(key, value);
           return (
@@ -165,6 +181,14 @@ export default function EnterpriseInfoCards({
             style={{ width: "100%" }}
           >
             展开全部字段（法定资料 / 联系场地 / 安全管理 / 生产物料）
+          </Button>
+          <Button
+            type="primary"
+            onClick={submit}
+            style={{ width: "100%", marginTop: 8 }}
+            loading={false}
+          >
+            {onCreate ? "创建企业" : "保存"}
           </Button>
         </div>
       )}
@@ -371,15 +395,7 @@ export default function EnterpriseInfoCards({
           <Button
             type="primary"
             onClick={async () => {
-              const values = await form.validateFields();
-              const payload: Record<string, unknown> = { ...values };
-              for (const field of DATE_FIELDS) {
-                if (payload[field]) {
-                  payload[field] = dayjs(payload[field] as dayjs.Dayjs | string).format("YYYY-MM-DD");
-                }
-              }
-              if (onCreate) await onCreate(payload);
-              else if (onSaved) await onSaved(payload);
+              await submit();
               setDrawerOpen(false);
             }}
           >
