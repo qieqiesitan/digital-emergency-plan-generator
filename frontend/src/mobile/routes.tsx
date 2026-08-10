@@ -1,4 +1,5 @@
 ﻿import { createBrowserRouter, Navigate } from "react-router-dom";
+import { APP_BASE } from "@/utils/platform";
 import { AuthGuard } from "@/mobile/components/auth/AuthGuard";
 import MainTabsLayout from "@/mobile/layouts/MainTabsLayout";
 import { lazy } from "react";
@@ -75,4 +76,4 @@ export const mobileRouter = createBrowserRouter([
 
   // 兜底
   { path: "*", element: <Navigate to="/m/dashboard" replace /> },
-]);
+], { basename: APP_BASE || undefined });

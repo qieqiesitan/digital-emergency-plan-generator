@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
+import { APP_BASE } from "@/utils/platform";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { MainLayout } from "@/layouts/MainLayout";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -85,5 +86,5 @@ export function createRouter() {
     },
     { path: "/m/*", element: <MobileRedirect /> },
     { path: "*", element: <Navigate to="/dashboard" replace /> },
-  ]);
+  ], { basename: APP_BASE || undefined });
 }
