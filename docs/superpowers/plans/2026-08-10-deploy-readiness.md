@@ -366,17 +366,38 @@ rg -n 'settings/ai-config|location\.href|window\.location|navigate\(' frontend/s
 
 **文件：** 修改 `frontend/nginx.conf`
 
-- [ ] **步骤 1：加入子路径 location**
+- [ ] **步骤 1：加入子路径 location（拆分移动端/桌面回退 + 静态资源长缓存 + 301）**
 
 在 `location /m/ { ... }` 之后、`location / { ... }` 之前插入：
 
 ```nginx
+    # 无尾斜杠访问时 301 跳转
+    location = /emergency-plan-migration {
+        return 301 /emergency-plan-migration/;
+    }
+
     # 应用子路径部署：dist 位于容器 html 根目录（alias 指向容器内路径，勿写宿主机路径）
+    # 移动端路径优先匹配并回退 m.html；其余子路径回退桌面 index.html
+    location /emergency-plan-migration/m/ {
+        alias /usr/share/nginx/html/;
+        try_files $uri $uri/ /emergency-plan-migration/m.html;
+    }
     location /emergency-plan-migration/ {
         alias /usr/share/nginx/html/;
-        try_files $uri $uri/ /emergency-plan-migration/index.html /emergency-plan-migration/m.html;
+        try_files $uri $uri/ /emergency-plan-migration/index.html;
+    }
+
+    # 子路径静态资源长缓存（与根路径 /assets/ 对齐）
+    location /emergency-plan-migration/assets/ {
+        alias /usr/share/nginx/html/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
     }
 ```
+
+> **注意（2026-08-10 质量审查修正）**：原变更说明的
+> `try_files $uri $uri/ /emergency-plan-migration/index.html /emergency-plan-migration/m.html`
+> 在 alias 下 `index.html` 参数会拼成双前缀死路径，桌面深链恒回退 m.html。必须按上面拆分。
 
 - [ ] **步骤 2：nginx 配置语法校验（docker 容器）**
 
@@ -437,7 +458,9 @@ git commit -m "fix(docker): use postgres:16 Debian image to avoid CentOS 7 volum
 
 ```yaml
 # 生产部署 compose（后端栈）
-# 用法：cp .env.example .env && docker compose -f deploy/docker-compose.prod.yml up -d --build
+# 用法：cp .env.example .env && docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d --build
+# 注意：必须带 --project-directory .，否则相对路径（./backend、./db-init 等）会按 deploy/ 目录解析导致构建失败
+# db-init/（恢复 SQL）与 model-cache/chroma/（ONNX 模型）由部署者提供，缺目录时 docker 会静默创建空目录
 # 拓扑：公司网关 nginx 托管前端静态 + 反代 /api /uploads，本文件只启 postgres + backend。
 # 如需自托管前端（开发/无网关形态），参考根 docker-compose.yml 的 frontend/shuzihuayuan 服务。
 services:
@@ -449,7 +472,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: emergency_plan
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db-init:/docker-entrypoint-initdb.d:ro
@@ -482,6 +505,11 @@ services:
       - ./backend/uploads:/app/uploads
       - ./model-cache/chroma:/root/.cache/chroma
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
       postgres:
         condition: service_healthy
@@ -533,12 +561,23 @@ location = /emergency-plan-migration {
 }
 
 # 子路径静态资源（dist 已复制到网关静态目录的 emergency-plan-migration/ 子目录）
+# 注意：try_files 的静态参数会拼到 alias 后，不能写带子路径前缀的回退文件；
+# 必须按 移动端 /m/ 与 其余路径 拆分两个 location，分别回退 m.html / index.html
+location ^~ /emergency-plan-migration/m/ {
+    alias {{静态目录容器内路径}}/emergency-plan-migration/;
+    try_files $uri $uri/ /emergency-plan-migration/m.html;
+}
 location ^~ /emergency-plan-migration/ {
     alias {{静态目录容器内路径}}/emergency-plan-migration/;   # 例如 /etc/nginx/html/emergency-plan-migration/
     index index.html;
-    try_files $uri $uri/ /emergency-plan-migration/index.html /emergency-plan-migration/m.html;
+    try_files $uri $uri/ /emergency-plan-migration/index.html;
     # include ./static_expire.conf;   # 网关已定义则启用，否则删除本行
     # include ./safe.conf;            # 网关已定义则启用，否则删除本行
+}
+location ^~ /emergency-plan-migration/assets/ {
+    alias {{静态目录容器内路径}}/emergency-plan-migration/assets/;
+    expires 1y;
+    add_header Cache-Control "public, immutable";
 }
 
 # API 代理（宿主机 backend 容器端口 8000）
@@ -630,9 +669,10 @@ docker run --rm -v $PWD/frontend:/app -w /app \
 
 ```bash
 cp .env.example .env          # 按预检表修改 SECRET_KEY / POSTGRES_PASSWORD 等
-docker compose -f deploy/docker-compose.prod.yml up -d --build
+docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d --build
 ```
 
+- 注意：`--project-directory .` 必须带，否则 compose 的相对路径会按 `deploy/` 目录解析，构建必然失败。
 - 全新库：首次启动 postgres 自动执行 `db-init/` 下 SQL（01_restore.sql 为全量恢复）。
 - 已有库：**不要**挂 db-init 目录（或确保文件名不与已有执行冲突），增量迁移 SQL 需手动应用。
 - 首次启动后确认 chroma ONNX 模型缓存：`model-cache/chroma/onnx_models/all-MiniLM-L6-v2/` 需存在，
@@ -846,8 +886,12 @@ fail() { echo "FAIL  $1"; FAIL=$((FAIL + 1)); }
 # 1. 首页
 if curl -fs -o /dev/null "$SITE/"; then pass "首页 $SITE/"; else fail "首页 $SITE/"; fi
 
-# 2. 移动端
-if curl -fs -o /dev/null "$SITE/m/dashboard"; then pass "移动端 /m/dashboard"; else fail "移动端 /m/dashboard"; fi
+# 2. 移动端（须返回 m.html：标题含「移动端」）
+if curl -fs "$SITE/m/dashboard" 2>/dev/null | grep -q '移动端'; then
+  pass "移动端 /m/dashboard（m.html）"
+else
+  fail "移动端 /m/dashboard（应返回 m.html）"
+fi
 
 # 3. 静态资源（从 index.html 提取）
 assets="$(curl -fs "$SITE/" | grep -oE 'assets/[^"'"'"' ]+\.(js|css)' | sort -u || true)"
@@ -867,16 +911,17 @@ if [[ "$SKIP_API" == "1" ]]; then
   echo "SKIP  API 检查（--skip-api）"
 else
   API="${API_URL:-$(echo "$SITE" | sed -E 's#(/[^/]+)?/?$##')}"
-  if curl -fs -o /dev/null "$API/api/v1/health"; then pass "API /api/v1/health"; else fail "API /api/v1/health"; fi
+  if curl -fs -o /dev/null "$API/api/health"; then pass "API /api/health"; else fail "API /api/health"; fi
   up_code="$(curl -s -o /dev/null -w '%{http_code}' "$API/uploads/" || true)"
   if [[ "$up_code" != 5* ]]; then pass "上传 /uploads/ 返回 $up_code（非 5xx 可接受）"; else fail "上传 /uploads/ 返回 $up_code"; fi
 fi
 
-# 7. 深链接 SPA 回退
-if curl -fs "$SITE/enterprises" 2>/dev/null | grep -q 'id="root"'; then
-  pass "深链接 SPA 回退"
+# 7. 深链接 SPA 回退（桌面端须返回 index.html：含「数字化预案系统」且不含「移动端」）
+deep_body="$(curl -fs "$SITE/enterprises" 2>/dev/null || true)"
+if [[ "$deep_body" == *"数字化预案系统"* && "$deep_body" != *"移动端"* ]]; then
+  pass "深链接 SPA 回退（桌面 index.html）"
 else
-  fail "深链接 SPA 回退"
+  fail "深链接 SPA 回退（应返回桌面 index.html）"
 fi
 
 # 8. 无尾斜杠
@@ -964,10 +1009,10 @@ npm run build
 ```bash
 cd "C:\Users\55061\Documents\数字化预案自动生成 2"
 docker compose up -d postgres backend
-curl -fs http://127.0.0.1:8000/api/v1/health
+curl -fs http://127.0.0.1:8000/api/health
 ```
 
-预期：health 返回 200（等待就绪，最多 90 秒）。
+预期：health 返回 200（等待就绪，最多 90 秒）。注意：后端真实健康路由为 `/api/health`；`/api/v1/health` 会落入 SPA fallback 假阳性，不可用作健康检查。
 
 - [ ] **步骤 2：用 frontend/nginx.conf 模拟网关子路径托管**
 

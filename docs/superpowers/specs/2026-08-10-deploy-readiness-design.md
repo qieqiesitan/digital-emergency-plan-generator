@@ -92,11 +92,24 @@
      根路径跳转则不改；若存在 `navigate("/settings/ai-config")` 由 basename 自动处理，也不改；仅当
      存在 `location.href` 等原生跳转才拼接 `APP_BASE`。
 8. `frontend/nginx.conf`
-   - 增加子路径 location，与变更说明 §四 完全一致（已上线验证）：
+   - 增加子路径 location（**质量审查修正版**：原变更说明模式的 `try_files` 静态参数在 alias 下
+     会拼成双前缀死路径，桌面深链恒回退 m.html；必须拆分移动端/桌面回退）：
      ```nginx
+     location = /emergency-plan-migration {
+         return 301 /emergency-plan-migration/;
+     }
+     location /emergency-plan-migration/m/ {
+         alias /usr/share/nginx/html/;
+         try_files $uri $uri/ /emergency-plan-migration/m.html;
+     }
      location /emergency-plan-migration/ {
          alias /usr/share/nginx/html/;
-         try_files $uri $uri/ /emergency-plan-migration/index.html /emergency-plan-migration/m.html;
+         try_files $uri $uri/ /emergency-plan-migration/index.html;
+     }
+     location /emergency-plan-migration/assets/ {
+         alias /usr/share/nginx/html/assets/;
+         expires 1y;
+         add_header Cache-Control "public, immutable";
      }
      ```
    - 附注释：此形态下 dist 位于容器 html 根目录；网关侧形态见 `deploy/gateway-nginx.conf.example`。
@@ -114,8 +127,9 @@
      挂载、exports/uploads 持久化、`uvicorn ... --workers 4`；
    - frontend/shuzihuayuan 服务以注释给出（公司拓扑由网关托管静态，不启用）。
 3. 新增 `deploy/gateway-nginx.conf.example`（基于变更说明 §五）：
-   - 无尾斜杠 301、`^~ /emergency-plan-migration/` 静态 location（alias 容器内路径 + try_files 兜底
-     index/m.html）、`/api/`、`/uploads/` 反代；
+   - 无尾斜杠 301、拆分两个静态 location：`^~ /emergency-plan-migration/m/` 回退 m.html、
+     `^~ /emergency-plan-migration/` 回退 index.html（alias 容器内路径；**不采用**变更说明原文的
+     单 location + 双回退模式，见 D-1.8 的修正说明）、`/api/`、`/uploads/` 反代；
    - 域名、宿主机 IP、静态目录以占位符 `{{...}}` 标注，并附三条关键注释：alias 必须容器内路径、
      proxy_pass 必须宿主机 IP（不可 127.0.0.1）、文件勿带 UTF-8 BOM。
 
@@ -161,7 +175,7 @@
   2. `/m/dashboard` 返回 200（m.html 命中）；
   3. 从 index.html 提取全部 `assets/*.js|css` 引用逐个 200；
   4. `manifest.webmanifest` 200 且 `start_url`/`scope` 含子路径；
-  5. `API_URL/api/v1/health` 200；
+  5. `API_URL/api/health` 200（后端真实健康路由；`/api/v1/health` 会落入 SPA fallback 假阳性，禁用）；
   6. `API_URL/uploads/` 非 5xx（403/404 可接受）；
   7. 深链接（子路径 + `/enterprises`）返回 index.html（SPA fallback）；
   8. 无尾斜杠 URL 返回 301 → 带尾斜杠。
