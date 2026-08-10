@@ -71,8 +71,15 @@ def test_l2_law_nodes_included_in_index():
     assert "law" in _REG_NODE_TYPES
     assert "policy" in _REG_NODE_TYPES
     assert "standard" in _REG_NODE_TYPES
-    assert "article" not in _REG_NODE_TYPES
+    assert "article" in _REG_NODE_TYPES
     assert "topic" not in _REG_NODE_TYPES
+
+
+def test_l2_standard_number_ref_not_false_positive():
+    from app.services.plan_quality_service import _REG_NODE_TYPES, _load_regulation_index
+    assert "article" in _REG_NODE_TYPES
+    index = _load_regulation_index()
+    assert any("29639" in fn for fn in (index or {}))
 
 
 def test_l2_real_graph_law_nodes_in_index():

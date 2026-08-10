@@ -7,7 +7,7 @@ from app.services.mermaid_renderer import _extract_mermaid_code
 _reg_index_cache = None
 _reg_index_loaded = False
 
-_REG_NODE_TYPES = ("law", "policy", "standard")
+_REG_NODE_TYPES = ("law", "policy", "standard", "article")
 
 
 def _load_regulation_index() -> dict | None:
@@ -21,11 +21,15 @@ def _load_regulation_index() -> dict | None:
         from pathlib import Path
         p = Path(__file__).parent.parent / "regulations" / "data" / "graph.json"
         data = _json.loads(p.read_text(encoding="utf-8"))
-        _reg_index_cache = {
-            n.get("full_name", ""): n.get("status", "effective")
-            for n in data.get("nodes", [])
-            if n.get("full_name") and n.get("node_type") in _REG_NODE_TYPES
-        }
+        index = {}
+        for n in data.get("nodes", []):
+            full = n.get("full_name", "")
+            if not full or n.get("node_type") not in _REG_NODE_TYPES:
+                continue
+            status = n.get("status", "effective")
+            if full not in index or status == "effective":
+                index[full] = status
+        _reg_index_cache = index
     except Exception:
         _reg_index_cache = None
     return _reg_index_cache
