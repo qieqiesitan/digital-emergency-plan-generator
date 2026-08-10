@@ -5,6 +5,7 @@ import TabBar from "@/mobile/components/ui/TabBar";
 import NetworkStatusBanner from "@/mobile/components/ui/NetworkStatusBanner";
 import { ErrorBoundary } from "@/mobile/components/ui/ErrorBoundary";
 import { useAppStore } from "@/mobile/store/appStore";
+import { stripAppBase } from "@/utils/platform";
 import {
   LayoutDashboard,
   Building2,
@@ -57,19 +58,20 @@ export default function MainTabsLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { activeTab, setActiveTab } = useAppStore();
-  const hideTabBar = shouldHideTabBar(location.pathname);
+  const pathname = stripAppBase(location.pathname);
+  const hideTabBar = shouldHideTabBar(pathname);
 
   // 根据路由自动更新 activeTab
   useEffect(() => {
     for (const [tab, pattern] of Object.entries(TAB_PATTERNS)) {
-      if (pattern.test(location.pathname)) {
+      if (pattern.test(pathname)) {
         if (activeTab !== tab) {
           setActiveTab(tab as typeof activeTab);
         }
         break;
       }
     }
-  }, [location.pathname, setActiveTab, activeTab]);
+  }, [pathname, setActiveTab, activeTab]);
 
   // Tab 点击 → 路由跳转
   const handleTabChange = useCallback((key: string) => {
@@ -87,7 +89,7 @@ export default function MainTabsLayout() {
         >
           <AnimatePresence mode="wait">
             <motion.div
-              key={location.pathname}
+              key={pathname}
               variants={pageVariants}
               initial="initial"
               animate="animate"

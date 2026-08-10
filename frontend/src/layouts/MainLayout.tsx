@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { EnterpriseSwitcher } from "@/components/enterprise/EnterpriseSwitcher";
 import FloatingChat from "@/components/common/FloatingChat";
+import { stripAppBase } from "@/utils/platform";
 
 const { Header, Sider, Content } = Layout;
 
@@ -152,7 +153,7 @@ export function MainLayout() {
         <Menu
           key={proMode ? "pro" : "basic"}
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[stripAppBase(location.pathname)]}
           defaultOpenKeys={defaultOpenKeys}
           items={menuItems}
           onClick={({ key }) => navigate(key)}

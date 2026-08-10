@@ -1,9 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { isMobile } from "@/mobile/utils/platform";
+import { stripAppBase } from "@/utils/platform";
 
 function isMobilePath(): boolean {
-  const p = window.location.pathname;
+  const p = stripAppBase(window.location.pathname);
   return p === "/m" || p.startsWith("/m/");
 }
 
