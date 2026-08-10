@@ -128,3 +128,27 @@ def test_c3_level_notation_mixed():
         _section("sec_3", "处置程序", "<p>启动III级响应，执行一级响应程序。</p>"),
     ])
     assert any("响应分级" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_deputy_commander_not_matched_as_commander():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "138", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    # 只有副总指挥，不应误报总指挥不一致
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>副总指挥：王五</p>"),
+    ])
+    assert not any("总指挥" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_time_unit_mixed():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>30分钟内上报，0.5小时后处置完毕。</p>"),
+    ])
+    assert any("时限" in w["warning"] for w in result["warnings"])

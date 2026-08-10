@@ -118,9 +118,10 @@ def check_plan(plan, enterprise, sections) -> dict:
     # ── C1：跨章节人物一致性 ──
     role_map: dict[str, list[tuple[str, str]]] = {}  # role -> [(section_title, name)]
     ROLE_PATTERNS = [
-        (r"总指挥(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "总指挥"),
+        (r"(?<!副)总指挥(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "总指挥"),
         (r"副总指挥(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "副总指挥"),
         (r"安全负责人(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "安全负责人"),
+        (r"(?<!副)组长(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "组长"),
     ]
     for s in sections:
         text = _strip_html(s.content)
@@ -130,14 +131,16 @@ def check_plan(plan, enterprise, sections) -> dict:
     for role, entries in role_map.items():
         names = {n for _, n in entries}
         if len(names) > 1:
+            detail = "、".join(f"「{t}」{n}" for t, n in entries)
             warnings.append({
                 "section_key": "",
-                "section_title": entries[0][0],
-                "warning": f"跨章节{role}姓名不一致：{'、'.join(sorted(names))}",
+                "section_title": "",
+                "warning": f"跨章节{role}姓名不一致：{detail}",
             })
         org_names = {
             m.get("name") for g in (getattr(enterprise, "org_structure", None) or [])
-            for m in g.get("members", []) if role in (m.get("position") or "")
+            for m in g.get("members", [])
+            if role in (m.get("position") or "") or role in (m.get("role") or "")
         }
         if org_names and not ({n for _, n in entries} <= org_names):
             warnings.append({
@@ -186,6 +189,16 @@ def check_plan(plan, enterprise, sections) -> dict:
             "section_key": "",
             "section_title": "",
             "warning": "响应分级表述不统一（III级/II级/I级 与 一级/二级/三级 混用）",
+        })
+
+    # 时限混用：30分钟 与 0.5小时 并存
+    has_min = bool(re.search(r"\d+\s*分钟", full_text))
+    has_hr = bool(re.search(r"\d+(?:\.\d+)?\s*小时", full_text))
+    if has_min and has_hr:
+        warnings.append({
+            "section_key": "",
+            "section_title": "",
+            "warning": "时限表述不统一（分钟与小时混用）",
         })
 
     return {
