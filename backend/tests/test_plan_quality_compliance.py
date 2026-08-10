@@ -32,7 +32,29 @@ def test_l2_regulation_ref_not_in_library_warning():
     enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
     plan = MagicMock(plan_type="special")
     with patch("app.services.plan_quality_service._load_regulation_index") as mock_load:
-        mock_load.return_value = ["安全生产法"]
+        mock_load.return_value = {"安全生产法": "effective"}
+        result = check_plan(plan, enterprise, [
+            _section("sec_1", "事故风险分析", "<p>依据《不存在的法规X》要求。</p>"),
+        ])
+    assert any("不存在" in w["warning"] for w in result["warnings"])
+
+
+def test_l2_abolished_regulation_warning():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    with patch("app.services.plan_quality_service._load_regulation_index") as mock_load:
+        mock_load.return_value = {"安全生产法": "abolished"}
+        result = check_plan(plan, enterprise, [
+            _section("sec_1", "事故风险分析", "<p>依据《安全生产法》要求。</p>"),
+        ])
+    assert any("废止" in w["warning"] for w in result["warnings"])
+
+
+def test_l2_empty_full_name_nodes_do_not_make_refs_exist():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    with patch("app.services.plan_quality_service._load_regulation_index") as mock_load:
+        mock_load.return_value = {"": "effective", "安全生产法": "effective"}
         result = check_plan(plan, enterprise, [
             _section("sec_1", "事故风险分析", "<p>依据《不存在的法规X》要求。</p>"),
         ])

@@ -8,8 +8,8 @@ _reg_index_cache = None
 _reg_index_loaded = False
 
 
-def _load_regulation_index() -> list | None:
-    """加载法规库 graph.json 的 full_name 列表；失败返回 None（静默跳过）。"""
+def _load_regulation_index() -> dict | None:
+    """加载法规库 graph.json：{full_name: status}；失败返回 None（静默跳过）。"""
     global _reg_index_cache, _reg_index_loaded
     if _reg_index_loaded:
         return _reg_index_cache
@@ -19,7 +19,10 @@ def _load_regulation_index() -> list | None:
         from pathlib import Path
         p = Path(__file__).parent.parent / "regulations" / "data" / "graph.json"
         data = _json.loads(p.read_text(encoding="utf-8"))
-        _reg_index_cache = [n.get("full_name", "") for n in data.get("nodes", [])]
+        _reg_index_cache = {
+            n.get("full_name", ""): n.get("status", "effective")
+            for n in data.get("nodes", []) if n.get("full_name")
+        }
     except Exception:
         _reg_index_cache = None
     return _reg_index_cache
@@ -37,8 +40,14 @@ def _extract_regulation_refs(text: str) -> list:
 def _regulation_exists(ref: str, index: list | None) -> bool:
     if not index:
         return True  # 库不可用时不误报
-    norm = re.sub(r"\s+", "", ref)
-    return any(norm in re.sub(r"\s+", "", full) or re.sub(r"\s+", "", full) in norm for full in index)
+    norm = _normalize(ref)
+    for full in index:
+        full_norm = _normalize(full)
+        if not full_norm:
+            continue
+        if norm in full_norm or full_norm in norm:
+            return True
+    return False
 
 
 def _strip_html(text: str) -> str:
@@ -46,8 +55,13 @@ def _strip_html(text: str) -> str:
 
 
 def _normalize(text: str) -> str:
-    """去除所有空白字符，用于档案字段模糊匹配。"""
-    return re.sub(r"\s+", "", text or "")
+    """去除所有空白字符并归一化全半角，用于档案字段模糊匹配。"""
+    result = re.sub(r"\s+", "", text or "")
+    result = result.translate(str.maketrans(
+        "０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ",
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    ))
+    return result
 
 
 def _suspected_address(text: str) -> bool:
@@ -251,13 +265,13 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
 
     # ── L1：必含章节结构合规 ──
     if required_sections:
-        present = {s.section_key for s in sections if s.content and s.content.strip()}
+        existing_keys = {s.section_key for s in sections}
         for key in required_sections:
-            if key not in present:
+            if key not in existing_keys:
                 issues.append({
                     "section_key": key,
                     "section_title": key,
-                    "issue": "缺少必含章节（章节缺失或内容为空）",
+                    "issue": "缺少必含章节",
                 })
 
     # ── L2：法规引用真实性 ──
@@ -265,11 +279,27 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
     for s in sections:
         text = _strip_html(s.content)
         for ref in _extract_regulation_refs(text):
-            if not _regulation_exists(ref, reg_index):
+            norm_ref = _normalize(ref)
+            matched_status = None
+            if reg_index:
+                for full, status in reg_index.items():
+                    full_norm = _normalize(full)
+                    if not full_norm:
+                        continue
+                    if norm_ref in full_norm or full_norm in norm_ref:
+                        matched_status = status
+                        break
+            if reg_index and matched_status is None:
                 warnings.append({
                     "section_key": s.section_key,
                     "section_title": s.title,
                     "warning": f"疑似引用不存在的法规：《{ref}》",
+                })
+            elif matched_status == "abolished":
+                warnings.append({
+                    "section_key": s.section_key,
+                    "section_title": s.title,
+                    "warning": f"《{ref}》已废止，请核实",
                 })
 
     # ── L3：术语统一 ──
