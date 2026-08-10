@@ -34,7 +34,11 @@ rm -rf "$STAGE/backend/uploads" "$STAGE/backend/exports"
 mkdir -p "$STAGE/frontend"
 cp -r "$ROOT/frontend/dist" "$STAGE/frontend/dist"
 cp -r "$ROOT/deploy" "$STAGE/deploy"
-cp -r "$ROOT/scripts" "$STAGE/scripts"
+mkdir -p "$STAGE/scripts"
+cp "$ROOT/scripts/package-release.sh" "$ROOT/scripts/backup.sh" "$STAGE/scripts/"
+if [[ -f "$ROOT/scripts/deploy-check.sh" ]]; then
+  cp "$ROOT/scripts/deploy-check.sh" "$STAGE/scripts/"
+fi
 cp "$ROOT/.env.example" "$STAGE/.env.example"
 
 if [[ -d "$ROOT/db-init" ]]; then

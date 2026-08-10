@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(cd "$(dirname "$0")" && pwd)/.."
 mkdir -p backups
 stamp=$(date +%Y%m%d_%H%M%S)
 
