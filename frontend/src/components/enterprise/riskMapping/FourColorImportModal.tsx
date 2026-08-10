@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Button, Checkbox, Collapse, Input, List, Modal, Spin, Tag, Upload, message } from "antd";
+import { Alert, Button, Checkbox, Collapse, Input, List, Modal, Space, Spin, Tag, Upload, message } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import {
   analyzeFourColorMap,
@@ -65,6 +65,11 @@ export default function FourColorImportModal({
   const [excluded, setExcluded] = useState<FourColorExcludedItem[]>([]);
   const [texts, setTexts] = useState<FourColorTextItem[]>([]);
   const [showTexts, setShowTexts] = useState(true);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [activeLevel, setActiveLevel] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [popover, setPopover] = useState<{ zoneId: string; x: number; y: number } | null>(null);
 
   const reset = () => {
     setStage("select");
@@ -74,6 +79,11 @@ export default function FourColorImportModal({
     setExcluded([]);
     setTexts([]);
     setShowTexts(true);
+    setSelectedZoneId(null);
+    setSearch("");
+    setActiveLevel(null);
+    setEditingName("");
+    setPopover(null);
   };
 
   const handleClose = () => {
@@ -144,6 +154,57 @@ export default function FourColorImportModal({
     setZones([...zones, newZone]);
     setExcluded(excluded.filter(x => x !== item));
   };
+
+  const updateZoneName = (id: string, name: string) => {
+    setZones(zones.map(z => (z.client_id === id ? { ...z, name } : z)));
+  };
+
+  const deleteZone = (id: string) => {
+    setZones(zones.filter(z => z.client_id !== id));
+    if (selectedZoneId === id) {
+      setSelectedZoneId(null);
+      setPopover(null);
+    }
+  };
+
+  const openPopover = (z: FourColorDraftZone, x: number, y: number) => {
+    setSelectedZoneId(z.client_id);
+    setEditingName(z.name);
+    setPopover({ zoneId: z.client_id, x, y });
+  };
+
+  const selectZoneByRow = (z: FourColorDraftZone) => {
+    const pts = z.polygons[0]?.points ?? [];
+    const xs = pts.map(p => p.x);
+    const ys = pts.map(p => p.y);
+    const cx = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : 50;
+    const cy = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 50;
+    openPopover(z, cx, cy);
+  };
+
+  const savePopoverName = () => {
+    if (!popover) return;
+    updateZoneName(popover.zoneId, editingName.trim() || zones.find(z => z.client_id === popover.zoneId)?.name || "");
+    setSelectedZoneId(null);
+    setPopover(null);
+  };
+
+  const bulkDelete = () => {
+    if (!activeLevel) return;
+    const n = zones.filter(z => z.risk_level === activeLevel).length;
+    setZones(zones.filter(z => z.risk_level !== activeLevel));
+    setSelectedZoneId(null);
+    setPopover(null);
+    message.success(`已批量删除 ${n} 个「${activeLevel}」分区`);
+  };
+
+  const filteredZones = zones.filter(z =>
+    (!activeLevel || z.risk_level === activeLevel) &&
+    (!search || z.name.includes(search)),
+  );
+  const levelGroups = (["重大", "较大", "一般", "低"] as const)
+    .map(level => ({ level, items: filteredZones.filter(z => z.risk_level === level) }))
+    .filter(g => g.items.length > 0);
 
   return (
     <Modal
@@ -224,14 +285,59 @@ export default function FourColorImportModal({
                       key={p.id}
                       points={p.points.map(pt => `${pt.x},${pt.y}`).join(" ")}
                       fill={LEVEL_COLORS[z.risk_level]}
-                      fillOpacity={0.35}
+                      fillOpacity={selectedZoneId === z.client_id ? 0.6 : 0.35}
                       stroke={LEVEL_COLORS[z.risk_level]}
-                      strokeWidth={1}
+                      strokeWidth={selectedZoneId === z.client_id ? 2 : 1}
                       vectorEffect="non-scaling-stroke"
+                      style={{ cursor: "pointer" }}
+                      onClick={e => {
+                        const svg = e.currentTarget.ownerSVGElement;
+                        const box = svg?.getBoundingClientRect();
+                        const x = box ? ((e.nativeEvent.clientX - box.left) / box.width) * 100 : 50;
+                        const y = box ? ((e.nativeEvent.clientY - box.top) / box.height) * 100 : 50;
+                        openPopover(z, Math.min(100, Math.max(0, x)), Math.min(100, Math.max(0, y)));
+                      }}
                     />
                   )),
                 )}
               </svg>
+              {popover && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `max(4px, min(calc(${popover.x}% - 95px), calc(100% - 200px)))`,
+                    top: `max(4px, min(calc(${popover.y}% - 88px), calc(100% - 84px)))`,
+                    background: "#fff",
+                    border: "1px solid #d9d9d9",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 16px rgba(0,0,0,.12)",
+                    padding: 8,
+                    zIndex: 5,
+                    width: 190,
+                  }}
+                >
+                  <Input
+                    value={editingName}
+                    onChange={e => setEditingName(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") savePopoverName(); }}
+                    aria-label="预览改名"
+                    size="small"
+                    autoFocus
+                    style={{ marginBottom: 6 }}
+                  />
+                  <Space size={4}>
+                    <Button size="small" type="primary" onClick={savePopoverName}>保存</Button>
+                    <Button size="small" danger onClick={() => deleteZone(popover.zoneId)}>删除</Button>
+                    <Button
+                      size="small"
+                      type="text"
+                      onClick={() => { setSelectedZoneId(null); setPopover(null); }}
+                    >
+                      关闭
+                    </Button>
+                  </Space>
+                </div>
+              )}
               {texts.length > 0 && (
                 <Checkbox
                   checked={showTexts}
@@ -255,43 +361,90 @@ export default function FourColorImportModal({
               ))}
             </div>
             <div>
-              <List
-                size="small"
-                dataSource={zones}
-                locale={{ emptyText: "未识别到分区" }}
-                renderItem={(z, i) => (
-                  <List.Item
-                    actions={[
-                      <Button
-                        key="del"
-                        type="text"
-                        danger
-                        onClick={() => setZones(zones.filter(x => x.client_id !== z.client_id))}
-                      >
-                        删除
-                      </Button>,
-                    ]}
-                  >
-                    <div style={{ width: "100%" }}>
-                      <Input
-                        value={z.name}
-                        aria-label={`分区名称${i + 1}`}
-                        onChange={e =>
-                          setZones(zones.map(x => (x.client_id === z.client_id ? { ...x, name: e.target.value } : x)))
-                        }
-                        style={{ marginBottom: 4 }}
-                      />
-                      <Tag color={LEVEL_COLORS[z.risk_level]}>{z.risk_level}</Tag>
-                      {z.suspected && (
-                        <Tag color="orange" title={z.ai_hint || "形状异常，可能不是真实分区"}>疑似干扰</Tag>
-                      )}
-                      <span style={{ color: "#999", fontSize: 12 }}>
-                        {z.polygons.length} 个多边形 · {z.polygons[0]?.points.length ?? 0} 个顶点
-                      </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Input
+                  placeholder="搜索分区名"
+                  value={search}
+                  allowClear
+                  onChange={e => setSearch(e.target.value)}
+                />
+                <Space wrap size={4}>
+                  {(["重大", "较大", "一般", "低"] as const).map(level => (
+                    <Button
+                      key={level}
+                      data-testid={`filter-${level}`}
+                      size="small"
+                      onClick={() => setActiveLevel(activeLevel === level ? null : level)}
+                      style={
+                        activeLevel === level
+                          ? { background: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level], color: level === "一般" ? "#333" : "#fff" }
+                          : undefined
+                      }
+                    >
+                      {level} {zones.filter(z => z.risk_level === level).length}
+                    </Button>
+                  ))}
+                  <Button size="small" danger disabled={!activeLevel} onClick={bulkDelete}>批量删除</Button>
+                </Space>
+                <div style={{ maxHeight: 420, overflowY: "auto", margin: "0 -8px", padding: "0 8px" }}>
+                  <Collapse
+                    ghost
+                    defaultActiveKey={levelGroups.map(g => g.level)}
+                    items={levelGroups.map(g => ({
+                      key: g.level,
+                      label: (
+                        <Space size={6}>
+                          <Tag color={LEVEL_COLORS[g.level]}>{g.level}</Tag>
+                          <span style={{ color: "#999", fontSize: 12 }}>{g.items.length}</span>
+                        </Space>
+                      ),
+                      children: (
+                        <List
+                          size="small"
+                          dataSource={g.items}
+                          renderItem={(z, i) => (
+                            <List.Item
+                              style={selectedZoneId === z.client_id ? { background: "#e6f4ff", borderRadius: 6 } : undefined}
+                              onClick={() => selectZoneByRow(z)}
+                              actions={[
+                                <Button
+                                  key="del"
+                                  type="text"
+                                  danger
+                                  size="small"
+                                  onClick={e => { e.stopPropagation(); deleteZone(z.client_id); }}
+                                >
+                                  删除
+                                </Button>,
+                              ]}
+                            >
+                              <div style={{ width: "100%" }}>
+                                <Input
+                                  value={z.name}
+                                  aria-label={`分区名称${zones.indexOf(z) + 1}`}
+                                  size="small"
+                                  onClick={e => e.stopPropagation()}
+                                  onChange={e => updateZoneName(z.client_id, e.target.value)}
+                                  style={{ marginBottom: 4 }}
+                                />
+                                <Tag color={LEVEL_COLORS[z.risk_level]}>{z.risk_level}</Tag>
+                                {z.suspected && (
+                                  <Tag color="orange" title={z.ai_hint || "形状异常，可能不是真实分区"}>疑似干扰</Tag>
+                                )}
+                              </div>
+                            </List.Item>
+                          )}
+                        />
+                      ),
+                    }))}
+                  />
+                  {filteredZones.length === 0 && (
+                    <div style={{ textAlign: "center", color: "#999", padding: "24px 0", fontSize: 13 }}>
+                      没有匹配的分区
                     </div>
-                  </List.Item>
-                )}
-              />
+                  )}
+                </div>
+              </div>
               {excluded.length > 0 && (
                 <Collapse
                   style={{ marginTop: 12 }}

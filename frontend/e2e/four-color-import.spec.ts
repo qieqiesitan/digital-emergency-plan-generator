@@ -239,4 +239,32 @@ test.describe("四色分布图自动识别导入", () => {
     await page.getByRole("button", { name: "确认落图" }).click();
     await expect(page.getByText("四色图导入成功")).toBeVisible();
   });
+
+  test("预览支持图上点选改名、等级分组筛选与批量删除", async ({ page }) => {
+    await mockApis(page, [], ANALYZE_DATA_AI);
+    await loginAndOpenWorkbench(page);
+    await page.getByRole("button", { name: "导入四色图" }).click();
+    await dialogFileInput(page).setInputFiles("e2e/fixtures/four-color-sample.png");
+    const dialog = page.getByRole("dialog", { name: "导入四色分布图" });
+    await expect(dialogZoneInput(page, 1)).toHaveValue("原料库", { timeout: 10000 });
+
+    // 等级筛选：点「重大」→ 只剩 1 个分区
+    await dialog.getByTestId("filter-重大").click();
+    await expect(dialog.locator('input[aria-label^="分区名称"]')).toHaveCount(1);
+    await dialog.getByTestId("filter-重大").click(); // 取消筛选
+
+    // 图上点选：点击第一个识别多边形 → 气泡改名
+    await dialog.locator("svg polygon").first().click();
+    await expect(dialog.locator('input[aria-label="预览改名"]')).toBeVisible();
+    await dialog.locator('input[aria-label="预览改名"]').fill("改名后");
+    // antd 会在双字按钮文案间插入空格（"保 存"），用正则兼容
+    await dialog.getByRole("button", { name: /保\s*存/ }).click();
+    await expect(dialogZoneInput(page, 1)).toHaveValue("改名后");
+
+    // 批量删除「重大」等级
+    await dialog.getByTestId("filter-重大").click();
+    await dialog.getByRole("button", { name: "批量删除", exact: true }).click();
+    await expect(dialog.locator('input[aria-label^="分区名称"]')).toHaveCount(0);
+    await expect(dialog.getByText("没有匹配的分区", { exact: true })).toBeVisible();
+  });
 });
