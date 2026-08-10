@@ -1,25 +1,11 @@
-﻿# 图片文件
-*.svg
-*.png
-*.jpg
-*.jpeg
-*.gif
-# 日志和进程
-*.log
-*.pid
-# 环境文件
-**/.env
-**/.env.*
-# Node modules
-node_modules/
-# 构建输出
-dist/
-# CodeGraph 数据
-.codegraph/
-# Python 缓存
-__pycache__/
-*.pyc
-# Lock 文件
-package-lock.json
-# Graphify 自身
-.graphifyignore
+# 图谱范围：只保留代码 + 架构/设计文档 + 任务审查报告。
+# 业务数据/产物目录不进入知识图谱（2026-08-08 用户决策）。
+backend/app/regulations/data/
+backend/app/services/mermaid.min.js
+graphify-out/
+.playwright-cli/
+.codex-custom-subagents/
+参考应急预案/
+参考风险评估报告/
+参考应急资源评估报告/
+prompt_test_results/

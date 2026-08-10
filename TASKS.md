@@ -1,4 +1,690 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-10，子代理·task_unify_enterprise_edit）：统一引导页第 1 步与编辑企业页已完成并提交（5f76fd3 加公共组件 + ca66d22 两页变薄），完成脚本已执行，等待主控复核
+- 刚完成的动作：新建 frontend/src/components/enterprise/EnterpriseInfoWorkspace.tsx（完成度条+EnterpriseInfoCards+GIS/平面图 Card+📄导入现有数据+CandidatesReview+onDone 按钮；一次保存合并提交 GIS 字段，清除语义保留即提交 null）；StepEnterprise.tsx（仅标题/描述/错误态+透传 imported 链路）/ EnterpriseEditPage.tsx（PageHeader+Workspace，保存后停留）变薄复用；门禁 tsc ✅ / eslint 三文件 0 问题（与 154d90d 基线逐项一致）✅ / git show --check 干净 ✅ / 无新增 any、无 >100 字符行 ✅
+- 下一步：主控审阅 → 双审 → 确认合入
+- 关键上下文：master HEAD 7365e77（154d90d 与 HEAD 之间仅 docs 提交，前端零差异）；EnterpriseCreatePage 未动（仍用 EnterpriseInfoCards + 自有 GIS Card）；保存后停留页面不再 navigate
+- 正在做什么（2026-08-10，本会话·部署可交付性分析）：用户已选方案 A，正在展示设计稿（brainstorming 设计阶段，未写码）
+- 刚完成的动作：核实设计素材——①仓库现状 9 处前端根路径假设与变更说明吻合（routes basename/entry+main isMobilePath/MainLayout selectedKeys/MainTabsLayout pathname 判断）；②AIGenerateButton 当前无 location.href 跳 settings（实现时核对）；③桌面 emergency-plan-migration.tar.gz(126MB) 已抽取阅读：迁移版 compose 也是 postgres:16-alpine（踩坑未回灌）、deploy.sh 只验 /docs 不涉网关子路径、无 README-DEPLOY.md、含 .env.example/scripts/backup.sh/db-init/01_restore.sql/model-cache
+- 下一步：用户确认设计稿 → 写 docs/superpowers/specs/2026-08-10-deploy-readiness-design.md → 自检 → commit → 用户审查 → writing-plans 转实现
+- 关键上下文：方案 A=前端子路径参数化回灌（VITE_BASE_PATH 驱动 base+PWA manifest，APP_BASE 从 BASE_URL 派生）+ compose postgres 换 Debian + docs/deploy 部署手册（预检表/网关 nginx 模板/踩坑 6 条）+ scripts/package-release.sh + scripts/deploy-check.sh；门禁 tsc/eslint/vitest/本地根路径回归/子路径构建产物验证/bash -n
+- 正在做什么（2026-08-10，本会话·部署可交付性分析）：分析「公司开发部署报错」变更说明（C:\Users\55061\Desktop\变更说明.md/.docx），已出根因结论，正在与用户收敛「无痛部署」方案方向（brainstorming 阶段，未写码）
+- 刚完成的动作：通读变更说明（11 文件改动=子路径适配：vite base/react-router basename/APP_BASE+stripAppBase/菜单 key 剥离/nginx alias+proxy/踩坑 6 条）；核对仓库现状——这些改动零回灌（git 无记录，代码无 APP_BASE/stripAppBase），docker-compose.yml 仍 postgres:16-alpine（踩坑记录明确该镜像在客户 CentOS7 必挂），无生产部署手册/网关 nginx 模板/预检验证脚本；历史 TASKS 显示 2026-08-06 已交付 docker-compose 迁移包（Desktop\emergency-plan-migration.tar.gz 120MB，本地 Docker Desktop x86_64 验证通过），但公司服务器为网关 nginx（proxy 容器端口 15000）+ 子路径 /emergency-plan-migration/ 托管静态 + /api /uploads 反代，与「独立 compose 栈 + 根路径」假设冲突，导致现场大量改码
+- 下一步：等用户确认交付形态（源码包给公司开发自己部署 / 固定环境重复部署 / 多客户多环境）→ 收敛方案（A 参数化回灌+部署手册+打包验证脚本（推荐）/ B 仅文档 / C 运行时 base+发布流水线）→ 按 brainstorming 流程出设计
+- 关键上下文：目标服务器 deom2025.sxbych.com，网关静态目录 /home/sxby/nginx/gis/emergency-plan-migration（容器内 /etc/nginx/html/...），后端 192.168.3.17:8000；踩坑：postgres:16-alpine 在 CentOS7 XFS+overlay2 卷挂载 initdb 失败、glibc 2.17 需 node:20 容器构建、npm ECONNRESET 换 npmmirror、nginx 配置 BOM、alias 必须容器内路径、proxy_pass 必须宿主机 IP、静态目录父目录权限 750；react-router-dom 7.17 需 Node>=20
+- 正在做什么（2026-08-10，主控）：用户选方案 A 统一「引导页第 1 步」与「编辑企业页」体验。设计：抽公共组件 EnterpriseInfoWorkspace（EnterpriseInfoCards + GIS/平面图含清除 + 📄导入现有数据 + 候选核对 + 完成度条 + 保存后停留），StepEnterprise 变薄复用、EnterpriseEditPage 改用并去掉保存后跳转。待派实现代理 + 双审
+- 之前状态（2026-08-10，本会话·预案质量检查增强）：实现计划已写完并提交（7365e77），等待用户选择执行方式
+- 正在做什么（2026-08-10，本会话·预案质量检查增强）：实现计划已写完并提交（7365e77），等待用户选择执行方式
+- 刚完成的动作：docs/superpowers/plans/2026-08-10-plan-quality-check-enhancement.md（5 任务，640 行）：C0 基础修正 / C1-C3 一致性 / L1-L3 合规性（含法规库比对）/ E1-E3 可执行性 / 收尾；自检通过无占位符
+- 下一步：等用户选执行方式（子代理驱动 / 内联）→ 按任务实施
+- 关键上下文：master HEAD=7365e77；规格 2026-08-10-plan-quality-check-enhancement-design.md；测试走 docker run 2-backend + 2_chroma_cache
+- 正在做什么（2026-08-10，本会话·预案质量检查增强）：设计规格已写完并提交（5673f41），等待用户审查
+- 刚完成的动作：docs/superpowers/specs/2026-08-10-plan-quality-check-enhancement-design.md（185 行）；自检通过（无 TODO、规则编号 C1-C3/L1-L3/E1-E3 一致）；已 commit
+- 下一步：用户审查规格 → 批准后 writing-plans 生成实现计划 → 实施
+- 关键上下文：master HEAD=5673f41；纯规则零 LLM；改 plan_quality_service.check_plan 与测试
+- 正在做什么（2026-08-10，本会话·预案质量检查增强）：三组检查（一致性/合规性/可执行性）设计已获批准，正在写设计规格文档
+- 设计要点：全部纯规则零 LLM 成本；一致性=跨章节人物/档案冲突/数字混用；合规性=章节结构/法规引用真实性/术语统一；可执行性=电话格式/关键岗位/资源充分性；基础修正=必含章节检查粒度+地址片段匹配+issue/warning 分级
+- 下一步：写 docs/superpowers/specs/2026-08-10-plan-quality-check-enhancement-design.md → 自检 → commit → 请用户审查
+- 关键上下文：master HEAD=4d30504（专项附图修复已合入）；check_plan 在 plan_quality_service.py；法规库 graph.json 可做引用比对
+- 正在做什么（2026-08-10，主控）：修复「创建企业后引导页消失」：原实现只在第一个企业时跳引导（非首个跳详情页），与用户确认的「引导针对每个企业」不符。已改为创建成功后总是跳 /onboarding?enterprise_id=（提交 7c97863，tsc/eslint ✅）。引导 6 步：企业信息/组织架构/风险与危化品/应急资源/周边环境/生成并导出预案
+- 之前状态（2026-08-10，主控）：修复新建企业页提交按钮 + AI 填充回显（6864f1a）；引导第 1 步补 GIS/平面图（9d55712）
+- 之前状态（2026-08-09，主控）：引导页 5 项新需求全部完成（HEAD eb43839）
+- 正在做什么（2026-08-09，主控）：引导页 5 项新需求全部完成并通过双审 ✅。提交：09f86b3（批量采纳/取消）、cdeedb3（步骤回显）、449ca3b（StepOrg 姓名电话内联）、390726c（跳过生成完成引导）、2d1a8ff（超时/错误透出/loading 文案/登录过期提示）、3b95404（修复单组采纳误删候选）、eb43839（生成服务超时对齐 180s + 登出提示限定过期场景）。全量验证 tsc ✅/vitest 48 ✅。HEAD=eb43839。用户可刷新页面验证引导页效果
+- 之前状态（2026-08-09，子代理·task_ai_generate_fix）：完成 AI 生成体验批次 2 项重要问题修复并提交（master HEAD=3b95404，5 文件）
+- 正在做什么（2026-08-09，子代理·task_ai_generate_fix）：完成 AI 生成体验批次 2 项重要问题修复并提交（master HEAD=3b95404，5 文件）：①4 个 AI 生成服务每请求 timeout 120000→180000（frontend/src/services/{enterpriseService.ts:81,emergencyResourceService.ts:88,hazardousChemicalService.ts:79,riskSourceService.ts:88}，与 api.ts 默认 180s 对齐留 60s 余量，函数签名不变）；②api.ts 401 刷新路径 auth:logout 派发限定为「存在 refresh_token 且刷新确实失败」——无 refresh_token 的 401（如登录页密码错误）直接 reject 不 dispatch 不误弹「登录已过期」，AuthContext handler 与 LoginPage/RegisterPage 自身 Alert 错误提示无回归。门禁：tsc -p tsconfig.app.json --noEmit 退出码 0 ✅；eslint 改动 5 文件 0 problems 与 HEAD 3b95404 基线（git archive 提取临时目录 lint）逐项一致零新增 ✅；git diff --check 干净 ✅；diff 无 any、无 >100 字符新增行 ✅。单提交 commit，提交信息 fix(ai): align generate service timeouts and scope logout notice to expired sessions
+- 正在做什么（2026-08-09，子代理·task_ai_generate_review_spec）：完成批次 B「AI 生成体验修复」提交 2d1a8ff 规格合规复审（只读，9 文件 74+/31-），结论 ✅ PASS。五项逐项核验：①api.ts timeout 600000→180000（frontend/src/services/api.ts:6）；②错误透出——StepRiskChemical/StepResources/StepSurrounding/StepOrg/SurroundingAIGenerateModal 均新增 errorDetail helper（axios.isAxiosError→response.data.detail→e.message→兜底）覆盖生成/保存/批量/删除/高德搜索 catch，ImportDrawer 既有 errorMessage 已解析 response.data.detail（frontend/src/pages/Onboarding/ImportDrawer.tsx:22-27）；③loading 文案统一「AI 生成中，通常需要 1-2 分钟，请耐心等待」（StepRiskChemical:228/StepResources:225/StepOrg:233/CandidatesReview:131/SurroundingAIGenerateModal:267，ImportDrawer「AI 分析提取中…」补充）；④AuthContext auth:logout handler 一次性 message.warning「登录已过期，请重新登录」（frontend/src/contexts/AuthContext.tsx:71，事件仅 refresh 失败派发且 isRefreshing 单飞去重）；⑤后端 llm_client.py timeout=120 + HTTPException(504,"AI 响应超时（120s），请稍后重试") 只读确认存在未改。门禁：tsc -p tsconfig.app.json --noEmit 退出码 0 ✅；eslint 9 文件 10 problems（7e/3w）与父提交 2d1a8ff^ 基线逐项对应仅行号偏移，零新增 ✅；git diff --check 干净 ✅；diff 无 any ✅。参考建议（非阻塞）：①ImportDrawer 手写 detail 探测与其余 5 文件新 helper 风格不统一可后续收敛；②antd6 静态 message 有 deprecation 警告（已注明可接受）
+- 正在做什么（2026-08-09，子代理·task_ai_generate_experience）：批次 B「AI 生成体验修复」已完成并提交（HEAD=2d1a8ff，9 文件 74+/31-）：①axios timeout 600000→180000（api.ts，对齐后端 120s+余量）；②引导页生成/导入/保存 catch 统一解析 axios error 透出后端 detail（StepRiskChemical/StepResources/StepSurrounding/StepOrg/SurroundingAIGenerateModal 各加 errorDetail helper：axios.isAxiosError→e.response?.data?.detail→e.message→兜底）；③loading 文案统一「AI 生成中，通常需要 1-2 分钟，请耐心等待」（各步骤生成按钮 + CandidatesReview「生成中…」替换 + ImportDrawer「AI 分析提取中…」补充 + SurroundingAIGenerateModal generating 步骤）；④AuthContext auth:logout handler 增加一次性 message.warning「登录已过期，请重新登录」（静态 message 有 antd6 deprecation 警告，可接受已注明）；⑤后端 llm_client.py 120s 超时+504 提示只读确认已存在未改。门禁：tsc 退出码 0 ✅、eslint 与 HEAD 逐项对比零新增（10 个既有 error/warning 全为基线）✅、git diff --check 干净 ✅、无 >100 字符行、无新增 any ✅
+- 正在做什么（2026-08-09，子代理·task_onboarding_v2_features）：批次 A 引导页 4 项功能已实现并提交 4 个 commit（HEAD=390726c）：①StepOrg 候选姓名/电话内联编辑（memberEdits 本地受控 + 单组采纳/全部采纳随组保存 + 已采纳只读区 + 全部取消采纳移回候选）；②步骤回显（StepRiskChemical/StepResources 挂载时 listChemicals/listResources page_size=200 初始化 accepted，StepSurrounding accepted 直接派生 GET surrounding；加载中 Spin、失败 toast 一次）；③CandidatesReview 加「全部采纳」（risk/resources 走 batchCreateChemicals/batchCreateResources 并用返回 id 记录 _key，surrounding 单次整体 updateSurrounding 合并）+「全部取消采纳」（risk/resources 逐个 deleteChemical/deleteResource 后移回候选，surrounding 清空数组保留 traffic_info，org 清空 org_structure 移回）；④StepGenerate「跳过生成预案，完成引导」调 onDone，OnboardingPage generate 步骤 onDone 标记完成并 navigate(/dashboard)。门禁：tsc ✅、eslint Onboarding 0 error ✅、git diff --check ✅、无 >100 字符行、无新增 any。改动文件：frontend/src/pages/Onboarding/{CandidatesReview,StepRiskChemical,StepResources,StepSurrounding,StepOrg,StepGenerate,OnboardingPage}.tsx
+- 之前状态（2026-08-09，主控）：用户提出引导页 5 项新需求：①StepOrg 候选内联补姓名电话；②AI 生成 401/超时/antd 警告体验（诊断：401 为 token 过期已自愈、超时为后端 reload 挂起+axios 600s、警告为 antd6 deprecation 非致命）；③步骤回显（risk/resources/surrounding 的 accepted 为组件内 useState，卸载即丢，需挂载时从后端加载；org/enterprise 已有回显）；④候选中加全部采纳、已采纳区加全部取消采纳（语义=删除已保存+移回候选）；⑤StepGenerate 加跳过生成预案完成引导按钮。批次 A（1/3/4/5 前端引导页）先派实现，批次 B（2 体验）后派
+- 正在做什么（2026-08-09，主控）：用户提出引导页 5 项新需求：①StepOrg 候选内联补姓名电话；②AI 生成 401/超时/antd 警告体验（诊断：401 为 token 过期已自愈、超时为后端 reload 挂起+axios 600s、警告为 antd6 deprecation 非致命）；③步骤回显（risk/resources/surrounding 的 accepted 为组件内 useState，卸载即丢，需挂载时从后端加载；org/enterprise 已有回显）；④候选中加全部采纳、已采纳区加全部取消采纳（语义=删除已保存+移回候选）；⑤StepGenerate 加跳过生成预案完成引导按钮。批次 A（1/3/4/5 前端引导页）先派实现，批次 B（2 体验）后派
+- 之前状态（2026-08-09，主控）：修复企业信息卡片「无收起」（69f97da）。原有企业详情/编辑页确认复用 EnterpriseInfoCards 生效
+- 之前状态（2026-08-09，主控）：企业信息卡片长文本优化（方案 A）完成，提交 60cb381
+- 之前状态（2026-08-09，主控）：修复「企业管理列表为空」。根因：数据库未应用迁移（risk_events.chemical_id/ai_configs.is_system），已应用 + 验证接口 200
+- 之前状态（2026-08-09，主控）：收尾完成 ✅ 合并回 master（4d1f273），worktree/分支已清理
+- 历史要点（2026-08-09，主控）：易用性整体优化 66 提交合并回 master；docker-compose 后端挂载 ./backend/app（新代码生效），前端挂载 src（vite 热更）；迁移 SQL 需手动应用
+- 正在做什么（2026-08-09，主控）：收尾完成 ✅ 用户选「本地合并回 master」：fast-forward 4ec3523→4d1f273（124 文件 +5588/-1160，66 提交），合并结果验证 tsc ✅/vitest 48 ✅/pytest 315 ✅，worktree 已移除 + prune，分支 codex/usability-overhaul 已删除，chroma.sqlite3 本地文件保留（已解除跟踪 + .gitignore）。未推送远程（用户未要求）。任务完成，等待用户确认是否推送/图谱同步
+- 之前状态（2026-08-09，主控）：最终整体复审 PASS ✅（task_final_review2）。进入收尾：finishing-a-development-branch，用户选选项 1（本地合并回 master）
+- 之前状态（2026-08-09，主控）：最终收敛三批次全部完成且复审 PASS。HEAD=4d1f273。进入最终整体复审（task_final_review2）
+- 之前状态（2026-08-09，主控）：D-4 全量验证 PASS。进入最终整体审查（task_final_review），发现 4 个阻塞性缺口 + 9 项遗留待办，已分批收敛
+- 之前状态（2026-08-09，主控）：D-3 完成（实现 ca2e332，双审通过：规格 PASS、质量 ✅）。累积待办 +2：①移动端 SettingsScreen 既有导航路径不匹配；②桌面端 AIGenerateButton「去配置」引导需改「联系管理员」
+- 事故记录（D-4 验证代理）：清理临时 worktree 时误清主 worktree，已从 git 完整恢复（1418 文件，tsc/vitest 复验通过）；原未暂存 TASKS.md/chroma.sqlite3 改动丢失（chroma.sqlite3 现为 HEAD 版本，与「tracked 二进制待 git rm --cached」待办合并处理）；frontend/node_modules 改为主项目根 junction
+- 之前状态（2026-08-09，子代理·task_d3_review_spec）：完成 D-3 移除用户级 AI 模型配置规格合规审查（worktree .worktrees\usability-overhaul，提交 ca2e332，仅 2 文件 203 行删除）
+- 刚完成的动作：
+  - 通读 ca2e332 全量 diff（git show）：routes.tsx 删 2 行（:28 `const AIModelConfigScreen = lazy(...)` 导入、:72 `{ path: "settings/ai-config", element: <AIModelConfigScreen /> }`），AIModelConfigScreen.tsx 整文件 201 行删除；对照 specs 计划 D-3 步骤 1 逐字核验
+  - rg "AIModelConfigScreen|ai-config|AI 模型配置" frontend/src/mobile → 0 命中 ✅；全仓 rg "AIModelConfigScreen" → 0 命中 ✅
+  - 桌面端/服务层残留仅记录（B1 已处理，非 D-3 范围）：MainLayout.tsx:33/73/115、routes/index.tsx:61、AIGenerateButton.tsx:51、aiConfigService.ts:7/15/20/24 的 /settings/ai-config 引用
+  - 实测：cd frontend && npx tsc -p tsconfig.app.json --noEmit 退出码 0；git diff --check 干净（仅 TASKS.md LF/CRLF warning 非错误）；HEAD=ca2e332、直接父提交 be8dbf8；提交仅 2 文件 203 行删除、提交消息精确匹配规格
+  - 结论：✅ 符合规格（无关键/重要项）。参考 1 项——规格步骤 2 写 `npx tsc --noEmit`，门禁用 `npx tsc -p tsconfig.app.json --noEmit`，两者均通过；被删文件原含 @ts-nocheck，删除后无类型隐患
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_d3_review_spec--24944-7678190fe763.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；ca2e332 直接父提交 be8dbf8
+- 正在做什么（2026-08-09，主控）：D-2 完成（实现 6bd2244 + 修复 be8dbf8，双审通过：规格 PASS、质量 ✅）。进入 D-3 移除用户级 AI 模型配置（删 AIModelConfigScreen + settings/ai-config 路由），先读计划 D-3 部分
+- 之前状态（2026-08-09，主控）：D-1 完成（实现 65126c6 + 双审通过）。进入 D-2 移动端 AI 助手聊天（ChatScreen + 路由 + 设置入口）
+- 之前状态（2026-08-09，主控）：D-1 质量审查 ❌ → 已派修复任务 task_d1_fix（subagent_pool_114，pending/task_d1_fix.md）。修复要点：①移动端保存点补 invalidateQueries(["completion", id])；②Dashboard 完成度卡片改用 ProgressBar/Chip/Button + var(--color-primary-*)；③补 loading/error 态、切换企业防闪现
+- 之前状态（2026-08-09，子代理·task_d1_review_quality）：完成 task_d1_mobile_completion 代码质量审查（worktree .worktrees\usability-overhaul，BASE e154e37..HEAD 812fa9f，仅 frontend/src/mobile/screens/DashboardScreen.tsx 1 文件 73+）
+- 刚完成的动作：
+  - 通读 812fa9f 全量 diff + DashboardScreen.tsx 实际代码；核对契约：onboardingService.getEnterpriseCompletion（r.data.data 与 ApiResponse 包装一致）、backend onboarding_service.py compute_completion（percent 0-100 加权，6 模块 key/label/weight/done，权重和=100）、mobile/routes.tsx enterprises/:id 与 plans/new、PlanCreateScreen 读 enterprise_id/type、EnterpriseDetailScreen 编辑/风险/资源/报告入口、MainTabsLayout Outlet 切换
+  - 逐项核验 5 项：①风格——卡片手写内联样式（#1677ff/#d9d9d9/#fff7e6/#ffe7ba 均为 antd 桌面色）绕过移动端已有 ProgressBar/Chip/Button 组件，且卡片内混两套蓝（边框/进度 #1677ff vs 按钮 bg-primary-500 #3B82F6 vs 全 App 主 CTA primary-600 #1a56db）；②跳转——未完成→/m/enterprises/:id（详情页含编辑/风险/资源/报告入口，合理非直达）、完成→/m/plans/new?enterprise_id=（PlanCreateScreen 预选企业、step=1 选类型，正确）；③queryKey ["completion",activeEnterpriseId] 与桌面 CompletionCard/OnboardingPage 命名一致（两端各自 QueryClient 无共享缓存），staleTime 60s 与同屏 3 查询一致；④无企业 enabled:false 卡片隐藏 ✅，但无 loading/error 态（失败静默消失、加载中闪现）；⑤明显缺陷——移动端所有数据编辑页保存后均不 invalidate ["completion",id]，且 mobile client refetchOnWindowFocus=false，去补数据→编辑→返回后最多 60s 显示旧完成度（桌面 OnboardingPage 每步保存即 invalidate，行为不一致）
+  - 实测：npx eslint DashboardScreen.tsx 6e/2w 与父提交 e154e37 版本逐项相同（父版临时副本对比后清理），零新增；git diff --check 干净；git show --stat 仅 1 文件 73+；@ts-nocheck 为既有（e154e37 即有）
+  - 结论：❌ 需修复。重要 2 项——①完成度缓存无失效路径（编辑数据后卡片最长 60s 陈旧）；②绕过移动端组件库且卡片内两套蓝色。次要 4 项——loading/error 静默、切换企业卡片闪没、未完成标签不可点击非直达、桌面/移动双份卡片实现
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_d1_review_quality--7428-59fbbf1447dc.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；812fa9f 直接父提交 e154e37
+- 正在做什么（2026-08-09，子代理·task_d1_review_spec）：完成 task_d1_mobile_completion 规格合规复审（worktree .worktrees\usability-overhaul，提交 812fa9f，仅 frontend/src/mobile/screens/DashboardScreen.tsx 1 文件 73+）
+- 刚完成的动作：
+  - 通读 812fa9f 全量 diff + DashboardScreen.tsx 实际代码；核对契约：onboardingService.getEnterpriseCompletion → GET /enterprises/{id}/completion（backend app/routers/onboarding.py:45 既有）、frontend/src/types/onboarding.ts CompletionResult{percent, modules[{key,label,weight,done}]}、frontend/src/mobile/routes.tsx:53 enterprises/:id、:63 plans/new
+  - 逐项核验 3 项：①completionQuery（queryKey ["completion",activeEnterpriseId]、enabled !!activeEnterpriseId、queryFn getEnterpriseCompletion(activeEnterpriseId!)）引入；②卡片渲染 percent 文本 + 进度条（外层 #d9d9d9 槽 + 内层 width `${percent}%` #1677ff）+ 未完成模块标签（undoneModules=modules.filter(!m.done)，渲染 m.key/m.label）；③handleCompletionAction 未完成→/m/enterprises/:id、全部完成→/m/plans/new?enterprise_id=，按钮文案「去补数据」/「去生成预案」；卡片渲染位于统计卡/企业切换器之前
+  - 实测：npx tsc -p tsconfig.app.json --noEmit 退出码 0；npx eslint src/mobile/screens/DashboardScreen.tsx 6e/2w 与父提交 812fa9f^ 版本逐一相同（用父版临时副本 lint 对比，lint 后已清理），零新增；diff 无 any；git show --stat 确认提交仅 1 文件 73+、提交信息精确匹配规格
+  - 结论：✅ 符合规格（未完成模块标签为静态展示、无逐模块直达按钮，但规格原文明确「各模块直达由后续迭代细化」「可先跳企业详情」，属规格允许，非缺失）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_d1_review_spec--15232-b8e9bfc9dca3.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；812fa9f 直接父提交 e154e37
+- 正在做什么（2026-08-09，子代理·task_c24_review_quality2）：完成 task_c24_fix3 代码质量复审（worktree .worktrees\usability-overhaul，BASE 1cf236c..HEAD e154e37，2 文件 28+/14-）
+- 刚完成的动作：
+  - 通读 e154e37 全量 diff + PlanEditorPage.tsx/SectionTree.tsx 实际代码；核对后端契约：plan_quality_service.check_plan 空章节 → issue「章节内容为空」、export.py validate 端点、ExportPreviewPage 渲染 issues 清单、routes/index.tsx:59 /plans/:id/preview 路由
+  - 逐项核验 5 项修复：①重入守卫 startRealtimeGeneration 首行 if(isGenerating) return（deps 含 isGenerating）+ 横幅两按钮/header 按钮 disabled + 重试 alert 仅 !isGenerating 渲染；②validation enabled 加 !sampleMode、Alert 渲染加 !isGenerating，样章流自挂载起未 fetch 无缓存陈旧；③「查看要点清单」navigate(/plans/:id/preview) 路由存在；④图例文案「空章节会列入导出校验清单」与后端行为一致；⑤sessionStorage 惰性初始化+Safe setter 写入+自动触发前预写 sample_mode，error/流错误回调不再清 failedSections（batch_done 成功仍清）
+  - 实测：npx tsc -b 退出码 0；eslint 2 文件 12e/5w 与 BASE 逐项映射（仅行号偏移，含 :201 守卫插入后 :210 ref 变异等既有项），零新增；git diff --check 干净；提交仅 2 文件、e154e37 直接父提交 1cf236c；rg 确认 sampleMode/sampleDone 仅本文件使用
+  - 结论：✅ 通过（无关键/重要项）。次要 3 项——①样章生成中刷新/失败后 sampleDone 持久 false → 无 banner 入口且 sampleMode 仍 true 致校验提示持续禁用（header 一键生成可兜底）；②非样章模式 batch_done 后 validation refetch 完成前缓存旧校验瞬时闪现（样章流无此问题）；③StylePanel onPreview 直调 generateBatchStream 绕过守卫（既有路径，非本提交回归）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c24_review_quality2--4548-a0bf2c9d7680.md）
+- 正在做什么（2026-08-09，子代理·task_c24_review_spec3）：完成 task_c24_fix2 规格合规复审（worktree .worktrees\usability-overhaul，提交 1cf236c，仅 PlanEditorPage.tsx 1 文件 2+/2-）
+- 刚完成的动作：
+  - 通读 1cf236c 全量 diff（git show，2 行改动）+ PlanEditorPage.tsx 实际代码（:186 startRealtimeGeneration 签名 `(keys?, onBatchDone?)`、:244-258 batch_done 仅 failed_sections 为空时调 onBatchDone?.()、:362-375 换风格按钮、:425-436 重试按钮）
+  - 核验前次复审 2 项回归均已修复：①换风格（:369-372）先 setSampleDone(false)，后传 `() => setSampleDone(true)`（:371），成功时 sampleDone 复位、确认态横幅（`sampleDone && sampleMode`，:362）恢复；②重试失败章节（:433）同传回调，样章模式重试成功同样进确认态；失败不误进——batch_done 有 failed_sections 时不调 onBatchDone，error 分支与流错误回调亦不调
+  - 无回归：其余调用点（:170/172/343/367/524）均传可选参数不受影响，另有 MouseEvent 绑定防护（:189-191）；实测 tsc --noEmit 退出码 0；git status 确认 PlanEditorPage.tsx 与 HEAD 一致（仅 TASKS.md/chroma.sqlite3 无关未暂存改动）
+  - 结论：✅ 符合规格——2 项回归已修复且无新回归
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c24_review_spec3--26772-dc8c14d74d15.md）
+- 关键上下文：审查仅读+验证，未改源码；1cf236c 直接父提交 c0fb2c5
+- 正在做什么（2026-08-09，子代理·task_c24_review_spec2）：完成 task_c24_fix 规格合规复审（worktree .worktrees\usability-overhaul，HEAD c0fb2c5，仅 PlanEditorPage.tsx 1 文件 10+/3-）
+- 刚完成的动作：
+  - 通读 c0fb2c5 全量 diff + PlanEditorPage.tsx 实际代码（:186-282 startRealtimeGeneration、:244-258 batch_done、:362-378 样章横幅）；rg setSampleDone 全调用点（仅 :170 自动触发传回调、:370 换风格置 false、:54 初始 false）
+  - 逐项核验 3 项修复：①onBatchDone 移入 failed_sections 为空 else 分支（:254），错误分支与 error/流结束回调均不调用，后端 generation.py:722-724 batch_done 恒带 failed_sections 列表（可为空）契约吻合；②换风格点击先 setSampleDone(false)（:370）横幅生成期间隐藏；③total 改 keys ? keys.length : sections.length（:194），后端 progress total=len(section_tuples)（generation.py:671/695）样章重生成=1 一致
+  - 实测：npx tsc -b 退出码 0（文件 @ts-nocheck 为既有，类型检查实际跳过该文件）；eslint 该文件 12e/5w 全部位于未改动上下文行（1/23/136/147/170/195/281/291/536/537/544），3 个 hunk 增行 194/254/370-371 零错误，无新增 lint；git diff --check 干净；提交仅 1 文件 10+/3-，HEAD 即 c0fb2c5
+  - 回归发现（❌ 重要 1 项）：换风格按钮（:369-372）setSampleDone(false) 后调 startRealtimeGeneration 未传完成回调 → 换风格重生成成功后 sampleDone 永不复位，确认态横幅不再出现，「满意生成全部/再换风格」入口消失；父提交 3881a26 中横幅在重生成后仍可见（彼时只是生成期间未隐藏）。建议 :371 改 startRealtimeGeneration([sections![0].section_key], () => setSampleDone(true))
+  - 次要（既有，同根因）：:433 重试失败章节同样未传回调 → 样章失败→重试成功后也不进确认态（父提交同行为，非本提交回归）
+  - 结论：❌ 发现问题——3 项字面修复均正确且无新增 lint/类型回归，但换风格流程引入确认态丢失回归
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c24_review_spec2--28116-e9bf821261b3.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；c0fb2c5 直接父提交 3881a26
+- 正在做什么（2026-08-09，子代理·task_c23_review_quality2）：完成 task_c23_fix 代码质量复审（worktree .worktrees\usability-overhaul，BASE 34af0ac..HEAD 5ecafa6，2 文件 55+/20-）
+- 刚完成的动作：
+  - 通读 5ecafa6 全量 diff + PlanCardsPage.tsx 实际代码；核对后端契约：plans.py list_plans（page/page_size/search title ilike、返回 PaginatedResponse total）、PlanResponse.status、PlanProject.status String 默认 draft、PlanStatusTag 组件（draft/generating/completed→草稿/生成中/已完成，未知值 fallback）、planService.listPlans(search?)
+  - 逐项核验 3 项修复：①服务端分页（queryKey ["plans","list",page,search]、page_size 20、total 用 data.total、onChange=setListPage）+ 搜索传后端（listSearch||undefined，后端 title ilike）+ 行业 Select 仅 view==="cards" 渲染；②PlanListTable 新增「状态」列 PlanStatusTag（:77-81）；③PlanCreatePage.tsx:41 auto_generate=sample 注释记录 C2-4 依赖（TASKS.md 快照确有 C2-4 记录）
+  - 回归检查：卡片视图 search/industry 状态独立保存、filtered 逻辑未动；PlanCreatePage invalidate ["plans"] 前缀匹配新 key；PlanListPage 仍服务 /enterprises/:enterprise_id/plans 路由（已具分页/搜索/状态列/删除，职责不同）
+  - 实测：npx tsc -b 退出码 0；npx eslint 2 文件退出码 0；git diff --check 干净；提交仅 2 文件无杂物
+  - 结论：✅ 通过（无关键/重要项）。次要 4 项——①搜索无 debounce，每击键发请求（PlanListPage 用 Input.Search onSearch，此处 Input onChange 即时触发，行为不一致）；②pageSize 20 硬编码两处（queryFn 与 pagination），改一处即漂移；③加载/错误时 total 0 短暂显示「共 0 条」、isError 无错误提示（既有模式）；④PlanListTable 与 PlanListPage 双份表格逻辑仍在（非本提交回归，前次建议抽共享列组件未实施，遗留建议）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c23_review_quality2--18848-7fd4b43f271c.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；5ecafa6 直接父提交 34af0ac
+- 正在做什么（2026-08-09，子代理·task_c23_review_quality）：完成 task_c23_plan_list_create 代码质量审查（worktree .worktrees\usability-overhaul，BASE 710a156..HEAD 34af0ac，3 文件 122+/107-）
+- 刚完成的动作：
+  - 通读 34af0ac 全量 diff + PlanCardsPage/PlanCreatePage/PlanListPage 实际代码；核对后端契约：plans.py list_plans（page_size le=100、search 匹配 title、plan_number/version_number 自动生成、style_preference 回退用户默认）、schemas/plan.py PlanCreate（accident_type 可空）、PlanEditorPage.tsx:38（auto_generate 仅认 "1"）
+  - 实测：npx tsc -b 退出码 0；eslint 3 文件仅既有 react-refresh（routes/index.tsx:34，本提交未触碰）；rg "plans/all" 0 命中；git diff --check 干净；两文件无 >100 字符行
+  - 结论：❌ 需修复。重要 3 项——①新 PlanListTable 与 PlanListPage 双份表格逻辑（完成度/更新时间 renderer、编辑按钮+onRow 点击、showTotal/emptyText 逐字重复），且功能弱于被删的 /plans/all（无状态列/删除/筛选/服务端分页），建议抽共享列组件或参数化复用；②列表视图下搜索/行业筛选控件仍显示但不生效（仅作用于卡片），且列表固定 page_size=100 无服务端分页，>100 条静默截断、showTotal 显示已取数而非真实 total；③auto_generate=sample 当前为死参数（PlanEditorPage.tsx:38 只认 "1"），创建后不再自动生成（对比原 auto_generate=1 直接触发批量生成），依赖 C2-4 落地，建议抽常量并在 C2-4 同步改判断
+  - 次要：事故类型可留空（专项预案缺事故类型无提示）、plan_number/version_number 全 UI 失去自定义入口（后端自动生成）、StylePanel 移除后创作风格仅编辑器可调、视图切换不持久化、行点击与编辑按钮导航重复
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c23_review_quality--26488-e02d2048d778.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；34af0ac 直接父提交 710a156
+- 正在做什么（2026-08-09，子代理·task_c23_review_spec）：完成 task_c23_plan_list_create 规格合规审查（worktree .worktrees\usability-overhaul，提交 34af0ac，3 文件 122+/107-）
+- 刚完成的动作：
+  - 通读 34af0ac 全量 diff + 实际代码：PlanCardsPage Segmented「卡片/列表」切换（移除「全部预案列表」按钮，rg 全仓无残留）；列表视图 PlanListTable 用 listPlans（queryKey ["plans",{page:1,page_size:100}]，表列 title/enterprise_name/plan_type/完成度/updated_at/编辑，行点击进 /plans/:id/edit）；路由 /plans/all 仅删 1 行，/enterprises/:enterprise_id/plans 保留且 PlanListPage 导入仍被使用；PlanCreatePage 两步化（选择类型→确认信息），事故类型并入确认步可留空，StylePanel/plan_number/version_number 全部移除，创建后跳 auto_generate=sample（:41）
+  - 契约核验：listPlans→GET /plans 返回 PaginatedResponse（backend plans.py:69），PlanProject 含 sections_count/completed_sections/enterprise_name，与 PlanListPage 既有消费一致；PlanCreate 类型中 style_preference/plan_number/version_number 仍可选（发送时不再传）
+  - 实测：npx tsc -b 退出码 0；npx eslint 3 文件仅 1 个既有 react-refresh 报错（routes/index.tsx:34 MobileRedirect，该行 34af0ac 未触碰，父提交逐字节相同，与 task_c11 记录一致）；rg "\bany\b" 3 文件 0 命中；git diff --check 干净；git show --stat 仅 3 文件，提交消息精确匹配
+  - 结论：✅ 符合规格（无关键/重要偏差）。参考 2 项——①auto_generate=sample 当前对 PlanEditorPage 无效（:38 只认 === "1"，且整文件 @ts-nocheck 为既有状态），sample 支持计划在 C2-4，符合规格「创建跳 auto_generate=sample」字面要求；②列表视图下搜索/行业筛选不生效（client-side filter 仅作用于卡片 filtered，列表固定 page 1/page_size 100 无筛选），非规格偏差
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c23_review_spec--21808-71864f420414.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；34af0ac 直接父提交 710a156
+- 正在做什么（2026-08-09，子代理·task_c22_review_quality）：完成 task_c22_pro_mode 代码质量审查（worktree .worktrees\usability-overhaul，BASE 062afd8..HEAD a40dc54，仅 MainLayout.tsx 1 文件 19+/6-）
+- 刚完成的动作：
+  - 通读 a40dc54 全量 diff + MainLayout.tsx 实际代码；对照 BASE 062afd8 版本与 main.tsx（StrictMode 已启用）
+  - 实测：npx tsc -b 退出码 0
+  - 结论：❌ 需修复。重要 2 项——①仅法规库权限 + proMode 关闭时设置分组 children 为空，antd 渲染空 SubMenu 且 defaultOpenKeys 恒 push "settings" 致默认展开空分组（MainLayout.tsx:85-93/105，BASE 无此场景）；②togglePro 在 setState updater 内写 localStorage（:40-45），StrictMode 下 double-invoke 虽幂等无害，但违反 React updater 纯函数规范。次要——proMode 关闭时 URL 直达 /settings/regulations 侧边栏无高亮但页面可访问（路由层未拦截，需确认接口鉴权）；开关文案「专业模式 开/关」为状态展示非动作语义，用 Button 而非 Switch；localStorage 无 try/catch、键名 pro_mode 无命名空间；Menu key 重挂载会重置用户手动展开/折叠的子菜单状态（当前菜单量小可接受）
+  - 优点：localStorage 惰性初始化持久化正确；开关可见性与 proMode 解耦避免「关了就找不到开关」死锁；Menu key 重挂载使 defaultOpenKeys 生效且 collapsed（Sider 状态）不受影响；defaultOpenKeys 依赖数组已含 proMode；TS 编译通过
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c22_review_quality--25048-ead48085834c.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）
+- 正在做什么（2026-08-09，子代理·task_c21_review_quality）：完成 task_c21_enterprise_cards_pages 代码质量审查（worktree .worktrees\usability-overhaul，BASE 174d400..HEAD 425a725，5 文件 153+/475-）
+- 刚完成的动作：
+  - 通读 5 文件全量 diff + 实际代码；核对后端契约：risk_assessment.py:225 / resource_investigation.py:55 GET 过滤 status in ["completed","draft"]（generating 永不返回）；enterprises.py PUT 逐字段 setattr（未传字段保留）；list 端点每行 compute_completion（N+1，前序提交引入）；EnterpriseInfoCards（cc2c48a 已修 established_date→dayjs）与 onCreate/onSaved 契约
+  - 实测：npx tsc -b 退出码 0；eslint 6 文件 0 error；git diff --check 干净；rg "\bany\b" 5 文件 0 命中（as never 2 处）；新引入行长超 100 仅 EnterpriseListPage.tsx:57（105 字符）
+  - 结论：✅ 通过（无关键项）。重要 3 项——①徽标四态实为三态：GET 排除 generating →「生成中」死状态；无轮询/无 invalidate（全仓仅 DetailPage 用该 queryKey，RiskAssessmentTab 生成/合并后徽标仍「未生成」需整页刷新）；isError 一律映射「未生成」（网络/401/500 误判，EnterpriseDetailPage.tsx:66-83）②创建/编辑能力回归：「展开全部字段」抽屉缺 10 个原字段（fax/postal_code/land_area/building_area/building_overview/safety_staff_count/fire_approval_date/last_plan_filing_date/last_plan_filing_authority/annual_capacity）+ GIS 定位（GisMapPicker）与平面图上传整体移除（新建企业无法设 gis/floor_plan，详情页却仍展示）；详情页 readOnly 隐藏抽屉 → 原 19 个展示字段不可见；后端 PUT 逐字段更新故不清空，属「不可编辑/不可见」回归③values as never 双重断言（EnterpriseCreatePage.tsx:35/EnterpriseEditPage.tsx:28）绕过 createEnterprise/updateEnterprise 全部入参类型检查，建议组件提供显式 payload 类型
+  - 次要：徽标查询每次拉全量报告 content+summary（性能）；抽屉保存无 loading/防重复提交且失败也关抽屉（数据留 form store）；extractDetail 两页重复；错误提示丢「创建失败:」前缀；fire_approval Select→Input、industry/economic_type 选项丢失；disabled tab 分组标题屏幕阅读器播报为禁用标签页；N+1 完成度（后端 enterprises.py:106，非本提交）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c21_review_quality--16072-860399cb59e1.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；425a725 直接父提交 174d400
+- 正在做什么（2026-08-09，子代理·task_c21_review_spec）：完成 task_c21_enterprise_cards_pages 规格合规审查（worktree .worktrees\usability-overhaul，提交 425a725，5 文件 153+/475-）
+- 刚完成的动作：
+  - 通读 425a725 全量 diff + 实际代码：CreatePage/EditPage 改用 EnterpriseInfoCards（onCreate/onSaved→updateEnterprise→navigate 回详情）；DetailPage 分组（数据录入 6 tab / 报告生成 2 tab）+ 报告徽标（未生成/待合并/生成中/已完成）+ 基本信息只读卡片（保留 GIS/平面图）；ListPage 完成度列（颜色规则 ≥80 绿/≥40 蓝/其余橙）；types/enterprise.ts 补 completion
+  - 契约核验：antd 6.4.3 TabsType='line'|'card'|'editable-card' 确无 type:"group"（node_modules d.ts），disabled tab+虚线分组为合理等价；后端风险状态 generating/draft/completed（risk_assessment.py/resource_investigation.py），GET 无报告 404→isError→「未生成」，draft「待合并」补全合理；EnterpriseInfoCards 的 onCreate/onSaved/readOnly 契约在 425a725^ 已存在
+  - 实测：npx tsc -b 退出码 0；npx eslint 5 文件退出码 0；rg "\bany\b" 5 文件 0 命中（实现用 unknown/never 替代计划示例的 any）；git show --stat 仅 5 文件，提交消息精确匹配
+  - 结论：✅ 符合规格（无关键/重要偏差）。参考 2 项——①创建/编辑 mutation 用 values as never 双断言绕过入参类型（编译通过，可改 EnterpriseCreate/EnterpriseUpdate）；②徽标以 isError 判定「未生成」，网络/权限错误也会显示未生成，且无轮询（生成中需刷新页面更新）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c21_review_spec--17048-ce0d67e56753.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；425a725 直接父提交 174d400
+- 正在做什么（2026-08-09，子代理·task_c16_review_quality）：完成 ImportDrawer/CompletionCard/DashboardPage 代码质量审查（worktree .worktrees\usability-overhaul，BASE 80bf721..HEAD 174d400，3 文件 89+/2-）
+- 刚完成的动作：
+  - 通读 3 文件全量 diff + 实际代码；核对后端契约 onboarding.py（import/batch 逐文件分类+静默跳过、import 单文件分类失败抛 400）、onboardingService.ts、types/common.ts PaginatedResponse、EnterpriseContext（无 currentEnterpriseId 时隐藏）、路由 /onboarding 与 /plans/new 均读取 enterprise_id
+  - 实测：npx tsc -p tsconfig.app.json --noEmit --incremental false 退出码 0（全量）；rg 确认 ImportDrawer 无调用方（计划 C1-6 明示待 C2 接线）
+  - 结论：✅ 通过。无关键项；重要 2 项（均在未接线的 ImportDrawer）——①单文件也走 batch 端点，分类失败静默 skip 致「已提取 0 条候选」成功提示，后端注释明言单文件需明确反馈（ImportDrawer.tsx:26）；②多文件资料包未真正成批，beforeUpload 逐文件 N 次并发请求（:21-26）。次要——flatMap 丢弃 module/source 归属、axios 错误分支冗余、RcFile 双重断言、CompletionCard 加载/错误态静默消失、规格「已完成/未完成模块列表」只实现未完成部分
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c16_review_quality--22656-adfe3642e5eb.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）
+- 正在做什么（2026-08-09，子代理·task_c15_review_quality）：完成 StepRiskChemical/StepResources/StepSurrounding/StepGenerate 代码质量审查（worktree .worktrees\usability-overhaul，BASE 3fe66c5..HEAD fdc93b8，4 文件 414+/28-）
+- 刚完成的动作：
+  - 通读 4 文件全量 diff + 实际代码；核对服务层契约（generateChemicalsAI/createChemical、generateResourcesAI/batchCreateResources、getSurrounding/searchAmapSurrounding/updateSurrounding）、复用组件契约（CandidatesReview、AmapSearchResultModal、SurroundingAIGenerateModal）、后端 surrounding_ai.py（AMAP_POI_KEYWORDS 9 项与前端 AMAP_POI_OPTIONS 完全一致、amap-search 返回三字段恒非空）、hazardous_chemicals.py/resources_ext.py（generate 端点接受任意 answers；HazardousChemicalCreate 全 Optional[str]、EmergencyResourceCreate quantity:int=0）、/plans/new 路由与 type/enterprise_id 参数、PLAN_TYPE_LABELS 三 key
+  - 实测：tsc -p tsconfig.app.json --noEmit 退出码 0；eslint 4 文件 0 error；git diff --check 干净；提交仅 4 文件无杂物；5 处行 >100（StepRiskChemical:88/89、StepResources:101、StepSurrounding:5/16）
+  - 结论：❌ 需修复。关键 1 项——乐观采纳无回滚（StepRiskChemical.tsx:57-70 / StepResources.tsx:67-80 先移入 accepted 再保存，失败仅 toast，accepted 区无删除/重试按钮，UI 显示已保存但未落库）；重要 3 项——①StepRiskChemical.tsx:28-36 toCreatePayload 只过滤 undefined 无类型归一，AI 返回 dict/list 结构致后端 500、name 缺失 422，与 StepResources 的 str/num 显式转换不一致；②StepSurrounding.tsx:15-25 AMAP_POI_OPTIONS 硬编码不消费后端 available_types（surrounding_ai.py:365-369 专供 UI），契约漂移风险；③逐条 vs 批量不一致（危化品单条 createChemical × N 次 vs 资源 batchCreateResources 单元素数组，service 已有 batchCreateChemicals 未用）；次要——高德导入双 message.success（StepSurrounding.tsx:104-109 + AmapSearchResultModal.tsx:47-55）、StepGenerate 死 onDone prop（Props:10 声明未用，:16 解构省略，末步无完成入口）、两步骤 ~50 行同构可抽 hook、5 处行长超 100、错误信息不含后端 detail、onModify 占位
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c15_review_quality--3428-2e52d79cef1d.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）；跳转链路 /plans/new?type&enterprise_id 与 PlanCreatePage 参数读取已验证
+- 正在做什么（2026-08-09，子代理·task_c14_review_quality）：完成 OnboardingPage/StepEnterprise/StepOrg/占位步骤代码质量审查（worktree .worktrees\usability-overhaul，BASE a9d1777..HEAD 873107e，7 文件 397+/1-）
+- 刚完成的动作：
+  - 通读 7 文件全量 diff + 实际代码；核对后端契约 onboarding.py（completion/candidates）、enterprise_sub.py（org-structure 全量 PUT）、onboarding_service.py（generate_org_candidates 组级 responsibilities、compute_completion 模块 key）
+  - 实测：npx tsc -b 退出码 0；npx eslint src/pages/Onboarding 0 error；确认 CandidatesReview.tsx（a9d1777 引入）现无任何引用（rg 仅定义处）
+  - 结论：❌ 需修复。关键 1 项——StepEnterprise.tsx:38-41 onSaved 只 invalidate 未调用 updateEnterprise，企业信息编辑保存后数据不落库（payload 被丢弃）；重要 3 项——①StepOrg.tsx:28/65-66 accepted 依赖未加载的 enterprise，加载完成前「全部采纳」用空 accepted 覆盖后端（PUT 全量替换），且 saveMut 无 onError、mutate 后立即清空 candidates；②StepOrg.tsx:62 无 group_key 候选 fallback key 不稳定（g-${merged.length} 随已采纳数变化，重复采纳会去重失效）；③OnboardingPage STEPS key（enterprise/org/risk...）与后端 completion module key（enterprise_info/org_structure/risk_chemical...）不一致，completed Set 本地不持久化且与后端完成度两套体系；次要——4 个占位步骤可抽公共组件、isError 提示笼统（网络错误也显示「企业不存在」）、完成度加载无 loading 态、最后一步「下一步 →」文案误导
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c14_review_quality--21952-679cedb1cd14.md）
+- 关键上下文：审查仅读+验证，未改源码；根目录 TASKS.md 与 worktree 工作区未暂存改动保持原样
+- 正在做什么（2026-08-09，子代理·task_c13_review_quality）：完成 CandidatesReview.tsx 代码质量审查（worktree .worktrees\usability-overhaul，BASE cc2c48a..HEAD 90a8998，仅 1 文件 69+）
+- 刚完成的动作：
+  - 通读 CandidatesReview.tsx 全量源码 + git diff；对照 types/onboarding.ts（CandidateItem：_key:string + source? + [key:string]:unknown）与桌面端 antd 惯例（31/33 页面文件用 antd Button 共 368 处，行内操作用 Button type="link"；原生 <button> 全 src/pages 仅此 1 处）
+  - 实测：tsc -p tsconfig.app.json --noEmit 退出码 0；eslint 0 error；npm run build 成功（18.25s，仅既有 chunk 大小警告）；git diff --check 干净；行宽 6 行 >100（29:104/33:125/44:114/48:125/51:110/52:129/53:107），eslint 无 max-len 静默通过，pages 目录 4.2% 行超 100 属软约定
+  - 结论：✅ 通过（无关键项）。重要 2 项——①原生 <button>（:60）破坏桌面端 antd Button 一致性（唯一例外）；②「修改/采纳/删除」span onClick（:44-53）无 role/tabIndex/键盘支持，可访问性缺陷，仓库惯例为 Button type="link"。次要——grid 固定 2 列小屏无降级（:33/:48）、generating 期间采纳/修改/删除仍可用且无 loading 指示、_key 依赖调用方保证唯一（后端裸 dict 无 _key 为 c11 已记录契约漂移）、硬编码色值符合 pages 惯例
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c13_review_quality--5316-b72e09a6d82b.md）
+- 正在做什么（2026-08-09，子代理·task_c12_review_quality2）：完成 task_c12_fix 代码质量复审（worktree .worktrees\usability-overhaul，BASE b0dc1e9..HEAD e296302，仅 EnterpriseInfoCards.tsx 1 文件 47+/34-）
+- 刚完成的动作：
+  - 通读 EnterpriseInfoCards.tsx 全量源码 + git diff；对照 types/enterprise.ts（established_date?: string|null）、enterprises.py:62 _fmt_date（后端输出 'YYYY-MM-DD' 字符串）、@rc-component/picker/es/generate/dayjs.js:106 getUDayjs + :184 isValidate（string 无 .isValid() 直接 TypeError）
+  - 实测：tsc -b 退出码 0；eslint EnterpriseInfoCards.tsx 退出码 0；node 实测 String(dayjs("2020-01-01")) = "Tue, 31 Dec 2019 16:00:00 GMT"（非 YYYY-MM-DD）
+  - 修复确认：①name Input 已直接作为 Form.Item 子元素（88-101 行），按钮移出表单外；②无 any（rg 0 匹配，enterpriseRecord 单次 Record 断言）；③卡片空值归一为 undefined 显示「（待补充）」（120-122 行）；④保存序列化 established_date→YYYY-MM-DD（305-309 行）；⑤onCreate/onSaved 二选一（312-313 行）
+  - 未修复：⑥关键——established_date initialValue 仍传 string 给 DatePicker（185 行 fieldInit 原样返回，编辑模式打开抽屉即崩溃，前次审查实测 TypeError 复现路径未变）；⑦重要——displayValue 对 dayjs 值直接 String(raw)（28-31 行），自动填充后卡片显示 "Tue, 31 Dec 2019 16:00:00 GMT" 完整时间串
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c12_review_quality2--25480-f3d444b86bbe.md）
+- 关键上下文：审查仅读+验证，未改源码；组件当前无调用方（rg 仅定义处，可能未集成）；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）
+- 正在做什么（2026-08-09，子代理·task_c11_review_quality）：完成 C1-1 前端脚手架代码质量审查（worktree .worktrees\usability-overhaul，BASE 382ce76..HEAD c234d60，4 文件 41+）
+- 刚完成的动作：
+  - 逐字段核对后端契约：completion 端点返回 {percent, modules:[{key,label,weight,done}]} 与 types/onboarding.ts 完全一致；import/import_batch 返回 ImportResult{module,candidates,source} 与 service 内联匿名类型一致；api 前缀 /api/v1 由 api.ts→platform.ts getApiBaseUrl() 统一
+  - 实测：tsc -p tsconfig.app.json 退出码 0；eslint 新 3 文件 0 error（routes/index.tsx:34 react-refresh 报错为基线 382ce76 既有同结构，非本次引入）；git diff --check 干净；提交仅 4 文件 41+ 无杂物
+  - 结论：✅ 通过（无关键项）；重要 2 项——①CandidateItem._key 必填但后端 extract_candidates 返回裸 dict 无 _key、source 在 ImportResult 顶层而非候选级，且 service 未复用该类型（内联匿名 + unknown[]），契约两处漂移（types/onboarding.ts:13-16, onboardingService.ts:8/15）；②onboardingService.ts:8 行 156 字符、:15 行 146 字符，超仓库 100 字符约定（eslint 无 max-len 静默通过）
+  - 次要：service 用 .then 无 axios 泛型 vs 仓库 async/await + api.get<ApiResponse<T>> 主流（onboardingService.ts:5/12/18）；importOnboardingFile/importOnboardingBatch 的 enterpriseId 死参数（后端 import 端点无 enterprise_id，签名易误导）；AI 导入未显式传 timeout（依赖全局 600s）；新文件工作区 LF vs 既有 CRLF（autocrlf=true 下 index 均 LF，重检出即归一，可忽略）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c11_review_quality--20228-c743d44051c5.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（与基线惯例一致）；onboardingService 目前无页面消费方（rg 仅定义处），属分期上线预期
+- 正在做什么（2026-08-09，子代理·task_c11_review_spec）：完成 C1-1 前端脚手架规格合规审查（worktree .worktrees\usability-overhaul，提交 c234d60，4 文件 41+）
+- 刚完成的动作：
+  - 独立阅读 c234d60 全部 diff：types/onboarding.ts（CompletionModule/CompletionResult/CandidateItem 齐全）、onboardingService.ts（getEnterpriseCompletion/importOnboardingFile/importOnboardingBatch 三函数齐全）、OnboardingPage.tsx（最小占位）、routes/index.tsx（/onboarding 挂载 + import 均存在）
+  - api 路径核对：后端 onboarding.py:45 GET /enterprises/{enterprise_id}/completion、:83 POST /onboarding/import、:109 POST /onboarding/import/batch；前端 service 相对路径逐一匹配；前缀 /api/v1 由 api.ts→platform.ts getApiBaseUrl() 统一（main.py:77 include_router prefix=/api/v1）
+  - 实测：frontend/node_modules/.bin/tsc.cmd -p tsconfig.app.json 退出码 0 无输出（类型检查通过）；git show c234d60 --stat 确认仅 4 文件 41 增（无 chroma 等杂项）；提交消息 feat(onboarding): types, service and route scaffolding 精确匹配
+  - 观察点（非偏差）：importOnboardingFile/importOnboardingBatch 的 enterpriseId 参数未使用（后端 import 端点不需要 enterprise_id，module/file 走 FormData），属预留参数
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c11_review_spec--19536-e904c30ef6dd.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（与基线惯例一致）
+- 正在做什么（2026-08-09，子代理·task_b24_fix）：完成 B2-4 质量审查 4 项修复（worktree .worktrees\usability-overhaul，BASE 7b31f6d..HEAD 382ce76，2 文件 278+）
+- 刚完成的动作：
+  - onboarding.py 三处修复：①onboarding_import 显式 module 校验 MODULE_SCHEMA_HINTS，未知 400「未知模块」②import/import_batch 读取后 len(data) 超 20MB 抛 413（MAX_IMPORT_BYTES=20MB）③batch 分类为空跳过加注释（撒网模式 vs 单文件明确反馈）
+  - 新增 backend/tests/test_onboarding_routes.py（12 用例）：独立 FastAPI 挂 router + dependency_overrides 覆盖 get_current_user/get_db，monkeypatch LLM 函数；覆盖 completion 本人 200/非本人 404、candidates org 200/非本人 404/非 org 400、import auto 200/未知模块 400/损坏文件 400/超大 413、batch 两文件两结果/分类为空跳过/超大 413
+  - 验证：onboarding 四文件 21 passed（-W error::RuntimeWarning 也过）；全量 284 passed（基线 272 + 新增 12，无新增失败）；git diff --check 干净；新增行 ≤100 字符
+  - 提交：382ce76 fix(onboarding): validate import module, cap file size, add endpoint tests（仅 2 文件；chroma.sqlite3 测试产物保持未提交，与基线惯例一致）
+- 下一步：向主控返回任务报告（任务文件 .codex-custom-subagents\claimed\task_b24_fix--24412-ff74e692393f.md）
+- 关键上下文：main.py 测试环境导入失败（frontend/dist 缺失）→ 按任务建议用独立应用挂 router；batch 多文件上传必须用 [("files",(fn,data,ctype)),...] 形式（files={"files":[...]} 触发 chunked 编码致 Starlette 解析 400）
+- 正在做什么（2026-08-09，子代理·task_b24_review_quality）：完成 task_b24_onboarding_routes 代码质量审查（worktree .worktrees\usability-overhaul，BASE 60f5ba6..HEAD 7b31f6d，3 文件 123+/2-）
+- 刚完成的动作：
+  - 审查 onboarding.py 三端点 + CandidatesBody/ImportResult/build_candidates_request + get_enterprise_brief（onboarding_service.py:192-207）；对照 hazardous_chemicals/resources_ext/risk_sources_ext 路由风格与 compute_completion 参数模式
+  - 实测：venv pytest 全量 272 passed（唯一失败 _docker_test.py 为预置脚本非测试）；-W error::RuntimeWarning 下 onboarding 三文件 9 passed；TestClient 冒烟 9 项全过（org 200/非本人 404 由代码核验/非 org 400/import 显式+auto 200/损坏 400/不支持格式 400/batch 两文件两结果/batch 解析失败整批 400/未登录 401）；git diff --check 干净；新增行 ≤100 字符
+  - 结论：✅ 通过；重要 4 项——①显式 module 未校验已知模块（onboarding.py:94，未知模块带空 hint 调 LLM）②新端点零提交级测试（8 项冒烟未入库，仅 build_candidates_request 单测且其本身无生产调用点）③batch「分类为空」静默跳过 vs 单文件 400 语义不一致（:94-96 vs :116-118）④无文件大小上限 + file.read() 全量入内存（:88/:111，项目既有模式延续）；次要——CandidatesBody.overview/existing_keys 死字段、跨路由导入 AIGenerateRequest、get_enterprise_brief 抛 HTTPException vs compute_completion 抛 ValueError、batch 模块未去重、空文本仍调 LLM
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b24_review_quality--24936-7db6ed1a9780.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（未暂存，与基线一致）；前端尚未消费任何新端点（rg 无引用，属分期上线预期）
+- 正在做什么（2026-08-09，子代理·task_b24_onboarding_routes）：完成 B2-4 引导接口三端点实现（worktree .worktrees\usability-overhaul，BASE 60f5ba6..HEAD 7b31f6d，3 文件 123+/2-）
+- 刚完成的动作：
+  - TDD：先追加 test_build_candidates_request_wraps_overview（test_onboarding_extract.py）确认 ImportError → 实现后 4 passed
+  - onboarding.py 新增 POST /onboarding/candidates、/onboarding/import、/onboarding/import/batch + CandidatesBody/ImportResult/build_candidates_request；completion 端点保留
+  - org 分支企业归属校验：id + user_id 双条件查询，非本人/不存在 404，已加载 ent 实例传入 get_enterprise_brief（避免二次查询）；非 org 模块返回 400 提示前端走现有生成接口（符合前端计划）
+  - onboarding_service.py 新增 get_enterprise_brief（可传已加载实例，可选 enterprise 参数，与 compute_completion 同模式）
+  - 验证：全量 pytest 272 passed（基线 271 + 新增 1，本机 Python 3.12）；TestClient 冒烟 8 项全过（org 归属 200/非本人 404/非 org 400/import 显式+auto 200/损坏文件 400/不支持格式 400/batch 两文件两结果）；路由注册确认 4 条；git diff --check 干净；新增行 ≤100 字符
+  - 提交：7b31f6d feat(onboarding): candidate orchestration and file import endpoints（仅 3 文件；chroma.sqlite3 测试产物保持未提交，与基线惯例一致）
+- 下一步：向主控返回任务报告（任务文件 .codex-custom-subagents\claimed\task_b24_onboarding_routes--4860-707a70e97af2.md）
+- 关键上下文：main.py 导入需 frontend/dist（worktree 无构建产物属预期，非回归）；batch 语义为 fail-fast（任一文件解析失败整批 400，按任务给定代码实现）；build_candidates_request 当前仅测试与前端后续使用，端点内未调用（按任务代码）
+- 正在做什么（2026-08-09，子代理·task_b23_review_quality2）：完成 task_b23_fix 代码质量复审（worktree .worktrees\usability-overhaul，BASE f204355..HEAD 60f5ba6，fix 提交仅 2 文件 8+/2-）
+- 刚完成的动作：
+  - 核验 2 项修复：①test_onboarding_org.py 改 monkeypatch get_system_ai_config（fake async 返回 object()，db=AsyncMock 仅占位不再被 await），-W error::RuntimeWarning 下 onboarding 三文件 8 passed ②generate_org_candidates 补 isinstance(raw_groups, list) 守卫（onboarding_service.py:187），与 classify_modules 同模式同位置完全对称；对抗输入实测 dict/str/int/null/missing→[]、混合列表→仅留 dict
+  - 验证：全量 pytest 271 passed（2-backend 镜像 + 2_chroma_cache 卷 + shuzihuayuan_default 网络，13.28s，仅既有 passlib DeprecationWarning）；git diff --check 干净；提交 60f5ba6 仅 2 文件；generate_org_candidates 无生产调用方（仅测试引用），无消费端回归风险
+  - 结论：✅ 通过；次要——groups 非 list 守卫无专属单测（本次实测覆盖但仓库无保护）、org 无 no-config 用例（extract 有，共享 _get_ai_config_or_400 helper）、extract_candidates items 仍无 isinstance 前置守卫（b22 已记录遗留，非本次引入）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b23_review_quality2--7912-a177e51e8925.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（未暂存，与基线一致）
+- 正在做什么（2026-08-09，子代理·task_b22_review_quality2）：完成 task_b22_fix 代码质量复审（worktree .worktrees\usability-overhaul，BASE 7d16d41..HEAD 28923cb，fix 提交仅 2 文件 43+/14-）
+- 刚完成的动作：
+  - 逐项核验 3 项修复：①防御解析实测 items=null→[]、items 裸数组/混合→仅保留 dict、modules 非 list（dict/int/str）→[]、modules 混合→只留合法 str key；残留边界：顶层裸数组仍 AttributeError（onboarding_service.py:135/154，与 risk_ai_service 消费方一致）、items 为 int 时 TypeError（:136，`or []` 只兜 falsy，extract 未像 classify 加 isinstance 前置守卫）②测试改 monkeypatch get_system_ai_config（真实 async fake，无 db.execute 链），-W error::RuntimeWarning 下 3 passed，另 test_onboarding_completion 4 passed 合计 7 passed；补无配置测试断言 HTTPException 400 与消息（仅覆盖 extract，classify 共享 helper 未单测）③HTTPException(400) 语义与 risk_ai_service._get_ai_config 完全一致（同码同文案），risk_management 路由为直接透传模式；_get_ai_config_or_400 helper 位置合理、docstring 准确，缺返回类型注解（可加 -> AIConfig）
+  - 验证：git diff --check 干净；新增行无超 100 字符；extract_candidates/classify_modules 目前无路由端点接线（onboarding.py 仅接 compute_completion，属计划后续任务非回归）；全量 270 passed 声明来自 docker 环境（本机跑相关 7 测试）
+  - 重要（分支卫生）：范围 7d16d41..28923cb 含 savepoint 53007ce 误提交 tracked 二进制 chroma.sqlite3（28MB，blob 已变），修复提交 28923cb 本身干净（仅 2 文件）；当前 worktree 该文件又处于未暂存修改状态（与既有基线惯例一致）
+  - 结论：✅ 通过；重要——savepoint 误提交 chroma.sqlite3 测试产物，建议后续从分支剔除（git rm --cached + .gitignore）；次要——顶层裸数组/items 非 iterable 未兜底、无配置测试未覆盖 classify、helper 无返回注解
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b22_review_quality2--25232-6bc6f03ad816.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（未暂存，与基线一致）
+- 正在做什么（2026-08-09，子代理·task_b21_review_quality2）：完成 task_b21_fix 代码质量复审（worktree .worktrees\usability-overhaul，BASE c3b99c8..HEAD 83466ed，2 文件 80+/21-）
+- 刚完成的动作：
+  - 逐项核验 4 项修复：①编码链 utf-8-sig→gbk→utf-8 ignore 正确（实测 BOM 无 \ufeff 残留、GBK 中文正常、纯 UTF-8 中文不被 GBK 误判）②损坏/空 xlsx/docx/pdf 统一 ValueError「文件解析失败」（实测 4 种损坏输入），格式不支持错误保留在 try 外不被吞③_parse_xlsx/_parse_pdf try/finally close 正确（load_workbook/fitz.open 在 try 外，打开失败无需 close）④新增 docx/pdf/corrupt/gbk 4 测试真实有效（docx 真实生成解析、pdf fitz 真实建页插字解析、本机 fitz 已装未跳过）
+  - 验证：pytest tests/test_file_parser.py 8 passed（0.41s）；parse_file_text 无生产调用方（rg 仅测试引用）；requirements.txt 已声明 PyMuPDF>=1.24/python-docx==1.1.2/openpyxl>=3.1；git diff --check 干净；worktree 仅 chroma.sqlite3 测试产物改动
+  - 结论：✅ 通过；次要——corrupt 测试仅覆盖 xlsx（docx/pdf 损坏路径无断言，实测行为正确）；import fitz 仍有 deprecation warning（建议 import pymupdf，file_parser.py:58）；except Exception 过宽（:17）会吞 MemoryError/TypeError；utf-16 CSV 不支持（utf-8 ignore 兜底产生 NUL/乱码，不崩溃）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b21_review_quality2--15972-ae76f95282ea.md）
+- 关键上下文：审查仅读+验证，未改源码；全量 267 passed 声明来自 docker 环境（本机仅跑文件解析相关测试，改动无调用方故回归风险极低）
+- 正在做什么（2026-08-09，子代理·task_b21_review_quality）：完成 task_b21_file_parser 代码质量审查（worktree .worktrees\usability-overhaul，BASE 289111a..HEAD c3b99c8，2 文件 89+）
+- 刚完成的动作：
+  - 审查 backend/app/services/file_parser.py（新，55 行：xlsx/csv/docx/pdf/txt → 文本，延迟导入）+ tests/test_file_parser.py（4 用例）；依赖 openpyxl/python-docx/PyMuPDF 均已在 requirements.txt 声明；目前无调用方
+  - 实测：pytest 4 passed；docx/pdf 用 python-docx/PyMuPDF 真实字节流验证通过；空 csv/txt 返回空串、空行过滤正常；git show/diff --check 干净；worktree 仅 chroma.sqlite3 测试产物改动
+  - 结论：✅ 通过；重要——①空/损坏 xlsx/docx 抛裸 BadZipFile（file_parser.py:29,42），pdf 抛 fitz 异常，与「不支持格式抛 ValueError」语义不一致，调用方无法区分损坏 ②CSV 仅 utf-8 解码（:22）：GBK/ANSI 中文 CSV 实测乱码、utf-8 BOM 首单元格残留 \ufeff，国内 Excel 导出常见 ③openpyxl read_only 实测 close() 前句柄一直打开（:29）、PyMuPDF 无 close（:54），批量导入靠 GC 释放 ④docx/pdf 无测试覆盖（系统 Python 无 fitz，CI 从未执行 pdf 路径）
+  - 次要——fitz 导入触发 deprecation warning（建议 import pymupdf，:53）；parse_file_text 无函数 docstring（:6）；:24 行 115 字符；超大 CSV 全量 list() 驻内存、输出无上限；docx 合并单元格文本重复
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b21_review_quality--12832-28f8f17a8ae0.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（与基线一致）
+- 正在做什么（2026-08-09，子代理·task_b3_review_quality2）：完成 task_b3_fix3 代码质量复审（worktree .worktrees\usability-overhaul，BASE ed1accb..HEAD 289111a，3 文件 24+/9-）
+- 刚完成的动作：
+  - 验证 onboarding.py:20-26 端点按 Enterprise.user_id == current_user.id 过滤 + 非本人 404，并传入已加载 ent 实例（:27）；enterprises.py:106 列表路径传 enterprise=e 避免重查；compute_completion 可选 enterprise 参数向后兼容（onboarding_service.py:29-35）；_org_done 对 None/非 dict group/members None/非 dict member 全防御（:85-95）
+  - 实测：test_onboarding_completion.py 4 passed；全量 pytest 259 passed/0 failed；git diff --check 干净
+  - 结论：✅ 通过；重要遗留——无端点级 IDOR 测试（本人 200/非本人 404/不存在 404 均无测试保护），仅 service 层测试；次要——compute_completion 同时收 enterprise_id 与实例存在隐式一致性耦合（:29-37）、members or [] 对 truthy 非列表靠 isinstance 兜底（:89）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b3_review_quality2--22300-be4127b67651.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（与基线一致）
+- 正在做什么（2026-08-09，子代理·task_b3_review_quality）：完成 task_b3_completion 代码质量审查（worktree .worktrees\usability-overhaul，BASE e9a4074..HEAD ed1accb，3 提交 6 文件 226+/2-）
+- 刚完成的动作：
+  - 审查 onboarding_service.py（新）/onboarding.py（新）/enterprises.py:104-106/schemas/enterprise.py:95/main.py:77 + test_onboarding_completion.py；模型核对（RiskEvent.chemical_id/object_id/unit_id、RiskUnit.object_id NOT NULL、report status 默认 draft）
+  - 验证：docker 2-backend 实测 tests/test_onboarding_completion.py 4 passed；git diff --check 干净；前端无 completion 消费（rg 无引用）
+  - 结论：❌ 需修复 1 处关键——onboarding.py:11-19 completion 端点仅验登录未按 current_user 过滤企业（对照 enterprises.py:112/149/179 均带 user_id），任意登录用户可探测任意企业存在性+完成度画像（IDOR）；修复=端点按 user_id 查 Enterprise 后把实例传入 compute_completion
+  - 重要：列表 N+1（每行 7 条查询，含冗余企业重查；page_size=100→700 查询）；次要：_org_done 对 members=null 抛 TypeError、chemical_id 无归属校验（叠加 b2 已知缺口）、测试 str(stmt) 脆弱、无端点层/越权/列表字段测试
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b3_review_quality--24876-d0b216ad9bb9.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅 chroma.sqlite3 测试产物改动（与基线一致）
+- 正在做什么（2026-08-09，子代理·task_b3_review_spec2）：规格复审完成——unit 级风险事件漏计缺口已修复且无回归（worktree .worktrees\usability-overhaul，提交 ed1accb，2 文件 36+/3-）
+- 刚完成的动作：
+  - 代码验证：object 级 + unit 级双查询均按 enterprise_id 过滤；RiskUnit.object_id NOT NULL 保证 unit 事件可溯源归属；/units/{unit_id}/events 仅写 unit_id（object_id 空），此前漏计现已计入；三条创建路径均只挂一侧，无双挂/双空
+  - 去重 list(dict.fromkeys(...)) 合理（无路径双挂，且同会话 identity map 保证同实例去重）；规格 6.6「风险点 ≥1 或危化品 ≥1 已关联」语义匹配
+  - 验证：onboarding 4 passed；全量 259 passed/0 failed（--ignore=tests/test_autofill_research.py，0 测试函数预研脚本，scrapling 不在 requirements，既有环境问题与本次提交无关）；git show --check 干净
+  - 结论：✅ 符合规格
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b3_review_spec2--10012-7f9a41981c64.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 chroma.sqlite3 测试产物改动（与基线一致）
+- 正在做什么（2026-08-09，子代理·task_b3_fix）：完成 B3 完成度算法两处规格偏差修正（worktree .worktrees\usability-overhaul，分支 codex/usability-overhaul，HEAD=28accd4 → a25f3c8，2 文件 32+/2-）
+- 刚完成的动作：
+  - 修正 onboarding_service.py：_org_done 改为「任一成员 role 为总指挥/chief/commander 且有姓名」；risk_chemical 改为「风险事件 ≥1 或（化学品 ≥1 且至少一个被事件 chemical_id 引用）」
+  - 补充测试 test_org_requires_commander_name（普通成员无总指挥 → org_structure 未完成；化学品存在无事件引用 → risk_chemical 未完成）
+  - 验证：目标测试 3 passed；全量 258 passed/0 failed（无新增失败）；git diff --check 干净
+  - 提交：a25f3c8 fix(onboarding): completion criteria align with spec (commander name, chemical linkage)
+- 下一步：向主控返回任务报告（任务文件 .codex-custom-subagents\claimed\task_b3_fix--10280-fc3e46f14836.md）
+- 关键上下文：未触碰范围外文件；chroma.sqlite3 测试产物改动保持未提交（与基线一致）
+- 正在做什么（2026-08-09，子代理·task_b2_review_quality）：完成 task_b2_chemical_link 代码质量审查（worktree .worktrees\usability-overhaul，BASE adc0843..HEAD bb5b489，11 文件 87+/11-）
+- 刚完成的动作：
+  - 审查提交 2463ab8 + bb5b489：危化品关联（模型/迁移/schema/路由/上下文注入）+ diagrams.py/external.py 调用点补传；全链路调用点一致、默认值向后兼容、注入键随 ent_data 整体进提示词
+  - 验证：3 个受影响测试文件 28 passed；全量 228 passed/26 failed 与基线 adc0843（225 passed/26 failed）失败集完全一致，无新增失败；git diff --check 干净
+  - 结论：✅ 通过；重要项——① chemical_id 无企业归属校验（risk_management.py:737,750,762）存在跨企业关联风险 ② RiskEventResponse（schemas/risk_management.py:143）缺 chemical_id，前端无法回读 ③ update_event 冗余 if 块（:762-763，置空语义本身正确）；次要——化学品加载样板重复 6 处、per-source chemical 字段集与顶层不一致、索引名与模型 index 不一致、新测试未覆盖注入逻辑
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_b2_review_quality--4448-5f729e7e8b19.md）
+- 关键上下文：未修改任何源码文件；审查仅读+验证；临时基线 worktree 已清理；worktree 工作区仅有 chroma.sqlite3 改动（运行测试产物，非提交引入）
+- 正在做什么（2026-08-09，子代理·task_a5_review_quality）：完成 task_a5_menu_permissions 代码质量审查（worktree .worktrees\usability-overhaul，BASE 2a9e3a3..HEAD 50a3abc，2 文件 27+/21-）
+- 刚完成的动作：
+  - 审查提交 50a3abc：menuLoadFailed 状态 + MainLayout AI 助手菜单移除/法规库过滤；tsc -b 实测通过；提交 blob 行尾干净（工作区混合行尾系 core.autocrlf=true 检出产物，非提交引入）
+  - 结论：❌ 需修复 1 处关键——login/register（AuthContext.tsx:82-84、93-95）仍走 fetchMyMenus().catch(()=>[])，失败时空菜单且 menuLoadFailed 保持 false，与 loadMenuPermissions（:35-45）降级语义不一致，且重复逻辑未复用
+  - 次要：AuthContextValue 重复声明 menuLoadFailed（:16）；catch 无日志（:40-45）；/chat 路由仍在（routes/index.tsx:41）任意登录用户可 URL 直达（与悬浮球共存可接受）；设置组无子项仍渲染空菜单；Alert closable 切页后重现
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_a5_review_quality--19908-56d815667e31.md）
+- 关键上下文：未修改任何源码文件；审查仅读+验证；FloatingChat/ChatDrawerProvider 链路完整无死引用
+- 正在做什么（2026-08-09，子代理·task_a3_review_quality）：完成 task_a3_i18n 代码质量审查（worktree .worktrees\usability-overhaul，BASE c094f39..HEAD 6df534e）
+- 刚完成的动作：
+  - 审查提交 6df534e：4 文件 50+/50- 纯文案中文化；tsc -b --force 实测通过；git diff --check 通过
+  - 结论：✅ 通过；记录 1 处重要遗漏（VersionListPage.tsx:24-29 列头/回滚按钮弹窗仍为英文）+ 1 处次要排版（AIConfigPage.tsx:79,81 半角冒号）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_a3_review_quality--16504-e9dbf37e1c50.md）
+- 关键上下文：未修改任何源码文件；审查仅读+验证
+- 正在做什么（2026-08-09，本会话·预案生成增强·附图扩展）：已合并回 master 并部署到本地 Docker，用户可试用
+- 刚完成的动作：
+  - 合并 94cc4bf（19 commits）；worktree/分支已清理；合并后验证 243 passed
+  - 部署：执行 db_migration_plan_diagram_svgs.sql（diagram_svgs 列已建）；后端容器重启（openapi 147 条，regenerate-missing 接口已注册）；前端 dist 重建（node:20 容器）+ 移动端镜像重建
+  - 服务验证：backend 8000 / frontend 5173 / mobile 8082 均 200
+- 下一步：用户试用（生成含风险矩阵/疏散图/组织架构图的预案）；部署到公司服务器时同样需执行 diagram_svgs 迁移
+- 关键上下文：master HEAD=94cc4bf；临时构建目录 %TEMP%\fe_build_diagrams 可删；备份点 backup/pre-diagrams-20260808
+- 正在做什么（2026-08-09，本会话·易用性整体优化）：并发会话（预案附图扩展）已合入 master，影响评估完成——无结构性冲突，文档基线已更新，等待用户选择执行方式
+- 会话启动检查（2026-08-09）：已读 TASKS.md；git 确认 master HEAD=4ec3523、TASKS.md 保持未提交（项目惯例）、工作区无源码改动；本快照即最新状态
+- 刚完成的动作：
+  - 附图扩展影响评估：已合入 master（94cc4bf，merge 干净）；交叉文件 generation.py/risk_context_builder.py/enterprise.py/PlanEditorPage/RichTextEditor 均为「追加型」改动，无结构性冲突；org_chart 与引导第 2 步正向协同
+  - 文档更新：规格依赖状态 + 6 份计划基线说明已更新并 commit（4ec3523）
+- 下一步：用户选执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 建 codex/usability-overhaul 分支按序实施（基线 master=94cc4bf）
+- 关键上下文：master HEAD=4ec3523；worktree 已清理（仅主工作区）；视觉伴侣会话 ux-1786200790；本会话未改源码
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-09，本会话·预案生成增强）：附图扩展 3 批全部完成、最终审查 PASS（179edd4），等待用户选择收尾方式
+- 刚完成的动作：
+  - 最终复审 PASS：修复 RiskEvent.name 阻断 bug（accident_type/description 组合）+ 测试环境污染（finally 清理）；后端 243 passed、前端 tsc + 48 vitest
+  - 分支 codex/plan-diagrams-enhancement 共 19 commits（fde2018 起），HEAD=179edd4；子代理批次已 completed
+  - 遗留低优先级：去补数据跳转未按类型细分、evacuation 仅底图无几何时仍占位（记录不阻塞）
+- 下一步：等用户选收尾（1 合并回 master【推荐】/ 2 PR / 3 保持）→ 合并后部署迁移 db_migration_plan_diagram_svgs.sql
+- 关键上下文：worktree .worktrees\codex-plan-diagrams；备份点 backup/pre-diagrams-20260808；测试须挂 2_chroma_cache 卷
+- 正在做什么（2026-08-09，本会话·预案生成增强）：附图扩展 3 批全部完成（18 commits，HEAD=e8649f9），派最终整体审查
+- 刚完成的动作：
+  - batch3 完成（5c1070c→e8649f9）：diagram_svgs 类型/API、DiagramRenderer 扩展（含 schema 字段/转义/无 mermaid 渲染修复）、缺数据提示条+补图按钮（含计数语义修复）、预览/docx 导出
+  - 收尾验证：后端 242 passed、前端 tsc + 48 vitest passed；子代理批次 plan_diagrams_batch 已 completed
+  - 审查循环多轮修复：SVG 转义、points dict/中文 L/S、矩阵布局、resources key、SQLAlchemy JSONB 落库、schema 字段、占位转义、计数语义
+- 下一步：最终整体审查 → 合并回 master（等用户确认）→ 部署（迁移 db_migration_plan_diagram_svgs.sql）
+- 关键上下文：worktree .worktrees\codex-plan-diagrams 分支 codex/plan-diagrams-enhancement；备份点 backup/pre-diagrams-20260808；测试须挂 2_chroma_cache 卷
+- 正在做什么（2026-08-09，本会话·预案生成增强）：附图扩展 batch2 完成（238 passed），启动 batch3（前端展示 + 导出）
+- 刚完成的动作：
+  - batch2 完成（1bf0234→cc24825 共 5 commits）：diagram_svgs 列/迁移、plan_diagram_service（风险矩阵+疏散图+占位符）、_attach_diagrams 生成后处理、补图接口 + 占位 warning
+  - 审查多轮修复：SVG 转义、points dict/中文 L/S 兼容、矩阵布局、resources key、SQLAlchemy JSONB 原地改不落库（复制后整体赋值）
+  - 关键经验：测试容器必须挂 `2_chroma_cache` 卷；真实 zone points 为 [{"x","y"}] 形态；L/S 在 method_params（l/s 键）
+- 下一步：batch3 任务 1（前端类型+API 客户端）起，逐任务子代理派发
+- 关键上下文：worktree 分支 codex/plan-diagrams-enhancement HEAD=cc24825；备份点 backup/pre-diagrams-20260808
+- 正在做什么（2026-08-09，本会话·预案生成增强）：附图扩展 batch1 完成（221 passed），启动 batch2（数据绘制服务）
+- 刚完成的动作：
+  - batch1 4 任务完成（21948ff→e0227ed）：章节图映射、4 类提示词模板（含 org_chart 数据护栏修复 f6ac55b）、org_structure→mermaid 构建、章节提示词注入；两阶段审查全部 PASS
+  - 收尾验证：221 passed（docker run 2-backend + 2_chroma_cache 卷）
+  - 关键经验：测试容器必须挂 `2_chroma_cache:/root/.cache/chroma`（不是 chroma_cache），否则法规检索初始化尝试下载 ONNX 模型卡死
+- 下一步：batch2 任务 1（diagram_svgs 列+迁移）起，逐任务子代理派发
+- 关键上下文：worktree .worktrees\codex-plan-diagrams 分支 codex/plan-diagrams-enhancement HEAD=e0227ed；master 未动（fde2018）；备份点 backup/pre-diagrams-20260808
+- 正在做什么（2026-08-09，本会话·易用性整体优化）：规格 + 6 份实现计划全部完成并提交，等待用户选择执行方式
+- 刚完成的动作：
+  - 规格：docs/superpowers/specs/2026-08-08-usability-enhancement-design.md（已批准）
+  - 计划 A 基础层（e607a38）：文案/乱码/死按钮/权限/AI 助手去重/密码重置，6 任务
+  - 计划 B 后端核心（9c37739）：AI 配置全局化/危化品关联+注入/完成度聚合，3 任务
+  - 计划 B2 后端引导（5e41c9c）：文件解析/LLM 提取/组织架构生成/导入与资料包接口，4 任务
+  - 计划 C1 引导页前端（3b8e668）：onboarding 6 步/候选核对/导入/EnterpriseInfoCards/完成度卡片，6 任务
+  - 计划 C2 前端重构（c21d834）：企业卡片化/tab 分组/专业模式/双列表合并/两步创建/样章确认/编辑器增强，4 任务
+  - 计划 D 移动端（ea69eb1）：完成度卡片/AI 助手聊天/移除用户 AI 配置，4 任务
+- 下一步：用户选执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 等并发会话 plan-diagrams 合入 master 后建 codex/usability-overhaul 分支按序实施
+- 关键上下文：master HEAD=ea69eb1；并发会话在 worktree codex/plan-diagrams-enhancement；视觉伴侣会话 ux-1786200790；本会话未改源码
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-09，本会话·易用性整体优化）：规格已批准，writing-plans 进行中——计划 A（基础层）与计划 B（后端核心）已完成并提交，剩余计划 B2（导入解析）/C（前端）/D（移动端）待写
+- 刚完成的动作：
+  - 规格定稿：docs/superpowers/specs/2026-08-08-usability-enhancement-design.md（commit 47f58c6），用户批准
+  - 计划 A：docs/superpowers/plans/2026-08-09-usability-foundation.md（491 行，commit e607a38）——文案中文化/乱码/死按钮/权限/AI 助手去重/管理员重置密码（6 任务）
+  - 计划 B：docs/superpowers/plans/2026-08-09-usability-backend-core.md（645 行，commit 9c37739）——AI 配置全局化（系统级单例）/危化品↔风险事件关联+生成注入/完成度聚合接口（3 任务）
+- 下一步：写计划 B2（导入解析+资料包分流+候选生成采纳接口）→ 计划 C（前端引导/重构）→ 计划 D（移动端）；或先让用户审阅已完成计划
+- 关键上下文：master HEAD=9c37739；并发会话在 worktree codex/plan-diagrams-enhancement；视觉伴侣会话 ux-1786200790；本会话未改源码
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08，本会话·易用性整体优化设计）：规格已按全部补充决策定稿并 commit（47f58c6），等待用户最终审查
+- 刚完成的动作：补确认项全部写入规格——①章节树图例+编辑器质量提示条（8.1 节）②移动端 AI 助手入口（13 节）③企业详情 tab 虚线分隔+徽标（5 节）④引导按企业维度、多企业独立进度（6.1 节）⑤样式确认 2 组全部通过（企业卡片/移动端卡片/列表完成度列/质量提示/图例）⑥预案管理数据（演练评审/经费值守）经讨论后确认不加（19 节范围外）⑦AI 代操作、移动端业务补齐明确范围外
+- 下一步：用户审查规格 → 批准后调用 writing-plans 生成实现计划 → 建 codex/usability-overhaul 分支实施（等并发会话 plan-diagrams 合入后）
+- 关键上下文：master HEAD=47f58c6；并发会话在 worktree codex/plan-diagrams-enhancement；视觉伴侣会话 ux-1786200790；本会话未改源码
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08，本会话·易用性整体优化设计）：规格已按用户补充决策更新并 commit（b4543a1），等待用户最终审查
+- 刚完成的动作：用户确认企业信息三处改动——①企业创建/编辑页改卡片样式 ②企业列表加「数据完成度」列 ③企业详情基本信息 tab 改卡片展示；规格新增 3.1 EnterpriseInfoCards 共享组件节、第 5 节表格 3 行、14.1 /enterprises 扩展 completion 字段；自检无占位符；commit b4543a1
+- 下一步：用户审查规格 → 批准后调用 writing-plans 生成实现计划 → 建 codex/usability-overhaul 分支实施（等并发会话 plan-diagrams 合入后）
+- 关键上下文：master HEAD=b4543a1；并发会话在 worktree codex/plan-diagrams-enhancement；视觉伴侣会话 ux-1786200790 可复用；本会话未改源码
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08，本会话·易用性整体优化设计）：设计规格已写完并 commit（9138de1），等待用户审查
+- 刚完成的动作：brainstorming 技能全流程完成——6 步引导页/三个入口/资料包导入/完成度算法/导航收敛/AI 配置全局化/危化品关联/密码找回/基础层文案/移动端/测试实施 全部确认；规格自检修复 3 处（TODO 措辞/报告权重归属/PlanCreatePage 同步精简）；写入 docs/superpowers/specs/2026-08-08-usability-enhancement-design.md（309 行）并 commit 9138de1
+- 下一步：用户审查规格 → 批准后调用 writing-plans 生成实现计划 → 建 codex/usability-overhaul 分支实施（等并发会话 plan-diagrams 合入后）
+- 关键上下文：master HEAD=9138de1；并发会话在 worktree codex/plan-diagrams-enhancement；视觉伴侣会话 ux-1786200790 仍可复用；本会话未改源码
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08，本会话·易用性整体优化设计）：brainstorming 技能进行中，引导页 6 步 + 导入功能 + 技术设计已确认，剩余基础层/移动端/测试实施节待展示，未改代码
+- 已确认决策（视觉伴侣 ux-1786200790，URL http://localhost:63195）：
+  1. 目标用户 C：普通用户保姆式 + 内部人员专业模式，同一套系统分层
+  2. 引导形态 C：首次登录进 /onboarding 独立引导页 + 工作台常驻完成度卡片
+  3. 引导 6 步：1 企业信息(企查查自动填充+卡片核对) / 2 组织架构(AI 出角色框架,姓名电话人工填) / 3 风险与危化品(AI 候选+增量生成,危化品↔风险事件自动关联) / 4 应急资源(内部+外部救援) / 5 周边环境(高德周边查询直接导入+AI 候选) / 6 生成并导出预案(可选,样章确认→全量→导出)
+  4. 每步三个入口：AI 生成候选(默认) / 导入现有数据(xlsx/csv/docx/pdf,候选核对,标来源) / 手动填写(抽屉复用现有表单)
+  5. 资料包导入：引导页顶部"导入企业资料包"，多文件→AI 识别分流到各步骤候选
+  6. 8 tab 保留+分组(录入/报告两类)，危化品与风险分级管控建 chemical_id 关联（方案 A）
+  7. 导航收敛 C：权限驱动 + 专业模式开关；普通用户菜单=工作台/企业/预案/设置
+  8. AI 配置 A：全局一套，管理员配置，普通用户零配置
+  9. 完成度算法：6 模块加权（企业信息10/组织架构15/风险危化品30/应急资源15/周边10/报告20），完成标准=有内容
+  10. 创建流程：替换 5 步向导，标题编号版本号自动，先生成样章确认再全量，可中途停止/失败重试
+  11. 密码找回 C：先做管理员重置（UserManagePage 加重置密码），邮件找回预留接口
+- 关键缺口确认：危化品独立表未注入生成上下文（generation._collect_enterprise_data 只用企业表文本字段）；无邮件发送能力；无密码重置接口；risk_method_config/备案信息未注入
+- 下一步：展示基础层清单(文案中文化/乱码/死按钮/权限) + 移动端范围 + 测试实施节 → 用户确认后写设计文档 docs/superpowers/specs/2026-08-08-usability-enhancement-design.md → 规格自检 → 用户审查 → writing-plans
+- 关键上下文：master HEAD=fde2018；并发会话在 worktree codex/plan-diagrams-enhancement（预案附图）；本会话仅读+设计，未改源码
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08，本会话·易用性深挖）：用户要求"多分析并思考"，已深入审查交互组件与文案，新增发现一批问题，未改代码
+- 刚完成的动作：审查 AIGenerateButton/StylePanel/SectionTree/RichTextEditor/FloatingChat/AIConfigPage/ProfilePage/VersionListPage/Chat/ExportPreviewPage/PlanCardsPage/PlanListPage/移动端路由/DashboardScreen/LoginPage/RegisterPage/SystemConfigPage/AuthContext；用 Python 精确确认乱码；rg 搜索 onboarding/忘记密码/英文文案
+- 新增关键发现：
+  1. 英文文案残留：AIConfigPage 整页英文（AI config/model config/provider/Temperature/test connection/save 等）；ProfilePage label=name/email/registered + message "done"/"failed"；VersionListPage title="version history" + "rolled back"；RichTextEditor 工具栏 Tooltip 全英文
+  2. 密码找回缺失：桌面登录页无"忘记密码"；移动端登录页"忘记密码？"是纯 span 无点击事件（死按钮）；全系统无 forgot/reset 路由；注册开放
+  3. AI 配置是傻瓜化最大拦路虎：每个用户需自配 provider/API Key/model/base_url/temperature 等（AIConfigPage 全英文）；AIGenerateButton 未配置时弹窗引导去 /settings/ai-config
+  4. 入口重复：预案"卡片总览+全部列表"两视图两入口；AI 助手左侧菜单+右下浮动球双入口
+  5. 菜单权限不完整：法规库管理未走 hasMenu 过滤；menuPermissions 加载失败静默 catch
+  6. 创建后立即 auto_generate=1 全量生成，无预览确认，风格错则全量浪费；创建最后一步出现"预案编号/版本号"输入（留空自动生成却仍让用户看到）
+  7. 章节树 ✓/!/⏳/🤖 符号无图例；无新手引导代码；移动端无 AI 助手入口
+- 下一步：输出完整易用性分析报告（语言层/架构层/信息架构/交互层/反馈层/移动端/优先级），等用户选择改进项
+- 关键上下文：master HEAD=fde2018（本会话仅读未改）
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08，本会话·预案生成增强）：附图扩展 3 份实现计划已写完并提交（fde2018），等待用户选择执行方式
+- 刚完成的动作：
+  - batch1（4 任务，288 行）：章节图映射 + 4 类提示词 + org_structure→mermaid + 生成注入
+  - batch2（5 任务，543 行）：diagram_svgs 列/迁移 + 风险矩阵/疏散图生成器 + _attach_diagrams 后处理 + 补图接口 + 占位 warning
+  - batch3（5 任务，318 行）：DiagramRenderer + 缺数据提示条/补图按钮 + 预览/docx 导出
+  - 自检通过：无占位符红旗；测试命令改用 docker run 2-backend（主 venv 损坏）
+- 下一步：等用户选执行方式（子代理驱动 / 内联）→ 按批实施
+- 关键上下文：master HEAD=fde2018；规格 2026-08-08-plan-diagrams-enhancement-design.md
+- 正在做什么（2026-08-08，本会话·易用性评估）：用户询问系统易用性，希望"傻瓜式操作"，感觉系统复杂；已完成代码级审查，给出评估结论，未改代码
+- 刚完成的动作：读取 TASKS.md、功能清单.md、frontend/src 全量页面清单；审查 MainLayout.tsx（菜单结构）、routes/index.tsx（桌面路由）、mobile/routes.tsx（移动路由）、DashboardPage.tsx、EnterpriseDetailPage.tsx（8 个 tab）、EnterpriseCreatePage.tsx（30+ 字段表单）、PlanCreatePage.tsx（5 步向导）、PlanEditorPage.tsx（编辑器工具栏）
+- 关键发现：系统按功能模块组织而非用户任务组织；无端到端主线引导；企业详情 8 tab + 企业表单 30+ 字段 + 预案 5 步 + 编辑器 5 个顶栏按钮；专业术语门槛高（风险评估/应急资源调查/风险分级管控等）；无企业数据完整度反馈；发现 bug：EnterpriseCreatePage.tsx 经济类型 placeholder="?????????" 乱码；移动端与桌面端功能不同步（移动端缺风险地图工作台/风险方法等）
+- 已做对的傻瓜化尝试：企查查 AI 自动填充、创建预案后 auto_generate=1 自动批量生成、Dashboard 快捷新建、失败重试+版本快照
+- 下一步：等待用户选择改进方向（主线向导 / 数据完整度反馈 / 隐藏高级功能 / AI 助手代操作 / 修乱码），批准后再实施
+- 关键上下文：master HEAD=e24b123（本会话仅读未改，无新提交）
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08，本会话·预案生成增强）：附图扩展设计规格已写完并提交（e24b123），等待用户审查
+- 刚完成的动作：docs/superpowers/specs/2026-08-08-plan-diagrams-enhancement-design.md（225 行）；自检通过（无 TODO、6 个图 key 命名一致）；已 commit
+- 下一步：用户审查规格 → 批准后 writing-plans 生成实现计划 → 实施
+- 关键上下文：master HEAD=e24b123；规格含三档图 + 缺数据三级策略 + 占位块 + diagram_svgs 存储 + 补图接口
+- 正在做什么（2026-08-08，本会话·预案生成增强）：预案附图扩展设计已获用户批准，正在写设计规格文档
+- 设计要点：三档图（LLM mermaid：组织架构/时序/时间轴/甘特；数据自动绘制：风险矩阵 L×S、平面疏散图），全程不接生图模型；缺数据三级策略（自动降级/编辑页提示+跳转/一键补图）；图位置留占位块（虚线框+文案+质量校验 warning）
+- 下一步：写 docs/superpowers/specs/2026-08-08-plan-diagrams-enhancement-design.md → 规格自检 → commit → 请用户审查 → writing-plans
+- 关键上下文：master HEAD=c5e525c；本会话此前完成：3 批功能（d5216ae）+ 4 项试用修复（54ac4ba）+ mermaid 全角括号修复（c5e525c）
+- 正在做什么（2026-08-08，本会话·后端三连重构）：收尾完成；另按用户要求为本地 Docker 后端启用热加载
+- 刚完成的动作：新增 docker-compose.override.yml（uvicorn --reload --reload-dir /app/app，单 worker；被 .gitignore 忽略，仅本地生效不进生产）；docker compose up -d backend 重建容器；实测热加载生效（touch main.py 触发 worker 重启，/docs 200）
+- 下一步：无阻塞项；GitHub 推送待网络恢复（git push origin master）；用户可随时改 backend/app 代码保存即自动生效
+- 关键上下文：master HEAD=86d9e38（override 文件本地未提交）；生产部署仍用主配置 4 worker；四色双份维护、仓库噪音清理等候选仍搁置
+- 正在做什么（2026-08-08，本会话·后端三连重构）：全部完成——实现+验证+冒烟+合入 master+推送 gitee；GitHub 推送待网络恢复
+- 刚完成的动作：
+  - 11 个实现提交已合入 master（fast-forward 到 bb50189）；冒烟发现并修复导出工具签名回归（86d9e38：chat_dispatch._export_plan_docx 适配 docx_template 新关键字签名）
+  - 验收 B 冒烟全部通过（qa_e2e_test 账号真实调用）：chat 工具调用（list_enterprises 30 家）+ SSE 批量（progress→chunk×1138→section_done→batch_done）+ 后台批量（generating=false/failed_sections=[]/版本快照+3/sec_7 落库 3220 字）+ chat 导出 DOCX（Test_CM_678143.docx 46.7KB 落盘）
+  - 环境事故已修复：git worktree remove --force 顺 junction 误删主检出 .venv 部分包与 node_modules（均为 gitignored，无源码损失）；已 ensurepip+重装 requirements 恢复，216 passed + 前端 tsc/vitest 复验通过
+  - gitee 推送成功（962c9d3..86d9e38）；GitHub 推送两次均 Connection reset（历史遗留网络问题，非凭证）
+- 下一步：网络恢复后 `git push origin master`；reranker 冒烟已由 L5 单测覆盖（真实触发需法规候选>8）
+- 关键上下文：master HEAD=86d9e38；备份 tag backup/backend-refactor-before-20260808 存在；worktree 与分支 codex/backend-refactor-llm-batch-dispatch 已清理；并行会话改动保持原样
+- 正在做什么（2026-08-08 22:xx）：图谱增量更新（用户指令「更新图谱」，后端三连重构实现落地后）
+- 刚完成的动作：
+  - 增量检测（manifest 已纯净）：12 代码 + 3 文档，0 删除
+  - 变更内容：后端三连重构实现批（22:12:57 落地：llm_client 扩展 LLMError/tools/overrides/llm_stream_all、chat_dispatch 收尾、generation/ai_config/chat/risk_assessment 迁移、sync/llm_reranker 迁移）+ 新 backfill_plan_metadata.py + MermaidRenderer.tsx + 实现计划文档
+  - AST 提取 12 文件（229 节点/498 边）+ 语义 3 文档（3 节点/11 边，复用既有节点 ID 原地更新）→ `build_merge(dedup=False)` → Step 4 `to_json` 写回 graph.json → 重聚类 627 社区 → 重打标签（0 占位符）→ 重生成报告/HTML
+- 验证结果：`graphify-out/graph.json` = 6643 节点 / 11347 边；新节点确认：`services_llm_client_llm_stream_all`、`services_llm_client_llmerror`、`app_backfill_plan_metadata`、`plan_mermaidrenderer`、`regulations_llm_reranker`、实现计划文档节点
+- 关键上下文：并行工作流仍在推进（22:12 批已入图）；manifest 基线 820 条保持正确，后续 update 只提取真实变更
+- 下一步：可用 graphify query/path/explain 查询新特性（如 llm_stream_all、chat_dispatch 收口）
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08 19:xx）：图谱增量更新（用户指令「更新图谱」，并行工作流改动后）
+- 正在做什么（2026-08-08，本会话·后端三连重构）：实现全部完成，收尾选项待用户选择
+- 刚完成的动作：worktree 分支 codex/backend-refactor-llm-batch-dispatch 共 11 个提交（B1/B2/L1-L6/D1-D3）；全量验证通过——后端 pytest 216 passed、前端 tsc 干净 + vitest 48 passed、git diff --check 无错误、base URL 映射收敛到 llm_client 一处、_decrypt_api_key 路由间依赖已消除；改动范围精确（9 规格文件 + 3 测试文件，+915/-400）
+- 下一步：用户选收尾方式（1 本地合并 master【推荐】→ docker restart → 验收 B 冒烟（真实 AI 调用）→ 推送双远程 / 2 PR / 3 保持分支 / 4 丢弃）→ 清理 worktree
+- 关键上下文：备份 tag backup/backend-refactor-before-20260808 存在；master HEAD=8f7b027 未动；冒烟涉及真实 DeepSeek 调用与 DB 写入，需用户知情
+- 正在做什么（2026-08-08，本会话·后端三连重构）：内联执行中——阶段 1（LLM 统一 L1-L6）已完成，进入阶段 3（chat_dispatch D1-D3）
+- 刚完成的动作：子代理机制在本环境确认不可用（explorer + 两轮 implementer 均零产出），已改为内联执行同一计划；worktree .worktrees/backend-refactor-llm-batch-dispatch 已提交 8 个 commit（B1 9c6a7c3 / B2 06e9a96 / L1 2065c04 / L2 17f003e / L3 4af3117 / L4 54e82db / L5 aed6c59 / L6 a49e8f3）；修复 llm_stream_all 缺 await 的真 bug（测试抓出）；base URL 副本收敛到 llm_client 一处；全量 pytest 206 passed
+- 下一步：D1（删 3 个死函数 + _delegate_generic）→ D2（EnterpriseResponse 去重）→ D3（黄金测试）→ F（全量+Docker 冒烟）→ finishing-a-development-branch
+- 关键上下文：master HEAD=8f7b027 未动；所有改动在 worktree 分支 codex/backend-refactor-llm-batch-dispatch；备份 tag backup/backend-refactor-before-20260808
+- 正在做什么（2026-08-08，本会话·后端三连重构）：子代理驱动执行中——任务 B1（准备块提取）实现子代理已派出
+- 刚完成的动作：用户确认「先备份再执行，子代理驱动」；已建备份 tag backup/backend-refactor-before-20260808（8f7b027）；建 worktree .worktrees/backend-refactor-llm-batch-dispatch（分支 codex/backend-refactor-llm-batch-dispatch）；修复 backend/.venv（ensurepip 恢复 pip + 装齐 requirements + scrapling/curl_cffi/browserforge/parsel/w3lib），worktree 基线 `pytest tests/` 182 passed；update_plan 建 13 项任务清单
+- 下一步：B1 实现 → 规格审查 → 质量审查 → B2 → L1-L6 → D1-D3 → F 冒烟 → finishing-a-development-branch
+- 关键上下文：master HEAD=8f7b027 未动；实施全部在 worktree；每任务一个 deepseek-v4-flash 子代理 + 两阶段审查；注意 backend/.venv 曾残缺（缺 pip/核心包），已修复且 venv 是 gitignored 环境文件
+- 正在做什么（2026-08-08，本会话·后端三连重构）：实现计划已完成并提交（8f7b027），等待用户选择执行方式
+- 刚完成的动作：规格 v2.1 已获用户确认；用 writing-plans 技能编写实现计划 docs/superpowers/plans/2026-08-08-backend-refactor-llm-batch-dispatch.md（1819 行，10 任务：B1/B2 阶段2收尾、L1-L6 LLM统一、D1-D3 chat_dispatch+字段去重、F 冒烟验收；TDD 步骤含完整代码；自检通过：规格全覆盖/无占位符/类型一致）
+- 下一步：用户选择执行方式（1 子代理驱动【推荐】/ 2 内联执行）→ 建 worktree 按计划实施
+- 关键上下文：master HEAD=8f7b027；仅提交计划文件，并行会话改动未触碰；four-color 双份维护搁置
+- 正在做什么（2026-08-08，本会话·预案生成增强）：Mermaid 预览失败根因已修复（commit c5e525c），等待用户复测
+- 根因：MermaidRenderer.sanitizeMermaidText 把全角标点（（）［］｛｝：）转成半角，而 mermaid v11 中半角括号/方括号是语法符号 → 节点文本含括号（如 I[一级影响范围: (3人受伤风险...)]）解析失败；docx 用旧版 mermaid 能容忍所以正常
+- 修复：删除全角→半角转换（v11 中全角括号是安全字面量）；保留括号引号包裹规则兜底半角场景；实测 18 个存量 mermaid 块全部渲染通过；tsc + 48 vitest 通过
+- 注意：本会话此前已修 3 项（状态卡 generating/存量回填/表格边框，commit 54ac4ba）——Mermaid 问题为第 5 项
+- 下一步：用户刷新桌面端复测流程图预览；如移动端也需预览则重建 dist
+- 关键上下文：master HEAD=c5e525c；MermaidRenderer 热更新无需重启
+- 正在做什么（2026-08-08，本会话·后端三连重构）：规格 v2 已完成复核（用户质疑评估准确性），修正测试基线后提交 v2.1，等待用户审查
+- 刚完成的动作：逐项重验——①阶段 1：chat.py 3 处/risk_assessment 1 处/sync 2 处/llm_reranker 1 处 httpx 直连仍在，base URL 副本仍 6 文件，plan_quality_service/export/prompt_cache 无新增 LLM 调用，阶段 1/3 目标文件 git diff 63587bc 为 0 行改动；②阶段 2：公共引擎（_run_batch_generation:386/_finalize_batch_result:463）已存在 + test_generation_batch_refactor.py 6 测试；准备块在 5 个函数重复属实（两批量端点 512-549 与 704-747 逐字一致，generate_section/regenerate_selection/generate_preview 各有章节404/错误文案/custom_instruction/Request schema 差异）；后端测试无端点级 SSE 测试；测试基线更新为 179 函数/182 passed；已 commit 规格 v2.1（e45a6f9）
+- 下一步：等用户审查规格 v2.1 → 批准后 writing-plans 生成实现计划
+- 关键上下文：master HEAD=e45a6f9；仅提交规格文件，并行会话改动未触碰；four-color 双份维护搁置
+- 正在做什么（2026-08-08，本会话·预案生成增强）：用户试用 4 个问题已修复并部署，等待用户复测
+- 刚完成的动作：
+  - 修复 1（状态卡 generating）：generate_section 事件生成器加 finally 兜底恢复状态（CancelledError 不被 except Exception 捕获）；generate_batch 取消路径恢复状态；前端 PlanEditorPage 增加 plan.status 非 generating 时复位 isGenerating
+  - 修复 2（存量数据）：新增并运行 backend/app/backfill_plan_metadata.py——60 条预案编号补齐、551 条章节元数据回填（onsite 64 自动填充章节/32 禁 AI）
+  - 修复 3（表格边框）：global.css 增加 .mermaid-diagram/.export-preview-container 表格边框样式（readOnly 预览容器不在 .ProseMirror 内导致无边框）
+  - 回归：容器内 182 passed；commit 54ac4ba；后端容器已重启、前端 Vite 热更新
+- 待确认：流程图无法预览的具体表现（readOnly 卡住时 MermaidRenderer 是否红框/空白）——若复测仍异常需再查 MermaidRenderer 渲染路径
+- 关键上下文：master HEAD=54ac4ba；主工作区 backend/.venv 的 pytest/pip 缺失（疑似 worktree junction 迁移残留），回归测试改走 docker run 2-backend
+- 正在做什么（2026-08-08）：「AI 助手升级强化」头脑风暴——需求已收敛：A 批量生成+汇总（≤3 家对话内等进度、>3 家后台任务）+ B 预案内容贴近行业标准/基于企业真实数据贯穿；对象=内部+客户共用
+- 刚完成的动作：用户确认交互形态=混合（C 选项）；已准备 3 种实现方案待展示：方案 1 轻量任务编排层（复用现有后台生成+报告链路，推荐）、方案 2 任务中心（batch_jobs 表+worker+任务列表页）、方案 3 引入 Agent 框架（LangGraph，判断为过度设计）
+- 下一步：展示 2-3 种方案带权衡并获用户选择 → 分节展示设计（架构/组件/数据流/错误处理/测试）→ 用户批准后写设计文档
+- 关键上下文：master HEAD=9b05904；本次仅讨论未改代码；注意：本 TASKS.md 顶部快照被其他并发会话反复覆盖（现有内容为「预案生成增强 4 问题修复」调查结果，保留在下方），每次更新时插入顶部即可
+- 正在做什么（2026-08-08，本会话·预案生成增强）：用户试用发现 4 个问题，根因调查完成，准备修复
+- 根因（已确认）：
+  1. 存量数据未回填：所有存量预案 plan_number/version_number 为空（迁移只加列）→ 导出 400「请先设置预案编号」；存量章节元数据全为默认（auto_fill=false/ai_generatable=true）→ 无「自动填充」按钮、紧急联系电话仍可 AI 生成
+  2. 生成状态卡 generating：generate_section 事件生成器被客户端断连/取消时（CancelledError 不被 except Exception 捕获）p.status 停在 generating；批量 _GenerationCancelled 路径跳过 _finalize_batch_result；DB 确认 84f43179 status=generating 且章节内容未更新（生成被中断）
+  3. 流程图无法预览：readOnly=true（isGenerating 卡住）时走 MermaidRenderer；非 readOnly 时 TipTap 不渲染 mermaid 代码块
+  4. 表格无边框：readOnly 时 MermaidRenderer 渲染的 HTML 不在 .ProseMirror 内，global.css 表格边框样式不生效；AI 生成表格也无内联边框
+- 下一步：实施修复（存量回填 SQL/脚本 + 生成状态 finally 恢复 + 前端 mermaid/表格样式）→ 重启容器验证
+- 关键上下文：master HEAD=d5216ae；数据库本地 docker（emergency-plan-db）
+- 正在做什么（2026-08-08，本会话·预案生成增强）：新代码已部署到本地 Docker，用户可试用
+- 刚完成的动作：
+  - 后端容器已重启加载新代码（uvicorn 无 reload 需重启）；openapi 146 条路由，新增 /plans/{id}/generate/status、/plans/{id}/sections/{key}/autofill 均注册
+  - 数据库已执行两个迁移：db_migration_plan_section_metadata.sql（章节 4 元数据列）+ db_migration_plan_number.sql（预案编号 2 列），列已验证存在
+  - 前端 5173 为 Vite dev（src 挂载热更新，自动生效）；移动端 8082 已用 node:20 容器重新构建 dist（本机 Node 24 与 Vite5 崩溃 0xC0000409，绕行方案：临时目录 + node:20-alpine 构建）并重建 shuzihuayuan 镜像
+  - 服务验证：backend 8000 / frontend 5173 / mobile 8082 均 200；generate/status 返回 401（鉴权正常）
+- 下一步：用户试用；部署到公司服务器时同样需执行两个迁移 SQL
+- 关键上下文：master HEAD=d5216ae；临时构建目录 %TEMP%\fe_build_plan_enhance 可删；frontend/dist 已更新（233 文件）
+- 正在做什么（2026-08-08 19:xx）：图谱增量更新（用户指令「更新图谱」，并行工作流改动后）
+- 刚完成的动作：
+  - 发现 `.codex-custom-subagents/` 任务邮箱 82 个 md 为瞬态产物，已加入 `.graphifyignore`（与业务数据同等处理）
+  - 修复 manifest 机制：`save_manifest` 是合并式（旧业务数据条目残留 2153 条）→ 已清空重建为纯当前语料 820 条
+  - 按 mtime 精确重建变更集：29 个代码文件（19:07:24 批量：plan 编号/章节元数据/生成批处理重构/plan_quality_service）+ 6 个文档（TASKS.md + 3 批计划 + 2 份设计规格）
+  - AST 提取 29 文件（267 节点/668 边）+ 语义 6 文档（10 节点/22 边，含 4 个新概念：内容可信度/导出编号与版本快照/质量校验与重试/LLM 三连重构）→ `build_merge(dedup=False)` 合并
+  - 注意：`build_merge` 不写 graph.json，需 Step 4 `to_json` 写回；已重聚类 644 社区、重打标签（0 占位符）、重生成 GRAPH_REPORT.md / graph.html
+- 验证结果：`graphify-out/graph.json` = 6603 节点 / 11238 边；新服务 `services_plan_quality_service`、`routers_export_export_plan_docx`、4 个新概念、5 份新文档节点均在图中；God Nodes 仍为纯代码枢纽（ApiResponse/React/Enterprise/User/AIConfig/RiskSource/SQLAlchemy）
+- 关键上下文：并行工作流（codex-custom-subagents）正在改动源码，19:07 批已入图；后续若再有提交，下次 update 会增量补齐；临时脚本 `graphify-out/_build_semantic2.py` 可复现语义数据
+- 下一步：可用 graphify query/path/explain 查询新特性（如 plan_quality_service）
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08）：图谱范围决策落地——剔除业务数据与产物噪声（用户确认「动手」）
+- 正在做什么（2026-08-08，本会话·后端三连重构）：规格已按用户最新代码优化重新评估为 v2 并提交，等待用户审查
+- 刚完成的动作：核对 2026-08-08 优化（plan-generation batch1-3，HEAD d5216ae，后端 182 passed）后现状——阶段 2 公共引擎（_run_batch_generation/_finalize_batch_result/_failed_sections/_clear_generation_state）已被实现并有 6 个引擎测试；剩余 = 准备块在 5 个函数重复（两个批量端点逐字相同，其余 3 个不同不纳入）+ 内联 asyncio import 冗余；阶段 1（LLM 9 处）与阶段 3（chat_dispatch 死代码/样板/字段）目标文件零改动，规格依然有效；已更新并 commit 规格 v2（05b4fc3）：阶段 2 缩为收尾（_get_plan_or_404 + _collect_batch_context），实施顺序改为 2→1→3，基线改为新行为（SSE/后台都清状态、failed_sections、use_section_number 差异）
+- 下一步：等用户审查规格 v2 → 批准后调用 writing-plans 生成实现计划
+- 关键上下文：master HEAD=05b4fc3；仅提交规格文件，并行会话改动（TASKS.md/.graphifyignore/chroma.sqlite3/上传目录）未触碰；four-color 双份维护搁置
+- 正在做什么（2026-08-08，本会话·预案生成增强）：已合并回 master 并清理 worktree，收尾完成
+- 刚完成的动作：
+  - master fast-forward 至 d5216ae（29 文件，+1588/-320）；合并结果验证：后端 182 passed、前端 tsc + 48 vitest passed
+  - worktree .worktrees\codex-plan-generation-enhancement 已清理（junction 用 rmdir 移除、目录删除、分支 codex/plan-generation-enhancement 已删）
+  - 子代理批次 plan_gen_batch1 已 completed；邮箱 .codex-custom-subagents/ 保留（未跟踪）
+- 下一步：可选项——codegraph sync / graphify update 同步图谱；部署时执行 2 个迁移 SQL（db_migration_plan_section_metadata.sql、db_migration_plan_number.sql）；或开始批 3 之外的后续需求
+- 关键上下文：master HEAD=d5216ae；工作区他人改动（.graphifyignore/TASKS.md/chroma.sqlite3/uploads）保持原样；TASKS.md 未提交
+- 正在做什么（2026-08-08，本会话·预案生成增强）：三批全部实现完成、最终审查通过，等待用户选择收尾方式
+- 刚完成的动作：
+  - 最终复审 PASS（d5216ae 修复 export_trace.log 残留 + duplicate 编号后复审查通过）
+  - 子代理批次已关闭（run plan_gen_batch1 → completed）
+  - worktree 分支 codex/plan-generation-enhancement：32 commits，HEAD=d5216ae；后端 182 passed、前端 tsc + 48 vitest passed
+- 下一步：等用户选收尾方式（1 合并回 master【推荐】/ 2 建 PR / 3 保持分支）；迁移 SQL 需在部署时执行（db_migration_plan_section_metadata.sql + db_migration_plan_number.sql）
+- 关键上下文：master 未动仍为 f263574；工作区他人改动保持原样
+- 正在做什么（2026-08-08，本会话·预案生成增强）：3 批全部实现完成并验证通过（后端 182 passed、前端 tsc+48 vitest），派最终整体审查
+- 刚完成的动作：
+  - 批 3 完成（88164f0→6360dcb 共 9 commits）：质量校验服务（含空白归一化+Mermaid 规则修复）、validate 接入+前端报告、批量公共函数抽取+failed_sections+status 端点（含取消检查/状态重置/行为对齐 3 轮修复）、前端失败重试、Diff 弹窗（含拒绝恢复/时序 2 轮修复）、移动端批量生成（含选章节/轮询/风格 UI 修复）
+  - 三批合计 23 commits，全部经规格+质量两阶段审查（多轮修复后 PASS）
+- 下一步：最终整体审查 → finishing-a-development-branch 收尾（合并回 master 或建 PR，等用户选）
+- 关键上下文：worktree 分支 codex/plan-generation-enhancement HEAD=6360dcb；master 未动
+- 正在做什么（2026-08-08，本会话·预案生成增强）：批 2 全部完成并验证通过（170 passed/48 vitest），准备批 3
+- 刚完成的动作：
+  - 批 2 完成（43db521→4c7f6ce 共 5 commits）：编号字段+迁移+生成函数、create_plan 自动编号（含 _build_plan 带出修复）、导出真实编号+签署页、版本快照补全（_build_snapshot/_apply_snapshot+generation 两处）、前端创建页编号输入
+  - 两阶段审查全部通过（任务 2 修复 _build_plan 未带出编号）；收尾验证：后端 170 passed、前端 tsc + 48 vitest passed
+- 下一步：批 3 前先确认并行会话「后端三连重构」批量合并是否已合入（_run_batch_sections 与本批 3 任务 3 _run_batch_generation 重叠）；若已合入则在其引擎上加 failed_sections/status
+- 关键上下文：worktree 分支 codex/plan-generation-enhancement HEAD=4c7f6ce；master 未动
+- 正在做什么（2026-08-08，本会话·预案生成增强）：批 1 全部完成并验证通过，启动批 2（导出与版本）
+- 刚完成的动作：
+  - 批 1 完成（9 commits：8cf653a→4880df5）：PlanSection 元数据字段+迁移、模板复制、schema、数据防幻觉护栏、autofill 接口（含 XSS 修复）、桌面/移动端接入
+  - 两阶段审查全部通过（任务 2 补 duplicate 测、任务 5 修 XSS）；收尾验证：后端 162 passed、前端 tsc + 48 vitest passed
+- 下一步：批 2 任务 1（PlanProject 编号字段+迁移+生成函数）起，逐任务子代理派发
+- 关键上下文：worktree .worktrees\codex-plan-generation-enhancement 分支 codex/plan-generation-enhancement HEAD=4880df5；master 未动；批 3 需先确认并行会话批量合并是否合入
+- 正在做什么（2026-08-08，本会话·预案生成增强 批1 实施中）：子代理驱动，后端任务 1-5 已完成并通过两阶段审查
+- 刚完成的动作（worktree .worktrees\codex-plan-generation-enhancement，分支 codex/plan-generation-enhancement）：
+  - 8cf653a PlanSection 元数据字段+迁移；1415de0+cbc75aa 模板元数据复制+duplicate 补测；3cb49c8 SectionResponse schema
+  - da5f2d5 数据防幻觉护栏（缺失标「（待补充）」+ system prompt 护栏，159 passed）
+  - 70ace69+550c3f8 autofill 接口（含 XSS 转义修复，161 passed）
+  - 审查循环：任务 2 duplicate 缺测（已补）、任务 5 XSS（已修），其余 PASS
+- 下一步：批 1 剩余任务 6（桌面端接入）、任务 7（移动端接入）、任务 8（收尾验证）；之后批 2、批 3
+- 关键上下文：基线 152 passed（test_autofill_research.py 因缺 scrapling 忽略，既有环境问题）；master 未动，改动全在 worktree 分支；批 3 需先确认并行会话的批量合并是否已合入
+- 正在做什么（2026-08-08，本会话·预案生成功能增强）：3 份实现计划已写完并提交（commit f263574），等待用户选择执行方式
+- 刚完成的动作：批 1 8 任务 / 批 2 6 任务 / 批 3 7 任务计划文件已 commit；自检修复 3 处（_collect_enterprise_data 补全、create_plan 完整改造、_run_batch_generation 补 accident_type 并复用批 2 _build_snapshot）
+- ⚠ 协调点：另一并行会话「后端三连重构」阶段 2 也在合并 generate_batch/generate_batch_background（_run_batch_sections 引擎），与本会话批 3 任务 3（_run_batch_generation）重叠；实施批 3 前必须先确认对方是否已合入，若已合入则改为在其引擎上加 failed_sections/status 端点，避免双份引擎
+- 下一步：等用户选择执行方式（子代理驱动 / 内联）→ 建议批 1 先行（与对方无重叠）
+- 关键上下文：master HEAD=f263574；规格 2026-08-08-plan-generation-enhancement-design.md；并行会话 HEAD=63587bc（后端三连重构规格）
+- 正在做什么（2026-08-08，本会话·后端三连重构 brainstorming）：设计规格已写完并提交，等待用户审查
+- 刚完成的动作：新增并 commit `docs/superpowers/specs/2026-08-08-backend-refactor-llm-batch-dispatch-design.md`（245 行，commit 63587bc）；设计已获批准（严格行为等价 + 验收 B + 三阶段流水线）：阶段 1 LLM 统一（llm_client 扩展 tools/payload_overrides/llm_stream_all/LLMError + 9 处迁移）、阶段 2 批量生成合并（_collect_batch_context + _run_batch_sections 引擎，SSE/后台 5 处差异保持）、阶段 3 chat_dispatch 收尾（删 3 个死函数 + _delegate_generic 样板收口 + EnterpriseResponse 5 字段去重）+ 顺带清理（ai_config base URL、sync/llm_reranker 直连 llm_client）
+- 下一步：等用户审查规格 → 批准后调用 writing-plans 技能生成实现计划
+- 关键上下文：master HEAD=63587bc；仅提交了规格文件，并行会话改动（TASKS.md/.graphifyignore/上传目录）未触碰；four-color 双份维护已按用户要求搁置
+- 正在做什么（2026-08-08，本会话·预案生成功能增强）：设计规格已写完并提交，等待用户审查
+- 刚完成的动作：
+  - 新增并 commit `docs/superpowers/specs/2026-08-08-plan-generation-enhancement-design.md`（490 行，方案 A 全量 3 批）：批 1 数据防幻觉护栏+模板元数据落地（含 autofill 接口）、批 2 导出编号真实化+版本快照补全、批 3 质量校验+失败重试+移动端批量统一（含 generate_batch 去重）+Diff 弹窗；含文件清单/兼容性/测试计划
+  - 规格自检通过：无 TODO/占位符；修正 2 处（validate 响应 warnings 类型兼容、background 失败清单新增 GET /generate/status 查询端点）
+  - commit 6ffe2e2 仅含规格文件；他人改动（.graphifyignore/TASKS.md/uploads）未卷入
+- 下一步：等用户审查规格 → 批准后按批次实施（建议批 1 先行）
+- 关键上下文：master HEAD=6ffe2e2；另一并行会话在推进「优化候选深入」，本会话快照仅追加不覆盖
+- 正在做什么（2026-08-08，优化候选深入·brainstorming 澄清阶段）：用户选择深入「四色双份维护」以外的优化候选；four-color-ai 双份项用户明确「不着急」，已搁置
+- 刚完成的动作：确认方向变更——保留 6 项（LLM 调用统一 / generate_batch 合并 / chat_dispatch 泛化收尾 / 仓库噪音清理 / 测试盲区 / 前端双代码库）；已读 brainstorming SKILL.md（HARD-GATE：批准设计前不写实现代码）
+- 下一步：按 brainstorming 逐一澄清（每次一个问题）→ 提 2-3 方案 → 分节展示设计 → 写规格 docs/superpowers/specs/ → writing-plans
+- 关键上下文：master HEAD=8aee366；工作区他人改动保持原样；另一会话并行推进「预案生成功能优化」与「AI 助手升级强化」，避免覆盖其快照
+- 正在做什么（2026-08-08，本会话）：预案生成功能优化——用户确认「流程状态不急，其余全部优化」，brainstorming 设计阶段，未改代码
+- 刚完成的动作：交付完整度评估（闭环合理 + 8 项缺口）；用户排除评审审批流程，其余全部纳入（数据防幻觉、模板元数据落地、导出编号真实化、生成后校验、版本快照完整、失败重试、移动端链路统一、Diff 对比弹窗）
+- 下一步：展示分批优化方案 → 获批准后写 docs/superpowers/specs/ 设计规格
+- 关键上下文：master HEAD=8aee366；工作区他人改动保持原样
+- 正在做什么（2026-08-08，优化机会盘点）：用户问「系统中有哪些可优化项」，已完成只读分析（未改代码）
+- 刚完成的动作：技能路由 improve-codebase-architecture；本地核查关键证据（2 个 explorer 子代理仅做启动检查未产出分析，已自行补查）
+  - LLM 调用未统一：httpx 直连实现 9 处散落在 chat.py(_call_llm/_call_llm_stream/_collect_llm)、generation.py(_stream_llm/_stream_llm_chunks)、risk_assessment.py(3 个 _stream_llm_*)、regulations/sync.py(2 处)、regulations/llm_reranker.py(_call_llm)；llm_client.py 仅被 5 处使用，base URL 映射在 6 个文件重复
+  - generate_batch 与 generate_batch_background（generation.py:365/579）约 176 行重叠；chat_dispatch.py 已建 _generic_* 但仍有 ~15 个手写 CRUD 处理器（_list_enterprises 等）
+  - schemas/enterprise.py EnterpriseBase 已建，但 EnterpriseResponse 重复声明 8 个字段且类型不一致（DatetimeStr vs str）
+  - four-color-ai/app/services/four_color_recognizer.py 与 backend 同名文件 423 行零差异（双份维护）；vision_helpers 待比对
+  - 仓库卫生：根目录 14 个 _*.py + 46 个 task*.txt + 30 个 *review*.txt + 5 个 docx + 2 个 png；backend 根 4 个 _*.py；qiankun/vite-plugin-qiankun 依赖零引用；法规条文精准匹配优化方案.md 与 _V1备份.md 冗余
+  - 测试缺口：backend/tests 仅 16 文件，集中 risk mapping/four-color，chat/generation/法规/导出无单测；frontend 测试 6+7(e2e)
+- 下一步：向用户交付优化候选清单（按价值排序），等用户挑选方向后进入 brainstorming/grilling
+- 关键上下文：master HEAD=8aee366；工作区他人改动（.graphifyignore/TASKS.md 未暂存 + 4 个上传目录未跟踪）保持原样；另一会话并行推进「AI 助手升级强化」，注意避免覆盖其快照
+- 正在做什么（2026-08-08 会话启动）：只读检查完成——TASKS.md 已读、git status 确认 master 领先 origin/master 4 提交（工作区他人改动：.graphifyignore/TASKS.md 未暂存 + 4 个上传目录未跟踪，保持原样）、graphify-out/graph.json 就绪（6.5MB/6502 节点基线）；当前无待执行任务，等待父代理/用户下达指令
+- 正在做什么（2026-08-08）：「AI 助手升级强化」头脑风暴——场景优先级已确认（1 批量生成+汇总 → 2 数据治理 → 3 文档/图全流程导入）；B 推荐已确认：以「预案内容贴近行业标准」为主 + 「基于企业真实数据的针对性回答」贯穿增强
+- 刚完成的动作：探查现有生成链路——generation.py 已有 /generate/batch（SSE 流式）与 /generate/batch/background（后台 asyncio 任务，状态存 plan.status）；但 chat 工具 _generate_plan_content 仅标记 generating 状态、需前端点按钮或对话确认才能真生成；generate_report 返回 report_prompt 由 chat 端点流式生成图文报告
+- 下一步：澄清「批量生成+汇总」交互形态（对话内等待进度 vs 后台任务+回来看结果 vs 混合）→ 展示 2-3 种智能体编排实现方案 → 分节展示设计
+- 关键上下文：master HEAD=9b05904；本次仅讨论未改代码；工作区他人改动保持原样；注意：TASKS.md 顶部快照曾被另一会话覆盖（其内容为「评估预案 AI 生成功能完整度」，保留在下方）
+- 正在做什么（2026-08-08）：评估「企业应急预案 AI 生成功能」完整度（只读分析，未改代码）
+- 刚完成的动作：
+  - 通读生成链路：backend/app/routers/generation.py（单章/批量/后台/停止/局部重生成/预览）、plans.py（CRUD/复制/企业汇总）、versions.py（快照/对比/回滚）、export.py + docx_template.py（预览/DOCX 导出/校验）、sections.py、prompt_cache.py（三段式 system prompt + 风格参数）、regulations/context_builder.py（法规图谱+向量+LLM 重排注入）、risk_context_builder.py（五层风险管控上下文）
+  - 前端：PlanCreatePage（5 步向导）/ PlanEditorPage（一键生成全部+SSE 流式+自动保存）/ AIGenerateButton（自定义提示词+快捷指令+选区重写）/ ExportPreviewPage（预览+打印+DOCX）；移动端 AIGenerationSheet + useStreamGeneration
+  - 核实已知缺口：地址防幻觉护栏未落地（generation.py 无「缺失标待补充/禁止推断」约束，仅 risk_assessment/resource_investigation 两个服务有）；PlanProject 无 plan_number/version_number 字段（export.py 用 getattr 兜底硬编码 XXZYT-YA-001）；模板 seed_templates.py 的 ai_generatable/auto_fill/data_dependencies 字段在前端编辑页被降级为全 true 的平铺结构（SectionTree templateSections 硬编码）
+- 验证结果：功能闭环完整（创建→模板章节→AI 生成→人工编辑→版本快照→导出 DOCX）；无地址护栏相关 commit
+- 下一步：向用户交付完整度评估与缺口清单（数据质量护栏/模板字段落地/导出元数据/审批流程/生成后校验等）；等用户选择改进方向后再按 brainstorming 流程深入
+- 关键上下文：master HEAD=8aee366；工作区他人改动（.graphifyignore/TASKS.md + 4 个上传目录未跟踪）保持原样；本次纯只读
+- 正在做什么（2026-08-08）：「AI 助手升级强化」头脑风暴——用户已确认场景优先级：1 批量生成+汇总（第一阶段）→ 2 数据治理 → 3 文档/图全流程导入；方向 A 复合指令自动编排 + B 专业知识质量；对象=内部+企业客户共用
+- 刚完成的动作：向用户提出 B（专业知识质量）的三个候选诉求，用户回复「确认」（排序已锁定，B 诉求待最终确认）；已准备推荐：以「预案/评估报告内容更贴近行业标准」为主，「法规引用」扩库为辅，「基于企业真实数据的针对性回答」作为贯穿增强
+- 下一步：等用户确认 B 的推荐 → 澄清 A 的交互形态（企业选择方式/生成是后台异步还是逐企业流式/汇总报告形式）→ 展示 2-3 种实现方案（智能体编排路线）→ 分节展示设计
+- 关键上下文：master HEAD=9b05904；本次仅讨论未改代码；工作区他人改动保持原样
+- 正在做什么（2026-08-08 会话启动）：已读取 TASKS.md 快照，确认图谱收尾状态，等待用户下达新任务
+- 刚完成的动作：仅只读检查——git status（master 领先 origin 4，工作区改动仅 .graphifyignore/TASKS.md + 4 个上传目录未跟踪，均为他人数据保持原样）；graphify-out/graph.json（6.70MB，2026-08-08 10:22）与 .graphifyignore 均就位
+- 下一步：等待用户指令；图谱已就绪可直接 graphify query/path/explain；或用户提出新需求
+- 关键上下文：图谱 6502 节点/11053 边、620 社区、God Nodes 均为真实代码枢纽；master HEAD 未动## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-08）：图谱范围决策落地——剔除业务数据与产物噪声（用户确认「动手」）
+- 刚完成的动作：
+  - 新建 `.graphifyignore`：排除 `backend/app/regulations/data/`、`backend/app/services/mermaid.min.js`、`graphify-out/`、`.playwright-cli/`、`参考*`、`prompt_test_results/`（后续 update 不再扫描这些目录）
+  - 剪枝 `graphify-out/graph.json`：移除 9195 法规/产物节点 + 2689 mermaid.min.js 噪声节点，共 11884 节点/18758 边
+  - 重聚类 620 社区、全部重新打标签（0 占位符、0 reg 残留）；GRAPH_REPORT.md / graph.html 已重生成
+  - 修复标签复用缺陷：旧标签按社区 ID 复用导致 reg 噪声名挂到新社区，已改为「旧标签 token 须与当前社区节点重合才复用」
+  - manifest 基线重建（code 478 + doc 202 + image 125 = 805 文件），排除目录确认 0 残留
+- 验证结果：`graphify-out/graph.json` = 6502 节点 / 11053 边；God Nodes 前 10 全部为真实代码枢纽（ApiResponse/React/Enterprise/User/AIConfig/RiskSource/SQLAlchemy/React Query/PlanSection）
+- 关键上下文：临时脚本 `graphify-out/_prune_rebuild.py`、`_relabel_v2.py` 保留可复现；policy 禁止删除临时文件故保留
+- 下一步：图谱仅含代码+设计文档+任务审查报告；可用 graphify query/path/explain 查询
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08）：跟随图谱建议问题，追踪 SQLAlchemy 跨社区桥（只读查询，未改代码）
+- 正在做什么（2026-08-08）：跟随图谱建议问题，追踪 SQLAlchemy 跨社区桥（只读查询，未改代码）
+- 刚完成的动作：BFS/最短路径遍历 `graphify-out/graph.json`
+  - 结论：SQLAlchemy 的真实桥接 = `backend/app/routers/regulations.py`（imports_from，EXTRACTED，degree 75）；法规文本节点（reg_*.md）与 SQLAlchemy 在节点级无路径，社区聚合视图造成“桥”的观感
+  - 发现两个图谱抽取缺口：①regulations.py 实际 import 了 `app.regulations`（get_graph/get_vector_store/sync）但图上无边；②法规数据文本与 sync.py/vector_store.py/retriever.py 之间无边（文本孤立岛，呼应报告 10798 弱连接提示）
+  - 问答已保存：`graphify-out/memory/query_20260808_020410_sqlalchemy_为什么连接法规库社区与业务代码.md`
+- 下一步：可补强法规文本→代码语义边（下次 update 加强抽取），或继续追 `fetch()` 桥
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08）：graphify 知识图谱增量更新完成（用户指令「更新图谱」）
+- 正在做什么（2026-08-08）：graphify 知识图谱增量更新完成（用户指令「更新图谱」）
+- 刚完成的动作：
+  - 发现并修复 manifest 缺口：08-06 保存的 manifest 仅 983 条，导致 617 个文件被误判为「变更」；已保存完整语料 manifest（481 code + 581 doc = 1062），后续 --update 差异准确
+  - 真实缺口 = 图节点未覆盖的文件：72 个代码 + 95 个文档（four-color-ai 微服务、four-color-ai-java、08-06/07 计划与规格、风险源收口/楼层分组/干扰过滤等新特性）
+  - AST 全量刷新 481 个代码文件（6130 节点/19385 边）；语义提取 95 个文档由主控直接完成（117 节点/118 边：46 页面快照 + 24 审查报告 + 14 计划/规格 + 11 杂项）
+  - `build_merge`（dedup=False 只增不减）合并 → `graphify-out/graph.json` 18386 节点/29811 边（较旧图 17657 净增 729 节点/1174 边）；剪除 2 个已删除转换文件
+  - 重聚类 901 社区并全部生成标签（0 占位符）；GRAPH_REPORT.md / graph.html（901 社区聚合视图）已刷新
+- 验证结果：graph.json 18386 节点/29811 links；graph.html 632KB；labels 901 个
+- 注意事项：
+  - 本轮曾派出语义子智能体，但继承技能上下文后自行重跑整条管线（误判 0 变更并覆盖中间产物），已全部中断；语义提取改由主控直接完成
+  - 临时文件（.graphify_ast/.graphify_extract/.graphify_analysis 等）按策略无法删除，保留于 graphify-out/，下次更新会覆盖；`_build_semantic.py` 可复现语义数据
+  - manifest 基线已修正（1062 文件），下次「更新图谱」只需提取真正新增/修改的文件
+- 下一步：图谱已就绪，可用 `graphify query "..."` / `graphify path A B` / `graphify explain <符号>` 查询
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-07）：master 已推送到 gitee 与 GitHub 两个远程，四色识别微服务工作全部同步完成
+- 正在做什么（2026-08-08）：graphify 增量更新完成——自上次图谱构建（8/6）无新增/修改文件，仅 2 个删除文件
+- 刚完成的动作：
+  - detect_incremental 确认 new_total=0、deleted_files=2（graphify-out/converted/test_output_c3658f0f.md、_ref_017ce40f.md，图中本就无对应节点）
+  - build_merge dedup=False 合并：17657 节点/28637 边保持不变（默认去重会误折叠 305 个未变更文件节点，故沿用 8/5 会话的 dedup=False 经验）
+  - graph_diff 新旧图零差异；重新聚类 839 社区（8/6 为 831，聚类随机性所致）；839 标签全部生成、0 占位符
+  - 产物已刷新：graphify-out/graph.json（17657 节点/28637 边）、GRAPH_REPORT.md、graph.html（839 社区聚合视图）
+  - 清理 10 个临时文件（.graphify_old.json、.graphify_ast.json 全量残留、旧 chunk 等）
+- 下一步：等待用户新任务
+- 关键上下文：本次 0 LLM tokens（纯 AST/结构更新）；manifest.json 已以今日为基线保存，下次 --update 直接对比；graphify-out/.graphify_python=C:\Users\55061\AppData\Local\Programs\Python\Python312\python.exe
+- 正在做什么（2026-08-07）：master 已推送到 gitee 与 GitHub 两个远程，四色识别微服务工作全部同步完成
+- 刚完成的动作：git push origin master 重试成功（dcbea44..962c9d3 快进）；此前 gitee 已推（8700ab1..962c9d3）
+- 下一步：等待用户新任务；微服务交付包在 C:\Users\55061\Desktop\sisetushibie
+- 关键上下文：master HEAD=962c9d3，双远程均为最新；无待推送内容
+- 正在做什么（2026-08-07）：master 已推送到 gitee（962c9d3，快进），GitHub 因网络不可达暂未推送
+- 刚完成的动作：git push gitee master 成功（8700ab1..962c9d3）；git ls-remote origin（GitHub）报 Connection reset，非凭证问题，为网络不可达
+- 下一步：等待用户；GitHub 推送可稍后重试（网络恢复后 git push origin master）
+- 关键上下文：master HEAD=962c9d3；四色识别微服务已随推送进入 gitee 远程；保存点 0b934d9 在历史中但树已修正
+- 正在做什么（2026-08-07）：四色识别微服务已合并回 master 并完成收尾，交付包已同步最新代码
+- 刚完成的动作：
+  - 同步 master 最新识别器（透视 warp 修复 642b020/12cb771）进 four-color-ai/ 并提交 439ea90 → 本地合并 5e59516（37 文件新增，无冲突）
+  - 修正 git save 误带文件：git rm --cached 5 张上传 PNG（磁盘保留）、删除 docker-build.err，提交 962c9d3
+  - 合并后验证：backend 152 passed、four-color-ai 44 passed
+  - 收尾：安全移除 worktree 的 .venv junction → git worktree remove --force → prune → 删除分支 codex/four-color-ai-microservice；主检出 backend/.venv 完好
+  - 交付包 C:\Users\55061\Desktop\sisetushibie 已同步最新识别器与测试（哈希一致，44 passed）
+- 下一步：等待用户；master 尚未推送 gitee（如需推送可用 git finish 或手动 push）
+- 关键上下文：master HEAD=962c9d3；保存点 0b934d9 仍在历史（树已清除误带文件）；注意 git save 会打包整个脏工作区，执行前确认工作区干净
 - 正在做什么（2026-08-07）：评估四色识别微服务分支合并回 master 的影响（只读分析，未改代码）
 - 刚完成的动作：git diff 分析——分支仅新增 four-color-ai/（独立服务）、four-color-ai-java/（参考工程）共 37 文件 1890 行 + .gitignore 一行；与 master 新增 3 提交（backend 识别器透视修复 642b020/12cb771、docker-compose 3f7f156）零重叠，合并无冲突；发现 four-color-ai/ 内识别器为 260fc3b 快照，落后 master 最新透视修复
 - 下一步：用户决定是否合并；若合并，建议先把 backend 最新 four_color_recognizer.py/test 同步进 four-color-ai/（保持双份一致），再做本地合并
@@ -84,6 +770,7 @@
 - 另一会话补记 15：「预览拉长仍在」根因=前端容器 Vite 崩溃——compose 设了 VITE_CACHE_DIR=/tmp/vite-cache（缓存目录在 node_modules 外），@vitejs/plugin-react 对预构建依赖的 node_modules 排除失效，react-dom chunk 被注入 react-refresh 代码，模块求值时 $RefreshSig$ 未定义 → 应用白屏；本地用同配置复现后移除该环境变量（commit 3f7f156），重建前端容器；验证：5173 真实页面应用正常启动、预览图盒 520x390=1.333 与画布/图片一致、无拉伸；后端 analyze 预览 PNG 尺寸=canvas=1333x1000 此前已验证；提醒用户硬刷新（Ctrl+F5/清站点数据）以清除 PWA service worker 旧缓存
 - 另一会话补记 16：「预览拉长」真正根因=透视校正误触发（commit 642b020）——用户 DOM 里画布与预览图尺寸一致（1416x1000），前端渲染不可能拉伸；合成复现：密集分区图里占 35% 的斜形大区域触发 warp，整图比例 1.429→1.191 被拉正变形；修复：warp 门槛收紧为"面积 ≥50% 且 bbox 覆盖 ≥75%"（只对几乎铺满画面的真纸张生效）；验证：后端 152 passed，运行环境实测斜形图 canvas=1429x1000（比例保持 1.429）、2 分区，不再变形；用户需重新上传验证（若仍异常请提供原图对比）
 - 另一会话补记 17：「预览拉长」仍存在——用户正确指出未修好；复现确认占 55%-68% 的大斜形区域即使过新门槛仍触发 warp（比例 1.429→1.451/1.49）；根治：**默认关闭自动透视校正**（commit 12cb771）——电子图与拍照纸张在几何上无法可靠区分，关闭后预览永远保持原图比例，照片仍可识别（区域在原图坐标系上，不做自动拉正）；运行环境实测 68% 斜形图 canvas=1429x1000（比例 1.429 保持）、2 分区；后端 152 passed
+- 另一会话补记 18：6 项反馈全部修复（commit 83757bc/87c8d2c/a0e1b50/8aee366）——①乱码：Vite 对 \uXXXX 双重转义，6 个文件转真实中文（5173 实测标题正常）②工作台返回跳转企业风险分级管控 tab（?tab=risk-management）③风险点不显示：workbench/overview 查询兜底加载绑定当前楼层分区的风险点（含 floor_id 为空的历史数据），另提醒按楼层显示 ④事故类型多选（join"、"存储，展示兼容）⑤预览拉长：当前部署实测 3000x2000 密集斜形图 canvas=1500x1000（比例 1.5 保持）、预览 PNG 与画布一致→前端不可能拉伸（此前根因=透视校正已关闭）⑥导入后灰色=commit 响应缺 effective_color（已补，实测 #ff4d4f/#fa8c16）；画布变小/边界=工作台 Stage 改铺满容器+自动适配（导入后自动重适配）；验证：前端 tsc/vitest 42、E2E 16、后端 152 全过；后端容器已重启生效
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
@@ -603,3 +1290,35 @@
   - 项目根：C:\Users\55061\Documents\数字化预案自动生成 2
   - 分支：codex/protego-integration；任务 1 的 4 个文件已提交，TASKS.md 保持未提交（按计划任务 11 再提交）
   - 已提交：docs/superpowers/specs/2026-08-04-risk-mapping-drawing-design.md
+
+
+---
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-09，子代理·task_c14_review_quality2）：完成 task_c14_fix 代码质量复审（worktree .worktrees\usability-overhaul，BASE 873107e..HEAD 3fe66c5，3 文件 53+/16-）
+- 刚完成的动作：
+  - 通读 3 文件全量源码 + git diff；核对后端契约：onboarding_service.py MODULE_WEIGHTS 6 个 module key（enterprise_info/org_structure/risk_chemical/resources/surrounding/reports）与前端 MODULE_KEY_MAP 完全一致；enterprises.py:148 PUT 更新支持全部扩展字段（credit_code/legal_representative/established_date/economic_type/registered_capital 等模型字段齐全）；enterprise_sub.py:28 PUT /org-structure 全量替换
+  - 逐项核验 5 项修复：①StepEnterprise onSaved 调 updateEnterprise（等待成功后才 invalidate，抽屉 onSaved 抛错不关闭）②StepOrg adoptAll isLoading 双保险 + onError 提示 + mutateAsync 成功后才 setCandidates([])，失败保留候选 ③去重 key 改 group_key||group_name||g-${len}，检查同时匹配 group_key/group_name，key 稳定 ④completion 用 useMemo 派生（localDone ∪ 后端 done 模块经 MODULE_KEY_MAP 反查 stepKey，依赖 [completion, localDone] 正确）⑤完成度加载态显示 –（isLoading ? "–" : percent%）
+  - 实测：npx tsc -b 退出码 0；npx eslint src/pages/Onboarding 退出码 0；git diff --check 干净；修复提交仅 3 文件无杂物
+  - 结论：✅ 通过（无关键/重要项）。次要 3 项——①StepEnterprise onSaved 无错误提示（失败仅静默不关抽屉，onClick 内 reject 未 catch，控制台有未处理 rejection）②localDone 仅会话内，已保存步骤刷新后侧栏勾选消失，与「🔒 进度自动保存」文案有落差（后端 percent 不受影响）③invalidate 后 background refetch 期间 percent 短暂显示旧值（非 0% 闪烁，轻微）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c14_review_quality2--472-6455a3746e57.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）
+- 正在做什么（2026-08-09，子代理·task_c15_review_spec）：完成 task_c15_steps_3_6 规格合规审查（worktree .worktrees\usability-overhaul，提交 fdc93b8，4 文件 414+/28-）
+- 刚完成的动作：
+  - 独立通读 fdc93b8 全量 diff（StepRiskChemical/StepResources/StepSurrounding/StepGenerate）；逐一核对服务契约：hazardousChemicalService.createChemical/generateChemicalsAI、emergencyResourceService.batchCreateResources/generateResourcesAI、enterpriseService.searchAmapSurrounding/updateSurrounding/getSurrounding 签名均匹配
+  - 双路径验证第 5 步：高德 searchAmapSurrounding（StepSurrounding.tsx:76-92）→ AmapSearchResultModal 预览勾选 → handleAmapImport → updateSurrounding（:74-84）；AI 路径复用 SurroundingAIGenerateModal（内部 generateSurroundingAI→预览核对→updateSurrounding），两组件确为既有组件（最后修改早于 fdc93b8）
+  - 第 6 步：navigate(`/plans/new?type=${type}&enterprise_id=${enterpriseId}`)（StepGenerate.tsx:35-41）与 PlanCreatePage.tsx:21-22 读取 type/enterprise_id 一致
+  - completion 刷新：三步均 invalidateQueries(["completion", enterpriseId])，与 OnboardingPage useQuery key 一致
+  - 实测：npx tsc -b 退出码 0；npx eslint src/pages/Onboarding 退出码 0；4 文件 rg "\bany\b" 0 命中（toCreatePayload 用 unknown 断言）；git show --stat 仅 4 文件，提交消息精确匹配
+  - 全量 npx eslint . 退出码 1（304 个问题），但全部位于本提交未触碰文件（PlanEditorPage/PlanListPage/Settings/routes/services/types 等既有债务，与本提交无关）
+  - 结论：✅ 符合规格（无关键/重要项）。参考 2 项——①StepRiskChemical:53-67/StepResources:54-66 采纳为乐观移动，写入失败时该项已移出候选且已采纳区标记为已保存，无回滚/重试入口；②StepGenerate 不再调用 onDone（直接跳转 /plans/new），可选步骤不会被标记完成，符合规格意图
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_c15_review_spec--10788-84a2ed640dfa.md）
+- 关键上下文：审查仅读+验证，未改源码；worktree 工作区仅有 TASKS.md/chroma.sqlite3 未暂存改动（与基线惯例一致）
+- 正在做什么（2026-08-09，子代理·task_onboarding_v2_review_quality）：完成 onboarding 引导页 4 项功能增强代码质量审查（master HEAD 390726c，范围 69f97da..HEAD）
+- 刚完成的动作：
+  - 逐提交 git show 通读 7 个前端文件（StepOrg/StepResources/StepRiskChemical/StepSurrounding/CandidatesReview/OnboardingPage/StepGenerate）+ 服务契约（emergencyResourceService/hazardousChemicalService/enterpriseService）+ 后端契约（resources_ext.py:753 batch 按输入顺序返回、hazardous_chemicals.py:358 同、onboarding_service.generate_org_candidates 返回 group_key 但无 _key）
+  - 门禁实测：npx tsc -p tsconfig.app.json --noEmit 退出码 0；npx eslint src/pages/Onboarding 退出码 0（基线 69f97da 经 git archive 提取同配置复跑亦 0 error，无新增）；git diff --check 干净；diff 无 any；无新增 >100 字符行（9 处长行均基线既有）
+  - 发现 1 个重要缺陷：StepOrg.tsx:139-140 adoptGroup 对 AI 生成候选（无 _key，generate 路径 StepOrg.tsx:112 未归一化）执行 filter(x => x._key !== g._key) 会把全部无 _key 候选组一并移出列表；次要 8 项（memberEdits 卸载丢失、adoptGroup/adoptAll 合并语义不一致、hydration 与快速采纳竞态、unacceptAll 部分失败无回滚、StepSurrounding acceptAll 跳过项也被清出候选、_key 用 name+direction 可能冲突、page_size 200 上限、双成功提示等）
+  - 结论：❌ 需修复（门禁全过，但 StepOrg 单组采纳误删其他 AI 候选组影响功能可用性；修复点为 generate() 补 _key 或改用 group_key 过滤）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_onboarding_v2_review_quality--24428-eca6ce9ff147.md）
+- 关键上下文：审查仅读+验证，未改源码（临时基线目录已清理）；工作区仅有 .graphifyignore/TASKS.md 修改与既有未跟踪目录
