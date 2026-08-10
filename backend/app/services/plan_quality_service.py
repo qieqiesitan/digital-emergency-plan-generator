@@ -115,6 +115,79 @@ def check_plan(plan, enterprise, sections) -> dict:
                 "warning": "疑似推断地址，请核实",
             })
 
+    # ── C1：跨章节人物一致性 ──
+    role_map: dict[str, list[tuple[str, str]]] = {}  # role -> [(section_title, name)]
+    ROLE_PATTERNS = [
+        (r"总指挥(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "总指挥"),
+        (r"副总指挥(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "副总指挥"),
+        (r"安全负责人(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "安全负责人"),
+    ]
+    for s in sections:
+        text = _strip_html(s.content)
+        for pat, role in ROLE_PATTERNS:
+            for m in re.finditer(pat, text):
+                role_map.setdefault(role, []).append((s.title, m.group(1)))
+    for role, entries in role_map.items():
+        names = {n for _, n in entries}
+        if len(names) > 1:
+            warnings.append({
+                "section_key": "",
+                "section_title": entries[0][0],
+                "warning": f"跨章节{role}姓名不一致：{'、'.join(sorted(names))}",
+            })
+        org_names = {
+            m.get("name") for g in (getattr(enterprise, "org_structure", None) or [])
+            for m in g.get("members", []) if role in (m.get("position") or "")
+        }
+        if org_names and not ({n for _, n in entries} <= org_names):
+            warnings.append({
+                "section_key": "",
+                "section_title": entries[0][0],
+                "warning": f"正文{role}与企业组织架构不符",
+            })
+
+    # ── C2：地址/法人冲突（仅必含章节）──
+    must_key = _must_have_section_key(getattr(plan, "plan_type", ""))
+    addr = getattr(enterprise, "address", None)
+    for s in sections:
+        if s.section_key != must_key:
+            continue
+        text = _strip_html(s.content)
+        if addr and addr not in ("（待补充）",):
+            frags = _extract_address_fragments(addr)
+            for f in frags:
+                if _normalize(f) not in _normalize(text) and _suspected_address(text):
+                    warnings.append({
+                        "section_key": s.section_key,
+                        "section_title": s.title,
+                        "warning": f"疑似地址与档案不一致（档案含：{f}）",
+                    })
+                    break
+        for field, label in [
+            (getattr(enterprise, "legal_representative", None), "法定代表人"),
+            (getattr(enterprise, "safety_officer", None), "安全负责人"),
+        ]:
+            if field and field not in ("（待补充）",):
+                pat = f"{label}(?:：|为|是)?\\s*([\\u4e00-\\u9fa5]{{2,4}})"
+                for m in re.finditer(pat, text):
+                    if m.group(1) != field:
+                        warnings.append({
+                            "section_key": s.section_key,
+                            "section_title": s.title,
+                            "warning": f"疑似{label}与档案不一致（档案：{field}，正文：{m.group(1)}）",
+                        })
+
+    # ── C3：响应分级表述混用 ──
+    full_text = "".join(_strip_html(s.content) for s in sections)
+    has_roman = bool(re.search(r"III级|II级|I级", full_text))
+    has_chinese = bool(re.search(r"一(?:级|类)响应|二级响应|三级响应", full_text))
+    if has_roman and has_chinese:
+        warnings.append({
+            "section_key": "",
+            "section_title": "",
+            "warning": "响应分级表述不统一（III级/II级/I级 与 一级/二级/三级 混用）",
+        })
+
     return {
         "valid": len(issues) == 0,
         "issues": issues,

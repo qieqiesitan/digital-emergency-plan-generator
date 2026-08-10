@@ -94,3 +94,37 @@ def test_must_have_section_address_fragment_match_no_warning():
         _section("sec_1", "事故风险分析", "<p>公司位于民经一路726号，法定代表人为刘昕野，安全负责人刘昕野。</p>")
     ])
     assert not any("未体现" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_cross_section_person_conflict():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>总指挥：刘昕野</p>"),
+        _section("sec_3", "处置程序", "<p>总指挥：王五</p>"),
+    ])
+    assert any("总指挥" in w["warning"] and "不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c2_address_conflict():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>公司位于湖北省武汉市某街道。</p>"),
+    ])
+    assert any("地址" in w["warning"] and "不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_level_notation_mixed():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>启动III级响应，执行一级响应程序。</p>"),
+    ])
+    assert any("响应分级" in w["warning"] for w in result["warnings"])
