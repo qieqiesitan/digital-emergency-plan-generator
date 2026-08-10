@@ -118,10 +118,10 @@ def check_plan(plan, enterprise, sections) -> dict:
     # ── C1：跨章节人物一致性 ──
     role_map: dict[str, list[tuple[str, str]]] = {}  # role -> [(section_title, name)]
     ROLE_PATTERNS = [
-        (r"(?<!副)总指挥(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "总指挥"),
-        (r"副总指挥(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "副总指挥"),
-        (r"安全负责人(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "安全负责人"),
-        (r"(?<!副)组长(?:：|为|是)?\s*([\u4e00-\u9fa5]{2,4})", "组长"),
+        (r"(?<!副)总指挥\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "总指挥"),
+        (r"副总指挥\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "副总指挥"),
+        (r"安全负责人\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "安全负责人"),
+        (r"(?<!副)组长\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "组长"),
     ]
     for s in sections:
         text = _strip_html(s.content)
@@ -158,14 +158,13 @@ def check_plan(plan, enterprise, sections) -> dict:
         text = _strip_html(s.content)
         if addr and addr not in ("（待补充）",):
             frags = _extract_address_fragments(addr)
-            for f in frags:
-                if _normalize(f) not in _normalize(text) and _suspected_address(text):
-                    warnings.append({
-                        "section_key": s.section_key,
-                        "section_title": s.title,
-                        "warning": f"疑似地址与档案不一致（档案含：{f}）",
-                    })
-                    break
+            archive_present = any(_normalize(f) in _normalize(text) for f in frags) if frags else _normalize(addr) in _normalize(text)
+            if not archive_present and _suspected_address(text):
+                warnings.append({
+                    "section_key": s.section_key,
+                    "section_title": s.title,
+                    "warning": "疑似地址与档案不一致",
+                })
         for field, label in [
             (getattr(enterprise, "legal_representative", None), "法定代表人"),
             (getattr(enterprise, "safety_officer", None), "安全负责人"),
@@ -183,7 +182,7 @@ def check_plan(plan, enterprise, sections) -> dict:
     # ── C3：响应分级表述混用 ──
     full_text = "".join(_strip_html(s.content) for s in sections)
     has_roman = bool(re.search(r"III级|II级|I级", full_text))
-    has_chinese = bool(re.search(r"一(?:级|类)响应|二级响应|三级响应", full_text))
+    has_chinese = bool(re.search(r"一(?:级|类)(?:应急)?响应|二(?:级|类)(?:应急)?响应|三(?:级|类)(?:应急)?响应", full_text))
     if has_roman and has_chinese:
         warnings.append({
             "section_key": "",
@@ -191,15 +190,17 @@ def check_plan(plan, enterprise, sections) -> dict:
             "warning": "响应分级表述不统一（III级/II级/I级 与 一级/二级/三级 混用）",
         })
 
-    # 时限混用：30分钟 与 0.5小时 并存
-    has_min = bool(re.search(r"\d+\s*分钟", full_text))
-    has_hr = bool(re.search(r"\d+(?:\.\d+)?\s*小时", full_text))
-    if has_min and has_hr:
-        warnings.append({
-            "section_key": "",
-            "section_title": "",
-            "warning": "时限表述不统一（分钟与小时混用）",
-        })
+    # 时限混用：仅当分钟与小时并存且数值不对应（如 30分钟 与 2小时）时报告
+    min_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*分钟", full_text)]
+    hr_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*小时", full_text)]
+    if min_vals and hr_vals:
+        equivalent = any(any(abs(m - h * 60) < 1 for h in hr_vals) for m in min_vals)
+        if not equivalent:
+            warnings.append({
+                "section_key": "",
+                "section_title": "",
+                "warning": "时限表述不统一（分钟与小时数值不对应）",
+            })
 
     return {
         "valid": len(issues) == 0,

@@ -149,6 +149,39 @@ def test_c3_time_unit_mixed():
     enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
     plan = MagicMock(plan_type="special")
     result = check_plan(plan, enterprise, [
-        _section("sec_3", "处置程序", "<p>30分钟内上报，0.5小时后处置完毕。</p>"),
+        _section("sec_3", "处置程序", "<p>30分钟内上报，2小时后处置完毕。</p>"),
     ])
     assert any("时限" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_verb_not_matched_as_name():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "138", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>总指挥负责抢险救援。</p>"),
+    ])
+    assert not any("姓名不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c2_correct_and_wrong_address_no_conflict_warning():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>公司位于民经一路726号，另一处位于武汉市某街道。</p>"),
+    ])
+    assert not any("地址" in w["warning"] and "不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_equivalent_time_no_warning():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>30分钟内上报，0.5小时后处置完毕。</p>"),
+    ])
+    assert not any("时限" in w["warning"] for w in result["warnings"])
