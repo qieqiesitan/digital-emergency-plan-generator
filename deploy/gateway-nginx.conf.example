@@ -24,8 +24,14 @@ location ^~ /emergency-plan-migration/ {
     alias {{静态目录容器内路径}}/emergency-plan-migration/;   # 例如 /etc/nginx/html/emergency-plan-migration/
     index index.html;
     try_files $uri $uri/ /emergency-plan-migration/index.html;
-    # include ./static_expire.conf;   # 网关已定义则启用，否则删除本行
     # include ./safe.conf;            # 网关已定义则启用，否则删除本行
+}
+
+# 静态资源长缓存（assets 文件名带 hash，可 immutable；未用 static_expire.conf 时二选一）
+location ^~ /emergency-plan-migration/assets/ {
+    alias {{静态目录容器内路径}}/emergency-plan-migration/assets/;
+    expires 1y;
+    add_header Cache-Control "public, immutable";
 }
 
 # API 代理（宿主机 backend 容器端口 8000）
