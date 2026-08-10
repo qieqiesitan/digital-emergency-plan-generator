@@ -191,15 +191,26 @@ export default function FourColorImportModal({
             <Alert key={w} type="warning" showIcon message={w} style={{ marginBottom: 8 }} />
           ))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12, minHeight: 320 }}>
-            <div style={{ position: "relative", background: "#fafafa", borderRadius: 8, overflow: "hidden" }}>
+            <div
+              style={{
+                position: "relative",
+                background: "#fafafa",
+                borderRadius: 8,
+                overflow: "hidden",
+                alignSelf: "start",
+                aspectRatio: `${result.canvas_width} / ${result.canvas_height}`,
+                width: "100%",
+              }}
+            >
               <img
                 src={result.preview_url}
                 alt="四色分布图预览"
                 style={{
-                  display: "block",
+                  position: "absolute",
+                  inset: 0,
                   width: "100%",
-                  aspectRatio: `${result.canvas_width} / ${result.canvas_height}`,
-                  objectFit: "contain",
+                  height: "100%",
+                  objectFit: "fill",
                 }}
               />
               <svg
