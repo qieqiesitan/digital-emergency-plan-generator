@@ -66,6 +66,40 @@ def test_l2_empty_full_name_nodes_do_not_make_refs_exist():
     assert any("不存在" in w["warning"] for w in result["warnings"])
 
 
+def test_l2_law_nodes_included_in_index():
+    from app.services.plan_quality_service import _REG_NODE_TYPES
+    assert "law" in _REG_NODE_TYPES
+    assert "policy" in _REG_NODE_TYPES
+    assert "standard" in _REG_NODE_TYPES
+    assert "article" not in _REG_NODE_TYPES
+    assert "topic" not in _REG_NODE_TYPES
+
+
+def test_l2_real_graph_law_nodes_in_index():
+    """不 mock：读真实 graph.json，断言 law 节点进入法规索引（含《安全生产法》）。"""
+    import json
+    from pathlib import Path
+
+    from app.services.plan_quality_service import _load_regulation_index
+
+    index = _load_regulation_index()
+    assert index is not None
+    # 真实 law 节点：中华人民共和国安全生产法 (2021修正)
+    assert "中华人民共和国安全生产法 (2021修正)" in index
+    # 正文引用《安全生产法》应能被子串匹配命中
+    assert any("安全生产法" in full for full in index)
+    # graph.json 中所有带 full_name 的 law 节点都应进入索引
+    p = Path(__file__).resolve().parent.parent / "app" / "regulations" / "data" / "graph.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    law_names = {
+        n["full_name"]
+        for n in data.get("nodes", [])
+        if n.get("node_type") == "law" and n.get("full_name")
+    }
+    assert law_names, "graph.json 应包含 law 节点"
+    assert law_names <= set(index)
+
+
 def test_l3_terminology_mixed():
     enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
     plan = MagicMock(plan_type="special")

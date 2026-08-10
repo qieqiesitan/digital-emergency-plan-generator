@@ -7,6 +7,8 @@ from app.services.mermaid_renderer import _extract_mermaid_code
 _reg_index_cache = None
 _reg_index_loaded = False
 
+_REG_NODE_TYPES = ("law", "policy", "standard")
+
 
 def _load_regulation_index() -> dict | None:
     """加载法规库 graph.json：{full_name: status}；失败返回 None（静默跳过）。"""
@@ -22,7 +24,7 @@ def _load_regulation_index() -> dict | None:
         _reg_index_cache = {
             n.get("full_name", ""): n.get("status", "effective")
             for n in data.get("nodes", [])
-            if n.get("full_name") and n.get("node_type") in ("standard", "regulation", None)
+            if n.get("full_name") and n.get("node_type") in _REG_NODE_TYPES
         }
     except Exception:
         _reg_index_cache = None
