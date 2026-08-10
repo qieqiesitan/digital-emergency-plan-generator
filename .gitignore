@@ -63,3 +63,6 @@ chmod
 # 本地模型资产（CLIP ONNX + 提示词 embedding，部署时单独打包）
 backend/models/
 four-color-ai/models/
+
+# 打包产物
+release/
