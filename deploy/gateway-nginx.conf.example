@@ -1,0 +1,39 @@
+# ============================================================
+# 网关 nginx 子路径部署模板（公司网关 proxy 容器使用）
+# 使用前替换 {{域名}}、{{宿主机IP}}、{{静态目录容器内路径}} 占位符
+# 三条铁律：
+#   1. 文件必须 UTF-8 无 BOM（Windows 编辑后易带 BOM → unknown directive server）
+#   2. alias 必须写【容器内】路径；写宿主机路径会 500 rewrite 重定向循环
+#   3. 容器内 proxy_pass 到宿主机服务必须用宿主机 IP（如 192.168.3.17），
+#      不能用 127.0.0.1（会指向容器自身）
+# ============================================================
+
+# 无尾斜杠访问时 301 跳转
+location = /emergency-plan-migration {
+    return 301 /emergency-plan-migration/;
+}
+
+# 子路径静态资源（dist 已复制到网关静态目录的 emergency-plan-migration/ 子目录）
+# 注意：try_files 的静态参数会拼到 alias 后，不能写带子路径前缀的回退文件；
+# 必须按 移动端 /m/ 与 其余路径 拆分两个 location，分别回退 m.html / index.html
+location ^~ /emergency-plan-migration/m/ {
+    alias {{静态目录容器内路径}}/emergency-plan-migration/;
+    try_files $uri $uri/ /emergency-plan-migration/m.html;
+}
+location ^~ /emergency-plan-migration/ {
+    alias {{静态目录容器内路径}}/emergency-plan-migration/;   # 例如 /etc/nginx/html/emergency-plan-migration/
+    index index.html;
+    try_files $uri $uri/ /emergency-plan-migration/index.html;
+    # include ./static_expire.conf;   # 网关已定义则启用，否则删除本行
+    # include ./safe.conf;            # 网关已定义则启用，否则删除本行
+}
+
+# API 代理（宿主机 backend 容器端口 8000）
+location /api/ {
+    proxy_pass http://{{宿主机IP}}:8000/api/;
+}
+
+# 上传文件代理
+location /uploads/ {
+    proxy_pass http://{{宿主机IP}}:8000/uploads/;
+}
