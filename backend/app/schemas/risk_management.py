@@ -108,7 +108,7 @@ class RiskObjectUpdate(BaseModel):
         if self.is_risk_point is True and (not self.zone_id or self.location_x is None or self.location_y is None):
             raise ValueError("风险点必须绑定分区和坐标")
         return self
-class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; floor_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; responsible_unit: str | None = None; responsible_person: str | None = None; contact_phone: str | None = None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; updated_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
+class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; floor_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; responsible_unit: str | None; responsible_person: str | None; contact_phone: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; updated_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
 
 class BatchSaveZoneItem(BaseModel): client_id: str | None = None; zone_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int = 0; updated_at: DatetimeStr | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon
 class BatchSaveRiskPointItem(BaseModel):

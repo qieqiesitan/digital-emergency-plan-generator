@@ -18,10 +18,15 @@ def test_risk_object_schemas_include_responsibility_fields():
     from app.schemas.risk_management import (
         RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse,
     )
-    for model in (RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse):
+    for model in (RiskObjectCreate, RiskObjectUpdate):
         for field in ("responsible_unit", "responsible_person", "contact_phone"):
             assert field in model.model_fields
             assert model.model_fields[field].default is None
+    # 响应模型字段与 description/image_url 风格一致：DB 列恒存在，无默认值（必填）
+    for field in ("responsible_unit", "responsible_person", "contact_phone"):
+        assert field in RiskObjectResponse.model_fields
+        assert RiskObjectResponse.model_fields[field].default is RiskObjectResponse.model_fields["description"].default
+        assert RiskObjectResponse.model_fields[field].is_required()
 
 
 def test_snapshot_model_columns():

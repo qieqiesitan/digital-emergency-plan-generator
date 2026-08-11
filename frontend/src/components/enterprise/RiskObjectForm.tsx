@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Drawer, Form, Input, Select, Button, Switch, Upload, InputNumber, Space, message } from "antd";
+import { Drawer, Form, Input, Select, Button, Switch, Upload, InputNumber, Space, message, Divider } from "antd";
 import { UploadOutlined, EnvironmentOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
 import FloorPlanPicker from "./FloorPlanPicker";
@@ -125,14 +125,7 @@ export default function RiskObjectForm({ open, onClose, onSubmit, initialValues,
             <Input.TextArea rows={2} placeholder="如：3号车间东北角" />
           </Form.Item>
 
-          <div
-            style={{
-              fontSize: 13, fontWeight: 600, color: "#1677ff", margin: "16px 0 8px",
-              borderLeft: "3px solid #1677ff", paddingLeft: 8,
-            }}
-          >
-            责任信息（用于风险告知卡）
-          </div>
+          <Divider plain style={{ fontSize: 13 }}>责任信息（用于风险告知卡）</Divider>
           <Form.Item name="responsible_unit" label="责任单位">
             <Input placeholder="如：储运车间" />
           </Form.Item>
