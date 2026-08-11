@@ -63,7 +63,7 @@ def _role_matches(member: dict, role: str) -> bool:
     if role == "副总指挥":
         return "副总指挥" in pos or "副总经理" in pos
     if role == "总指挥":
-        return ("总指挥" in pos and "副总指挥" not in pos) or "总经理" in pos
+        return ("总指挥" in pos and "副总指挥" not in pos) or ("总经理" in pos and "副总经理" not in pos)
     return role in pos
 
 

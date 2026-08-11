@@ -383,8 +383,18 @@ def test_c3_setting_levels_not_counted():
     enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
     plan = MagicMock(plan_type="special")
     result = check_plan(plan, enterprise, [
-        _section("sec_3", "处置程序", "<p>本预案设置三级响应，各级响应条件如下。</p>"),
+        _section("sec_3", "处置程序", "<p>本预案设置三级响应，启动III级响应执行相应程序。</p>"),
     ])
+    assert not any("响应分级" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_quantity_phrase_not_counted_with_roman_present():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>本预案设置三级响应，启动III级响应执行相应程序。</p>"),
+    ])
+    # 只有罗马数字级别名，中文「三级响应」是数量表述 → 不应报混用
     assert not any("响应分级" in w["warning"] for w in result["warnings"])
 
 
@@ -418,11 +428,19 @@ def test_role_matches_deputy_not_commander():
     assert _role_matches({"position": "副总经理", "role": ""}, "副总指挥") is True
 
 
+def test_role_matches_vice_gm_not_commander():
+    from app.services.plan_quality_service import _role_matches
+    assert _role_matches({"position": "副总经理", "role": ""}, "副总指挥") is True
+    assert _role_matches({"position": "副总经理", "role": ""}, "总指挥") is False
+    assert _role_matches({"position": "总经理", "role": ""}, "总指挥") is True
+    assert _role_matches({"position": "总经理", "role": ""}, "副总指挥") is False
+
+
 def test_c3_more_quantity_phrases_excluded():
     enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
     plan = MagicMock(plan_type="special")
     for phrase in ("本预案设置三级响应", "将响应分为三级响应", "共设定三级响应"):
         result = check_plan(plan, enterprise, [
-            _section("sec_3", "处置程序", f"<p>{phrase}。</p>"),
+            _section("sec_3", "处置程序", f"<p>{phrase}，启动III级响应执行相应程序。</p>"),
         ])
         assert not any("响应分级" in w["warning"] for w in result["warnings"]), phrase
