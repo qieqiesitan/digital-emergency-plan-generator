@@ -4,39 +4,6 @@ import re
 from app.services.mermaid_renderer import _extract_mermaid_code
 
 
-_reg_index_cache = None
-_reg_index_loaded = False
-
-_REG_NODE_TYPES = ("law", "policy", "standard", "article")
-
-
-def _load_regulation_index() -> dict | None:
-    """加载法规库 graph.json：{full_name: status}；失败返回 None（静默跳过）。"""
-    global _reg_index_cache, _reg_index_loaded
-    if _reg_index_loaded:
-        return _reg_index_cache
-    _reg_index_loaded = True
-    try:
-        import json as _json
-        from pathlib import Path
-        p = Path(__file__).parent.parent / "regulations" / "data" / "graph.json"
-        data = _json.loads(p.read_text(encoding="utf-8"))
-        index = {}
-        for n in data.get("nodes", []):
-            full = n.get("full_name", "")
-            if not full or n.get("node_type") not in _REG_NODE_TYPES:
-                continue
-            if len(_normalize(full)) < 4:
-                continue
-            status = n.get("status", "effective")
-            if full not in index or status == "effective":
-                index[full] = status
-        _reg_index_cache = index
-    except Exception:
-        _reg_index_cache = None
-    return _reg_index_cache
-
-
 def _extract_regulation_refs(text: str) -> list:
     """提取法规引用：书名号 / 标准号 / 令号。"""
     refs = []
@@ -270,33 +237,9 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                     "issue": "缺少必含章节",
                 })
 
-    # ── L2：法规引用真实性 ──
-    reg_index = _load_regulation_index()
-    for s in sections:
-        text = _strip_html(s.content)
-        for ref in _extract_regulation_refs(text):
-            norm_ref = _normalize(ref)
-            matched_status = None
-            if reg_index:
-                for full, status in reg_index.items():
-                    full_norm = _normalize(full)
-                    if not full_norm:
-                        continue
-                    if norm_ref in full_norm:
-                        matched_status = status
-                        break
-            if reg_index and matched_status is None:
-                warnings.append({
-                    "section_key": s.section_key,
-                    "section_title": s.title,
-                    "warning": f"疑似引用不存在的法规：《{ref}》",
-                })
-            elif matched_status == "abolished":
-                warnings.append({
-                    "section_key": s.section_key,
-                    "section_title": s.title,
-                    "warning": f"《{ref}》已废止，请核实",
-                })
+    # ── L2 法规引用真实性 —— 暂缓（2026-08-11 用户确认方案 A）──
+    # 法规库 graph.json 含大量 article 节点与测试节点、法规名写法不统一，
+    # 纯规则无法可靠判定「引用是否存在」；仅保留 _extract_regulation_refs 供治理后启用。
 
     # ── L3：术语统一 ──
     TERM_PAIRS = [
