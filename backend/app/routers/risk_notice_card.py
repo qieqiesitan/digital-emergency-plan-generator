@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -112,17 +112,20 @@ async def list_cards(
     for obj in objs:
         events = merge_object_events(obj)
         measures = collect_measures(events)
-        timestamps = [
-            t
-            for t in (
-                [obj.updated_at or obj.created_at]
-                + [e.updated_at or e.created_at for e in events]
-                + [m.updated_at or m.created_at for m in measures]
-            )
-            if t is not None
-        ]
-        source_updated = max(timestamps) if timestamps else None
         snap = snapshot_by_object.get(obj.id)
+        source_updated = None
+        if snap:
+            # 时间戳仅在存在快照时计算，避免无快照对象做无效遍历
+            timestamps = [
+                t
+                for t in (
+                    [obj.updated_at or obj.created_at]
+                    + [e.updated_at or e.created_at for e in events]
+                    + [m.updated_at or m.created_at for m in measures]
+                )
+                if t is not None
+            ]
+            source_updated = max(timestamps) if timestamps else None
         lv = compute_level(events)
         if level and lv != level:
             continue
@@ -336,6 +339,13 @@ async def reset_token(
     ).scalar_one_or_none()
     if not obj:
         raise HTTPException(404, "风险点不存在")
-    obj.public_token = secrets.token_hex(32)
+    # 用原生 UPDATE 直接写库：SQLAlchemy 的 update()（含 Core 表级）会把
+    # onupdate 的 updated_at=now() 渲染进 SET，刷新 updated_at 导致卡片内容
+    # 未变却被标「数据已变更」；text() 只写 public_token，不触碰 updated_at
+    new_token = secrets.token_hex(32)
+    await db.execute(
+        text("UPDATE risk_objects SET public_token = :token WHERE id = :object_id"),
+        {"token": new_token, "object_id": object_id},
+    )
     await db.commit()
-    return ApiResponse(data=TokenResetResponse(public_url=f"/r/{obj.public_token}"))
+    return ApiResponse(data=TokenResetResponse(public_url=f"/r/{new_token}"))

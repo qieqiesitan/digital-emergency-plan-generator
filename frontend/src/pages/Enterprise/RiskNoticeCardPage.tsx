@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { App as AntApp, Button, Input, Select, Space, Table, Tag, Tooltip } from "antd";
 import type { TableColumnsType } from "antd";
 import { useQuery } from "@tanstack/react-query";
+import { getDownloadUrl } from "@/services/exportService";
 import { fetchCardSummaries, exportCards } from "@/services/riskNoticeCardService";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -10,7 +11,6 @@ import type { CardSummary } from "@/types/riskNoticeCard";
 
 /** 风险等级筛选项（与后端合法值一致）。 */
 const LEVEL_OPTIONS = ["重大", "较大", "一般", "低", "未评估"];
-const UNEVALUATED_COLOR = "#bfbfbf";
 
 /** 风险告知卡管理页（列表/筛选/勾选/批量导出）。 */
 export default function RiskNoticeCardPage() {
@@ -19,20 +19,29 @@ export default function RiskNoticeCardPage() {
   const { message } = AntApp.useApp();
   const [selected, setSelected] = useState<string[]>([]);
   const [filters, setFilters] = useState<{ level?: string; keyword?: string }>({});
+  const [exporting, setExporting] = useState(false);
 
-  const { data = [], isLoading, refetch } = useQuery({
+  const { data = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["risk-notice-cards", enterpriseId, filters],
     queryFn: () => fetchCardSummaries(enterpriseId, filters),
     enabled: !!enterpriseId,
   });
 
-  /** 统计行：总数 + 各风险等级分布（从列表数据计算）。 */
+  useEffect(() => {
+    if (isError) {
+      message.error("加载失败，请稍后重试");
+    }
+  }, [isError, message]);
+
+  /** 统计行：总数 + 各风险等级分布与颜色（颜色复用后端 level_color）。 */
   const stats = useMemo(() => {
     const counts: Record<string, number> = {};
+    const colors: Record<string, string> = {};
     for (const card of data) {
       counts[card.level] = (counts[card.level] ?? 0) + 1;
+      colors[card.level] = card.level_color;
     }
-    return counts;
+    return { counts, colors };
   }, [data]);
 
   const openPreview = (objectId: string, ai = false) => {
@@ -50,23 +59,28 @@ export default function RiskNoticeCardPage() {
   };
 
   const doExport = async (objectIds: string[]) => {
+    if (exporting) return; // 防重入
     if (!objectIds.length) {
       message.warning("请先勾选要导出的风险点");
       return;
     }
+    setExporting(true);
     try {
       const { file_key, warnings } = await exportCards(enterpriseId, objectIds);
-      window.open(`/api/v1/export/download/${file_key}`, "_blank");
+      window.open(getDownloadUrl(file_key), "_blank");
       if (warnings.length) {
         message.warning(`部分卡片未导出：${warnings.length} 张`);
       }
       setSelected([]);
     } catch {
       message.error("导出失败，请稍后重试");
+    } finally {
+      setExporting(false);
     }
   };
 
   const exportAll = () => {
+    if (exporting) return;
     if (!data.length) {
       message.warning("暂无可导出的风险点");
       return;
@@ -123,7 +137,9 @@ export default function RiskNoticeCardPage() {
         record.stale ? (
           <Tag color="orange">数据已变更</Tag>
         ) : snapshot ? (
-          <Tag color="blue">V1.{snapshot.version} AI</Tag>
+          <Tag color="blue">
+            V1.{snapshot.version} {snapshot.source === "rule" ? "规则" : "AI"}
+          </Tag>
         ) : (
           <span>—</span>
         ),
@@ -156,7 +172,12 @@ export default function RiskNoticeCardPage() {
         extra={
           <Space>
             <Button onClick={() => void refetch()}>刷新</Button>
-            <Button type="primary" onClick={exportAll}>
+            <Button
+              type="primary"
+              loading={exporting}
+              disabled={exporting}
+              onClick={exportAll}
+            >
               批量导出 Word
             </Button>
           </Space>
@@ -194,10 +215,9 @@ export default function RiskNoticeCardPage() {
         <Space style={{ marginBottom: 12 }} wrap>
           <span>总数 {data.length}</span>
           {LEVEL_OPTIONS.map((level) => {
-            const count = stats[level] ?? 0;
+            const count = stats.counts[level] ?? 0;
             if (!count) return null;
-            const color =
-              level === "未评估" ? UNEVALUATED_COLOR : RISK_LEVEL_COLORS[level];
+            const color = stats.colors[level] ?? RISK_LEVEL_COLORS[level];
             return (
               <Tag key={level} color={color}>
                 {level} {count}
@@ -217,14 +237,21 @@ export default function RiskNoticeCardPage() {
           onChange: (keys) => setSelected(keys as string[]),
         }}
         pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
-        locale={{ emptyText: "请先在风险管理中添加风险点" }}
+        locale={{
+          emptyText: isError ? "加载失败，请稍后重试" : "请先在风险管理中添加风险点",
+        }}
       />
 
       {selected.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <Space>
             <span>已选 {selected.length} 项</span>
-            <Button type="primary" onClick={() => void doExport(selected)}>
+            <Button
+              type="primary"
+              loading={exporting}
+              disabled={exporting}
+              onClick={() => void doExport(selected)}
+            >
               导出选中卡片 Word
             </Button>
             <Button onClick={() => setSelected([])}>清除选择</Button>

@@ -78,7 +78,7 @@ def _risk_card_db(ent, objs, detail_obj=None, events_obj=None, snapshots=None):
     db = AsyncMock()
     db.add = MagicMock()
 
-    def fake_execute(stmt):
+    def fake_execute(stmt, *params):
         text = str(stmt)
         if "FROM enterprises" in text:
             return _scalar_result(ent)
@@ -559,7 +559,15 @@ def test_reset_token_returns_new_public_url(client):
     data = resp.json()["data"]
     assert data["public_url"].startswith("/r/")
     assert data["public_url"] != "/r/old-token"
-    assert data["public_url"] == f"/r/{obj.public_token}"
+    assert len(data["public_url"].removeprefix("/r/")) == 64
+    update_stmts = [
+        c.args[0]
+        for c in db.execute.await_args_list
+        if "UPDATE risk_objects" in str(c.args[0]) and "public_token" in str(c.args[0])
+    ]
+    assert len(update_stmts) == 1
+    # Core UPDATE 不携带 updated_at，绕过 ORM onupdate，避免误标「数据已变更」
+    assert "updated_at" not in str(update_stmts[0])
     db.commit.assert_awaited_once()
 
 
