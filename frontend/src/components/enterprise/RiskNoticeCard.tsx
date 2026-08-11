@@ -175,6 +175,54 @@ const RNC_CSS = `
   padding: 12px;
   text-align: center;
 }
+/* 窄屏（手机扫码主场景）：左右栏纵向堆叠，安全标志缩至 48px */
+@media (max-width: 520px) {
+  .rnc-header {
+    padding: 14px 14px 0;
+  }
+  .rnc-qr {
+    margin: 0 auto 10px;
+    position: static;
+  }
+  .rnc-qr-box {
+    margin: 0 auto;
+  }
+  .rnc-title {
+    font-size: 16px;
+    letter-spacing: 1px;
+  }
+  .rnc-body {
+    flex-direction: column;
+  }
+  .rnc-left,
+  .rnc-right {
+    width: 100%;
+  }
+  .rnc-left {
+    border-bottom: 1px solid #eee;
+    border-right: none;
+  }
+  .rnc-sign {
+    width: 56px;
+  }
+  .rnc-sign img {
+    height: 48px;
+    width: 48px;
+  }
+  .rnc-table td {
+    padding: 5px 6px;
+  }
+  .rnc-table td:first-child {
+    width: 52px;
+  }
+  .rnc-block-title {
+    letter-spacing: 1px;
+    padding: 6px 10px;
+  }
+  .rnc-block-body {
+    padding: 8px 10px;
+  }
+}
 `;
 
 type TableField =
