@@ -258,3 +258,36 @@ def test_e3_missing_fire_resource():
         _section("sec_1", "事故风险分析", "<p>内容</p>"),
     ], resources=[])
     assert any("消防" in w["warning"] for w in result["warnings"])
+
+
+def test_e1_landline_with_hyphen_no_false_positive():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>值班电话：029-88888888</p>"),
+    ])
+    assert not any("电话" in w["warning"] for w in result["warnings"])
+
+
+def test_e2_org_mentions_commander_but_missing():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "抢险组", "members": [
+            {"name": "李四", "position": "组长", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_2", "应急指挥机构", "<p>应急指挥部职责……</p>"),
+    ])
+    assert any("应急指挥机构" in w["warning"] for w in result["warnings"])
+
+
+def test_e3_zero_quantity_resource_warning():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    plan.risk_sources = [{"name": "储罐"}]
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ], resources=[{"category": "消防", "name": "灭火器", "quantity": 0}], has_risk=True)
+    assert any("数量为 0" in w["warning"] for w in result["warnings"])

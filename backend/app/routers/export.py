@@ -393,7 +393,13 @@ async def validate_plan_export(
     resources = (await db.execute(
         select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
     )).scalars().all()
-    result = check_plan(plan, enterprise, sections, required_sections=required or None, resources=resources)
+    result = check_plan(
+        plan, enterprise, sections,
+        required_sections=required or None,
+        resources=resources,
+        # 风险点来源：企业档案风险源（selectin 已预加载），用于 E3「资源数量为 0」告警前提
+        has_risk=bool(enterprise.risk_sources) if enterprise else False,
+    )
     # 兼容既有响应：warnings 为字符串列表
     warnings = [
         f"「{w['section_title']}」{w['warning']}"

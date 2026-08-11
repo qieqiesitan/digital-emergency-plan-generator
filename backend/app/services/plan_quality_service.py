@@ -55,7 +55,7 @@ def _extract_address_fragments(address: str) -> list:
     return frags
 
 
-def check_plan(plan, enterprise, sections, required_sections: list | None = None, resources: list | None = None) -> dict:
+def check_plan(plan, enterprise, sections, required_sections: list | None = None, resources: list | None = None, has_risk: bool = False) -> dict:
     issues = []
     warnings = []
 
@@ -262,7 +262,9 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
     # ── E1：联系电话格式 ──
     for s in sections:
         text = _strip_html(s.content)
-        for num in re.findall(r"\d{5,}", text):
+        # 先整体匹配座机（带连字符），避免拆分误报
+        cleaned = re.sub(r"0\d{2,3}-\d{7,8}", "", text)
+        for num in re.findall(r"\d{5,}", cleaned):
             if not re.fullmatch(r"1[3-9]\d{9}", num) and not re.fullmatch(r"0\d{2,3}-?\d{7,8}", num):
                 warnings.append({
                     "section_key": s.section_key,
@@ -289,6 +291,16 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
             "section_title": "",
             "warning": "企业组织架构缺少总指挥或副总指挥",
         })
+    # E2 第 2 条：正文提及应急指挥机构但档案无总指挥
+    if "总指挥" not in org_positions:
+        for s in sections:
+            text = _strip_html(s.content)
+            if ("应急指挥" in text or "指挥机构" in text) and text.strip():
+                warnings.append({
+                    "section_key": s.section_key,
+                    "section_title": s.title,
+                    "warning": "正文提及应急指挥机构，但企业组织架构未设置总指挥",
+                })
 
     # ── E3：应急资源充分性 ──
     resources = resources or []
@@ -305,6 +317,24 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
             "section_title": "",
             "warning": "企业未登记急救/医疗类应急资源",
         })
+    # E3 第 3 条：类别下所有资源数量均为 0（需企业有风险点才有意义）
+    if has_risk:
+        zero_cats = set()
+        for r in resources:
+            cat = getattr(r, "category", "") or r.get("category", "")
+            if not cat:
+                continue
+            qty = getattr(r, "quantity", 0) if hasattr(r, "quantity") else r.get("quantity", 0)
+            if qty == 0:
+                zero_cats.add(cat)
+            else:
+                zero_cats.discard(cat)
+        for c in sorted(zero_cats):
+            warnings.append({
+                "section_key": "",
+                "section_title": "",
+                "warning": f"{c}应急资源数量为 0",
+            })
 
     return {
         "valid": len(issues) == 0,
