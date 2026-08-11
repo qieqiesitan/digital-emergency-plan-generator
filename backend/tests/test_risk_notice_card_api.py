@@ -1,0 +1,226 @@
+"""风险告知卡列表/详情 API 端点级测试。
+
+独立 FastAPI 应用挂载 router，用 dependency_overrides 替换鉴权与 DB 依赖；
+DB mock 按 SQL 文本特征分发查询结果（参考 test_onboarding_routes.py）。
+"""
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.enterprise import Enterprise
+from app.models.risk_management import RiskEvent, RiskObject
+from app.routers import risk_notice_card
+
+
+def _enterprise(**overrides):
+    ent = Enterprise(
+        id="e1",
+        user_id="u1",
+        name="甲公司",
+        safety_officer="李四",
+        safety_officer_phone="13900000000",
+    )
+    for key, value in overrides.items():
+        setattr(ent, key, value)
+    return ent
+
+
+def _risk_object(**overrides):
+    obj = RiskObject(
+        id="o1",
+        enterprise_id="e1",
+        zone_id="z1",
+        name="配电室",
+        responsible_unit="动力车间",
+        responsible_person="王五",
+        contact_phone="13800000000",
+        public_token="tok1",
+    )
+    for key, value in overrides.items():
+        setattr(obj, key, value)
+    return obj
+
+
+def _fire_event():
+    return RiskEvent(
+        accident_type="火灾",
+        risk_level="重大",
+        trigger_conditions="泄漏遇明火",
+        consequences="火灾爆炸",
+        method_type="LS",
+    )
+
+
+def _rows_result(rows):
+    res = MagicMock()
+    res.scalars.return_value.all.return_value = rows
+    return res
+
+
+def _scalar_result(value):
+    res = MagicMock()
+    res.scalar_one_or_none.return_value = value
+    return res
+
+
+def _risk_card_db(ent, objs, detail_obj=None, events_obj=None):
+    """按 SQL 文本特征分发：
+    FROM enterprises → 企业（scalar_one_or_none）；
+    risk_notice_cards → 快照（first，测试中恒为 None）；
+    FROM risk_objects + enterprise_id + ORDER BY → 企业全部对象列表；
+    FROM risk_objects + enterprise_id（无 ORDER BY）→ 详情归属对象；
+    FROM risk_objects（仅 id 条件）→ load_events_and_measures 内部对象。
+    """
+    db = AsyncMock()
+
+    def fake_execute(stmt):
+        text = str(stmt)
+        if "FROM enterprises" in text:
+            return _scalar_result(ent)
+        if "risk_notice_cards" in text:
+            res = MagicMock()
+            res.scalars.return_value.first.return_value = None
+            return res
+        if "FROM risk_objects" in text:
+            if "enterprise_id =" in text:
+                if "ORDER BY" in text:
+                    return _rows_result(objs)
+                return _scalar_result(detail_obj)
+            return _scalar_result(events_obj)
+        return _rows_result([])
+
+    db.execute.side_effect = fake_execute
+    return db
+
+
+@pytest.fixture()
+def client():
+    from app.models.user import User
+
+    app = FastAPI()
+    app.include_router(risk_notice_card.router)
+
+    current_user = User(id="u1", email="a@b.c", name="A", role="admin")
+
+    def _override_user():
+        return current_user
+
+    app.dependency_overrides[get_current_user] = _override_user
+    app.dependency_overrides[get_db] = lambda: _risk_card_db(None, [])
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def test_list_enterprise_not_found_404(client):
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(None, [])
+    resp = client.get("/enterprises/not-exist/risk-notice-cards")
+    assert resp.status_code == 404
+    assert "企业不存在" in resp.json()["detail"]
+
+
+def test_list_returns_card_summaries(client):
+    ent = _enterprise()
+    zone = MagicMock()
+    zone.name = "A区"
+    obj = _risk_object()
+    obj.zone = zone
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(ent, [obj])
+
+    resp = client.get("/enterprises/e1/risk-notice-cards")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == 0
+    data = body["data"]
+    assert len(data) == 1
+    item = data[0]
+    assert item["object_id"] == "o1"
+    assert item["name"] == "配电室"
+    assert item["zone_name"] == "A区"
+    assert item["level"] == "重大"
+    assert item["level_color"]
+    assert item["accident_types"] == ["火灾"]
+    assert item["responsible_unit"] == "动力车间"
+    assert item["public_url"] == "/r/tok1"
+    categories = {s["category"] for s in item["signs"]}
+    assert "warning" in categories and "prohibition" in categories
+
+
+def test_list_filters_by_level_zone_keyword(client):
+    ent = _enterprise()
+    obj1 = _risk_object()
+    zone1 = MagicMock()
+    zone1.name = "A区"
+    obj1.zone = zone1
+    obj1.events.append(_fire_event())
+    obj2 = _risk_object(id="o2", name="储罐区", responsible_unit=None, responsible_person=None,
+                        contact_phone=None, public_token="tok2")
+    obj2.events.append(RiskEvent(accident_type="火灾", risk_level="一般", method_type="LS"))
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(ent, [obj1, obj2])
+
+    resp = client.get("/enterprises/e1/risk-notice-cards", params={"level": "重大"})
+    assert [i["object_id"] for i in resp.json()["data"]] == ["o1"]
+
+    resp = client.get("/enterprises/e1/risk-notice-cards", params={"keyword": "储罐"})
+    assert [i["object_id"] for i in resp.json()["data"]] == ["o2"]
+
+    resp = client.get("/enterprises/e1/risk-notice-cards", params={"zone_id": "z-other"})
+    assert resp.json()["data"] == []
+
+
+def test_detail_object_not_found_404(client):
+    ent = _enterprise()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(ent, [], detail_obj=None)
+    resp = client.get("/enterprises/e1/risk-notice-cards/not-exist")
+    assert resp.status_code == 404
+    assert "风险点不存在" in resp.json()["detail"]
+
+
+def test_detail_returns_complete_card_data(client):
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    resp = client.get("/enterprises/e1/risk-notice-cards/o1")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["object_id"] == "o1"
+    assert data["enterprise_name"] == "甲公司"
+    assert data["name"] == "配电室"
+    assert data["code"] == "FX-001"
+    assert data["level"] == "重大"
+    assert data["responsible_unit"] == "动力车间"
+    assert data["responsible_person"] == "王五"
+    assert data["contact_phone"] == "13800000000"
+    assert data["fallback_used"] is False
+    assert data["accident_types"] == ["火灾"]
+    assert data["hazard_description"] == "泄漏遇明火；火灾爆炸"
+    assert data["control_measures"] == []
+    assert data["emergency_measures"]
+    assert data["snapshot"] is None
+    assert data["stale"] is False
+    assert data["public_url"] == "/r/tok1"
+    assert data["generated_at"]
+
+
+def test_detail_missing_enterprise_404(client):
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(None, [])
+    resp = client.get("/enterprises/not-exist/risk-notice-cards/o1")
+    assert resp.status_code == 404
+    assert "企业不存在" in resp.json()["detail"]
+
+
+def test_auth_required_without_override():
+    app = FastAPI()
+    app.include_router(risk_notice_card.router)
+    app.dependency_overrides[get_db] = lambda: _risk_card_db(None, [])
+    with TestClient(app) as test_client:
+        resp = test_client.get("/enterprises/e1/risk-notice-cards")
+    assert resp.status_code == 401
