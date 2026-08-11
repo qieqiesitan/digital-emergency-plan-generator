@@ -30,6 +30,7 @@ from app.schemas.risk_notice_card import (
     ExportResponse,
     SnapshotSaveRequest,
     SnapshotResponse,
+    TokenResetResponse,
 )
 from app.services.risk_notice_card_data import LEVEL_COLORS, LEVEL_ORDER
 from app.services.risk_notice_card_ai import optimize_right_column
@@ -288,7 +289,7 @@ async def save_card_snapshot(
     return ApiResponse(data=SnapshotResponse(version=snap.version, source=snap.source))
 
 
-@router.post("/{object_id}/token/reset", response_model=ApiResponse[dict])
+@router.post("/{object_id}/token/reset", response_model=ApiResponse[TokenResetResponse])
 async def reset_token(
     enterprise_id: str,
     object_id: str,
@@ -309,4 +310,4 @@ async def reset_token(
         raise HTTPException(404, "风险点不存在")
     obj.public_token = secrets.token_hex(32)
     await db.commit()
-    return ApiResponse(data={"public_url": f"/r/{obj.public_token}"})
+    return ApiResponse(data=TokenResetResponse(public_url=f"/r/{obj.public_token}"))

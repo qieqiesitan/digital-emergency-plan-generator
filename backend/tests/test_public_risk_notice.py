@@ -71,8 +71,7 @@ def _public_db(ent, obj, objects=None):
     FROM enterprises → 企业（scalar_one_or_none）；
     risk_notice_cards → 快照（first，测试中恒为 None）；
     FROM risk_objects + public_token → 公开 token 目标对象；
-    FROM risk_objects + enterprise_id + ORDER BY → 企业全部对象列表；
-    其余 FROM risk_objects → load_events_and_measures 按 id 加载对象。
+    FROM risk_objects + enterprise_id + ORDER BY → 企业全部对象投影行。
     """
     db = AsyncMock()
     db.add = MagicMock()
@@ -121,6 +120,7 @@ def test_public_valid_token_returns_complete_card_data(client):
 
     resp = client.get("/public/risk-notice-cards/tok1")
     assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "public, max-age=300"
     body = resp.json()
     assert body["code"] == 0
     data = body["data"]

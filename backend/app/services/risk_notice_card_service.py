@@ -1,5 +1,6 @@
 """风险告知卡组装服务：规则为主，从风险数据实时组装 CardData。"""
 from datetime import datetime, timezone
+from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,11 +35,12 @@ def resolve_responsible(obj: RiskObject, ent: Enterprise) -> tuple[str, str, str
     return (ent.name, ent.safety_officer or "", ent.safety_officer_phone or "", True)
 
 
-def compute_code(objects: list[RiskObject], obj: RiskObject) -> str:
+def compute_code(objects: list[Any], obj: RiskObject) -> str:
     """按对象在列表中的序号生成 FX-{序号:03d}。
 
     优先按 id 匹配（生产环境）；未持久化的内存对象 id 为 None，
-    退化为按对象身份匹配（测试构造场景）。
+    退化为按对象身份匹配（测试构造场景）。objects 可为完整 RiskObject
+    或投影查询返回的 row（实现只访问 .id）。
     """
     for i, o in enumerate(objects):
         if o.id is not None and obj.id is not None and o.id == obj.id:
@@ -194,7 +196,7 @@ async def build_card_data(
     db: AsyncSession,
     ent: Enterprise,
     obj: RiskObject,
-    objects: list[RiskObject],
+    objects: list[Any],
     events: list[RiskEvent],
     measures: list[RiskMeasure],
 ) -> CardData:

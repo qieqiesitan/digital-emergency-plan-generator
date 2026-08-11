@@ -68,3 +68,7 @@ class SnapshotSaveRequest(BaseModel):
 class SnapshotResponse(BaseModel):
     version: int
     source: str
+
+
+class TokenResetResponse(BaseModel):
+    public_url: str
