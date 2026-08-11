@@ -408,3 +408,21 @@ def test_e3_category_with_positive_resource_not_reported():
         {"category": "公安机关", "name": "属地派出所", "quantity": 0},
     ], has_risk=True)
     assert not any("公安机关" in w["warning"] for w in result["warnings"])
+
+
+def test_role_matches_deputy_not_commander():
+    from app.services.plan_quality_service import _role_matches
+    assert _role_matches({"position": "副总指挥", "role": ""}, "副总指挥") is True
+    assert _role_matches({"position": "副总指挥", "role": ""}, "总指挥") is False
+    assert _role_matches({"position": "总经理", "role": ""}, "总指挥") is True
+    assert _role_matches({"position": "副总经理", "role": ""}, "副总指挥") is True
+
+
+def test_c3_more_quantity_phrases_excluded():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    for phrase in ("本预案设置三级响应", "将响应分为三级响应", "共设定三级响应"):
+        result = check_plan(plan, enterprise, [
+            _section("sec_3", "处置程序", f"<p>{phrase}。</p>"),
+        ])
+        assert not any("响应分级" in w["warning"] for w in result["warnings"]), phrase

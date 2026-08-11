@@ -56,15 +56,15 @@ def _extract_address_fragments(address: str) -> list:
 
 
 def _role_matches(member: dict, role: str) -> bool:
-    """判断成员是否承担某角色：职务名直接匹配，或总经理→总指挥/副总经理→副总指挥。"""
+    """判断成员是否承担某角色：职务名精确/包含匹配，或总经理→总指挥/副总经理→副总指挥。"""
     pos = (member.get("position") or "") + (member.get("role") or "")
-    if role in pos:
-        return True
-    if role == "总指挥" and "总经理" in pos:
-        return True
-    if role == "副总指挥" and "副总经理" in pos:
-        return True
-    return False
+    if not pos:
+        return False
+    if role == "副总指挥":
+        return "副总指挥" in pos or "副总经理" in pos
+    if role == "总指挥":
+        return ("总指挥" in pos and "副总指挥" not in pos) or "总经理" in pos
+    return role in pos
 
 
 def check_plan(plan, enterprise, sections, required_sections: list | None = None, resources: list | None = None, has_risk: bool = False) -> dict:
@@ -219,11 +219,15 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
     # ── C3：响应分级表述混用 ──
     full_text = "".join(_strip_html(s.content) for s in sections)
     has_roman = bool(re.search(r"III级|II级|I级", full_text))
-    has_chinese = bool(re.search(
-        r"(?<!设置)(?<!分为)(?<!划分)一(?:级|类)(?:应急)?响应"
-        r"|(?<!设置)(?<!分为)(?<!划分)二(?:级|类)(?:应急)?响应"
-        r"|(?<!设置)(?<!分为)(?<!划分)三(?:级|类)(?:应急)?响应",
+    # 排除数量表述：设置/设定/分为/划分为/划分/共/共设/设 三级响应（非级别名）
+    level_text = re.sub(
+        r"(?:设置|设定|分为|划分为|划分|共|共设|设)\s*[一二三]\s*(?:级|类)\s*(?:应急)?响应",
+        "",
         full_text,
+    )
+    has_chinese = bool(re.search(
+        r"一(?:级|类)(?:应急)?响应|二(?:级|类)(?:应急)?响应|三(?:级|类)(?:应急)?响应",
+        level_text,
     ))
     if has_roman and has_chinese:
         warnings.append({
