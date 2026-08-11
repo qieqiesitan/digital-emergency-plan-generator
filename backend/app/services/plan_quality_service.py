@@ -55,6 +55,18 @@ def _extract_address_fragments(address: str) -> list:
     return frags
 
 
+def _role_matches(member: dict, role: str) -> bool:
+    """判断成员是否承担某角色：职务名直接匹配，或总经理→总指挥/副总经理→副总指挥。"""
+    pos = (member.get("position") or "") + (member.get("role") or "")
+    if role in pos:
+        return True
+    if role == "总指挥" and "总经理" in pos:
+        return True
+    if role == "副总指挥" and "副总经理" in pos:
+        return True
+    return False
+
+
 def check_plan(plan, enterprise, sections, required_sections: list | None = None, resources: list | None = None, has_risk: bool = False) -> dict:
     issues = []
     warnings = []
@@ -132,13 +144,16 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
     # ── C1：跨章节人物一致性 ──
     role_map: dict[str, list[tuple[str, str]]] = {}  # role -> [(section_title, name)]
     ROLE_PATTERNS = [
-        (r"(?<!副)总指挥\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "总指挥"),
-        (r"副总指挥\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "副总指挥"),
-        (r"安全负责人\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "安全负责人"),
-        (r"(?<!副)组长\s*[：:为是]?\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s]|$)", "组长"),
+        (r"(?<!副)总指挥\s*[：:为是（(]\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s）)]|$)", "总指挥"),
+        (r"副总指挥\s*[：:为是（(]\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s）)]|$)", "副总指挥"),
+        (r"安全负责人\s*[：:为是（(]\s*([\u4e00-\u9fa5]{2,4})(?=[，。；;、\s）)]|$)", "安全负责人"),
     ]
 
-    _NAME_STOPWORDS = {"下令", "负责", "组织", "指挥", "安排", "协调", "执行", "开展", "启动", "部署", "报告", "通知", "上报", "汇报", "配合"}
+    _NAME_STOPWORDS = {
+        "下令", "负责", "组织", "指挥", "安排", "协调", "执行", "开展", "启动", "部署",
+        "报告", "通知", "上报", "汇报", "配合",
+        "不在岗时", "职责", "负责制", "指令后", "接报后", "组织讲评", "下达", "代行", "命令",
+    }
 
     def _is_plausible_name(name: str) -> bool:
         return name not in _NAME_STOPWORDS
@@ -162,7 +177,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
         org_names = {
             m.get("name") for g in (getattr(enterprise, "org_structure", None) or [])
             for m in g.get("members", [])
-            if role in (m.get("position") or "") or role in (m.get("role") or "")
+            if _role_matches(m, role)
         }
         if org_names and not ({n for _, n in entries} <= org_names):
             warnings.append({
@@ -204,27 +219,20 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
     # ── C3：响应分级表述混用 ──
     full_text = "".join(_strip_html(s.content) for s in sections)
     has_roman = bool(re.search(r"III级|II级|I级", full_text))
-    has_chinese = bool(re.search(r"一(?:级|类)(?:应急)?响应|二(?:级|类)(?:应急)?响应|三(?:级|类)(?:应急)?响应", full_text))
+    has_chinese = bool(re.search(
+        r"(?<!设置)(?<!分为)(?<!划分)一(?:级|类)(?:应急)?响应"
+        r"|(?<!设置)(?<!分为)(?<!划分)二(?:级|类)(?:应急)?响应"
+        r"|(?<!设置)(?<!分为)(?<!划分)三(?:级|类)(?:应急)?响应",
+        full_text,
+    ))
     if has_roman and has_chinese:
         warnings.append({
             "section_key": "",
             "section_title": "",
             "warning": "响应分级表述不统一（III级/II级/I级 与 一级/二级/三级 混用）",
         })
-
-    # 时限混用：仅当分钟与小时并存且数值不对应（如 30分钟 与 2小时）时报告
-    # 先剔除复合时长（如 1小时30分钟），避免拆分成小时+分钟误报
-    time_text = re.sub(r"\d+(?:\.\d+)?\s*小时\s*\d+(?:\.\d+)?\s*分钟", "", full_text)
-    min_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*分钟", time_text)]
-    hr_vals = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*小时", time_text)]
-    if min_vals and hr_vals:
-        equivalent = any(any(abs(m - h * 60) < 1 for h in hr_vals) for m in min_vals)
-        if not equivalent:
-            warnings.append({
-                "section_key": "",
-                "section_title": "",
-                "warning": "时限表述不统一（分钟与小时数值不对应）",
-            })
+    # 时限混用检查已移除（2026-08-11）：纯正则无法判断分钟/小时数值是否属于同一场景，
+    # 「持续观察 30 分钟」（普通火灾）与「观察时间延长至 2 小时」（锂电池）等独立场景会被误报，价值小于误报成本。
 
     # ── L1：必含章节结构合规 ──
     if required_sections:
@@ -275,8 +283,8 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
         role
         for g in (getattr(enterprise, "org_structure", None) or [])
         for m in g.get("members", [])
-        for role in (m.get("position") or "", m.get("role") or "")
-        if role
+        for role in ("总指挥", "副总指挥")
+        if _role_matches(m, role)
     }
     has_commander = "总指挥" in org_roles
     has_deputy = "副总指挥" in org_roles
@@ -318,25 +326,24 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
             "section_title": "",
             "warning": "企业未登记急救/医疗类应急资源",
         })
-    # E3 第 3 条：类别下所有资源数量均为 0（需企业有风险点才有意义）
+    # E3 第 3 条：类别下所有资源数量均为 0 才提示（需企业有风险点才有意义；
+    # 类别下任一资源有正数即视为该类可用，不再按单条资源误报整类为 0）
     if has_risk:
-        zero_cats = set()
+        cat_quantities: dict[str, list] = {}
         for r in resources:
             cat = getattr(r, "category", "") or r.get("category", "")
-            if not cat:
-                continue
-            # NULL/缺失数量视为未知，不报「数量为 0」
             qty = getattr(r, "quantity", None) if hasattr(r, "quantity") else r.get("quantity")
-            if qty == 0:
-                zero_cats.add(cat)
-            else:
-                zero_cats.discard(cat)
-        for c in sorted(zero_cats):
-            warnings.append({
-                "section_key": "",
-                "section_title": "",
-                "warning": f"{c}应急资源数量为 0",
-            })
+            cat_quantities.setdefault(cat, []).append(qty)
+        for cat, qs in cat_quantities.items():
+            # None 视为未知不参与：类别下须存在已知数量，且全部为 0、无正数才提示
+            if (cat and qs and any(q is not None for q in qs)
+                    and all(q == 0 for q in qs if q is not None)
+                    and not any(q is not None and q > 0 for q in qs)):
+                warnings.append({
+                    "section_key": "",
+                    "section_title": "",
+                    "warning": f"{cat}应急资源数量均为 0",
+                })
 
     return {
         "valid": len(issues) == 0,
