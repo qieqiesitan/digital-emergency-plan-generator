@@ -10,6 +10,12 @@ const API_TARGET = process.env.VITE_API_TARGET || "http://localhost:8000";
 // 部署子路径（生产如 /emergency-plan-migration，开发为空 → 根路径）
 const BASE_PATH = (process.env.VITE_BASE_PATH || "").replace(/\/+$/, "");
 
+if (process.env.VITE_BASE_PATH && !process.env.VITE_BASE_PATH.startsWith("/")) {
+  throw new Error(
+    `VITE_BASE_PATH 必须以 / 开头（当前: "${process.env.VITE_BASE_PATH}"），例如 /emergency-plan-migration/`,
+  );
+}
+
 // Node 24 has workbox-build compatibility issues
 const majorVersion = parseInt(process.version.slice(1).split(".")[0], 10);
 const skipPWA = majorVersion >= 24;
