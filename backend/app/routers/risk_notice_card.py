@@ -1,8 +1,11 @@
-"""风险告知卡列表/详情 API。
+"""风险告知卡 API。
 
-列表返回 CardSummary 摘要（含筛选），详情返回 CardData 全量数据。
-导出/AI 优化/快照/token 端点由后续任务补充。
+列表返回 CardSummary 摘要（含筛选），详情返回 CardData 全量数据，
+AI 优化（ai-optimize）与快照（snapshot）端点已实现。
+导出/token 端点由任务 8-9 补充。
 """
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +22,7 @@ from app.schemas.risk_notice_card import (
     CardData,
     CardSummary,
     SnapshotSaveRequest,
+    SnapshotResponse,
 )
 from app.services.risk_notice_card_data import LEVEL_COLORS, LEVEL_ORDER
 from app.services.risk_notice_card_ai import optimize_right_column
@@ -38,6 +42,8 @@ router = APIRouter(
     prefix="/enterprises/{enterprise_id}/risk-notice-cards",
     tags=["Risk Notice Card"],
 )
+
+logger = logging.getLogger(__name__)
 
 # 合法 level 筛选值：LEVEL_ORDER（重大/较大/一般/低）+ 未评估
 VALID_LEVELS = [*LEVEL_ORDER, "未评估"]
@@ -175,12 +181,19 @@ async def ai_optimize(
         optimized = await optimize_right_column(
             db, current_user.id, ent.name, obj.name, original
         )
+    except HTTPException:
+        raise  # AI 未配置等业务错误保留原语义（如 400）
     except Exception:
+        logger.exception(
+            "风险告知卡 AI 优化失败: enterprise=%s object=%s",
+            enterprise_id,
+            object_id,
+        )
         raise HTTPException(502, "AI 优化失败，请稍后重试或保留原版")
     return ApiResponse(data=AiOptimizeResponse(original=original, optimized=optimized))
 
 
-@router.put("/{object_id}/snapshot", response_model=ApiResponse[dict])
+@router.put("/{object_id}/snapshot", response_model=ApiResponse[SnapshotResponse])
 async def save_card_snapshot(
     enterprise_id: str,
     object_id: str,
@@ -189,7 +202,17 @@ async def save_card_snapshot(
     db: AsyncSession = Depends(get_db),
 ):
     await _get_ent(enterprise_id, current_user.id, db)
+    obj = (
+        await db.execute(
+            select(RiskObject).where(
+                RiskObject.id == object_id,
+                RiskObject.enterprise_id == enterprise_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not obj:
+        raise HTTPException(404, "风险点不存在")
     snap = await save_snapshot(
         db, enterprise_id, object_id, current_user.id, body.content.model_dump()
     )
-    return ApiResponse(data={"version": snap.version, "source": "ai"})
+    return ApiResponse(data=SnapshotResponse(version=snap.version, source=snap.source))

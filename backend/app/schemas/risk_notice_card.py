@@ -62,3 +62,8 @@ class AiOptimizeResponse(BaseModel):
 
 class SnapshotSaveRequest(BaseModel):
     content: RightColumn
+
+
+class SnapshotResponse(BaseModel):
+    version: int
+    source: str

@@ -6,7 +6,7 @@ DB mock 按 SQL 文本特征分发查询结果（参考 test_onboarding_routes.p
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.database import get_db
@@ -290,6 +290,12 @@ def test_ai_optimize_returns_optimized_right_column(client, monkeypatch):
 
     async def fake_llm(messages, ai_config, timeout=120):
         assert timeout == 60
+        assert messages[0]["role"] == "system"
+        assert messages[0]["content"] == "你是安全生产专家。"
+        user_content = messages[1]["content"]
+        assert "甲公司" in user_content
+        assert "配电室" in user_content
+        assert "泄漏遇明火" in user_content  # 原版文本传入
         return json.dumps(payload, ensure_ascii=False)
 
     monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_llm)
@@ -302,6 +308,108 @@ def test_ai_optimize_returns_optimized_right_column(client, monkeypatch):
     assert data["optimized"]["control_measures"] == payload["control_measures"]
     assert data["optimized"]["emergency_measures"] == payload["emergency_measures"]
     assert data["optimized"]["accident_types"] == ["火灾"]
+
+
+def test_ai_optimize_missing_fields_fall_back_to_original(client, monkeypatch):
+    import json
+
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def fake_llm(messages, ai_config, timeout=120):
+        # 缺 hazard_description、control_measures 为字符串、emergency_measures 为 None
+        return json.dumps(
+            {"control_measures": "不是列表", "emergency_measures": None},
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_llm)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-optimize")
+    assert resp.status_code == 200
+    optimized = resp.json()["data"]["optimized"]
+    original = resp.json()["data"]["original"]
+    assert optimized["hazard_description"] == original["hazard_description"]
+    assert optimized["control_measures"] == original["control_measures"]
+    assert optimized["emergency_measures"] == original["emergency_measures"]
+    assert optimized["accident_types"] == ["火灾"]
+
+
+def test_ai_optimize_invalid_json_returns_502(client, monkeypatch):
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def fake_llm(messages, ai_config, timeout=120):
+        return "这不是 JSON"
+
+    monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_llm)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-optimize")
+    assert resp.status_code == 502
+    assert "AI 返回格式异常" in resp.json()["detail"]
+
+
+def test_ai_optimize_code_block_wrapped_json_parses(client, monkeypatch):
+    import json
+
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    payload = {
+        "hazard_description": "优化后描述",
+        "control_measures": ["① 新措施"],
+        "emergency_measures": ["① 新应急"],
+    }
+
+    async def fake_llm(messages, ai_config, timeout=120):
+        return "```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```"
+
+    monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_llm)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-optimize")
+    assert resp.status_code == 200
+    optimized = resp.json()["data"]["optimized"]
+    assert optimized["hazard_description"] == "优化后描述"
+    assert optimized["control_measures"] == ["① 新措施"]
+    assert optimized["emergency_measures"] == ["① 新应急"]
+
+
+def test_ai_optimize_not_configured_returns_400(client, monkeypatch):
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def no_config(user_id, db):
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
+
+    monkeypatch.setattr(risk_notice_card_ai, "_get_ai_config", no_config)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-optimize")
+    assert resp.status_code == 400
+    assert "系统未配置" in resp.json()["detail"]
 
 
 def test_ai_optimize_failure_returns_502(client, monkeypatch):
@@ -326,7 +434,9 @@ def test_ai_optimize_failure_returns_502(client, monkeypatch):
 
 def test_save_snapshot_creates_version_one(client):
     ent = _enterprise()
-    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(ent, [])
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [], detail_obj=_risk_object()
+    )
 
     resp = client.put(
         "/enterprises/e1/risk-notice-cards/o1/snapshot",
@@ -343,3 +453,24 @@ def test_save_snapshot_creates_version_one(client):
     data = resp.json()["data"]
     assert data["version"] == 1
     assert data["source"] == "ai"
+
+
+def test_save_snapshot_cross_enterprise_object_404(client):
+    ent = _enterprise()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [], detail_obj=None
+    )
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o-other/snapshot",
+        json={
+            "content": {
+                "hazard_description": "越权写入",
+                "accident_types": ["火灾"],
+                "control_measures": ["① 措施"],
+                "emergency_measures": ["① 应急"],
+            }
+        },
+    )
+    assert resp.status_code == 404
+    assert "风险点不存在" in resp.json()["detail"]
