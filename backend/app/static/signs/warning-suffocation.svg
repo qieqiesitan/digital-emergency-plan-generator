@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="26" viewBox="0 0 28 26">
+  <polygon points="14,2 26,24 2,24" fill="#FFD100" stroke="#000" stroke-width="2"/>
+  <circle cx="14" cy="10" r="3.2" fill="#000"/>
+  <path d="M11 8.7 h1.8 M15.2 8.7 h1.8" stroke="#FFD100" stroke-width="1.1"/>
+  <ellipse cx="14" cy="16.5" rx="2.2" ry="1.4" fill="#000"/>
+  <path d="M11.5 14.2 h1.5 M15 14.2 h1.5" stroke="#000" stroke-width="1.2"/>
+</svg>

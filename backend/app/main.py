@@ -1,6 +1,7 @@
 import os
 import uuid as uuid_lib
 from contextlib import asynccontextmanager
+from pathlib import Path as _Path
 from fastapi import FastAPI, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -36,6 +37,9 @@ if os.path.isdir(FRONTEND_DIST):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
     if os.path.isdir(os.path.join(FRONTEND_DIST, "icons")):
         app.mount("/icons", StaticFiles(directory=os.path.join(FRONTEND_DIST, "icons")), name="icons")
+SIGNS_DIR = _Path(__file__).resolve().parent / "static" / "signs"
+SIGNS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/signs", StaticFiles(directory=str(SIGNS_DIR)), name="signs")
 
 @app.post("/api/v1/upload")
 async def upload_file(file: UploadFile = File(...), _=Depends(get_current_user)):
