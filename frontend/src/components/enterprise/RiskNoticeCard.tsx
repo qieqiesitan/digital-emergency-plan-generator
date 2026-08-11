@@ -2,8 +2,8 @@ import dayjs from "dayjs";
 import { QrcodeOutlined } from "@ant-design/icons";
 import type { CardData } from "@/types/riskNoticeCard";
 
-/** 空正文兜底文案（与后端 docx 渲染一致）。 */
-const EMPTY_TEXT = "暂无，请先完善风险评估数据";
+/** 空正文兜底文案（与后端 docx 渲染一致，预览页等复用）。 */
+export const EMPTY_TEXT = "暂无，请先完善风险评估数据";
 
 /** 卡片样式：.rnc-* 前缀避免与全局/antd 样式冲突。 */
 const RNC_CSS = `

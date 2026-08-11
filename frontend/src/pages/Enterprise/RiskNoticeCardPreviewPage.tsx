@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, App as AntApp, Button, Modal, Result, Space, Spin, Tag } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import RiskNoticeCard from "@/components/enterprise/RiskNoticeCard";
+import RiskNoticeCard, { EMPTY_TEXT } from "@/components/enterprise/RiskNoticeCard";
 import { PageHeader } from "@/components/common/PageHeader";
 import { getDownloadUrl } from "@/services/exportService";
 import {
@@ -12,8 +12,6 @@ import {
   saveSnapshot,
 } from "@/services/riskNoticeCardService";
 import type { RightColumn } from "@/types/riskNoticeCard";
-
-const EMPTY_TEXT = "暂无，请先完善风险评估数据";
 
 /** AI 优化对比面板样式（.rnc-cmp-* 前缀）。 */
 const COMPARE_CSS = `
@@ -210,18 +208,19 @@ export default function RiskNoticeCardPreviewPage() {
     }
   }, [enterpriseId, objectId, message]);
 
-  /** ?ai=1 自动触发一次 AI 优化（从管理页行操作跳转），触发后清除参数。 */
+  /** ?ai=1 自动触发一次 AI 优化（从管理页行操作跳转），先触发后清参。 */
   useEffect(() => {
-    if (!card || autoTriggered.current) return;
+    if (autoTriggered.current) return;
     if (searchParams.get("ai") !== "1") return;
     autoTriggered.current = true;
-    setSearchParams({}, { replace: true });
-    // 下一轮调度再触发，避免 effect 体内同步 setState（react-hooks 规则）
+    // 触发先于清参：若先清参，effect 重跑时 cleanup 可能抢先取消定时器导致永不触发。
+    // 同步 setState 仍放到定时器内，规避 react-hooks set-state-in-effect 规则。
     const timer = window.setTimeout(() => {
       void runAiOptimize();
+      setSearchParams({}, { replace: true });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [card, searchParams, setSearchParams, runAiOptimize]);
+  }, [searchParams, setSearchParams, runAiOptimize]);
 
   const copyPublicLink = async () => {
     if (!card) return;
@@ -254,9 +253,13 @@ export default function RiskNoticeCardPreviewPage() {
     setSaving(true);
     try {
       const info = await saveSnapshot(enterpriseId, objectId, compare.optimized);
-      message.success(`已保存快照 V1.${info.version}`);
+      const refreshed = await refetch();
+      if (refreshed.isError) {
+        message.error("已保存快照，但刷新卡片数据失败，请稍后重试");
+      } else {
+        message.success(`已保存快照 V1.${info.version}`);
+      }
       setCompare(null);
-      void refetch();
     } catch {
       message.error("保存快照失败，请重试");
     } finally {
