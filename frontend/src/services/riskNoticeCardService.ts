@@ -18,13 +18,13 @@ export const fetchCardSummaries = (enterpriseId: string, params: CardListParams 
 export const fetchCardDetail = (enterpriseId: string, objectId: string) =>
   api.get<ApiResponse<CardData>>(`${BASE(enterpriseId)}/${objectId}`).then(r => r.data.data);
 
-/** 批量导出 Word，返回 file_key（下载走 /export/download/{file_key}）。 */
+/** 批量导出 Word，返回 { file_key, warnings }（下载走 /export/download/{file_key}）。 */
 export const exportCards = (enterpriseId: string, objectIds: string[]) =>
   api
     .post<ApiResponse<{ file_key: string; warnings: string[] }>>(`${BASE(enterpriseId)}/export`, {
       object_ids: objectIds,
     })
-    .then(r => r.data.data.file_key);
+    .then(r => r.data.data);
 
 /** AI 优化（无副作用）：返回原版与优化版右栏对比。 */
 export const aiOptimize = (enterpriseId: string, objectId: string) =>
