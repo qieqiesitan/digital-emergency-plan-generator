@@ -259,52 +259,49 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                 "warning": f"术语表述不统一：{a} 与 {b} 混用",
             })
 
-    # ── E1：联系电话格式 ──
-    for s in sections:
-        text = _strip_html(s.content)
-        # 先剔除标准座机（带连字符），避免拆分误报
-        cleaned = re.sub(r"0\d{2,3}-\d{7,8}", "", text)
-        # 仅在电话上下文中提取候选数字，避免身份证/编号等长数字误报
-        for m in re.finditer(r"(?:电话|手机|联系|号码|值班|联系电话)[：:为是]?\s*([0-9\-]{5,20})", cleaned):
-            num = m.group(1).replace("-", "")
-            if not re.fullmatch(r"1[3-9]\d{9}", num) and not re.fullmatch(r"0\d{2,3}\d{7,8}", num):
-                warnings.append({
-                    "section_key": s.section_key,
-                    "section_title": s.title,
-                    "warning": f"疑似联系电话格式错误：{m.group(1)}",
-                })
+    # ── E1：组织架构联系电话完整性（正文电话格式检查已收敛移除：
+    #    正文数字语义判断纯正则不可靠，易误报身份证/证件号）──
     for g in (getattr(enterprise, "org_structure", None) or []):
         for m in g.get("members", []):
             if m.get("name") and not m.get("phone"):
                 warnings.append({
                     "section_key": "",
                     "section_title": "",
-                    "warning": f"企业组织架构中{m.get('name')}（{m.get('position') or m.get('role') or ''}）无联系电话",
+                    "warning": f"企业组织架构中{m.get('name')}（{m.get('position','') or m.get('role','') or ''}）无联系电话",
                 })
 
     # ── E2：关键岗位覆盖 ──
-    org_positions = {
-        (m.get("position") or "") + (m.get("role") or "")
+    org_roles = {
+        role
         for g in (getattr(enterprise, "org_structure", None) or [])
         for m in g.get("members", [])
+        for role in (m.get("position") or "", m.get("role") or "")
+        if role
     }
-    # 总指挥/副总指挥任一在位即视为指挥机构已覆盖（兼容 role 字段）
-    if not (org_positions & {"总指挥", "副总指挥"}):
+    has_commander = "总指挥" in org_roles
+    has_deputy = "副总指挥" in org_roles
+    if not has_commander or not has_deputy:
+        # 规则 1：档案缺岗位
+        missing = []
+        if not has_commander:
+            missing.append("总指挥")
+        if not has_deputy:
+            missing.append("副总指挥")
         warnings.append({
             "section_key": "",
             "section_title": "",
-            "warning": "企业组织架构缺少总指挥或副总指挥",
+            "warning": f"企业组织架构缺少{'、'.join(missing)}",
         })
-    # E2 第 2 条：正文提及应急指挥机构但档案无总指挥
-    if "总指挥" not in org_positions:
-        for s in sections:
-            text = _strip_html(s.content)
-            if ("应急指挥" in text or "指挥机构" in text) and text.strip():
-                warnings.append({
-                    "section_key": s.section_key,
-                    "section_title": s.title,
-                    "warning": "正文提及应急指挥机构，但企业组织架构未设置总指挥",
-                })
+        # 规则 2：正文提及指挥机构但档案缺总指挥（仅当规则 1 已报且缺总指挥时补充）
+        if not has_commander:
+            for s in sections:
+                text = _strip_html(s.content)
+                if ("应急指挥" in text or "指挥机构" in text) and text.strip():
+                    warnings.append({
+                        "section_key": s.section_key,
+                        "section_title": s.title,
+                        "warning": "正文提及应急指挥机构，但企业组织架构未设置总指挥",
+                    })
 
     # ── E3：应急资源充分性 ──
     resources = resources or []
@@ -328,7 +325,8 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
             cat = getattr(r, "category", "") or r.get("category", "")
             if not cat:
                 continue
-            qty = getattr(r, "quantity", 0) if hasattr(r, "quantity") else r.get("quantity", 0)
+            # NULL/缺失数量视为未知，不报「数量为 0」
+            qty = getattr(r, "quantity", None) if hasattr(r, "quantity") else r.get("quantity")
             if qty == 0:
                 zero_cats.add(cat)
             else:
