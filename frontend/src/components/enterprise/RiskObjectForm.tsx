@@ -18,6 +18,9 @@ interface RiskObjectFormValues {
   location_y?: number | null;
   description?: string;
   image_url?: string;
+  responsible_unit?: string;
+  responsible_person?: string;
+  contact_phone?: string;
 }
 
 interface Props {
@@ -121,6 +124,32 @@ export default function RiskObjectForm({ open, onClose, onSubmit, initialValues,
           <Form.Item name="location" label="位置描述">
             <Input.TextArea rows={2} placeholder="如：3号车间东北角" />
           </Form.Item>
+
+          <div
+            style={{
+              fontSize: 13, fontWeight: 600, color: "#1677ff", margin: "16px 0 8px",
+              borderLeft: "3px solid #1677ff", paddingLeft: 8,
+            }}
+          >
+            责任信息（用于风险告知卡）
+          </div>
+          <Form.Item name="responsible_unit" label="责任单位">
+            <Input placeholder="如：储运车间" />
+          </Form.Item>
+          <Form.Item name="responsible_person" label="责任人">
+            <Input placeholder="如：张三" />
+          </Form.Item>
+          <Form.Item name="contact_phone" label="联系电话">
+            <Input placeholder="如：13800000000" />
+          </Form.Item>
+          <div
+            style={{
+              fontSize: 12, color: "#999", background: "#fafafa", border: "1px dashed #e0e0e0",
+              borderRadius: 4, padding: "6px 8px", marginBottom: 8,
+            }}
+          >
+            这三个字段会显示在风险告知卡左栏。留空时，卡片自动使用企业信息中的安全负责人及电话兜底。
+          </div>
 
           <Form.Item name="is_risk_point" label="是否为重大风险点" valuePropName="checked">
             <Switch onChange={(v) => setIsRiskPoint(v)} />

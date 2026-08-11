@@ -14,6 +14,16 @@ def test_risk_object_has_notice_card_fields():
     assert {"responsible_unit", "responsible_person", "contact_phone", "public_token"} <= cols
 
 
+def test_risk_object_schemas_include_responsibility_fields():
+    from app.schemas.risk_management import (
+        RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse,
+    )
+    for model in (RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse):
+        for field in ("responsible_unit", "responsible_person", "contact_phone"):
+            assert field in model.model_fields
+            assert model.model_fields[field].default is None
+
+
 def test_snapshot_model_columns():
     cols = {c.name for c in RiskNoticeCard.__table__.columns}
     assert {"object_id", "version", "content", "source"} <= cols

@@ -61,6 +61,9 @@ export interface RiskObject {
   location_y: number | null;
   description: string | null;
   image_url: string | null;
+  responsible_unit: string | null;
+  responsible_person: string | null;
+  contact_phone: string | null;
   is_risk_point: boolean;
   sort_order: number;
   created_at: string;
@@ -77,6 +80,9 @@ export interface RiskObjectCreate {
   location_y?: number;
   description?: string;
   image_url?: string;
+  responsible_unit?: string;
+  responsible_person?: string;
+  contact_phone?: string;
   is_risk_point?: boolean;
 }
 

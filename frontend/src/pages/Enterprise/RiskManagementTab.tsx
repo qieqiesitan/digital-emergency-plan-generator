@@ -41,6 +41,9 @@ interface ZoneFormValues {
   location_x?: number | null;
   location_y?: number | null;
   is_risk_point?: boolean;
+  responsible_unit?: string;
+  responsible_person?: string;
+  contact_phone?: string;
   unit_type?: string;
   accident_type?: string | string[];
   chemical_id?: string | null;
@@ -230,13 +233,26 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           }
           break;
         }
-        case "object":
+        case "object": {
+          const objectPayload = {
+            name: values.name || "",
+            category: values.category || "",
+            description: values.description || "",
+            location: values.location || undefined,
+            location_x: values.location_x ?? undefined,
+            location_y: values.location_y ?? undefined,
+            is_risk_point: values.is_risk_point || false,
+            responsible_unit: values.responsible_unit || undefined,
+            responsible_person: values.responsible_person || undefined,
+            contact_phone: values.contact_phone || undefined,
+          };
           if (form.id) {
-            await updateObject(enterpriseId, form.id, { name: values.name || "", category: values.category || "", description: values.description || "", location: values.location || undefined, location_x: values.location_x ?? undefined, location_y: values.location_y ?? undefined, is_risk_point: values.is_risk_point || false });
+            await updateObject(enterpriseId, form.id, objectPayload);
           } else {
-            await createObject(enterpriseId, { zone_id: form.parentId, name: values.name || "", category: values.category || "", description: values.description || "", location: values.location || undefined, location_x: values.location_x ?? undefined, location_y: values.location_y ?? undefined, is_risk_point: values.is_risk_point || false });
+            await createObject(enterpriseId, { ...objectPayload, zone_id: form.parentId });
           }
           break;
+        }
         case "unit":
           if (form.id) {
             await updateUnit(enterpriseId, form.parentId || "", form.id, { name: values.name || "", unit_type: values.unit_type || "", description: values.description || "" });
