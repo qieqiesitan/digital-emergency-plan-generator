@@ -65,6 +65,11 @@ export interface RiskObject {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  // 风险告知卡：责任信息与公开页 token
+  responsible_unit?: string | null;
+  responsible_person?: string | null;
+  contact_phone?: string | null;
+  public_token?: string;
   unit_count: number;
 }
 export interface RiskObjectCreate {
