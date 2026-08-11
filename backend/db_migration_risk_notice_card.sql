@@ -18,7 +18,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_risk_objects_public_token ON risk_objects(p
 
 -- 风险告知卡快照表
 CREATE TABLE IF NOT EXISTS risk_notice_cards (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     enterprise_id UUID NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
     object_id UUID NOT NULL REFERENCES risk_objects(id) ON DELETE CASCADE,
     version INTEGER NOT NULL DEFAULT 1,
