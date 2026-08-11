@@ -142,7 +142,11 @@ def test_c1_deputy_commander_not_matched_as_commander():
     result = check_plan(plan, enterprise, [
         _section("sec_1", "事故风险分析", "<p>副总指挥：王五</p>"),
     ])
-    assert not any("总指挥" in w["warning"] for w in result["warnings"])
+    # E2 新规则允许「缺少总指挥或副总指挥」告警；此处只验证 C1 不误报总指挥姓名不一致
+    assert not any(
+        "总指挥" in w["warning"] and ("不一致" in w["warning"] or "不符" in w["warning"])
+        for w in result["warnings"]
+    )
 
 
 def test_c3_time_unit_mixed():
@@ -217,3 +221,40 @@ def test_c3_chinese_level_with_yingji():
         _section("sec_3", "处置程序", "<p>启动III级响应，执行一级应急响应程序。</p>"),
     ])
     assert any("响应分级" in w["warning"] for w in result["warnings"])
+
+
+def test_e1_invalid_phone_format():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "12345", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>联系电话：12345</p>"),
+    ])
+    assert any("电话" in w["warning"] for w in result["warnings"])
+
+
+def test_e2_missing_commander():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "抢险组", "members": [
+            {"name": "李四", "position": "组长", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ])
+    assert any("总指挥" in w["warning"] for w in result["warnings"])
+
+
+def test_e3_missing_fire_resource():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ], resources=[])
+    assert any("消防" in w["warning"] for w in result["warnings"])

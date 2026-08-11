@@ -55,7 +55,7 @@ def _extract_address_fragments(address: str) -> list:
     return frags
 
 
-def check_plan(plan, enterprise, sections, required_sections: list | None = None) -> dict:
+def check_plan(plan, enterprise, sections, required_sections: list | None = None, resources: list | None = None) -> dict:
     issues = []
     warnings = []
 
@@ -258,6 +258,53 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                 "section_title": "",
                 "warning": f"术语表述不统一：{a} 与 {b} 混用",
             })
+
+    # ── E1：联系电话格式 ──
+    for s in sections:
+        text = _strip_html(s.content)
+        for num in re.findall(r"\d{5,}", text):
+            if not re.fullmatch(r"1[3-9]\d{9}", num) and not re.fullmatch(r"0\d{2,3}-?\d{7,8}", num):
+                warnings.append({
+                    "section_key": s.section_key,
+                    "section_title": s.title,
+                    "warning": f"疑似联系电话格式错误：{num}",
+                })
+    for g in (getattr(enterprise, "org_structure", None) or []):
+        for m in g.get("members", []):
+            if m.get("name") and not m.get("phone"):
+                warnings.append({
+                    "section_key": "",
+                    "section_title": "",
+                    "warning": f"企业组织架构中{m.get('name')}（{m.get('position','')}）无联系电话",
+                })
+
+    # ── E2：关键岗位覆盖 ──
+    org_positions = {
+        m.get("position", "") for g in (getattr(enterprise, "org_structure", None) or [])
+        for m in g.get("members", [])
+    }
+    if "总指挥" not in org_positions or "副总指挥" not in org_positions:
+        warnings.append({
+            "section_key": "",
+            "section_title": "",
+            "warning": "企业组织架构缺少总指挥或副总指挥",
+        })
+
+    # ── E3：应急资源充分性 ──
+    resources = resources or []
+    cats = {getattr(r, "category", "") or r.get("category", "") for r in resources}
+    if not any("消防" in c or "灭火" in c for c in cats):
+        warnings.append({
+            "section_key": "",
+            "section_title": "",
+            "warning": "企业未登记消防/灭火类应急资源",
+        })
+    if not any("急救" in c or "医疗" in c for c in cats):
+        warnings.append({
+            "section_key": "",
+            "section_title": "",
+            "warning": "企业未登记急救/医疗类应急资源",
+        })
 
     return {
         "valid": len(issues) == 0,

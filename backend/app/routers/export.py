@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.user import User
-from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate
+from app.models.enterprise import EmergencyResource, Enterprise, PlanProject, PlanSection, PlanTemplate
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
 from app.config import settings
@@ -390,7 +390,10 @@ async def validate_plan_export(
     )).scalar_one_or_none()
     if tpl and tpl.structure:
         required = [item.get("key") for item in tpl.structure if item.get("required")]
-    result = check_plan(plan, enterprise, sections, required_sections=required or None)
+    resources = (await db.execute(
+        select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
+    )).scalars().all()
+    result = check_plan(plan, enterprise, sections, required_sections=required or None, resources=resources)
     # 兼容既有响应：warnings 为字符串列表
     warnings = [
         f"「{w['section_title']}」{w['warning']}"
