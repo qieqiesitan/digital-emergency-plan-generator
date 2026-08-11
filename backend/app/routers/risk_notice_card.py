@@ -6,6 +6,7 @@ token 端点由任务 9 补充。
 """
 import os
 import logging
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -172,31 +173,26 @@ async def export_cards(
 ):
     """批量导出风险告知卡 docx（A4 每卡一页 + 右上角二维码）。
 
-    逐卡校验归属并组装 CardData；不存在的 object_id 跳过并记入 warnings；
-    全部无效时返回 400。生成文件落入 settings.EXPORT_DIR。
+    先一次查询企业全部风险点（compute_code 需要）用于逐卡归属校验并组装
+    CardData；不存在的 object_id 跳过并记入 warnings；全部无效时返回 400。
+    生成文件落入 settings.EXPORT_DIR。
     """
     ent = await _get_ent(enterprise_id, current_user.id, db)
+    objects = (
+        await db.execute(
+            select(RiskObject)
+            .where(RiskObject.enterprise_id == enterprise_id)
+            .order_by(RiskObject.created_at)
+        )
+    ).scalars().all()
+    object_by_id = {obj.id: obj for obj in objects}
     cards: list[CardData] = []
     warnings: list[str] = []
     for oid in body.object_ids:
-        obj = (
-            await db.execute(
-                select(RiskObject).where(
-                    RiskObject.id == oid,
-                    RiskObject.enterprise_id == enterprise_id,
-                )
-            )
-        ).scalar_one_or_none()
-        if not obj:
+        obj = object_by_id.get(oid)
+        if obj is None:
             warnings.append(f"风险点不存在：{oid}")
             continue
-        objects = (
-            await db.execute(
-                select(RiskObject)
-                .where(RiskObject.enterprise_id == enterprise_id)
-                .order_by(RiskObject.created_at)
-            )
-        ).scalars().all()
         events, measures = await load_events_and_measures(db, oid)
         cards.append(
             await build_card_data(db, ent, obj, list(objects), events, measures)
@@ -213,10 +209,14 @@ async def export_cards(
     os.makedirs(settings.EXPORT_DIR, exist_ok=True)
     file_key = (
         f"risk-notice-{enterprise_id[:8]}-"
-        f"{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
+        f"{datetime.now().strftime('%Y%m%d%H%M%S-%f')}.docx"
     )
     out_path = os.path.join(settings.EXPORT_DIR, file_key)
-    render_cards_docx(cards, out_path, sign_pngs)
+    try:
+        await asyncio.to_thread(render_cards_docx, cards, out_path, sign_pngs)
+    except Exception:
+        logger.exception("风险告知卡导出渲染失败: enterprise=%s", enterprise_id)
+        raise HTTPException(500, "导出失败，请稍后重试")
     if warnings:
         logger.warning(
             "风险告知卡导出：%d 个 object_id 不存在，已跳过：%s",

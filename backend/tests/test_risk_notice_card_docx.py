@@ -97,6 +97,25 @@ def _drawings(doc: Document) -> int:
     return sum(1 for _ in doc.element.body.iter(qn("w:drawing")))
 
 
+def _embedded_png_sizes(doc: Document) -> list[tuple[int, int]]:
+    """解析 docx 内嵌 PNG 实际渲染尺寸（IHDR 宽高），区分真实图片与 1x1 占位图。"""
+    sizes: list[tuple[int, int]] = []
+    for drawing in doc.element.body.iter(qn("w:drawing")):
+        for blip in drawing.iter(qn("a:blip")):
+            rid = blip.get(qn("r:embed"))
+            if not rid:
+                continue
+            part = doc.part.related_parts.get(rid)
+            if part is None:
+                continue
+            blob = part.blob
+            if blob[:8] == b"\x89PNG\r\n\x1a\n" and len(blob) >= 24:
+                width = int.from_bytes(blob[16:20], "big")
+                height = int.from_bytes(blob[20:24], "big")
+                sizes.append((width, height))
+    return sizes
+
+
 def test_make_qr_png_returns_png_bytes():
     png = make_qr_png("http://localhost/r/token123")
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
@@ -263,6 +282,10 @@ def test_export_returns_file_key_and_writes_docx(client):
     texts = _all_paragraph_texts(doc)
     assert any("配电室安全风险告知卡" in t for t in texts)
     assert _drawings(doc) >= 2  # 二维码 + 安全标志
+    # 真实渲染尺寸校验：内嵌 PNG 宽高均 > 1，避免 1x1 占位图掩盖渲染失败
+    png_sizes = _embedded_png_sizes(doc)
+    assert len(png_sizes) >= 2
+    assert all(w > 1 and h > 1 for w, h in png_sizes)
 
 
 def test_export_skips_missing_object_with_warnings(client, monkeypatch):
