@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.user import User
-from app.models.enterprise import Enterprise, PlanProject, PlanSection
+from app.models.enterprise import EmergencyResource, Enterprise, PlanProject, PlanSection, PlanTemplate
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
 from app.config import settings
@@ -382,7 +382,24 @@ async def validate_plan_export(
         })
 
     from app.services.plan_quality_service import check_plan
-    result = check_plan(plan, enterprise, sections)
+    required = []
+    tpl = (await db.execute(
+        select(PlanTemplate).where(
+            PlanTemplate.plan_type == plan.plan_type, PlanTemplate.is_active == True
+        ).order_by(PlanTemplate.version.desc()).limit(1)
+    )).scalar_one_or_none()
+    if tpl and tpl.structure:
+        required = [item.get("key") for item in tpl.structure if item.get("required")]
+    resources = (await db.execute(
+        select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
+    )).scalars().all()
+    result = check_plan(
+        plan, enterprise, sections,
+        required_sections=required or None,
+        resources=resources,
+        # 风险点来源：企业档案风险源（selectin 已预加载），用于 E3「资源数量为 0」告警前提
+        has_risk=bool(enterprise.risk_sources) if enterprise else False,
+    )
     # 兼容既有响应：warnings 为字符串列表
     warnings = [
         f"「{w['section_title']}」{w['warning']}"

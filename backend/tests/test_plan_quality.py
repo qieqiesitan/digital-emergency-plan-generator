@@ -58,3 +58,272 @@ def test_mermaid_missing_type_declaration_warning():
     content = '<pre><code class="language-mermaid">A --> B</code></pre>'
     result = check_plan(plan, enterprise, [_section("sec_5", "应急响应", content)])
     assert any("Mermaid" in w["warning"] for w in result["warnings"])
+
+
+from app.services.plan_quality_service import (
+    check_plan, _extract_address_fragments, _must_have_section_key,
+)
+
+
+def test_must_have_section_keys():
+    assert _must_have_section_key("comprehensive") == "sec_2"
+    assert _must_have_section_key("special") == "sec_1"
+    assert _must_have_section_key("onsite") == "sec_1"
+    assert _must_have_section_key("unknown") is None
+
+
+def test_extract_address_fragments():
+    frags = _extract_address_fragments("陕西省西安市经济技术开发区民经一路726号2幢12402室")
+    assert any("民经一路726号" in f for f in frags)
+    assert any("经济技术开发区" in f for f in frags)
+
+
+def test_non_must_have_section_no_archive_warning():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号2幢12402室",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [_section("sec_3", "处置程序与措施", "<p>内容</p>")])
+    assert not any("未体现" in w["warning"] for w in result["warnings"])
+
+
+def test_must_have_section_address_fragment_match_no_warning():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号2幢12402室",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>公司位于民经一路726号，法定代表人为刘昕野，安全负责人刘昕野。</p>")
+    ])
+    assert not any("未体现" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_cross_section_person_conflict():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>总指挥：刘昕野</p>"),
+        _section("sec_3", "处置程序", "<p>总指挥：王五</p>"),
+    ])
+    assert any("总指挥" in w["warning"] and "不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c2_address_conflict():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>公司位于湖北省武汉市某街道。</p>"),
+    ])
+    assert any("地址" in w["warning"] and "不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_level_notation_mixed():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>启动III级响应，执行一级响应程序。</p>"),
+    ])
+    assert any("响应分级" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_deputy_commander_not_matched_as_commander():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "138", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    # 只有副总指挥，不应误报总指挥不一致
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>副总指挥：王五</p>"),
+    ])
+    # E2 新规则允许「缺少总指挥或副总指挥」告警；此处只验证 C1 不误报总指挥姓名不一致
+    assert not any(
+        "总指挥" in w["warning"] and ("不一致" in w["warning"] or "不符" in w["warning"])
+        for w in result["warnings"]
+    )
+
+
+def test_c3_time_unit_mixed():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>30分钟内上报，2小时后处置完毕。</p>"),
+    ])
+    assert any("时限" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_verb_not_matched_as_name():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "138", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>总指挥负责抢险救援。</p>"),
+    ])
+    assert not any("姓名不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c2_correct_and_wrong_address_no_conflict_warning():
+    enterprise = MagicMock(address="陕西省西安市经济技术开发区民经一路726号",
+                           legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>公司位于民经一路726号，另一处位于武汉市某街道。</p>"),
+    ])
+    assert not any("地址" in w["warning"] and "不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_equivalent_time_no_warning():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>30分钟内上报，0.5小时后处置完毕。</p>"),
+    ])
+    assert not any("时限" in w["warning"] for w in result["warnings"])
+
+
+def test_c1_verb_with_punct_not_matched():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "138", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>总指挥下令。</p>"),
+    ])
+    assert not any("姓名不一致" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_compound_duration_no_warning():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>1小时30分钟内完成处置。</p>"),
+    ])
+    assert not any("时限" in w["warning"] for w in result["warnings"])
+
+
+def test_c3_chinese_level_with_yingji():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_3", "处置程序", "<p>启动III级响应，执行一级应急响应程序。</p>"),
+    ])
+    assert any("响应分级" in w["warning"] for w in result["warnings"])
+
+
+def test_e1_org_member_missing_phone():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "position": "总指挥", "phone": "", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>联系电话：12345</p>"),
+    ])
+    # 正文电话格式检查已收敛移除：正文「联系电话：12345」不应再告警；
+    # 仅组织架构成员缺电话触发完整性告警
+    assert any("无联系电话" in w["warning"] for w in result["warnings"])
+    assert not any("格式错误" in w["warning"] for w in result["warnings"])
+
+
+def test_e2_missing_commander():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "抢险组", "members": [
+            {"name": "李四", "position": "组长", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ])
+    assert any("总指挥" in w["warning"] for w in result["warnings"])
+
+
+def test_e3_missing_fire_resource():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ], resources=[])
+    assert any("消防" in w["warning"] for w in result["warnings"])
+
+
+def test_e2_org_mentions_commander_but_missing():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "抢险组", "members": [
+            {"name": "李四", "position": "组长", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_2", "应急指挥机构", "<p>应急指挥部职责……</p>"),
+    ])
+    assert any("应急指挥机构" in w["warning"] for w in result["warnings"])
+
+
+def test_e3_zero_quantity_resource_warning():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    plan.risk_sources = [{"name": "储罐"}]
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ], resources=[{"category": "消防", "name": "灭火器", "quantity": 0}], has_risk=True)
+    assert any("数量为 0" in w["warning"] for w in result["warnings"])
+
+
+def test_e2_role_field_counts_as_position():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "role": "总指挥", "position": "", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ])
+    # role=总指挥 应被识别为已设总指挥；仅缺副总指挥，不报「缺少总指挥」
+    assert not any("缺少总指挥" in w["warning"] for w in result["warnings"])
+    assert any("缺少副总指挥" in w["warning"] for w in result["warnings"])
+
+
+def test_e2_combined_position_role_no_false_commander():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "李四", "role": "总指挥", "position": "组长", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ])
+    # 有 role=总指挥 → 不应报缺总指挥（position/role 分别检查，不再拼接误判）
+    assert not any("缺少总指挥" in w["warning"] for w in result["warnings"])
+    assert any("缺少副总指挥" in w["warning"] for w in result["warnings"])
+
+
+def test_e3_null_quantity_not_reported():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ], resources=[{"category": "消防", "name": "灭火器", "quantity": None}], has_risk=True)
+    # NULL 数量视为未知，不报「数量为 0」
+    assert not any("数量为 0" in w["warning"] for w in result["warnings"])
