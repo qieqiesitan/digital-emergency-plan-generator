@@ -36,3 +36,9 @@ def test_default_sign_group_and_emergency_templates():
     assert DEFAULT_SIGN_GROUP
     assert EMERGENCY_TEMPLATES["火灾"]
     assert len(EMERGENCY_TEMPLATES["火灾"]) >= 2
+
+
+def test_emergency_templates_cover_all_types():
+    assert set(EMERGENCY_TEMPLATES) == set(GB6441_ACCIDENT_TYPES)
+    for accident_type, steps in EMERGENCY_TEMPLATES.items():
+        assert len(steps) >= 2, accident_type

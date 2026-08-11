@@ -4,6 +4,8 @@
 警告=黄底黑边正三角 / 禁止=白底红圈红斜杠 / 指令=蓝底白圆 / 提示=绿底白方。
 """
 
+from app.services.risk_mapping_service import LEVEL_COLORS
+
 # 安全标志排列顺序（GB 2894-2025：警告→禁止→指令→提示）
 SIGN_CATEGORY_ORDER = ["warning", "prohibition", "instruction", "notice"]
 
@@ -19,7 +21,7 @@ GB6441_ACCIDENT_TYPES = [
     "瓦斯爆炸", "锅炉爆炸", "容器爆炸", "其他爆炸", "中毒和窒息", "其他伤害",
 ]
 
-# 事故类型 → 标志组（每类最多 2 个，顺序已符合 警告→禁止→指令→提示）
+# 事故类型 → 标志组（每个类别（警告/禁止/指令/提示）最多 2 个，顺序已符合 警告→禁止→指令→提示）
 SIGN_GROUPS: dict[str, list[dict]] = {
     "物体打击": [W("当心坠落物", "warning-falling-object"), I("必须戴安全帽", "instruction-helmet")],
     "车辆伤害": [W("当心车辆", "warning-vehicle"), P("禁止通行", "prohibition-pass"), N("紧急出口", "notice-exit")],
@@ -42,15 +44,18 @@ SIGN_GROUPS: dict[str, list[dict]] = {
     "瓦斯爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"),
                  I("必须消除静电", "instruction-eliminate-static"), I("必须穿防静电工作服", "instruction-anti-static-clothes")],
     "锅炉爆炸": [W("当心爆炸", "warning-explosion"), I("必须消除静电", "instruction-eliminate-static")],
-    "容器爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"), I("必须消除静电", "instruction-eliminate-static")],
-    "其他爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"), I("必须消除静电", "instruction-eliminate-static")],
+    "容器爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"),
+                 I("必须消除静电", "instruction-eliminate-static")],
+    "其他爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"),
+                 I("必须消除静电", "instruction-eliminate-static")],
     "中毒和窒息": [W("当心中毒", "warning-poison"), W("当心窒息", "warning-suffocation"),
-                    I("必须戴防毒面具", "instruction-gas-mask"), I("必须通风", "instruction-ventilate"), N("洗眼台", "notice-eyewash")],
+                    I("必须戴防毒面具", "instruction-gas-mask"), I("必须通风", "instruction-ventilate"),
+                    N("洗眼台", "notice-eyewash")],
     "其他伤害": [W("当心机械伤人", "warning-machinery"), P("禁止烟火", "prohibition-smoking"),
                  I("必须戴安全帽", "instruction-helmet"), N("紧急出口", "notice-exit")],
 }
 
-DEFAULT_SIGN_GROUP = SIGN_GROUPS["其他伤害"]
+DEFAULT_SIGN_GROUP = list(SIGN_GROUPS["其他伤害"])
 
 # 应急处置模板（事故类型 → 标准步骤；emergency 措施不足 2 条时兜底）
 EMERGENCY_TEMPLATES: dict[str, list[str]] = {
@@ -76,6 +81,6 @@ EMERGENCY_TEMPLATES: dict[str, list[str]] = {
     "其他伤害": ["立即停止作业，现场急救", "拨打 120 送医", "报告企业安全管理部门"],
 }
 
-# 风险等级排序（大 → 小），用于取最高等级
+# 风险等级排序（大 → 小），用于取最高等级；
+# 与 risk_mapping_service.LEVEL_ORDER（等级权重字典）用途不同，勿混用
 LEVEL_ORDER = ["重大", "较大", "一般", "低"]
-LEVEL_COLORS = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a", "未评估": "#bfbfbf"}

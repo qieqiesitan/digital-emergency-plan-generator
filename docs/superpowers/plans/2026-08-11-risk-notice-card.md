@@ -278,6 +278,8 @@ def test_default_sign_group_and_emergency_templates():
 警告=黄底黑边正三角 / 禁止=白底红圈红斜杠 / 指令=蓝底白圆 / 提示=绿底白方。
 """
 
+from app.services.risk_mapping_service import LEVEL_COLORS
+
 # 安全标志排列顺序（GB 2894-2025：警告→禁止→指令→提示）
 SIGN_CATEGORY_ORDER = ["warning", "prohibition", "instruction", "notice"]
 
@@ -352,7 +354,7 @@ EMERGENCY_TEMPLATES: dict[str, list[str]] = {
 
 # 风险等级排序（大 → 小），用于取最高等级
 LEVEL_ORDER = ["重大", "较大", "一般", "低"]
-LEVEL_COLORS = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a", "未评估": "#bfbfbf"}
+# 颜色映射复用 risk_mapping_service（含「未评估」#d9d9d9）
 ```
 
 - [ ] **步骤 3：运行测试验证通过**
