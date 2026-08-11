@@ -16,4 +16,19 @@ ALTER TABLE risk_objects ALTER COLUMN public_token SET NOT NULL;
 ALTER TABLE risk_objects ALTER COLUMN public_token SET DEFAULT encode(gen_random_bytes(32), 'hex');
 CREATE UNIQUE INDEX IF NOT EXISTS uq_risk_objects_public_token ON risk_objects(public_token);
 
+-- 风险告知卡快照表
+CREATE TABLE IF NOT EXISTS risk_notice_cards (
+    id UUID PRIMARY KEY,
+    enterprise_id UUID NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+    object_id UUID NOT NULL REFERENCES risk_objects(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL DEFAULT 1,
+    content JSONB NOT NULL,
+    source VARCHAR(20) NOT NULL DEFAULT 'ai',
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_risk_notice_cards_object UNIQUE (object_id)
+);
+CREATE INDEX IF NOT EXISTS idx_rnc_enterprise ON risk_notice_cards(enterprise_id);
+
 COMMIT;
