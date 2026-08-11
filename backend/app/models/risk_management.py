@@ -1,5 +1,6 @@
 from datetime import datetime, date
 from uuid import uuid4
+import secrets
 from typing import Optional
 from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, ForeignKey, Date, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -55,7 +56,7 @@ class RiskObject(Base):
     responsible_unit: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     responsible_person: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     contact_phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    public_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, default=lambda: __import__("secrets").token_hex(32))
+    public_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, default=lambda: secrets.token_hex(32))
     is_risk_point: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
