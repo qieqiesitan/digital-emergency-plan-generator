@@ -474,3 +474,29 @@ def test_save_snapshot_cross_enterprise_object_404(client):
     )
     assert resp.status_code == 404
     assert "风险点不存在" in resp.json()["detail"]
+
+
+def test_reset_token_returns_new_public_url(client):
+    ent = _enterprise()
+    obj = _risk_object(public_token="old-token")
+    db = _risk_card_db(ent, [], detail_obj=obj)
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/token/reset")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["public_url"].startswith("/r/")
+    assert data["public_url"] != "/r/old-token"
+    assert data["public_url"] == f"/r/{obj.public_token}"
+    db.commit.assert_awaited_once()
+
+
+def test_reset_token_object_not_found_404(client):
+    ent = _enterprise()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [], detail_obj=None
+    )
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/not-exist/token/reset")
+    assert resp.status_code == 404
+    assert "风险点不存在" in resp.json()["detail"]

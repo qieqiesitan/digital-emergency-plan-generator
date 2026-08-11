@@ -7,6 +7,7 @@ token 端点由任务 9 补充。
 import os
 import logging
 import asyncio
+import secrets
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -285,3 +286,27 @@ async def save_card_snapshot(
         db, enterprise_id, object_id, current_user.id, body.content.model_dump()
     )
     return ApiResponse(data=SnapshotResponse(version=snap.version, source=snap.source))
+
+
+@router.post("/{object_id}/token/reset", response_model=ApiResponse[dict])
+async def reset_token(
+    enterprise_id: str,
+    object_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """重置公开 token：旧链接立即 404，返回新公开链接。"""
+    await _get_ent(enterprise_id, current_user.id, db)
+    obj = (
+        await db.execute(
+            select(RiskObject).where(
+                RiskObject.id == object_id,
+                RiskObject.enterprise_id == enterprise_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not obj:
+        raise HTTPException(404, "风险点不存在")
+    obj.public_token = secrets.token_hex(32)
+    await db.commit()
+    return ApiResponse(data={"public_url": f"/r/{obj.public_token}"})
