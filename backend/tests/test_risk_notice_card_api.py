@@ -75,6 +75,7 @@ def _risk_card_db(ent, objs, detail_obj=None, events_obj=None):
     FROM risk_objects + enterprise_id（无 ORDER BY）→ 详情归属对象；
     """
     db = AsyncMock()
+    db.add = MagicMock()
 
     def fake_execute(stmt):
         text = str(stmt)
@@ -267,3 +268,78 @@ def test_auth_required_without_override():
     with TestClient(app) as test_client:
         resp = test_client.get("/enterprises/e1/risk-notice-cards")
     assert resp.status_code == 401
+
+
+def test_ai_optimize_returns_optimized_right_column(client, monkeypatch):
+    import json
+
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    payload = {
+        "hazard_description": "优化：配电室高温短路",
+        "control_measures": ["① 安装漏电保护", "② 定期检测"],
+        "emergency_measures": ["① 立即断电", "② 拨打 120"],
+    }
+
+    async def fake_llm(messages, ai_config, timeout=120):
+        assert timeout == 60
+        return json.dumps(payload, ensure_ascii=False)
+
+    monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_llm)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-optimize")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["original"]["accident_types"] == ["火灾"]
+    assert data["optimized"]["hazard_description"] == payload["hazard_description"]
+    assert data["optimized"]["control_measures"] == payload["control_measures"]
+    assert data["optimized"]["emergency_measures"] == payload["emergency_measures"]
+    assert data["optimized"]["accident_types"] == ["火灾"]
+
+
+def test_ai_optimize_failure_returns_502(client, monkeypatch):
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def broken_llm(messages, ai_config, timeout=120):
+        raise ValueError("llm boom")
+
+    monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", broken_llm)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-optimize")
+    assert resp.status_code == 502
+    assert "AI 优化失败" in resp.json()["detail"]
+
+
+def test_save_snapshot_creates_version_one(client):
+    ent = _enterprise()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(ent, [])
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "手动保存文案",
+                "accident_types": ["火灾"],
+                "control_measures": ["① 措施"],
+                "emergency_measures": ["① 应急"],
+            }
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["version"] == 1
+    assert data["source"] == "ai"

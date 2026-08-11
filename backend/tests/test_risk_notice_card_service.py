@@ -5,7 +5,7 @@ from app.models.risk_management import RiskObject, RiskUnit, RiskEvent, RiskMeas
 from app.models.enterprise import Enterprise
 from app.services.risk_notice_card_service import (
     compute_level, resolve_responsible, build_right_column, match_signs, compute_code,
-    is_stale, merge_object_events, collect_measures,
+    is_stale, merge_object_events, collect_measures, save_snapshot,
 )
 
 
@@ -125,3 +125,46 @@ def test_collect_measures_preserves_event_order():
 
     measures = collect_measures(merge_object_events(obj))
     assert measures == [m1, m2]
+
+
+def test_save_snapshot_increments_version():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def run():
+        existing = RiskNoticeCard(
+            enterprise_id="e1",
+            object_id="o1",
+            version=1,
+            content={
+                "hazard_description": "旧文案",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+            },
+            source="ai",
+            created_by="u1",
+        )
+        db = AsyncMock()
+        res = MagicMock()
+        res.scalars.return_value.first.return_value = existing
+        db.execute.return_value = res
+
+        saved = await save_snapshot(
+            db, "e1", "o1", "u1",
+            {
+                "hazard_description": "新文案",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+            },
+        )
+        assert saved is existing
+        assert saved.version == 2
+        assert saved.content["hazard_description"] == "新文案"
+        assert saved.source == "ai"
+        assert saved.created_by == "u1"
+        db.commit.assert_awaited_once()
+        db.refresh.assert_awaited_once_with(existing)
+
+    asyncio.run(run())

@@ -14,15 +14,24 @@ from app.models.enterprise import Enterprise
 from app.models.risk_management import RiskEvent, RiskObject, RiskUnit
 from app.models.user import User
 from app.schemas.common import ApiResponse
-from app.schemas.risk_notice_card import CardData, CardSummary
+from app.schemas.risk_notice_card import (
+    AiOptimizeResponse,
+    CardData,
+    CardSummary,
+    SnapshotSaveRequest,
+)
 from app.services.risk_notice_card_data import LEVEL_COLORS, LEVEL_ORDER
+from app.services.risk_notice_card_ai import optimize_right_column
 from app.services.risk_notice_card_service import (
     build_card_data,
+    build_right_column,
     collect_measures,
     compute_level,
+    load_events_and_measures,
     match_signs,
     merge_object_events,
     resolve_responsible,
+    save_snapshot,
 )
 
 router = APIRouter(
@@ -140,3 +149,47 @@ async def card_detail(
     measures = collect_measures(events)
     data = await build_card_data(db, ent, obj, list(objects), events, measures)
     return ApiResponse(data=data)
+
+
+@router.post("/{object_id}/ai-optimize", response_model=ApiResponse[AiOptimizeResponse])
+async def ai_optimize(
+    enterprise_id: str,
+    object_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    obj = (
+        await db.execute(
+            select(RiskObject).where(
+                RiskObject.id == object_id,
+                RiskObject.enterprise_id == enterprise_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not obj:
+        raise HTTPException(404, "风险点不存在")
+    events, measures = await load_events_and_measures(db, object_id)
+    original = build_right_column(events, measures)
+    try:
+        optimized = await optimize_right_column(
+            db, current_user.id, ent.name, obj.name, original
+        )
+    except Exception:
+        raise HTTPException(502, "AI 优化失败，请稍后重试或保留原版")
+    return ApiResponse(data=AiOptimizeResponse(original=original, optimized=optimized))
+
+
+@router.put("/{object_id}/snapshot", response_model=ApiResponse[dict])
+async def save_card_snapshot(
+    enterprise_id: str,
+    object_id: str,
+    body: SnapshotSaveRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_ent(enterprise_id, current_user.id, db)
+    snap = await save_snapshot(
+        db, enterprise_id, object_id, current_user.id, body.content.model_dump()
+    )
+    return ApiResponse(data={"version": snap.version, "source": "ai"})
