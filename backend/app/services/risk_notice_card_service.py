@@ -5,11 +5,12 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enterprise import Enterprise
-from app.models.risk_management import RiskObject, RiskEvent, RiskMeasure
+from app.models.risk_management import RiskObject, RiskUnit, RiskEvent, RiskMeasure
 from app.models.risk_notice_card import RiskNoticeCard
 from app.services.risk_notice_card_data import (
     SIGN_GROUPS, DEFAULT_SIGN_GROUP, EMERGENCY_TEMPLATES,
     LEVEL_ORDER, LEVEL_COLORS, SIGN_CATEGORY_ORDER,
+    DEFAULT_EMERGENCY_TEMPLATE, SOURCE_AI,
 )
 from app.schemas.risk_notice_card import CardData, RightColumn
 
@@ -94,7 +95,7 @@ def build_right_column(
         for at in accident_types:
             template += EMERGENCY_TEMPLATES.get(at, [])
         if not template:
-            template = ["立即停止作业，保护现场", "拨打 119/120 报警", "组织人员疏散，报告企业应急管理部门"]
+            template = DEFAULT_EMERGENCY_TEMPLATE
         merged = _dedupe(emergency_db + template)
         emergency = _numbered(merged)
     return RightColumn(
@@ -125,10 +126,16 @@ def match_signs(accident_types: list[str]) -> list[dict]:
     return ordered
 
 
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def is_stale(snapshot: RiskNoticeCard, source_updated_at: datetime | None) -> bool:
     if source_updated_at is None:
         return False
-    return snapshot.updated_at.replace(tzinfo=timezone.utc) < source_updated_at.replace(tzinfo=timezone.utc)
+    return _as_utc(snapshot.updated_at) < _as_utc(source_updated_at)
 
 
 async def get_snapshot(db: AsyncSession, object_id: str) -> RiskNoticeCard | None:
@@ -144,18 +151,27 @@ async def load_events_and_measures(db: AsyncSession, object_id: str) -> tuple[li
         await db.execute(
             select(RiskObject)
             .options(
-                selectinload(RiskObject.units).selectinload("events").selectinload("measures"),
-                selectinload(RiskObject.events).selectinload("measures"),
+                selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
+                selectinload(RiskObject.events).selectinload(RiskEvent.measures),
             )
             .where(RiskObject.id == object_id)
         )
     ).scalar_one_or_none()
     if obj is None:
         return [], []
-    events: list[RiskEvent] = list(obj.events or [])
-    measures: list[RiskMeasure] = []
+    # RiskEvent 同时有 object_id 与 unit_id 双外键，同一事件可能同时出现在
+    # obj.events 和 unit.events，需按 id 保序去重后再收集措施。
+    raw_events: list[RiskEvent] = list(obj.events or [])
     for unit in obj.units or []:
-        events.extend(unit.events or [])
+        raw_events.extend(unit.events or [])
+    events: list[RiskEvent] = []
+    seen: dict = {}
+    for e in raw_events:
+        key = e.id if e.id is not None else id(e)
+        if key not in seen:
+            seen[key] = True
+            events.append(e)
+    measures: list[RiskMeasure] = []
     for e in events:
         measures.extend(e.measures or [])
     return events, measures
@@ -216,7 +232,7 @@ async def save_snapshot(
     if existing:
         existing.version += 1
         existing.content = content
-        existing.source = "ai"
+        existing.source = SOURCE_AI
         existing.created_by = user_id
         await db.commit()
         await db.refresh(existing)
@@ -226,7 +242,7 @@ async def save_snapshot(
         object_id=object_id,
         version=1,
         content=content,
-        source="ai",
+        source=SOURCE_AI,
         created_by=user_id,
     )
     db.add(snap)

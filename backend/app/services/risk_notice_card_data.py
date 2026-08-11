@@ -57,6 +57,12 @@ SIGN_GROUPS: dict[str, list[dict]] = {
 
 DEFAULT_SIGN_GROUP = list(SIGN_GROUPS["其他伤害"])
 
+# 快照来源常量：AI 优化结果
+SOURCE_AI = "ai"
+
+# 应急措施兜底模板：没有任何事故类型模板可用时使用
+DEFAULT_EMERGENCY_TEMPLATE = ["立即停止作业，保护现场", "拨打 119/120 报警", "组织人员疏散，报告企业应急管理部门"]
+
 # 应急处置模板（事故类型 → 标准步骤；emergency 措施不足 2 条时兜底）
 EMERGENCY_TEMPLATES: dict[str, list[str]] = {
     "物体打击": ["立即停止作业，保护现场", "对伤员止血包扎，尽快送医", "拨打 120 急救电话", "报告企业安全管理部门"],

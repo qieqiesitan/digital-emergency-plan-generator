@@ -1,13 +1,11 @@
 """风险告知卡服务测试。"""
-import asyncio
-from datetime import datetime, timezone
-from app.models.risk_management import RiskObject
+from datetime import datetime, timedelta, timezone
 from app.models.risk_notice_card import RiskNoticeCard
-from app.models.risk_management import RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
+from app.models.risk_management import RiskObject, RiskEvent, RiskMeasure
 from app.models.enterprise import Enterprise
-from app.services.risk_notice_card_data import LEVEL_ORDER
 from app.services.risk_notice_card_service import (
     compute_level, resolve_responsible, build_right_column, match_signs, compute_code,
+    is_stale,
 )
 
 
@@ -59,6 +57,32 @@ def test_build_right_column_emergency_then_template():
     assert "防静电接地" in col.control_measures[0]
     assert "切断气源" in col.emergency_measures[0]
     assert len(col.emergency_measures) >= 2  # 模板兜底
+
+
+def test_build_right_column_uses_snapshot():
+    col = build_right_column([], [], snapshot={
+        "hazard_description": "快照：配电室高温",
+        "accident_types": ["火灾"],
+        "control_measures": ["快照控制措施"],
+        "emergency_measures": ["快照应急措施"],
+    })
+    assert col.hazard_description == "快照：配电室高温"
+    assert col.accident_types == ["火灾"]
+    assert col.control_measures == ["快照控制措施"]
+    assert col.emergency_measures == ["快照应急措施"]
+
+
+def test_is_stale_timezone():
+    """naive 与 aware 时间统一换算 UTC 后正确比较。"""
+    snap = RiskNoticeCard(updated_at=datetime(2026, 1, 1, 12, 0, 0))
+    tz8 = timezone(timedelta(hours=8))
+    equal_aware = datetime(2026, 1, 1, 20, 0, 0, tzinfo=tz8)   # 12:00 UTC，与快照同时刻
+    later_aware = datetime(2026, 1, 1, 21, 0, 0, tzinfo=tz8)   # 13:00 UTC，晚于快照
+    earlier_aware = datetime(2026, 1, 1, 19, 0, 0, tzinfo=tz8)  # 11:00 UTC，早于快照
+    assert is_stale(snap, equal_aware) is False
+    assert is_stale(snap, later_aware) is True
+    assert is_stale(snap, earlier_aware) is False
+    assert is_stale(snap, None) is False
 
 
 def test_match_signs_merges_and_orders():
