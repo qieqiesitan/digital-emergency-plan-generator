@@ -17,6 +17,18 @@ describe("stripAppBase", () => {
       "/other/m/login",
     );
   });
+
+  it("兄弟前缀路径不剥离", () => {
+    expect(
+      stripAppBase("/emergency-plan-migration2/m/login", "/emergency-plan-migration"),
+    ).toBe("/emergency-plan-migration2/m/login");
+  });
+
+  it("pathname 恰等于 appBase 时剥离为空串", () => {
+    expect(stripAppBase("/emergency-plan-migration", "/emergency-plan-migration")).toBe(
+      "",
+    );
+  });
 });
 
 describe("APP_BASE", () => {

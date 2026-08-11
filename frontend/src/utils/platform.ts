@@ -29,5 +29,8 @@ export const APP_BASE = import.meta.env.BASE_URL.replace(/\/+$/, "");
 /** 从 pathname 中剥离应用子路径前缀，如 /emergency-plan-migration/m/login -> /m/login */
 export function stripAppBase(pathname: string, appBase: string = APP_BASE): string {
   if (!appBase) return pathname;
-  return pathname.startsWith(appBase) ? pathname.slice(appBase.length) : pathname;
+  if (pathname === appBase || pathname.startsWith(`${appBase}/`)) {
+    return pathname.slice(appBase.length);
+  }
+  return pathname;
 }
