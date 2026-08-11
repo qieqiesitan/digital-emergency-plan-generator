@@ -291,3 +291,26 @@ def test_e3_zero_quantity_resource_warning():
         _section("sec_1", "事故风险分析", "<p>内容</p>"),
     ], resources=[{"category": "消防", "name": "灭火器", "quantity": 0}], has_risk=True)
     assert any("数量为 0" in w["warning"] for w in result["warnings"])
+
+
+def test_e1_id_number_not_flagged():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>身份证号：610102199001011234，合同编号20240001。</p>"),
+    ])
+    assert not any("电话" in w["warning"] for w in result["warnings"])
+
+
+def test_e2_role_field_counts_as_position():
+    enterprise = MagicMock(address="地址", legal_representative="刘昕野", safety_officer="刘昕野")
+    enterprise.org_structure = [
+        {"group_name": "指挥部", "members": [
+            {"name": "刘昕野", "role": "总指挥", "position": "", "phone": "13800000000", "responsibilities": ""},
+        ]},
+    ]
+    plan = MagicMock(plan_type="special")
+    result = check_plan(plan, enterprise, [
+        _section("sec_1", "事故风险分析", "<p>内容</p>"),
+    ])
+    assert not any("总指挥" in w["warning"] for w in result["warnings"])

@@ -262,14 +262,16 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
     # ── E1：联系电话格式 ──
     for s in sections:
         text = _strip_html(s.content)
-        # 先整体匹配座机（带连字符），避免拆分误报
+        # 先剔除标准座机（带连字符），避免拆分误报
         cleaned = re.sub(r"0\d{2,3}-\d{7,8}", "", text)
-        for num in re.findall(r"\d{5,}", cleaned):
-            if not re.fullmatch(r"1[3-9]\d{9}", num) and not re.fullmatch(r"0\d{2,3}-?\d{7,8}", num):
+        # 仅在电话上下文中提取候选数字，避免身份证/编号等长数字误报
+        for m in re.finditer(r"(?:电话|手机|联系|号码|值班|联系电话)[：:为是]?\s*([0-9\-]{5,20})", cleaned):
+            num = m.group(1).replace("-", "")
+            if not re.fullmatch(r"1[3-9]\d{9}", num) and not re.fullmatch(r"0\d{2,3}\d{7,8}", num):
                 warnings.append({
                     "section_key": s.section_key,
                     "section_title": s.title,
-                    "warning": f"疑似联系电话格式错误：{num}",
+                    "warning": f"疑似联系电话格式错误：{m.group(1)}",
                 })
     for g in (getattr(enterprise, "org_structure", None) or []):
         for m in g.get("members", []):
@@ -277,15 +279,17 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                 warnings.append({
                     "section_key": "",
                     "section_title": "",
-                    "warning": f"企业组织架构中{m.get('name')}（{m.get('position','')}）无联系电话",
+                    "warning": f"企业组织架构中{m.get('name')}（{m.get('position') or m.get('role') or ''}）无联系电话",
                 })
 
     # ── E2：关键岗位覆盖 ──
     org_positions = {
-        m.get("position", "") for g in (getattr(enterprise, "org_structure", None) or [])
+        (m.get("position") or "") + (m.get("role") or "")
+        for g in (getattr(enterprise, "org_structure", None) or [])
         for m in g.get("members", [])
     }
-    if "总指挥" not in org_positions or "副总指挥" not in org_positions:
+    # 总指挥/副总指挥任一在位即视为指挥机构已覆盖（兼容 role 字段）
+    if not (org_positions & {"总指挥", "副总指挥"}):
         warnings.append({
             "section_key": "",
             "section_title": "",
