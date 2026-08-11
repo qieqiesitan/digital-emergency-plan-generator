@@ -1,11 +1,11 @@
 """风险告知卡服务测试。"""
 from datetime import datetime, timedelta, timezone
 from app.models.risk_notice_card import RiskNoticeCard
-from app.models.risk_management import RiskObject, RiskEvent, RiskMeasure
+from app.models.risk_management import RiskObject, RiskUnit, RiskEvent, RiskMeasure
 from app.models.enterprise import Enterprise
 from app.services.risk_notice_card_service import (
     compute_level, resolve_responsible, build_right_column, match_signs, compute_code,
-    is_stale,
+    is_stale, merge_object_events, collect_measures,
 )
 
 
@@ -95,3 +95,33 @@ def test_match_signs_merges_and_orders():
 def test_compute_code_increments():
     objs = [RiskObject(name="A"), RiskObject(name="B")]
     assert compute_code(objs, objs[1]) == "FX-002"
+
+
+def test_merge_object_events_dedupes_object_and_unit_events():
+    obj = RiskObject(name="配电室")
+    unit = RiskUnit(name="动力车间")
+    obj.units.append(unit)
+    shared = RiskEvent(accident_type="火灾", risk_level="重大", method_type="LS")
+    obj.events.append(shared)
+    unit.events.append(shared)
+    own = RiskEvent(accident_type="触电", risk_level="一般", method_type="LS")
+    unit.events.append(own)
+
+    events = merge_object_events(obj)
+    assert len(events) == 2
+    assert events[0] is shared
+    assert events[1] is own
+
+
+def test_collect_measures_preserves_event_order():
+    obj = RiskObject(name="配电室")
+    e1 = RiskEvent(accident_type="火灾", risk_level="重大", method_type="LS")
+    e2 = RiskEvent(accident_type="触电", risk_level="一般", method_type="LS")
+    obj.events.extend([e1, e2])
+    m1 = RiskMeasure(measure_category="engineering", description="防静电接地")
+    m2 = RiskMeasure(measure_category="management", description="动火审批")
+    e1.measures.append(m1)
+    e2.measures.append(m2)
+
+    measures = collect_measures(merge_object_events(obj))
+    assert measures == [m1, m2]

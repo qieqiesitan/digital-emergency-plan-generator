@@ -146,6 +146,33 @@ async def get_snapshot(db: AsyncSession, object_id: str) -> RiskNoticeCard | Non
     ).scalars().first()
 
 
+def merge_object_events(obj: RiskObject) -> list[RiskEvent]:
+    """合并对象与各单元下的事件并保序去重（事件可能同时挂在两条关系上）。
+
+    RiskEvent 同时有 object_id 与 unit_id 双外键，同一事件可能同时出现在
+    obj.events 和 unit.events，需按 id 保序去重（id 为 None 时按对象身份）。
+    """
+    raw_events: list[RiskEvent] = list(obj.events or [])
+    for unit in obj.units or []:
+        raw_events.extend(unit.events or [])
+    events: list[RiskEvent] = []
+    seen: set[str] = set()
+    for e in raw_events:
+        key = e.id if e.id is not None else id(e)
+        if key not in seen:
+            seen.add(key)
+            events.append(e)
+    return events
+
+
+def collect_measures(events: list[RiskEvent]) -> list[RiskMeasure]:
+    """按事件顺序收集事件下的措施（跨事件不去重，语义与原实现一致）。"""
+    measures: list[RiskMeasure] = []
+    for e in events:
+        measures.extend(e.measures or [])
+    return measures
+
+
 async def load_events_and_measures(db: AsyncSession, object_id: str) -> tuple[list[RiskEvent], list[RiskMeasure]]:
     obj = (
         await db.execute(
@@ -159,22 +186,8 @@ async def load_events_and_measures(db: AsyncSession, object_id: str) -> tuple[li
     ).scalar_one_or_none()
     if obj is None:
         return [], []
-    # RiskEvent 同时有 object_id 与 unit_id 双外键，同一事件可能同时出现在
-    # obj.events 和 unit.events，需按 id 保序去重后再收集措施。
-    raw_events: list[RiskEvent] = list(obj.events or [])
-    for unit in obj.units or []:
-        raw_events.extend(unit.events or [])
-    events: list[RiskEvent] = []
-    seen: dict = {}
-    for e in raw_events:
-        key = e.id if e.id is not None else id(e)
-        if key not in seen:
-            seen[key] = True
-            events.append(e)
-    measures: list[RiskMeasure] = []
-    for e in events:
-        measures.extend(e.measures or [])
-    return events, measures
+    events = merge_object_events(obj)
+    return events, collect_measures(events)
 
 
 async def build_card_data(

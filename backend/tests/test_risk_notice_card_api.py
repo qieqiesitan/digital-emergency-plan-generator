@@ -73,7 +73,6 @@ def _risk_card_db(ent, objs, detail_obj=None, events_obj=None):
     risk_notice_cards → 快照（first，测试中恒为 None）；
     FROM risk_objects + enterprise_id + ORDER BY → 企业全部对象列表；
     FROM risk_objects + enterprise_id（无 ORDER BY）→ 详情归属对象；
-    FROM risk_objects（仅 id 条件）→ load_events_and_measures 内部对象。
     """
     db = AsyncMock()
 
@@ -215,6 +214,50 @@ def test_detail_missing_enterprise_404(client):
     resp = client.get("/enterprises/not-exist/risk-notice-cards/o1")
     assert resp.status_code == 404
     assert "企业不存在" in resp.json()["detail"]
+
+
+def test_detail_fallback_responsible_uses_enterprise_values(client):
+    ent = _enterprise()
+    obj = _risk_object(responsible_unit=None, responsible_person=None, contact_phone=None)
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    resp = client.get("/enterprises/e1/risk-notice-cards/o1")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["fallback_used"] is True
+    assert data["responsible_unit"] == "甲公司"
+    assert data["responsible_person"] == "李四"
+    assert data["contact_phone"] == "13900000000"
+
+
+def test_detail_empty_object_uses_fallback_template(client):
+    ent = _enterprise()
+    obj = _risk_object()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj
+    )
+
+    resp = client.get("/enterprises/e1/risk-notice-cards/o1")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["level"] == "未评估"
+    assert data["signs"] == []
+    assert data["accident_types"] == []
+    assert data["hazard_description"] == ""
+    assert data["emergency_measures"] == [
+        "1. 立即停止作业，保护现场",
+        "2. 拨打 119/120 报警",
+        "3. 组织人员疏散，报告企业应急管理部门",
+    ]
+
+
+def test_list_rejects_invalid_level(client):
+    resp = client.get("/enterprises/e1/risk-notice-cards", params={"level": "极高"})
+    assert resp.status_code == 422
+    assert "非法的 level 参数" in resp.json()["detail"]
 
 
 def test_auth_required_without_override():

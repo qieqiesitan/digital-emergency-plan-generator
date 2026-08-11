@@ -3,7 +3,7 @@
 列表返回 CardSummary 摘要（含筛选），详情返回 CardData 全量数据。
 导出/AI 优化/快照/token 端点由后续任务补充。
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,12 +15,13 @@ from app.models.risk_management import RiskEvent, RiskObject, RiskUnit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.schemas.risk_notice_card import CardData, CardSummary
-from app.services.risk_notice_card_data import LEVEL_COLORS
+from app.services.risk_notice_card_data import LEVEL_COLORS, LEVEL_ORDER
 from app.services.risk_notice_card_service import (
     build_card_data,
+    collect_measures,
     compute_level,
-    load_events_and_measures,
     match_signs,
+    merge_object_events,
     resolve_responsible,
 )
 
@@ -28,6 +29,9 @@ router = APIRouter(
     prefix="/enterprises/{enterprise_id}/risk-notice-cards",
     tags=["Risk Notice Card"],
 )
+
+# 合法 level 筛选值：LEVEL_ORDER（重大/较大/一般/低）+ 未评估
+VALID_LEVELS = [*LEVEL_ORDER, "未评估"]
 
 
 async def _get_ent(eid: str, uid: str, db: AsyncSession) -> Enterprise:
@@ -41,30 +45,19 @@ async def _get_ent(eid: str, uid: str, db: AsyncSession) -> Enterprise:
     return ent
 
 
-def _collect_events(obj: RiskObject) -> list[RiskEvent]:
-    """合并对象与各单元下的事件并保序去重（事件可能同时挂在两条关系上）。"""
-    raw_events: list[RiskEvent] = list(obj.events or [])
-    for unit in obj.units or []:
-        raw_events.extend(unit.events or [])
-    events: list[RiskEvent] = []
-    seen: set[str] = set()
-    for e in raw_events:
-        key = e.id if e.id is not None else id(e)
-        if key not in seen:
-            seen.add(key)
-            events.append(e)
-    return events
-
-
 @router.get("", response_model=ApiResponse[list[CardSummary]])
 async def list_cards(
     enterprise_id: str,
-    level: str | None = None,
+    level: str | None = Query(None),
     zone_id: str | None = None,
     keyword: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if level is not None and level not in VALID_LEVELS:
+        raise HTTPException(
+            422, f"非法的 level 参数：{level}，合法值：{', '.join(VALID_LEVELS)}"
+        )
     ent = await _get_ent(enterprise_id, current_user.id, db)
     objs = (
         await db.execute(
@@ -83,7 +76,7 @@ async def list_cards(
 
     summaries: list[CardSummary] = []
     for obj in objs:
-        events = _collect_events(obj)
+        events = merge_object_events(obj)
         lv = compute_level(events)
         if level and lv != level:
             continue
@@ -121,7 +114,14 @@ async def card_detail(
     ent = await _get_ent(enterprise_id, current_user.id, db)
     obj = (
         await db.execute(
-            select(RiskObject).where(
+            select(RiskObject)
+            .options(
+                selectinload(RiskObject.units)
+                .selectinload(RiskUnit.events)
+                .selectinload(RiskEvent.measures),
+                selectinload(RiskObject.events).selectinload(RiskEvent.measures),
+            )
+            .where(
                 RiskObject.id == object_id,
                 RiskObject.enterprise_id == enterprise_id,
             )
@@ -136,6 +136,7 @@ async def card_detail(
             .order_by(RiskObject.created_at)
         )
     ).scalars().all()
-    events, measures = await load_events_and_measures(db, object_id)
+    events = merge_object_events(obj)
+    measures = collect_measures(events)
     data = await build_card_data(db, ent, obj, list(objects), events, measures)
     return ApiResponse(data=data)
