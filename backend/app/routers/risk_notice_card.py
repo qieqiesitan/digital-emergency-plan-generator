@@ -1,16 +1,19 @@
 """风险告知卡 API。
 
 列表返回 CardSummary 摘要（含筛选），详情返回 CardData 全量数据，
-AI 优化（ai-optimize）与快照（snapshot）端点已实现。
-导出/token 端点由任务 8-9 补充。
+AI 优化（ai-optimize）、快照（snapshot）与批量 docx 导出（export）端点已实现。
+token 端点由任务 9 补充。
 """
+import os
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise
@@ -21,11 +24,14 @@ from app.schemas.risk_notice_card import (
     AiOptimizeResponse,
     CardData,
     CardSummary,
+    ExportRequest,
+    ExportResponse,
     SnapshotSaveRequest,
     SnapshotResponse,
 )
 from app.services.risk_notice_card_data import LEVEL_COLORS, LEVEL_ORDER
 from app.services.risk_notice_card_ai import optimize_right_column
+from app.services.risk_notice_card_docx import render_cards_docx, svg_to_png
 from app.services.risk_notice_card_service import (
     build_card_data,
     build_right_column,
@@ -155,6 +161,69 @@ async def card_detail(
     measures = collect_measures(events)
     data = await build_card_data(db, ent, obj, list(objects), events, measures)
     return ApiResponse(data=data)
+
+
+@router.post("/export", response_model=ApiResponse[ExportResponse])
+async def export_cards(
+    enterprise_id: str,
+    body: ExportRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """批量导出风险告知卡 docx（A4 每卡一页 + 右上角二维码）。
+
+    逐卡校验归属并组装 CardData；不存在的 object_id 跳过并记入 warnings；
+    全部无效时返回 400。生成文件落入 settings.EXPORT_DIR。
+    """
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    cards: list[CardData] = []
+    warnings: list[str] = []
+    for oid in body.object_ids:
+        obj = (
+            await db.execute(
+                select(RiskObject).where(
+                    RiskObject.id == oid,
+                    RiskObject.enterprise_id == enterprise_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if not obj:
+            warnings.append(f"风险点不存在：{oid}")
+            continue
+        objects = (
+            await db.execute(
+                select(RiskObject)
+                .where(RiskObject.enterprise_id == enterprise_id)
+                .order_by(RiskObject.created_at)
+            )
+        ).scalars().all()
+        events, measures = await load_events_and_measures(db, oid)
+        cards.append(
+            await build_card_data(db, ent, obj, list(objects), events, measures)
+        )
+    if not cards:
+        raise HTTPException(400, "没有可导出的卡片")
+
+    sign_pngs: dict[str, bytes] = {}
+    for card in cards:
+        for sign in card.signs:
+            if sign.svg_name not in sign_pngs:
+                sign_pngs[sign.svg_name] = await svg_to_png(sign.svg_name)
+
+    os.makedirs(settings.EXPORT_DIR, exist_ok=True)
+    file_key = (
+        f"risk-notice-{enterprise_id[:8]}-"
+        f"{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
+    )
+    out_path = os.path.join(settings.EXPORT_DIR, file_key)
+    render_cards_docx(cards, out_path, sign_pngs)
+    if warnings:
+        logger.warning(
+            "风险告知卡导出：%d 个 object_id 不存在，已跳过：%s",
+            len(warnings),
+            "，".join(warnings),
+        )
+    return ApiResponse(data=ExportResponse(file_key=file_key, warnings=warnings))
 
 
 @router.post("/{object_id}/ai-optimize", response_model=ApiResponse[AiOptimizeResponse])

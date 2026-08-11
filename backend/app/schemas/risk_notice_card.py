@@ -53,6 +53,7 @@ class ExportRequest(BaseModel):
 
 class ExportResponse(BaseModel):
     file_key: str
+    warnings: list[str] = []
 
 
 class AiOptimizeResponse(BaseModel):
