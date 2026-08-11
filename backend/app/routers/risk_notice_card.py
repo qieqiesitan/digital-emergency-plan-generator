@@ -19,6 +19,7 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise
+from app.models.risk_notice_card import RiskNoticeCard
 from app.models.risk_management import RiskEvent, RiskObject, RiskUnit
 from app.models.user import User
 from app.schemas.common import ApiResponse
@@ -40,6 +41,7 @@ from app.services.risk_notice_card_service import (
     build_right_column,
     collect_measures,
     compute_level,
+    is_stale,
     load_events_and_measures,
     match_signs,
     merge_object_events,
@@ -97,10 +99,30 @@ async def list_cards(
             .order_by(RiskObject.created_at)
         )
     ).scalars().all()
+    snap_rows = (
+        await db.execute(
+            select(RiskNoticeCard).where(
+                RiskNoticeCard.enterprise_id == enterprise_id
+            )
+        )
+    ).scalars().all()
+    snapshot_by_object = {s.object_id: s for s in snap_rows}
 
     summaries: list[CardSummary] = []
     for obj in objs:
         events = merge_object_events(obj)
+        measures = collect_measures(events)
+        timestamps = [
+            t
+            for t in (
+                [obj.updated_at or obj.created_at]
+                + [e.updated_at or e.created_at for e in events]
+                + [m.updated_at or m.created_at for m in measures]
+            )
+            if t is not None
+        ]
+        source_updated = max(timestamps) if timestamps else None
+        snap = snapshot_by_object.get(obj.id)
         lv = compute_level(events)
         if level and lv != level:
             continue
@@ -123,6 +145,12 @@ async def list_cards(
                 signs=match_signs(accident_types),
                 responsible_unit=unit,
                 public_url=f"/r/{obj.public_token}",
+                snapshot=(
+                    {"version": snap.version, "source": snap.source}
+                    if snap
+                    else None
+                ),
+                stale=is_stale(snap, source_updated) if snap else False,
             )
         )
     return ApiResponse(data=summaries)

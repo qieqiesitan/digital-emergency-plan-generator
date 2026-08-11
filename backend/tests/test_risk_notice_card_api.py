@@ -67,10 +67,11 @@ def _scalar_result(value):
     return res
 
 
-def _risk_card_db(ent, objs, detail_obj=None, events_obj=None):
+def _risk_card_db(ent, objs, detail_obj=None, events_obj=None, snapshots=None):
     """按 SQL 文本特征分发：
     FROM enterprises → 企业（scalar_one_or_none）；
-    risk_notice_cards → 快照（first，测试中恒为 None）；
+    risk_notice_cards + enterprise_id → 企业全部快照列表（all）；
+    risk_notice_cards（无 enterprise_id）→ 单对象快照（first，详情路径）；
     FROM risk_objects + enterprise_id + ORDER BY → 企业全部对象列表；
     FROM risk_objects + enterprise_id（无 ORDER BY）→ 详情归属对象；
     """
@@ -83,7 +84,10 @@ def _risk_card_db(ent, objs, detail_obj=None, events_obj=None):
             return _scalar_result(ent)
         if "risk_notice_cards" in text:
             res = MagicMock()
-            res.scalars.return_value.first.return_value = None
+            if "WHERE risk_notice_cards.enterprise_id" in text:
+                res.scalars.return_value.all.return_value = snapshots or []
+            else:
+                res.scalars.return_value.first.return_value = None
             return res
         if "FROM risk_objects" in text:
             if "enterprise_id =" in text:
@@ -146,8 +150,76 @@ def test_list_returns_card_summaries(client):
     assert item["accident_types"] == ["火灾"]
     assert item["responsible_unit"] == "动力车间"
     assert item["public_url"] == "/r/tok1"
+    assert item["snapshot"] is None
+    assert item["stale"] is False
     categories = {s["category"] for s in item["signs"]}
     assert "warning" in categories and "prohibition" in categories
+
+
+def test_list_includes_snapshot_metadata_not_stale(client):
+    from datetime import datetime, timezone
+
+    from app.models.risk_notice_card import RiskNoticeCard
+
+    ent = _enterprise()
+    zone = MagicMock()
+    zone.name = "A区"
+    obj = _risk_object()
+    obj.zone = zone
+    ev = _fire_event()
+    obj.events.append(ev)
+    obj.updated_at = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    ev.updated_at = datetime(2026, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+    snap = RiskNoticeCard(
+        enterprise_id="e1",
+        object_id="o1",
+        version=3,
+        source="ai",
+        content={"hazard_description": "快照文案"},
+        updated_at=datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], snapshots=[snap]
+    )
+
+    resp = client.get("/enterprises/e1/risk-notice-cards")
+    assert resp.status_code == 200
+    item = resp.json()["data"][0]
+    assert item["snapshot"] == {"version": 3, "source": "ai"}
+    assert item["stale"] is False
+
+
+def test_list_marks_stale_when_snapshot_older_than_source(client):
+    from datetime import datetime, timezone
+
+    from app.models.risk_notice_card import RiskNoticeCard
+
+    ent = _enterprise()
+    zone = MagicMock()
+    zone.name = "A区"
+    obj = _risk_object()
+    obj.zone = zone
+    ev = _fire_event()
+    obj.events.append(ev)
+    obj.updated_at = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    ev.updated_at = datetime(2026, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+    snap = RiskNoticeCard(
+        enterprise_id="e1",
+        object_id="o1",
+        version=1,
+        source="ai",
+        content={"hazard_description": "旧快照"},
+        updated_at=datetime(2026, 1, 1, 9, 0, 0, tzinfo=timezone.utc),
+    )
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], snapshots=[snap]
+    )
+
+    resp = client.get("/enterprises/e1/risk-notice-cards")
+    assert resp.status_code == 200
+    item = resp.json()["data"][0]
+    assert item["snapshot"] == {"version": 1, "source": "ai"}
+    assert item["stale"] is True
 
 
 def test_list_filters_by_level_zone_keyword(client):
