@@ -97,9 +97,9 @@ def _drawings(doc: Document) -> int:
     return sum(1 for _ in doc.element.body.iter(qn("w:drawing")))
 
 
-def _embedded_png_sizes(doc: Document) -> list[tuple[int, int]]:
-    """解析 docx 内嵌 PNG 实际渲染尺寸（IHDR 宽高），区分真实图片与 1x1 占位图。"""
-    sizes: list[tuple[int, int]] = []
+def _embedded_png_blobs(doc: Document) -> list[bytes]:
+    """提取 docx 内嵌的全部 PNG 原始字节（含二维码与安全标志）。"""
+    blobs: list[bytes] = []
     for drawing in doc.element.body.iter(qn("w:drawing")):
         for blip in drawing.iter(qn("a:blip")):
             rid = blip.get(qn("r:embed"))
@@ -109,11 +109,38 @@ def _embedded_png_sizes(doc: Document) -> list[tuple[int, int]]:
             if part is None:
                 continue
             blob = part.blob
-            if blob[:8] == b"\x89PNG\r\n\x1a\n" and len(blob) >= 24:
-                width = int.from_bytes(blob[16:20], "big")
-                height = int.from_bytes(blob[20:24], "big")
-                sizes.append((width, height))
+            if blob[:8] == b"\x89PNG\r\n\x1a\n":
+                blobs.append(blob)
+    return blobs
+
+
+def _embedded_png_sizes(doc: Document) -> list[tuple[int, int]]:
+    """解析 docx 内嵌 PNG 实际渲染尺寸（IHDR 宽高），区分真实图片与 1x1 占位图。"""
+    sizes: list[tuple[int, int]] = []
+    for blob in _embedded_png_blobs(doc):
+        if len(blob) >= 24:
+            width = int.from_bytes(blob[16:20], "big")
+            height = int.from_bytes(blob[20:24], "big")
+            sizes.append((width, height))
     return sizes
+
+
+def _decode_qr(png: bytes) -> str:
+    """用 OpenCV 解码二维码 PNG，返回内容文本（失败返回空串）。"""
+    import cv2
+    import numpy as np
+
+    arr = np.frombuffer(png, dtype=np.uint8)
+    gray = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+    if gray is None:
+        return ""
+    text, points, _ = cv2.QRCodeDetector().detectAndDecode(gray)
+    return text if points is not None else ""
+
+
+def _embedded_qr_contents(doc: Document) -> list[str]:
+    """解码 docx 内嵌二维码实际内容（空串表示该 PNG 非二维码/解码失败）。"""
+    return [t for t in (_decode_qr(b) for b in _embedded_png_blobs(doc)) if t]
 
 
 def test_make_qr_png_returns_png_bytes():
@@ -124,7 +151,12 @@ def test_make_qr_png_returns_png_bytes():
 def test_render_cards_docx_one_page_per_card(tmp_path):
     cards = [_card("o1", "LPG 储罐区"), _card("o2", "配电室", "较大")]
     out = tmp_path / "cards.docx"
-    render_cards_docx(cards, str(out), {"warning-explosion": PLACEHOLDER_PNG})
+    render_cards_docx(
+        cards,
+        str(out),
+        {"warning-explosion": PLACEHOLDER_PNG},
+        base_url="http://testserver",
+    )
     assert out.exists()
 
     doc = Document(str(out))
@@ -135,6 +167,20 @@ def test_render_cards_docx_one_page_per_card(tmp_path):
     assert any("当心爆炸" in t for t in texts)  # 标志名称文字
     assert any("签发单位：测试公司" in t for t in texts)  # 页脚
     assert any("V1.0" in t for t in texts)  # 规则基线版本
+    # 二维码内容必须是完整公开页 URL（相对路径 /r/... 手机扫码无法解析主机）
+    assert _embedded_qr_contents(doc) == [
+        "http://testserver/r/token123",
+        "http://testserver/r/token123",
+    ]
+
+
+def test_render_cards_docx_qr_falls_back_to_public_url_without_base(tmp_path):
+    """未传 base_url 时（纯函数调用方）二维码保留 public_url 原值，不崩。"""
+    out = tmp_path / "cards.docx"
+    render_cards_docx(
+        [_card("o1", "LPG 储罐区")], str(out), {"warning-explosion": PLACEHOLDER_PNG}
+    )
+    assert _embedded_qr_contents(Document(str(out))) == ["/r/token123"]
 
 
 def _enterprise(**overrides):
@@ -286,6 +332,8 @@ def test_export_returns_file_key_and_writes_docx(client):
     png_sizes = _embedded_png_sizes(doc)
     assert len(png_sizes) >= 2
     assert all(w > 1 and h > 1 for w, h in png_sizes)
+    # 二维码实际内容为完整公开页 URL（导出端点由 request.base_url 推导）
+    assert "http://testserver/r/tok1" in _embedded_qr_contents(doc)
 
 
 def test_export_skips_missing_object_with_warnings(client, monkeypatch):

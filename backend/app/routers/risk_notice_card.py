@@ -10,7 +10,7 @@ import asyncio
 import secrets
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -201,11 +201,14 @@ async def card_detail(
 async def export_cards(
     enterprise_id: str,
     body: ExportRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """批量导出风险告知卡 docx（A4 每卡一页 + 右上角二维码）。
 
+    二维码内容为公开页完整 URL（str(request.base_url).rstrip('/') + public_url），
+    与前端复制链接（location.origin + public_url）语义一致，随部署主机动态正确。
     先一次查询企业全部风险点（compute_code 需要）用于逐卡归属校验并组装
     CardData；不存在的 object_id 跳过并记入 warnings；全部无效时返回 400。
     生成文件落入 settings.EXPORT_DIR。
@@ -246,7 +249,10 @@ async def export_cards(
     )
     out_path = os.path.join(settings.EXPORT_DIR, file_key)
     try:
-        await asyncio.to_thread(render_cards_docx, cards, out_path, sign_pngs)
+        base_url = str(request.base_url).rstrip("/")
+        await asyncio.to_thread(
+            render_cards_docx, cards, out_path, sign_pngs, base_url
+        )
     except Exception:
         logger.exception("风险告知卡导出渲染失败: enterprise=%s", enterprise_id)
         raise HTTPException(500, "导出失败，请稍后重试")

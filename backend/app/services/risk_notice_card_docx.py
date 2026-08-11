@@ -99,8 +99,12 @@ def _shade_cell(cell, fill_hex: str):
     shd.set(qn("w:fill"), fill_hex.lstrip("#"))
 
 
-def _render_header(doc, card: CardData):
-    """头部三区：企业名（左）/ 居中标题 / 右上角二维码（约 1.4cm）。"""
+def _render_header(doc, card: CardData, base_url: str | None = None):
+    """头部三区：企业名（左）/ 居中标题 / 右上角二维码（约 1.4cm）。
+
+    base_url 非空时二维码内容为「完整公开页 URL（base_url + public_url）」，
+    保证手机扫码可解析主机；为空则回退 public_url 原值。
+    """
     table = doc.add_table(rows=1, cols=3)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell_left, cell_mid, cell_right = table.rows[0].cells
@@ -115,8 +119,11 @@ def _render_header(doc, card: CardData):
 
     p_right = cell_right.paragraphs[0]
     p_right.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    qr_content = (
+        f"{base_url.rstrip('/')}{card.public_url}" if base_url else card.public_url
+    )
     qr_run = p_right.add_run()
-    qr_run.add_picture(io.BytesIO(make_qr_png(card.public_url)), width=Cm(1.4))
+    qr_run.add_picture(io.BytesIO(make_qr_png(qr_content)), width=Cm(1.4))
 
 
 def _render_level_band(doc, card: CardData):
@@ -211,8 +218,13 @@ def render_cards_docx(
     cards: list[CardData],
     out_path: str,
     sign_pngs: dict[str, bytes] | None = None,
+    base_url: str | None = None,
 ):
-    """渲染多张风险告知卡为 A4 竖版 docx，每卡一页，卡间分页符。"""
+    """渲染多张风险告知卡为 A4 竖版 docx，每卡一页，卡间分页符。
+
+    base_url（如导出端点推导的 str(request.base_url).rstrip('/')）用于把
+    public_url 相对路径拼成完整 URL 写入二维码；缺省时保留 public_url 原值。
+    """
     doc = Document()
     section = doc.sections[0]
     section.page_height = Cm(29.7)
@@ -222,7 +234,7 @@ def render_cards_docx(
     sign_pngs = sign_pngs or {}
 
     for i, card in enumerate(cards):
-        _render_header(doc, card)
+        _render_header(doc, card, base_url)
         _render_left(doc, card, sign_pngs)
         _render_right(doc, card)
         _render_footer(doc, card)
