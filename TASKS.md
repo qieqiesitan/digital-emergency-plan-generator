@@ -1,4 +1,12 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_01_migration）：质量审查重要项修复已完成并提交（88d28b5），等待主控复核
+- 刚完成的动作：①backend/app/models/risk_management.py 顶部加 `import secrets`，public_token 默认值改 `lambda: secrets.token_hex(32)`；②backend/db_migration_risk_notice_card.sql 存量行 token 改 `encode(gen_random_bytes(32), 'hex')`（64 位 hex 与模型一致）、追加 server-side DEFAULT、BEGIN/COMMIT 包裹全迁移；pytest 1 passed ✅；git show --check HEAD 干净 ✅；新 commit 88d28b5（未 amend 80a56ed），消息精确 fix(risk-notice-card): unify public token generation and import style
+- 下一步：主控复核 → 后续任务（快照模型/服务/测试扩展）
+- 关键上下文：worktree .worktrees\risk-notice-card 分支 codex/risk-notice-card；提交栈 88d28b5 → 80a56ed → 65df3d3；TASKS.md 保持未提交（项目惯例）
+- 正在做什么（2026-08-11，子代理·task_01_migration）：风险告知卡实现计划任务 1 已完成并提交（80a56ed），等待主控复核
+- 刚完成的动作：创建 backend/db_migration_risk_notice_card.sql（ALTER TABLE risk_objects 加 4 字段 + 存量行补 token + NOT NULL + 唯一索引）；backend/app/models/risk_management.py RiskObject 类在 image_url 与 is_risk_point 之间加 responsible_unit/responsible_person/contact_phone/public_token 4 字段；新建 backend/tests/test_risk_notice_card_service.py（模型字段断言）；TDD 红→绿：测试先 FAIL（字段缺失）后 PASS ✅；提交信息精确 feat(risk-notice-card): add risk object notice fields and migration，提交前 git status 仅含 3 个目标文件
+- 下一步：主控复核 → 后续任务（快照模型/服务/测试扩展）
+- 关键上下文：worktree .worktrees\risk-notice-card 分支 codex/risk-notice-card；提交 80a56ed 3 文件 26 行新增；pytest 单测 1 passed；TASKS.md 保持未提交（项目惯例）
 - 正在做什么（2026-08-10，子代理·task_unify_enterprise_edit）：统一引导页第 1 步与编辑企业页已完成并提交（5f76fd3 加公共组件 + ca66d22 两页变薄），完成脚本已执行，等待主控复核
 - 刚完成的动作：新建 frontend/src/components/enterprise/EnterpriseInfoWorkspace.tsx（完成度条+EnterpriseInfoCards+GIS/平面图 Card+📄导入现有数据+CandidatesReview+onDone 按钮；一次保存合并提交 GIS 字段，清除语义保留即提交 null）；StepEnterprise.tsx（仅标题/描述/错误态+透传 imported 链路）/ EnterpriseEditPage.tsx（PageHeader+Workspace，保存后停留）变薄复用；门禁 tsc ✅ / eslint 三文件 0 问题（与 154d90d 基线逐项一致）✅ / git show --check 干净 ✅ / 无新增 any、无 >100 字符行 ✅
 - 下一步：主控审阅 → 双审 → 确认合入
