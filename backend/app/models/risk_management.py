@@ -51,6 +51,11 @@ class RiskObject(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     legacy_source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # 风险告知卡：责任信息与公开页 token
+    responsible_unit: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    responsible_person: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    contact_phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    public_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, default=lambda: __import__("secrets").token_hex(32))
     is_risk_point: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
