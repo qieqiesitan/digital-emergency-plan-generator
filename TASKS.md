@@ -1,12 +1,318 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-11，子代理·task_01_migration）：质量审查重要项修复已完成并提交（88d28b5），等待主控复核
-- 刚完成的动作：①backend/app/models/risk_management.py 顶部加 `import secrets`，public_token 默认值改 `lambda: secrets.token_hex(32)`；②backend/db_migration_risk_notice_card.sql 存量行 token 改 `encode(gen_random_bytes(32), 'hex')`（64 位 hex 与模型一致）、追加 server-side DEFAULT、BEGIN/COMMIT 包裹全迁移；pytest 1 passed ✅；git show --check HEAD 干净 ✅；新 commit 88d28b5（未 amend 80a56ed），消息精确 fix(risk-notice-card): unify public token generation and import style
-- 下一步：主控复核 → 后续任务（快照模型/服务/测试扩展）
-- 关键上下文：worktree .worktrees\risk-notice-card 分支 codex/risk-notice-card；提交栈 88d28b5 → 80a56ed → 65df3d3；TASKS.md 保持未提交（项目惯例）
-- 正在做什么（2026-08-11，子代理·task_01_migration）：风险告知卡实现计划任务 1 已完成并提交（80a56ed），等待主控复核
-- 刚完成的动作：创建 backend/db_migration_risk_notice_card.sql（ALTER TABLE risk_objects 加 4 字段 + 存量行补 token + NOT NULL + 唯一索引）；backend/app/models/risk_management.py RiskObject 类在 image_url 与 is_risk_point 之间加 responsible_unit/responsible_person/contact_phone/public_token 4 字段；新建 backend/tests/test_risk_notice_card_service.py（模型字段断言）；TDD 红→绿：测试先 FAIL（字段缺失）后 PASS ✅；提交信息精确 feat(risk-notice-card): add risk object notice fields and migration，提交前 git status 仅含 3 个目标文件
-- 下一步：主控复核 → 后续任务（快照模型/服务/测试扩展）
-- 关键上下文：worktree .worktrees\risk-notice-card 分支 codex/risk-notice-card；提交 80a56ed 3 文件 26 行新增；pytest 单测 1 passed；TASKS.md 保持未提交（项目惯例）
+- 正在做什么（2026-08-13 22:5x）：图谱增量更新（用户指令「更新图谱」，覆盖 08-10~08-13 工作）
+- 刚完成的动作：
+  - 增量检测：49 代码 + 25 文档变更，3 删除（2 个 archive SQL + 1 个上传平面图 PNG）
+  - `.graphifyignore` 新增 `backend/uploads/`（上传的业务数据图片，39 个不再进入语料）
+  - 变更内容：风险告知卡自动生成新模块（后端 models/routers/schemas/5 个服务 + db_migration_risk_notice_card.sql + 前端 4 屏/公开页/服务/类型 + 测试）、部署就绪与技术债清理（stripAppBase/密钥必填/PROTEGO/部署脚本）、plan_quality 合规扩展、四色导入与工作台画布修复
+  - AST 提取 49 文件（643 节点/1508 边）+ 语义 25 文档（26 节点/32 边，新概念 concept_risk_notice_card）→ `build_merge(dedup=False)`（7432 节点）→ Step 4 `to_json` 写回 → 重聚类 660 社区 → 重打标签（0 占位符）→ 重生成报告/HTML → manifest 已更新
+  - 注意：并行执行 populate-detect 与 AST 曾导致 AST 读到旧 detect（129 文件），已按顺序重跑修正
+- 验证结果：`graphify-out/graph.json` = 7432 节点 / 12976 边；`services_risk_notice_card_service`、`routers_risk_notice_card`、`models_risk_notice_card`、`concept_risk_notice_card`、`routers_public_risk_notice`、`services_risk_notice_card_docx` 均在图中；删除文件无残留节点
+- 关键上下文：manifest 基线已更新；backend/uploads 已排除；临时脚本 `graphify-out/_build_semantic5.py` 可复现语义数据
+- 下一步：可用 graphify query/path/explain 查询风险告知卡模块
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-10 18:xx）：图谱增量更新（用户指令「更新图谱」，覆盖 08-08~08-10 两天工作）
+- 正在做什么（2026-08-13，主控）：brainstorming 讨论「右上角企业选择（EnterpriseSwitcher）是否已无用」，探索阶段、未改码
+- 刚完成的动作：读完 brainstorming SKILL.md；调研代码——EnterpriseSwitcher 切换全局 currentEnterpriseId（localStorage），桌面端真正消费点仅 frontend/src/pages/Dashboard/CompletionCard.tsx 与 frontend/src/pages/Plan/PlanCreatePage.tsx（默认企业兜底）；企业管理/预案列表/风险工作台均走 URL 参数或页面弹窗自选，不跟随右上角切换；工作台快捷新建另有独立「选择企业」Modal（DashboardPage.tsx:142）
+- 下一步：向用户给出判断并澄清目标（移除 vs 改造成真正全局企业上下文）
+- 关键上下文：master HEAD=f362a8b（4 个风险告知卡问题已修复）；EnterpriseContext.tsx 提供 currentEnterpriseId/enterprises/setCurrentEnterprise；移动端 appStore 独立企业状态与本话题无关
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：✅ 修复用户反馈的 4 个风险告知卡问题并已重新部署到 Docker——①安全标志不显示（Vite /signs 代理缺失→SPA fallback 冒名）②预览二维码占位（改为真实二维码，前端引入 qrcode 包）③等级色带左上角缺角（.rnc-rule 被 header padding 挤压非全宽→移到 header 外）④预览横版/导出竖版不一致（docx 改左右分栏表格）
+- 刚完成的动作：系统化调试定位 4 个根因（像素级验证缺角）；修复 commit 56db293 + f362a8b（6+1 文件）；后端 410 passed / 前端 tsc 0 + vitest 61；node:20 重建 dist（npm ci 遇 lock 技术债改 npm install --no-save 兜底）；docker compose build + recreate backend/shuzihuayuan；验证 5173 /signs 返回 image/svg+xml、8000/8082 200、7 路由健康
+- 下一步：无阻塞。用户刷新浏览器验证（5173 dev 或 8000 部署）；可推送 origin/Gitee 同步（master 现含 5967fd0 + 81f31e1 + 56db293 + f362a8b）
+- 关键上下文：master HEAD=f362a8b；遗留技术债：package-lock 与 package.json 在 npm 版本间不同步（@floating-ui/dom，容器 npm ci 需 npm install 兜底）；前端新增依赖 qrcode@^1.5.4 + @types/qrcode
+- 正在做什么（2026-08-13，主控）：会话启动，用户打招呼「你好」，无新任务下发；仅完成 TASKS.md 读取与状态确认
+- 刚完成的动作：读取 TASKS.md 顶部快照与「进行中的任务/阻塞」扫描；确认风险告知卡已部署验证通过、无阻塞项
+- 下一步：等待用户给出具体任务
+- 关键上下文：master HEAD=81f31e1；本地 Docker 后端 8000 / 桌面 8000 / 移动端 8082 均为新代码并验证通过；待办仅剩可选推送 origin/Gitee 与换环境时应用 db_migration_risk_notice_card.sql
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：✅ 风险告知卡新代码已部署到本地 Docker 并验证通过——后端 8000（7 个新路由 + qrcode）、桌面 8000 新 dist、移动端 8082 新 dist、/signs 静态挂载
+- 刚完成的动作：node:20 容器构建新 dist（npm ci + build，PWA 133 项）；修复 backend/Dockerfile pip 源（清华不可达 → 阿里云，commit 81f31e1）；docker compose build backend shuzihuayuan；up -d --no-deps --force-recreate 重建两容器；验证：qrcode 可导入 / health 200 / openapi 含 risk-notice-cards 7 路由 / 公开端点无效 token 404 / 8000·8082·/signs 均 200
+- 下一步：无阻塞。可推送到 origin/Gitee 同步；换环境部署时需应用迁移 db_migration_risk_notice_card.sql
+- 关键上下文：master HEAD=81f31e1（合并 5967fd0 + Dockerfile 镜像源修复）；本地 DB 已应用迁移；frontend 5173 为 Vite dev（新代码）；容器 emergency-plan-backend/shuzihuayuan 已重建，frontend(5173)/postgres 未动
+- 正在做什么（2026-08-13，主控）：✅ 风险告知卡功能已合并回 master（快进 300502a→5967fd0，70 文件 6460 行），worktree/分支已清理，合并后门禁复验通过
+- 刚完成的动作：用户选「本地合并回 master」；stash+备份 TASKS.md 后快进合并；合并后验证：后端风险告知卡相关测试 53 passed / 前端 tsc 0 + vitest 61 passed（主工作区 npm ci 补齐依赖）；git worktree remove + branch -d codex/risk-notice-card 完成
+- 下一步：无阻塞。可推送 origin/Gitee；部署时需应用迁移 db_migration_risk_notice_card.sql + 重装依赖（qrcode==8.2）
+- 关键上下文：master HEAD=5967fd0；设计规格 docs/superpowers/specs/2026-08-11-risk-notice-card-design.md、实现计划 docs/superpowers/plans/2026-08-11-risk-notice-card.md 均在库；本地 DB 已应用迁移；遗留建议（非阻塞）：管理页「生成全部」按钮、公开页缓存窗口、快照 content 字段级校验、责任字段编辑回显
+- 正在做什么（2026-08-11，主控·收尾）：「自动生成风险告知卡」全部 15 个任务实现 + 双审 + 最终整体审查完成（分支 codex/risk-notice-card，HEAD=5967fd0），待用户选择合并方式
+- 刚完成的动作：子代理驱动完成 15 个任务（每个任务 实现+规格审+质量审，重要缺陷均已修复）；最终整体审查发现二维码相对路径问题已修复（5967fd0，request.base_url 推导完整 URL + OpenCV 解码断言）；回归门禁：后端 409 passed / 前端 tsc 0 + vitest 61 / SVG 合规 4 passed；手工冒烟全链路通过（列表/预览/导出 Word 6 图/AI 优化真实 DeepSeek/快照版本 +1/公开页无需登录/无效 token 404）
+- 下一步：用户选收尾方式（①本地合并回 master【推荐】②PR ③保持分支）→ 合并后清理 worktree + 更新文档
+- 关键上下文：分支 codex/risk-notice-card 基于 master 300502a（规格），36+1 提交；设计规格 docs/superpowers/specs/2026-08-11-risk-notice-card-design.md；本地 DB 已应用迁移 db_migration_risk_notice_card.sql（正式交付物）；部署时需重装依赖含 qrcode==8.2；遗留建议（非阻塞）：管理页「生成全部」按钮未带、公开页 Cache-Control 与 token 重置缓存窗口、快照 content 字段级校验、编辑回显责任字段
+- 正在做什么（2026-08-11，子代理·task_15_regression）：完成任务 15 回归门禁 + 收尾验证（worktree .worktrees\risk-notice-card，HEAD=9cbd30b，任务 1-14 已完成，无代码修改无需新 commit）
+- 刚完成的动作：①后端全量 pytest tests/ -q → 408 passed exit 0（PYTHONPATH=%TEMP%\codex_qr_probe）；②前端 npx tsc -b exit 0 + npx vitest run 8 文件 61 用例全通过；③SVG 复检 pytest tests/test_static_signs.py -v → 4 passed（引用/XML/形状颜色/爆炸星形）；④分支历史 master..HEAD 36 提交（31 功能+fix+4 杂项，唯一含 TASKS.md 的是 savepoint cada4dd 仅 8 行无源码），工作区仅 TASKS.md 未提交，git diff --check 干净
+- 手工冒烟（执行）：现主栈容器挂主工作区旧代码（无新端点），故用 2-backend 镜像+worktree app 挂载起独立冒烟后端 rnc-smoke-backend（8001，PYTHONPATH 挂 %TEMP%\codex_qr_probe 补 qrcode，连接现有 emergency-plan-db）——①发现本地 DB 缺风险告知卡迁移（risk_objects 缺 responsible_unit 等 4 列），已应用正式迁移文件 backend\db_migration_risk_notice_card.sql（先 CREATE EXTENSION pgcrypto，本地 PG16 缺 gen_random_bytes），列+15 行 token 补齐；②API 链路全通过：登录→企业列表→卡片列表（signs/responsible_unit/public_url/snapshot/stale）→详情（fallback_used）→导出 docx（43KB、6 图=5 标志+1 二维码、文本含「1号口安全风险告知卡」）→AI 优化（DeepSeek 真实调用，事故类型不变）→保存快照 V1/ai→公开链接无需登录 200→无效 token 404「卡片不存在或链接已失效」
+- 手工冒烟（前端 UI）：2-frontend 镜像+worktree src 挂载起 rnc-smoke-frontend（5174，VITE_API_TARGET=host.docker.internal:8001）+ playwright-cli——登录→企业管理→企业详情→风险分级管控 Tab→风险告知卡按钮→列表（快照状态列/批量导出/1号口/预览）→预览单卡（V1.1·AI 优化 Tag、安全标志图、扫码二维码、版本页脚）→AI 优化对比 Modal（原版 vs 优化版、危险因素/管控/应急三块已扩充/已完善标签）→采用优化版保存快照版本 +1（V1.1→V1.2）→公开页 /r/{token} 无需登录渲染（V1.1 内容+「公开只读页面·无需登录」提示条）
+- 刚完成的验证：全部门禁 PASS；冒烟容器 rnc-smoke-backend/rnc-smoke-frontend 已删除；临时 docker-compose.smoke.yml 与 21 个 playwright 产物移至 %TEMP%\rnc-smoke-override-backup.yml / %TEMP%\rnc-pwcli-backup-20260811（worktree 回到仅 TASKS.md 改动）；主栈 emergency-plan-backend 曾重启加载旧代码（主工作区无新代码，无影响，200 健康）
+- 下一步：向主控返回汇报（任务文件 .codex-custom-subagents\claimed\task_15_regression--27520-924990ecc98a.md，状态 DONE）；遗留：本地 DB 已应用风险告知卡迁移（正式交付物），主栈容器仍跑旧代码不识别新端点属正常（新代码需另起 worktree 栈）；分支历史唯一 savepoint cada4dd 含 TASKS.md（git save 行为，无源码）
+- 关键上下文：worktree HEAD=9cbd30b；任务 15 无需代码修复故无新 commit；TASKS.md 保持未提交（项目惯例）；task_id=task_15_regression claim_id=27520-924990ecc98a attempt_id=f529766e18444d3eb3699d32124d2c99
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_14_form）：完成任务 14 风险对象表单责任信息字段（前后端同步，worktree .worktrees\risk-notice-card，待提交）
+- 刚完成的动作：①frontend\src\components\enterprise\RiskObjectForm.tsx「位置描述」后新增「责任信息（用于风险告知卡）」分组（责任单位/责任人/联系电话三个 Input + 兜底说明虚线提示条，与规格 §10.4 一致），本地 RiskObjectFormValues 接口加 3 个可选字段；②frontend\src\types\riskManagement.ts 加回 RiskObject 响应 3 字段（string|null，任务 10 删除的后端契约现在补齐，public_token 不恢复）与 RiskObjectCreate 3 个可选字段；③frontend\src\pages\Enterprise\RiskManagementTab.tsx object case 重构为 objectPayload 多行对象并透传 3 字段（exclude_unset 后端只收显式字段），ZoneFormValues 加 3 可选字段；④backend\app\schemas\risk_management.py RiskObjectCreate/RiskObjectUpdate/RiskObjectResponse 各加 responsible_unit/responsible_person/contact_phone（str|None=None，路由 create/update 均 model_dump(exclude_unset=True) 无需改动）；⑤backend\tests\test_risk_notice_card_service.py 新增 schema 字段断言测试；⑥WorkbenchCanvas.tsx/riskMappingWorkbenchStore.test.ts 两处 RiskObject 字面量补 null 字段（RiskObject 改必填后 tsc 报错）
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run 8 文件 61 用例全通过；npx eslint 4 个目标文件 exit 0（WorkbenchCanvas 11 个 lint 问题全为未触碰行既有债务，本任务仅 +3 行 null 字段）；pytest tests/ -q 408 passed（407 基线 + 新增 1，PYTHONPATH 用 %TEMP%\codex_qr_probe）；改动行最大 95 字符；git diff --check 待提交后 git show --check 复核
+- 下一步：向主控返回汇报（任务文件 .codex-custom-subagents\claimed\task_14_form--10064-27b22276156d.md，状态 DONE、提交 SHA、验证结果）；注意偏离：为让字段真正落到后端，比计划文件清单多改 RiskManagementTab.tsx 透传（计划只列 3 文件，任务标题要求前后端同步，不传则字段被丢弃）
+- 关键上下文：worktree HEAD=b740201（任务 1-13 已完成）；DB 模型 risk_management.py 已含三列；路由 create/update 用 exclude_unset=True 无需改路由；TASKS.md 保持未提交（项目惯例）；task_id=task_14_form claim_id=10064-27b22276156d attempt_id=f729eea1e4da4017bd6ea024a5c7b4b2
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_13_fix）：完成风险告知卡任务 13 质量审查 3 项修复（worktree .worktrees\risk-notice-card，新提交 b740201，父 10803c4，2 文件 67+/2-）
+- 刚完成的动作：①RiskNoticeCard.tsx RNC_CSS 末尾新增 @media (max-width: 520px)——.rnc-body flex-direction:column、.rnc-left/.rnc-right width:100%（左栏 border-right 去、下加 border-bottom）、安全标志 img 48px、头部 padding 收窄且 .rnc-qr 转 static 居中（margin:0 auto）、标题 16px/字距 1px、表格单元格与信息块内边距收窄；公开页（480px 容器）与预览页共享组件一并生效；②PublicRiskNoticePage.tsx：useQuery 增加 error/refetch，isError 时按 axios.isAxiosError(error)?.response?.status===404 区分——404/无数据保持 Result status="404"「卡片不存在或链接已失效」，其余网络错误用 Result status="warning" 同文案 + 「重新加载」Button（onClick void refetch()）；③修复 3 页面测试：项目无 @testing-library/react、vitest 无 jsdom/happy-dom 环境（vite.config.ts test 仅 include/exclude），既有测试仅 services/store/utils——按任务说明不引入新依赖，交由任务 15 回归手工冒烟覆盖
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run 8 文件 61 用例全通过；npx eslint 两目标文件 0 问题；无 >100 字符行；git show --check b740201 干净；commit 仅含 2 个目标文件，消息精确匹配 fix(risk-notice-card): add mobile layout and error retry for public page
+- 下一步：向主控返回汇报（任务文件 .codex-custom-subagents\claimed\task_13_fix--8532-afca314410a4.md，状态 DONE、文件、验证、提交 SHA b740201）；任务 14 表单字段
+- 关键上下文：worktree HEAD=b740201（父 10803c4）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）；task_id=task_13_fix claim_id=8532-afca314410a4 attempt_id=a2003b52926d4e5da96e531bc6a27361
+- 正在做什么（2026-08-11，子代理·task_13_review_quality）：完成风险告知卡任务 13（公开只读页）代码质量审查（worktree .worktrees\risk-notice-card，提交 10803c4，1 文件 38+/2-）
+- 刚完成的动作：独立只读核查 10803c4 全量 diff + 依赖组件/服务/路由 + 规格 §4/§10.3/§13——页面本身 hooks/错误分支/样式合格；路由 routes\index.tsx:93 位于 ProtectedRoute 之外无登录守卫；fetchPublicCard 服务有单测（7/7 通过）；tsc/lint/git show --check 全干净
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run riskNoticeCardService.test.ts 7/7 passed；npx eslint src/pages/PublicRiskNoticePage.tsx 0 问题；git show --check 10803c4 干净
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_13_review_quality--21164-55a83c20f5ee.md，状态 DONE）；结论 ❌ 需修复（重要 1：RiskNoticeCard.tsx 无任何 @media 响应式，PublicRiskNoticePage.tsx:28-30 在 480px 容器直接渲染桌面 40%/60% 双栏，未实现规格 §4/§10.3 要求的移动端纵向堆叠布局（信息网格→48px 标志→四信息块→页脚）；次要 2：错误分支把网络错误也渲染成 Result status="404"（:23-25），文案统一符合规格但 404 图标语义误导、无重试；页面无专属测试，规格 §14 前端测试含「公开页无登录守卫渲染」，任务 15 回归待覆盖）；任务 14 表单字段
+- 关键上下文：审查只读，未改源码未提交；worktree HEAD=10803c4（父 1aba3d9）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）；task_id=task_13_review_quality claim_id=21164-55a83c20f5ee attempt_id=42842a355c35417f9bdf2dd022dbb0e0
+- 正在做什么（2026-08-11，子代理·task_13_review_spec）：完成风险告知卡任务 13（公开只读页）规格合规审查（worktree .worktrees\risk-notice-card，提交 10803c4，1 文件 38+/2-）
+- 刚完成的动作：独立只读核查 10803c4 全量 diff + 路由注册/服务契约/组件契约/后端文案——①路由 routes\index.tsx:93 `{ path: "/r/:token", element: <PublicRiskNoticePage /> }` 位于顶层 router 数组（AuthLayout/ProtectedRoute 之外，无登录守卫）；②useParams 取 token（PublicRiskNoticePage.tsx:10）、useQuery(["public-risk-notice", token], fetchPublicCard, retry:false)（:12-16）；③加载中居中 Spin（:19-21 margin 100px auto）；④错误居中 Result 404「卡片不存在或链接已失效」与后端 public_risk_notice.py:41/48 文案逐字一致（:23-25）；⑤成功外层 maxWidth 480 margin 0 auto + <RiskNoticeCard card={card} />，RiskNoticeCardProps 仅 card: CardData 契约匹配（:28-30）；⑥底部提示条「公开只读页面 · 数据来自系统快照 · 无需登录」（:31-40）；fetchPublicCard 走 /public/risk-notice-cards/{token} 无鉴权与后端端点一致；commit 仅 1 个目标文件，消息精确匹配 feat(risk-notice-card): add public read-only page
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run 8 文件 61 用例全通过（无回归）；npx eslint src/pages/PublicRiskNoticePage.tsx 0 问题；git show --check 10803c4 干净
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_13_review_spec--24668-0ea18a845aee.md，状态 DONE）；结论 ✅ 符合规格（无关键/重要项，参考 1：isError||!card 将网络错误也显示为 404 文案，符合规格「错误统一文案」字面要求）；任务 14 表单字段
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=10803c4（父 1aba3d9，任务 1-12 已完成）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）
+- 正在做什么（2026-08-11，子代理·task_13_public_page）：完成任务 13 公开只读页（worktree .worktrees\risk-notice-card，新提交 10803c4，父 1aba3d9，1 文件 38+/2-）
+- 刚完成的动作：填充 frontend\src\pages\PublicRiskNoticePage.tsx——useParams 取 token + useQuery(["public-risk-notice", token], fetchPublicCard, retry:false)；加载中居中 Spin；错误（404/网络）居中 Result 404「卡片不存在或链接已失效」无重试；成功外层容器 max-width 480px 居中上下留白 + <RiskNoticeCard card={card} />；底部提示条「公开只读页面 · 数据来自系统快照 · 无需登录」
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run 8 文件 61 用例全通过（无回归）；npx eslint src/pages/PublicRiskNoticePage.tsx 0 问题；git show --check 10803c4 干净；commit 仅含 1 个目标文件，消息精确匹配 feat(risk-notice-card): add public read-only page
+- 下一步：向主控返回汇报（任务文件 .codex-custom-subagents\claimed\task_13_public_page--5052-b32afdebaadb.md，状态 DONE、提交 SHA 10803c4）；任务 14 表单字段
+- 关键上下文：worktree HEAD=10803c4（父 1aba3d9，任务 1-12 已完成）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）；fetchPublicCard 走 /api/v1/public/risk-notice-cards/{token} 无鉴权，与后端 404 文案一致
+- 正在做什么（2026-08-11，子代理·task_12_preview）：完成任务 12 卡片组件 + 单卡预览页 + AI 优化对比（worktree .worktrees\risk-notice-card，新提交 b941b14，父 5cd597f，2 文件 633+/2-）
+- 正在做什么（2026-08-11，子代理·task_12_preview）：完成任务 12 卡片组件 + 单卡预览页 + AI 优化对比（worktree .worktrees\risk-notice-card，新提交 b941b14，父 5cd597f，2 文件 633+/2-）
+- 刚完成的动作：①新建 frontend\src\components\enterprise\RiskNoticeCard.tsx（v5 版式：头部企业名小字居中 + 「{name}安全风险告知卡」18px 800 字距 2px + 3px level_color 色线 + 右上角二维码占位虚线方块「扫码查看」；左栏 40% #fbfbfb 等级色带白字字距 6px + 6 行键值表格（标签列 62px 灰底值列白底加粗）+「安全标志」#434343 深色标题条字距 8px + 56px 标志 `/signs/{svg_name}.svg` 横排带名称；右栏 60% 四信息块深色标题条+红点+白底正文；页脚签发单位/编制日期 dayjs 本地化/版本 V1.{version} 或 V1.0；空正文兜底「暂无，请先完善风险评估数据」；.rnc-* 前缀 CSS）；②填充 frontend\src\pages\Enterprise\RiskNoticeCardPreviewPage.tsx：useParams :id/:objectId + useQuery(["risk-notice-card", id, objectId], fetchCardDetail)；PageHeader 返回列表按钮 + 版本 Tag（快照 ? `V1.{version} · AI 优化` : `V1.0 · 规则生成`）+ stale Alert「风险数据已变更，建议重新生成」；工具栏复制公开链接（origin+public_url）/导出单张 Word（exportCards(id,[objectId]) → window.open(getDownloadUrl)）/AI 优化（loading 防重入）；AI 优化 → aiOptimize → Modal 左右对比（原版 vs 优化版，三块：危险因素/管控措施/应急处置，逐行对齐差异黄色高亮 +「已完善/已扩充」Tag）→ 底部「采用优化版并保存快照（版本 +1）」saveSnapshot → message.success + refetch + 关面板 /「放弃，保留原版」关面板；失败 message.error「AI 优化失败，已保留原版」；?ai=1 useSearchParams 自动触发一次（setTimeout 调度规避 react-hooks set-state-in-effect，触发后清参，ref 防重复）；事故类型不参与对比
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run 8 文件 61 用例全通过（无回归）；npx eslint 两目标文件 exit 0；改动行无 >100 字符；git show --check b941b14 干净；commit 仅含 2 个目标文件，消息精确匹配 feat(risk-notice-card): add card preview and ai optimize compare
+- 下一步：向主控返回汇报（任务文件 .codex-custom-subagents\claimed\task_12_preview--35048-85ff5422afc4.md，状态 DONE、文件、验证结果、提交 SHA b941b14）；任务 13 填充公开只读页 PublicRiskNoticePage
+- 关键上下文：worktree HEAD=b941b14（父 5cd597f，任务 1-11 已完成）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）；未跑 git save（其 git add -A 会连带提交 TASKS.md，工作区无其他在途改动）；task_id=task_12_preview claim_id=35048-85ff5422afc4 attempt_id=990110a76e194fe5a861f3f707caca63
+- 正在做什么（2026-08-11，子代理·task_11_fix2）：完成任务 11 质量审查 6 项修复（worktree .worktrees\risk-notice-card，新提交 5cd597f，父 9f647a7，3 文件 73+/28-）
+- 刚完成的动作：①前端 RiskNoticeCardPage.tsx：新增 exporting 状态 + doExport/exportAll 防重入（try/finally 复位），「批量导出 Word」「导出选中卡片 Word」加 loading+disabled；useQuery 增加 isError → message.error("加载失败，请稍后重试")，空态文案区分错误/无数据；快照列按 snapshot.source 显示「规则/AI」；统计行颜色改用后端 level_color（删除本地 UNEVALUATED_COLOR #bfbfbf）；下载 URL 复用 exportService.getDownloadUrl；②后端 risk_notice_card.py：list_cards 时间戳/max 计算移入 if snap 分支（无快照不计算）；reset_token 改用原生 text() UPDATE 直接写 public_token（SQLAlchemy 2.0.35 实测 update() 含 Core 表级都会渲染 onupdate updated_at=now()，include_defaults=False 无效，故用等效原生 SQL 方案，真实 SQLite 实证 updated_at 不变）；③测试 test_risk_notice_card_api.py：fake_execute 加 *params 参数、reset 测试改断言 Core/原生 UPDATE 不含 updated_at
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run 61 passed（8 文件）；npx eslint 目标文件 exit 0；pytest tests/ -q 407 passed（基线 405 + 新增 2 无回归，Playwright 退出资源噪音属既有 Windows 现象）；git show --check 5cd597f 干净；commit 仅含 3 个目标文件，消息精确匹配 fix(risk-notice-card): guard export reentry and reset token without stale
+- 下一步：向主控返回汇报（任务文件 .codex-custom-subagents\claimed\task_11_fix2--33012-79689868c460.md，状态 DONE、修改文件与行、测试结果、提交 SHA 5cd597f）
+- 关键上下文：worktree HEAD=5cd597f（父 9f647a7）；主 venv 缺 qrcode，用 %TEMP%\codex_qr_probe PYTHONPATH 运行 pytest（未污染环境）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）；任务 12 填充预览页（复用 ?ai=1 跳转参数）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_11_review_quality）：完成风险告知卡任务 11（卡片管理页 + 后端快照供给修复）代码质量审查（worktree .worktrees\risk-notice-card，提交 7dab40e + 9f647a7，3 文件 340+）
+- 刚完成的动作：只读通读两提交全量 + 对照其他 Enterprise 页面（RiskOverviewPage 等）/exportService.getDownloadUrl/后端 risk_notice_card.py 全端点 + risk_notice_card_service.py（is_stale/_as_utc/collect_measures/merge_object_events）+ models（RiskNoticeCard 唯一约束 object_id、RiskObject onupdate=func.now()）——①前端：useQuery(["risk-notice-cards", enterpriseId, filters]) + enabled 守卫、stats useMemo 正确、筛选/勾选/导出/复制链接/预览跳转（?ai=1 与任务 12 衔接）齐全，/signs 静态挂载与 img src 匹配，LEVEL_OPTIONS 与后端 VALID_LEVELS 一致；②后端：快照按 enterprise_id 批量一次查询 + object_id 字典映射（无 N+1）、复用 service is_stale、source_updated=max(obj/events/measures updated_at or created_at) 与 build_card_data 同算法；③测试：新增 2 用例覆盖有快照不 stale/旧快照 stale，既有 summary 测试补 snapshot=None+stale=False 断言；④git show --check 两提交均干净（exit 0）；⑤tsc -b exit 0、eslint 目标文件 0 问题、后端 api 测试 22 passed + 全量 407 passed（基线 405 + 新增 2）无回归
+- 刚完成的验证：python -m pytest tests/ -q 407 passed（exit 0，日志 %TEMP%\rnc_pytest_full.log）；npx tsc -b exit 0；npx eslint src/pages/Enterprise/RiskNoticeCardPage.tsx exit 0；git show --check 7dab40e/9f647a7 均干净；改动行无 >100 字符、无 any
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_11_review_quality--29736-d94fac6d15dc.md）；结论 ✅ 通过（无关键；重要 1：导出无 loading/防重入——docx 渲染秒级、按钮可重复点击重复导出；次要 5：list_cards 对无快照对象也无条件算时间戳且筛选前计算、source_updated 算法与 build_card_data 重复可抽 helper、快照状态列硬编码「AI」忽略 snapshot.source、查询失败无 isError 处理且空态文案误导、token 重置会 bump RiskObject.updated_at 导致快照误标 stale；参考 3：未评估色 #bfbfbf vs 后端 #d9d9d9、window.open 硬编码下载 URL 未复用 getDownloadUrl、measures 时间戳/混合快照/等时边界测试缺口）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=9f647a7（父 7dab40e，其父 684e09a）；工作区仅 TASKS.md 修改（项目惯例）；任务 12 填充预览页（复用 ?ai=1 跳转参数）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_10_review_quality）：完成风险告知卡任务 10（前端类型 + API service + 入口与路由）代码质量审查（worktree .worktrees\risk-notice-card，提交 33a353d，9 文件 200+）
+- 刚完成的动作：只读独立通读 33a353d 全量 + 对照 riskManagementService/riskMappingWorkbenchService/routes 结构/后端 schemas+router（risk_notice_card.py 6 端点 + public_risk_notice.py）——①service 全部路径/方法/参数名与后端一一匹配（含 /public/risk-notice-cards/{token} 经 /api/v1 前缀解析），axios 泛型 + r.data.data 解包与既有惯例一致；②类型 riskNoticeCard.ts 与后端 schema 1:1 对应（snapshot 实为 {version,source}，SnapshotInfo 精确）；CardData responsible_* 后端恒为非空字符串（有回落），类型正确；③git show --check 干净；④tsc -b 退出码 0；新 service 测试 3 passed + services 全量 6 passed；eslint 目标文件干净（routes/index.tsx 的 react-refresh 报错为父提交既有 export function createRouter 债务，非本次引入）
+- 刚完成的验证：npx tsc -b exit 0；npx vitest run src/services 6 passed；npx eslint 9 个变更文件仅 1 个既有报错；git show --check exit 0
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_10_review_quality--26252-e80aae13f8d2.md）；结论 ✅ 通过（1 重要：types/riskManagement.ts:68-72 新增 public_token 等 4 字段——后端 RiskObjectResponse 不含这些字段、前端无任何使用，public_token 为公开只读能力 token 不应进入共享客户端类型；次要 3：exportCards 丢弃 warnings、4 个函数无单测、路由参数命名混用 :enterpriseId/:objectId vs 既有 :id/:enterprise_id；参考 2：按钮与楼层管理同用 ApartmentOutlined、fetchPublicCard 测试未断言返回值）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=33a353d（父 33e5edd）；工作区仅 TASKS.md 修改（项目惯例）；任务 11-13 填充占位页，任务 14 表单字段
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_09_review_quality）：完成任务 9（公开 API + token 重置）代码质量审查（worktree .worktrees\risk-notice-card，提交 563e08f，4 文件 254+）
+- 刚完成的动作：只读独立通读 563e08f 全量 + 对照 risk_notice_card.py 既有模式、模型 lazy="selectin" 关系、db_migration_risk_notice_card.sql（public_token 唯一索引确认）、export_tasks.py 无鉴权先例、schemas/common.py——①安全：无效 token 与企业被删统一 404「卡片不存在或链接已失效」不泄露；token 32 字节 hex 不可枚举 + 唯一索引；reset 双条件归属校验完整；②效率（SQLite 实证）：单 select 按 lazy=selectin 自动级联加载全图（6 条 SQL），公开端点每请求约 5 次 execute / 约 18-20 条 SQL——load_events_and_measures 第 50 行重复回查同一 RiskObject（再发 6 条 SQL，identity map 返回同一实例但查询照发）；全企业 objects 查询（43-49 行）也会触发每个对象的 selectin 全图加载（仅 compute_code 需要 id/顺序）；③测试 23 passed 复跑 + 全量 405 passed 无回归；git show --check 干净
+- 刚完成的验证：pytest tests/test_public_risk_notice.py tests/test_risk_notice_card_api.py 23 passed；全量 pytest tests/ -q 405 passed（主 venv + %TEMP%\codex_qr_probe PYTHONPATH，未污染环境）；独立 SQLAlchemy 脚本实证 lazy="selectin" 级联行为
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_09_review_quality--27016-7b774e254105.md）；结论 ✅ 通过（无关键/重要，次要 3：load_events_and_measures 冗余回查、objects 查询 selectin 放大、无速率限制；参考 3：ApiResponse[dict] 可强类型、secrets import 位置、测试缺口含旧 token 失效集成用例）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=563e08f（父 4558d7b）；工作区仅 TASKS.md 修改（项目惯例）；任务 10 起前端实现将消费本 API
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_09_public）：完成任务 9 公开 API + token 重置（worktree .worktrees\risk-notice-card，新提交 563e08f，父 4558d7b）
+- 刚完成的动作：①public_risk_notice.py 填充 GET /{token} 无鉴权公开端点——按 public_token 查 RiskObject（selectinload zone）→ 无 404「卡片不存在或链接已失效」→ 查企业（企业缺失同样 404）→ 全企业 objects（compute_code 需要）+ load_events_and_measures → build_card_data → ApiResponse[CardData]；②risk_notice_card.py 追加 POST /{object_id}/token/reset——企业归属校验 + id+enterprise_id 归属校验（无 → 404「风险点不存在」）、obj.public_token = secrets.token_hex(32) → commit → ApiResponse({"public_url": f"/r/{token}"})；③新建 tests/test_public_risk_notice.py（3 用例：未知 token 404、有效 token 200 全字段、企业被删 404），test_risk_notice_card_api.py 追加 2 用例（重置返回新 public_url + commit 断言、对象不存在 404）
+- 刚完成的验证：pytest tests/test_public_risk_notice.py tests/test_risk_notice_card_api.py 23 passed；全量 pytest tests/ -q 405 passed（基线 400 + 新增 5）无回归；git show --check HEAD 干净；commit 563e08f 仅含 4 个目标文件（主 venv 缺 qrcode，用 %TEMP%\codex_qr_probe PYTHONPATH 运行，未污染环境）
+- 下一步：向主控返回汇报（状态 DONE、文件、测试结果、提交 SHA）
+- 关键上下文：worktree .worktrees\risk-notice-card HEAD=563e08f（父 4558d7b）；public router 已在 main.py 以 prefix /api/v1 注册（完整路径 /api/v1/public/risk-notice-cards/{token}）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_08_review_quality）：完成风险告知卡任务 8（docx 导出 + 二维码）代码质量审查（worktree .worktrees\risk-notice-card，提交 61458ff，5 文件 606+）
+- 刚完成的动作：只读独立通读 61458ff 全量（docx 服务 231 行/路由 +73/测试 302 行）+ 对照 export.py/docx_template.py/export_tasks.py/mermaid_renderer——①docx 渲染：A4 竖版、每卡一页分页符、黑体+eastAsia 东亚字体、色带/表格/深色标题底纹 XML 操作正确、页脚版本 V1.0/V1.{version} 正确；②svg_to_png 复用 Playwright 通道 + 端点按 svg_name 去重缓存，缺失/失败 logger.warning + 1x1 白占位不阻断导出（合理，但用户端无感知、仅服务端日志）；③效率：逐卡 4 次查询（ownership + 全企业 objects + load_events_and_measures + get_snapshot），其中全企业 objects 查询在循环内重复 N 次（router 193-199 应提出循环），ownership 查询与 load_events_and_measures 重复取同一 RiskObject；④qrcode 未 pin（requirements.txt:13，核心块惯例 ==pin，有 cairosvg 未 pin 先例）；⑤测试 23 passed 复跑确认（docx 5 + api 18），但集成测试 _drawings>=2 无法区分占位与真实标志渲染；⑥git show --check 干净
+- 刚完成的验证：pytest tests/test_risk_notice_card_docx.py 5 passed + tests/test_risk_notice_card_api.py 18 passed（主 venv + 临时目录装 qrcode，未污染环境）；Playwright 退出 asyncio 噪音与既有记录一致
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_08_review_quality--31768-9ed525d4c848.md）；结论 ✅ 通过（1 重要：export 循环内重复全企业 objects 查询；次要 5：qrcode 未 pin、集成测试占位盲区、导出异常无日志+裸 500、同秒文件名覆盖、同步 docx 渲染阻塞事件循环；参考 3：svg 失败仅日志用户无感知、export_tasks 下载端点无鉴权（既有）、import os 顺序）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=61458ff（父 d9dab5c）；主 venv 缺 qrcode 用 %TEMP%\codex_qr_probe 临时安装；任务 9 将追加公开 API 与 token 重置
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_08_review_spec）：完成风险告知卡任务 8（docx 导出 + 二维码）规格合规审查（worktree .worktrees\risk-notice-card，提交 61458ff，5 文件 606+）
+- 刚完成的动作：独立只读核查 61458ff 全量——①docx 服务 risk_notice_card_docx.py（A4 竖版 29.7x21cm、卡间分页符、头部三区企业名/居中标题「{name}安全风险告知卡」/右上角二维码 PNG 1.4cm、左栏等级色带+6 行键值表+安全标志 PNG 1.5cm、右栏四块深色标题、页脚签发/日期/版本 V1.0/V1.{version}）；②二维码内容=card.public_url（service 层 /r/{token}，与审查规格一致）；③SVG→PNG 复用 mermaid_renderer.render_svg_to_png（Playwright 通道带缓存），缺失/失败回退合法 1x1 占位 PNG 不阻断导出；④POST /export：逐卡 id+enterprise_id 归属校验、缺失 object_id 跳过记 warnings、全无效 400、文件名 risk-notice-{eid[:8]}-{YYYYMMDDHHMMSS}.docx 落 settings.EXPORT_DIR、下载复用既有 export_tasks.py 的 GET /export/download/{file_key}（同 EXPORT_DIR + file_key 正则匹配兼容）；⑤ExportResponse.warnings 字段与规格 §13「响应返回 warnings 列表」一致（第 5 个 schema 文件变更合理且实现者已声明）；⑥提交消息精确匹配 feat(risk-notice-card): add docx export with qr code，git show --check 干净
+- 刚完成的验证：pytest tests/test_risk_notice_card_docx.py tests/test_risk_notice_card_api.py 23 passed；全量 pytest -q 400 passed, 1 skipped 无回归
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_08_review_spec--34612-2fbe70163f40.md）；结论 ✅ 符合规格（4 条仅供参考观察项：事故类型标注「（GB 6441 事故类别）」vs 规格字面【GB 6441】、SVG→PNG 用 Playwright 而非规格提的 cairosvg、build_card_data 异常时端点 500 而非按 §13 字面逐卡跳过（审查规格具体化为缺失 id）、qrcode 未 pin 版本）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=61458ff（父 d9dab5c）；工作区仅 TASKS.md 修改（项目惯例）；Playwright 退出时 Windows asyncio 资源噪音不影响 PASS
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_08_docx）：完成任务 8 docx 导出 + 二维码（worktree .worktrees\risk-notice-card，新提交 61458ff，父 d9dab5c）
+- 刚完成的动作：①新建 backend/app/services/risk_notice_card_docx.py——make_qr_png（qrcode→PNG bytes）、svg_to_png（复用 mermaid_renderer.render_svg_to_png，失败回退 1x1 占位 PNG 不阻断导出）、render_cards_docx(cards, out_path, sign_pngs)（A4 竖版每卡一页：头部三区企业名/居中标题/右上角二维码 1.4cm、等级色带+6 行键值表格+安全标志 PNG 1.5cm、右栏四信息块深色标题、页脚签发/日期/版本 V1.0 或 V1.{version}）；②risk_notice_card.py 追加 POST /export（逐卡按 id+enterprise_id 归属校验 + build_card_data，无效 id 跳过记 warnings，全部无效 400，文件名 risk-notice-{eid[:8]}-{YYYYMMDDHHMMSS}.docx 落 settings.EXPORT_DIR）；③ExportResponse 加 warnings 字段（规格 §13「响应返回 warnings 列表」要求，超出任务文件清单 1 个 schema 文件，已说明）；④requirements.txt 加 qrcode；⑤新建 tests/test_risk_notice_card_docx.py（5 用例：QR PNG 头、2 卡 docx 标题×2+分页符×1+标志名/页脚/版本、导出端点真实 SVG→PNG 集成、混合缺失 id 跳过+warnings、全部无效 400）
+- 刚完成的验证：pytest tests/test_risk_notice_card_docx.py tests/test_risk_notice_card_api.py 23 passed；全量 pytest tests/ -q 400 passed（基线 395 + 新增 5）无回归；git show --check HEAD 干净；commit 61458ff 含 5 文件（docx 服务/路由/schema/requirements/测试）；qrcode 8.2 已 pip 安装
+- 下一步：向主控返回汇报（状态 DONE、文件与行、测试结果、提交 SHA、schema 追加说明）
+- 关键上下文：worktree .worktrees\risk-notice-card HEAD=61458ff（父 d9dab5c）；导出下载端点 /export/download/{file_key} 复用既有 export_tasks.py；工作区仅 TASKS.md 修改（项目惯例，不入 commit）；Playwright 真实渲染在 Windows 测试留有 asyncio 退出噪音（无进程泄漏，不影响 PASS）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_07_fix）：完成任务 7 质量审查 5 项修复（worktree .worktrees\risk-notice-card，新提交 d9dab5c，父 0901c75）
+- 刚完成的动作：①PUT snapshot 保存前按 id+enterprise_id 校验 RiskObject 归属，不存在 → 404「风险点不存在」（越权写防线）；②ai-optimize 异常处理改为 except HTTPException: raise（AI 未配置 400 保留）+ except Exception logger.exception 后 502；③risk_notice_card_ai.py 新增 _parse_optimized_json（剥离 ```json 代码块）、解析失败 logger.warning(raw[:200]) + 502、字段类型归一回落（measures 非 list/None、hazard 非 str → 原值）、prompt 补 system message「你是安全生产专家」；④schemas 新增 SnapshotResponse{version,source} 替代裸 dict；⑤测试补 5 类：跨企业 object_id 快照 404、AI 字段缺失回落、非法 JSON 502、```json 包裹可解析、AI 未配置 400，并扩展 prompt 断言（企业名/对象名/原版文本/system 人设）
+- 刚完成的验证：pytest tests/test_risk_notice_card_api.py tests/test_risk_notice_card_service.py 30 passed；全量 pytest tests/ -q 395 passed 无回归；git show --check HEAD 干净；commit d9dab5c 仅含 4 个目标文件（路由/schemas/AI 服务/API 测试）
+- 下一步：向主控返回汇报（状态 DONE、修改文件与行、测试结果、提交 SHA）
+- 关键上下文：worktree .worktrees\risk-notice-card HEAD=d9dab5c（父 0901c75）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_06_review_quality）：完成风险告知卡任务 6（列表/详情 API 路由）代码质量审查（worktree .worktrees\risk-notice-card，提交 661476d，4 文件 374+）
+- 刚完成的动作：只读通读 661476d 全量（路由 141 行 + 测试 226 行）+ 对照 risk_management.py 路由模式与 risk_notice_card_service.py；pytest backend/tests/test_risk_notice_card_api.py 7 passed；git show --check 干净（exit 0）；核对 public_token 迁移 backfill+NOT NULL（public_url 不会出现 /r/None）、SIGN_GROUPS["火灾"] 含 warning+prohibition（测试断言真实）、mock 分发模式与 test_onboarding_routes.py 一致
+- 刚完成的验证：7 测试通过；无 N+1（列表单查询+selectinload 链、resolve_responsible 复用企业对象、列表未调 build_card_data 不重复查快照）；所有权校验完整（_get_ent 按 user_id、详情按 id+enterprise_id，404 文案统一）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_06_review_quality--27968-2628ac907c65.md）；结论 ✅ 通过（无关键/重要项，4 次要+2 参考，均为小改动建议）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=661476d，工作区仅 TASKS.md 修改（项目惯例）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_05_review_quality）：完成风险告知卡任务 5（schemas + CardData 组装服务）代码质量审查（worktree .worktrees\risk-notice-card，提交 3b4709a，3 文件 359+）
+- 刚完成的动作：只读通读 3b4709a 全量 + 对照 risk_mapping_service/risk_stats_service/risk_ai_service 风格；git show --check 干净；pytest backend/tests/test_risk_notice_card_service.py 7 passed；核对模型（RiskNoticeCard 唯一约束、RiskEvent 双外键 object_id+unit_id、asyncpg 时区行为）
+- 刚完成的验证：7 测试通过（5 新增 + 2 原有）；发现 1 项重要：load_events_and_measures 合并 obj.events 与 unit.events 未按事件 id 去重（RiskEvent 可同时挂双外键，risk_stats_service 已用 distinct+or_ 规避同类风险，下游 _dedupe 掩盖文本重复但列表语义错误）；2 项次要：is_stale 用 replace(tzinfo) 对 aware datetime 语义脆弱（生产 asyncpg 返回 UTC 无害，建议 astimezone 防御）、测试未覆盖 build_card_data/is_stale/save_snapshot 异步路径 + 测试文件存在未使用 import（asyncio/datetime/timezone/RiskZone/RiskUnit/LEVEL_ORDER）与 RiskObject 重复导入
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_05_review_quality--31616-846becc63da1.md）；结论 ✅ 通过（1 重要 + 若干次要，均为小改动建议，无功能缺陷）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=3b4709a，工作区仅 TASKS.md 修改（项目惯例）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_04_fix）：完成风险告知卡任务 4 质量审查 4 项修复（worktree .worktrees\risk-notice-card，新提交 54eaf83，父 7c744ce）
+- 刚完成的动作：①warning-explosion.svg 感叹号→黑色 8 尖爆裂星形 polygon（16 顶点，中心黄圆 r=1.5@(14,16)，全部顶点已脚本验证在黄三角内，viewBox 28x26 保持）；②instruction-ventilate.svg 删除冗余 transform="rotate(0 14 14)"；③instruction-anti-static-clothes.svg 衣服左上角加黄色 #FFD100 闪电 polygon（蓝底白衣不变）；④test_static_signs.py 新增 test_all_svgs_are_valid_xml（ET.fromstring 全量 XML 合法性）+ 形状循环 else 分支报未知前缀孤儿文件 + test_warning_explosion_uses_burst_star（≥16 坐标点星形 polygon，防感叹号回归）
+- 刚完成的验证：pytest tests/test_static_signs.py tests/test_risk_notice_card_data.py 9 passed；git show --check HEAD 干净；commit 54eaf83 仅含 4 个目标文件
+- 下一步：向主控返回汇报（状态 DONE、文件与行、测试结果、提交 SHA）
+- 关键上下文：worktree .worktrees\risk-notice-card HEAD=54eaf83（父 7c744ce）；工作区仅 TASKS.md 修改（项目惯例，不入 commit）
+- 正在做什么（2026-08-11，子代理·task_04_review_quality）：完成风险告知卡任务 4（SVG 标志资产 + 静态挂载）代码质量审查（worktree .worktrees\risk-notice-card，提交 7c744ce，38 文件 258+）
+- 刚完成的动作：只读独立核查——①全部 36 个 SVG 逐个通读并核对图形与名称匹配：warning 16/prohibition 6/instruction 11/notice 3，XML 全部可解析（ET.parse 0 错误），无 BOM；颜色形状符合规格 §136-140（warning 黄底黑边三角、prohibition 白底红圈红斜杠、instruction 蓝底白图形、notice 绿底白图形）；②发现 1 项重要：warning-explosion.svg 图形为竖线+圆点（感叹号形），非爆炸星形符号，与「当心爆炸」名称不匹配（GB 2894 标准图形为爆裂星形）；2 项次要：instruction-ventilate.svg 第 7 行 transform="rotate(0 14 14)" 冗余、instruction-anti-static-clothes.svg 防静电语义弱（仅衣服+中线，无闪电箭头）；③main.py:40-42 挂载与 /uploads 模式一致（mkdir 兜底可接受），_Path 别名无必要（风格）；④test_static_signs.py 引用存在性+形状/颜色抽查合理，但无 XML 解析断言、无未知前缀孤儿文件断言；⑤git show --check 干净
+- 刚完成的验证：pytest tests/test_static_signs.py tests/test_risk_notice_card_data.py 7 passed；挂载注册确认（/signs Mount，SIGNS_DIR 存在且 36 文件）；TestClient 因本地无 PG 无法复跑（规格审查已实测 200/404）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_04_review_quality--15268-00f553581c97.md）；结论 ❌ 需修复（1 项重要+2 项次要，均为小改动）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=7c744ce，工作区仅 TASKS.md 修改（项目惯例）
+- 正在做什么（2026-08-11，子代理·task_04_review_spec）：完成风险告知卡任务 4（SVG 标志资产 + 静态挂载）规格合规审查（worktree .worktrees\risk-notice-card，提交 7c744ce，38 文件 258+）
+- 刚完成的动作：独立核对 7c744ce 全量——①36 个 SVG 文件名与规格 §7.2 清单逐字一致（warning 16 含 confined-space / prohibition 6 / instruction 11 / notice 3，总数 36，实现者按规格补齐预留图形处理正确）；②抽查全部 36 个 SVG：warning=黄底 #FFD100 黑边正三角+黑图形（viewBox 28x26）、prohibition=白底红圈 #C8102E+红斜杠+黑图形、instruction=蓝底 #005EB8 圆形白图形、notice=绿底 #009A44 方形白图形（viewBox 均 28x28）；③main.py:40-42 SIGNS_DIR=backend/app/static/signs + mkdir + app.mount("/signs", StaticFiles, name="signs") 正确；④test_static_signs.py SIGN_DIR 用 parents[1]（backend/app/static/signs）且含引用存在性+形状/颜色抽查；⑤提交消息精确匹配 feat(risk-notice-card): add gb2894 sign svg assets and static mount，git show --check 0 空白错误
+- 刚完成的验证：pytest tests/test_static_signs.py tests/test_risk_notice_card_data.py 7 passed；TestClient 实测 /signs/warning-explosion.svg、/signs/notice-exit.svg、/signs/warning-confined-space.svg 均 200 image/svg+xml，不存在文件 404
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_04_review_spec--12604-cd0fb6382198.md）；结论 ✅ 符合规格
+- 关键上下文：审查仅读+TestClient 无副作用验证，未改源码未提交；worktree HEAD=7c744ce，工作区仅 TASKS.md 修改（项目惯例）
+- 正在做什么（2026-08-11，子代理·task_03_review_quality）：完成风险告知卡任务 3（常量数据）代码质量审查（worktree .worktrees\risk-notice-card，提交 94960e9+d8714e3）
+- 刚完成的动作：只读通读两提交 + 对照规格 7.3 映射表逐类比对（20 类一致）+ 手工复跑测试逻辑（t1/t2/t4 PASS，t3 缺 33 个 SVG 属预期）+ git show --check 两提交干净 + 对照 risk_mapping_service.py/four_color_recognizer.py/plan_diagram_service.py 核查 LEVEL_COLORS 重复
+- 下一步：向主控返回审查报告；结论 ❌ 需修复（2 项重要：LEVEL_COLORS 重复定义、EMERGENCY_TEMPLATES 全覆盖断言缺失；均为小改动，非功能缺陷）
+- 关键上下文：实现与计划代码逐字一致；task_id=task_03_review_quality，claim_id=18668-00ab12005145；工作区仅 TASKS.md 修改（项目惯例）
+- 正在做什么（2026-08-11，子代理·task_02_fix）：完成任务 2 质量审查的 2 项次要建议（worktree .worktrees\risk-notice-card，分支 codex/risk-notice-card，新提交 2f7cbb4）
+- 刚完成的动作：
+  - 修复 1：backend/db_migration_risk_notice_card.sql 快照表 `id UUID PRIMARY KEY` → `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`（对齐 db_migration_risk_overhaul.sql 惯例）
+  - 修复 2：backend/app/models/risk_notice_card.py 删除 object_id 的 index=True（唯一约束 uq_risk_notice_cards_object 已覆盖；enterprise_id 的 index=True 保留）
+  - 验证：pytest tests/test_risk_notice_card_service.py 2 passed；git show --check HEAD 干净；新 commit 2f7cbb4 仅含上述 2 文件（未 amend 原提交 1ef31a4）
+- 下一步：向主控返回汇报（状态 DONE、文件与行、测试结果、提交 SHA）
+- 关键上下文：worktree .worktrees\risk-notice-card HEAD=2f7cbb4（父 1ef31a4），工作区 clean
+- 正在做什么（2026-08-11，本会话·预案质量提示修复）：已合并回 master 并部署，用户可重新生成预案复测质量提示
+- 刚完成的动作：
+  - 合并 ee34546（3 commits，fast-forward）；合并后验证 356 passed；worktree/分支已清理
+  - 后端已重启，_role_matches 语义映射实测正确（副总指挥不误判总指挥、总经理→总指挥、副总经理→副总指挥）
+  - 修复内容：C1 人物比对误报（分隔符+组长移除+语义映射）、C3 响应分级数量表述排除+时限检查移除、E3 资源全 0 才报
+- 下一步：用户复测；若还有提示不合理处反馈继续调
+- 关键上下文：master HEAD=ee34546；备份点 backup/pre-quality-fixes-20260811；前端无需重建（纯后端）
+- 正在做什么（2026-08-11，本会话·预案质量提示修复）：C1/C3/E3 误报已修复并通过复审（HEAD=ee34546），准备合并部署
+- 刚完成的动作：
+  - 修复用户实测发现的问题（3 commits）：C1 职务名后须分隔符才捕获姓名+组长不参与全局比对+总经理/副总经理语义映射（含子串回归两轮修复）、C3 响应分级排除数量表述+时限检查移除、E3 类别全 0 才报
+  - 两阶段审查通过；后端全量 356 passed（基线 346 + 新增 10）
+- 下一步：合并回 master（等用户确认）→ 重启后端部署
+- 关键上下文：worktree .worktrees\codex-quality-fixes 分支 codex/quality-rule-fixes HEAD=ee34546；备份点 backup/pre-quality-fixes-20260811；测试须挂 2_chroma_cache 卷
+- 正在做什么（2026-08-11，主控·writing-plans）：「自动生成风险告知卡」规格已批准，实现计划已完成并提交（分支 codex/risk-notice-card，worktree .worktrees\risk-notice-card，HEAD=65df3d3），待用户选择执行方式
+- 刚完成的动作：规格获用户批准；调用 writing-plans 技能创建实现计划 docs/superpowers/plans/2026-08-11-risk-notice-card.md（2241 行，15 个任务，TDD 步骤）；计划含自检记录（规格覆盖度/占位符/类型一致性）；worktree .worktrees\risk-notice-card 已建（基于 master 300502a）
+- 下一步：用户选择执行方式（①子代理驱动【推荐，每任务新子代理+双审】②内联执行 executing-plans）→ 开始实现
+- 关键上下文：计划任务 1-15：迁移+模型→快照表→常量数据→SVG 资产→组装服务→列表/详情 API→AI+快照→docx+二维码→公开 API+token→前端类型/service/入口路由→管理页→卡片组件+预览+AI 对比→公开页→表单字段→回归；规格 commit 300502a（master）；计划 commit 65df3d3（codex/risk-notice-card）；设计文档在 specs/2026-08-11-risk-notice-card-design.md
+- 正在做什么（2026-08-11，主控）：本地 Docker 已全部更新到最新代码——移动端 8082 与后端兜底静态页从旧构建（8-09）升级为最新 dist
+- 刚完成的动作：node:20 容器构建最新根路径 dist（npm ci 一次通过，PWA 生成）；docker compose build shuzihuayuan（新镜像 2-shuzihuayuan）；compose up 两次挂起（等待依赖协调），用 `up -d --no-deps --force-recreate shuzihuayuan` 12 秒重建成功；验证：容器内 dist/index.html MD5=5da8d932... 与本地一致、8082 / 与 /m.html 200、8000 兜底 200
+- 下一步：无阻塞。本地三个入口（5173 前端 dev、8000 API+兜底、8082 移动端）均为最新 master（d396504）
+- 关键上下文：compose up 对 shuzihuayuan 的常规重建会挂起（原因待查，--no-deps --force-recreate 可绕过）；移动端容器无热更新，今后改前端代码后需重新 build+recreate
+- 正在做什么（2026-08-11，主控）：Gitee 异地备份完成——master 快进推送 86d9e38→d396504（165 提交）+ 备份标签 backup-20260811-d396504 已推送
+- 刚完成的动作：git push gitee master（fast-forward，无分叉 0/165）；git push gitee refs/tags/backup-20260811-d396504（新标签）；本地备份包仍在桌面（29.6MB + SHA256）
+- 下一步：无阻塞。origin（GitHub）如需同步可再推送
+- 关键上下文：gitee=https://gitee.com/chengleiggg/digital-emergency-plan-generator.git；本地 master=d396504
+- 正在做什么（2026-08-11，主控）：代码备份完成——git 标签 backup-20260811-d396504 + 桌面 tar.gz（29.6MB，SHA256 48667A4D...），备份点为 master HEAD d396504（含部署可交付性、技术债清理、质量检查全部合入）
+- 刚完成的动作：git archive --format=tar.gz 生成 C:\Users\55061\Desktop\数字化预案-代码备份-20260811-d396504.tar.gz（2031 条目，git archive 只含已跟踪代码，不含 node_modules/.git/dist）；标签与 HEAD 一致性已核对；归档完整性 tar -tzf 通过
+- 下一步：无阻塞。可选：推送到远端（origin/Gitee）作为异地备份，或按需用 scripts/package-release.sh 出交付包
+- 关键上下文：master HEAD=d396504（Merge quality-check-enhancement）；本地未提交仅有 TASKS.md/.codex-custom-subagents 记录（不入备份包）
+- 正在做什么（2026-08-11，本会话·预案质量检查增强）：已合并回 master 并部署到本地 Docker，用户可试用
+- 刚完成的动作：
+  - 合并 d396504（18 commits，含 C0/C1-C3/L1-L3/E1-E3 全部规则，L2 降级/E1 收敛按用户确认）；合并后验证 346 passed
+  - worktree/分支已清理；后端容器重启（check_plan 新参数 required_sections/resources/has_risk 已生效，openapi 156 条）
+  - 前端无需重建（本次纯后端）；主工作区误写的规格文件已还原（worktree 分支含完整正确版本）
+- 下一步：用户试用（导出预览页看新质量提示：一致性/合规性/可执行性）
+- 关键上下文：master HEAD=d396504；备份点 backup/pre-quality-check-20260810；L2（法规引用存在性）与 E1（正文电话格式）标注暂缓待后续
+- 正在做什么（2026-08-11，本会话·预案质量检查增强）：五任务全部完成、最终审查 PASS（HEAD=d47d7b6），等待用户选择收尾方式
+- 刚完成的动作：
+  - 任务 1-4 + 收尾全部完成（18 commits）：C0 必含章节/片段匹配、C1-C3 一致性、L1/L3 合规性（L2 已按用户确认降级为提取不判定）、E1-E3 可执行性（E1 已收敛为仅组织架构电话完整性）
+  - 期间多轮审查修复：C1 正则误匹配/吞动词、C2 双重地址、C3 等价时限、L2 法规索引节点类型/短键/令号括号、E1 身份证误报、E2 role 字段/重复告警等
+  - 停电中断一次已恢复（recover task_q_t4_review_spec2 后重派完成）；子代理批次 quality_check_batch 已 completed
+  - 全量验证：后端 346 passed；规格文档已同步（L2/E1 收敛说明、C3 等价时限语义）
+- 下一步：等用户选收尾（1 合并回 master【推荐】/ 2 PR / 3 保持）
+- 关键上下文：worktree .worktrees\codex-quality-check 分支 codex/quality-check-enhancement HEAD=d47d7b6；备份点 backup/pre-quality-check-20260810；测试须挂 2_chroma_cache 卷
+- 正在做什么（2026-08-11，子代理·task_q_t4_review_quality3）：E1-E3 质量复审完成，结论 ✅ PASS（worktree .worktrees\codex-quality-check，HEAD=5706177）
+- 刚完成的动作：只读复审 d5594e2+8ba76ea+1798848+5706177（未改任何源码）：①E1 正文电话格式检查已彻底移除，仅剩组织架构成员电话完整性（rg 无「格式错误」残留，测试断言正文「联系电话：12345」不再告警）✅；②E2 position/role 分别入集不再拼接误判（组长+role=总指挥 场景实测仅报「缺少副总指挥」），规则 1/2 合并——规则 2 仅当规则 1 已报且缺总指挥时补充，无重复 rule1 告警 ✅；③E3 NULL/缺失数量走 discard 不报「数量为 0」（实测混合 0+None 同类别时 NULL 会抑制整类告警，见轻微项）✅；④门禁：test_plan_quality.py 29 passed / 全量后端 346 passed / git show --check 4 提交全干净 / 工作区 clean / check_plan 新参数向后兼容（export.py 唯一生产调用已传 resources+has_risk）
+- 下一步：向主控返回复审报告；轻微项建议（非阻塞）：①规格/计划文档仍写 E1 正文格式规则与 E2「任一在位」语义，未同步用户确认的收敛（docs/superpowers/specs/2026-08-10-plan-quality-check-enhancement-design.md:112-126）；②E3 NULL 用 discard 会抑制同类别真实 0 数量的告警，可考虑 skip 不触碰 zero_cats；③E2 规则 2 按章节各报一条同文案告警（section_key 区分，符合设计粒度）
+- 关键上下文：审查仅读+验证（容器 2-backend + 2_chroma_cache），未改任何文件、未提交；任务文件 .codex-custom-subagents\claimed\task_q_t4_review_quality3--23940-770f8cc8cd58.md
+- 正在做什么（2026-08-11，主控·技术债清理）：✅ 全部完成——7 项技术债已合并回 master（快进，HEAD=4bc9c8c，8 提交），worktree/分支已清理，合并后门禁 tsc 0 / vitest 54/54
+- 刚完成的动作：合并前确认主仓库无冲突文件；git merge codex/tech-debt-cleanup（ff）→ 合并结果门禁复验通过 → worktree remove --force + prune + branch -d 完成
+- 下一步：无阻塞项。剩余可选事项：①git 历史仍含已删敏感 SQL（彻底清除需 filter-repo + 强制推送，另立任务）；②.develop 流程可继续用 package-release.sh 出正式版本包
+- 关键上下文：技术债已清：stripAppBase 边界、VITE_BASE_PATH 校验、生产密钥必填（SECRET_KEY/POSTGRES_PASSWORD :?）、PROTEGO 变量、nginx compose 网络注释、archive 敏感 SQL 删除、package-lock 同步（npm10 收敛，npm ci 双版本通过）
+- 正在做什么（2026-08-11，主控·技术债清理）：7 项技术债全部完成并提交（分支 codex/tech-debt-cleanup，8 提交含计划），全量门禁通过，等待用户选收尾方式
+- 刚完成的动作：T1 stripAppBase 边界（TDD 红绿，61ca2d5）；T2 VITE_BASE_PATH 校验（df31f78）；T3 生产密钥必填+PROTEGO 变量+postgres 防回退注释（6cf3a98）；T4 .env.example 补 PROTEGO（44a8bb9）；T5 nginx compose 网络注释（366f54d）；T6 删除 archive 敏感 SQL（9a72fc4）；T7 lockfile 用 npm10 收敛（4bc9c8c）；门禁：tsc 0 / vitest 54 / npm ci（npm10 容器+本地 npm11）双通过 / bash -n 三脚本（LF 提交内容）/ compose --env-file .env.example config 通过
+- 下一步：用户选合并方式（本地合并回 master / PR / 保持 / 丢弃）→ 合并前注意主仓库无该分支文件冲突（计划文档在 worktree 内已提交）
+- 关键上下文：worktree .worktrees/tech-debt-cleanup HEAD=4bc9c8c；技术债剩余：git 历史仍含敏感 SQL（需 filter-repo+强制推送，另立任务）；worktree 检出 CRLF 导致 WSL bash -n 误报（仓库 blob 为 LF，Linux 部署不受影响）
+- 正在做什么（2026-08-11，主控·部署可交付性分析）：✅ 全部完成——子代理驱动实现 13 任务 + 最终整体审查 PASS + 用户选「本地合并回 master」，已快进合并（master HEAD=e4ff517，17 提交），worktree/分支已清理
+- 刚完成的动作：合并后门禁复验 tsc 0 / vitest 52/52；stash 的文档同步确认已被分支包含后丢弃；worktree remove + prune + branch -d 完成（.worktrees/deploy-readiness 目录已清空删除）
+- 下一步：按技术债清单逐项处理（见下）；下次交付公司时用 scripts/package-release.sh 打包（含 dist/deploy/scripts/.env.example + db-init/model-cache 提示）
+- 关键上下文：交付物=前端子路径参数化（VITE_BASE_PATH）+ 生产 compose/网关 nginx 模板/部署手册/package-release.sh/backup.sh/deploy-check.sh；技术债：①package-lock 与 package.json 不同步（已加 npm ci 兜底，建议后续 npm install 收敛 lock）②stripAppBase 兄弟路径边界 ③VITE_BASE_PATH 前导斜杠校验 ④生产默认密钥 ⑤PROTEGO 变量 ⑥nginx.conf proxy_pass 需 compose 网络（建议补注释）⑦scripts/archive 敏感 SQL 基线遗留（不进发布包）⑧main.tsx/mobile/routes BOM 基线遗留
+- 正在做什么（2026-08-11，主控·部署可交付性分析）：任务 1-13 全部完成（实现+双审+修复闭环），派发最终整体审查（task_final_review），通过后按 finishing-a-development-branch 收尾合并
+- 刚完成的动作：任务 12（构建回归+node:20 容器）与任务 13（端到端演练）双审 PASS——deploy-check 12/12 PASS、package-release 产出 9.5M tar.gz（SHA256 复核一致）、门禁 tsc 0/vitest 52；清理遗留测试容器 nginx-t6-test；3 个 frontend/build_log*.txt 因沙箱策略无法删除（untracked 测试日志，不影响合并）
+- 下一步：最终整体审查 → delegation_runtime finish → 用户选收尾方式（本地合并回 master / PR / 推送）→ 合并后清理 worktree
+- 关键上下文：worktree .worktrees/deploy-readiness HEAD=e4ff517（分支 codex/deploy-readiness，17 提交）；技术债待汇总：package-lock 不同步（已兜底）、stripAppBase 兄弟路径边界、VITE_BASE_PATH 前导斜杠校验、生产默认密钥、PROTEGO 变量、nginx.conf proxy_pass 需 compose 网络注释、registerSW 无缓存头、301 带端口、main.tsx 历史遗留入口
+- 正在做什么（2026-08-10/11，主控·部署可交付性分析）：子代理驱动执行中——任务 1-8 完成（双审+修复闭环），任务 9（部署手册）实现中
+- 刚完成的动作：任务 6 关键缺陷修复闭环（nginx 拆分 location，63dae2a）；任务 8 三连修复（59c1bf4 --project-directory / 0217d7c healthcheck 真实路由 /api/health / d78254c 文档同步）；发现两个隐藏盲区：①变更说明的 try_files 模式桌面深链回退 m.html；②变更说明验证用的 /api/v1/health 是 SPA fallback 假阳性（真实路由 /api/health）
+- 下一步：t09 手册 → t10 package-release.sh → t11 deploy-check.sh → t12 构建回归（node:20 容器）→ t13 端到端演练 → t14 合并回 master（注意主仓库未提交的 plan/spec 修正与分支 d78254c 内容一致，合并前处理）
+- 关键上下文：worktree .worktrees/deploy-readiness HEAD d78254c（分支 codex/deploy-readiness）；技术债：package-lock 不同步（缺 @floating-ui/dom）、stripAppBase 兄弟路径边界、VITE_BASE_PATH 前导斜杠校验、生产默认密钥、PROTEGO 变量、registerSW 无缓存头、301 带端口
+- 正在做什么（2026-08-10，主控·部署可交付性分析）：子代理驱动执行中——任务 1-5 完成（双审 PASS），任务 6 实现+规格审+质量审发现关键缺陷（桌面深链回退 m.html）→ 修复 63dae2a → 质量复审进行中（t06_review_quality2）
+- 刚完成的动作：任务 6 原实现 7abd9ee 质量审查发现变更说明的 try_files 模式在 alias 下桌面深链恒回退 m.html（关键）；已修复：拆分 /m/ 与桌面两个 location + assets 长缓存 + 301（63dae2a，5 条容器断言 4 PASS + assets 缓存实测 PASS）；同步修正计划/规格/t08 网关模板/t11 验证脚本（桌面深链断言「数字化预案系统」且不含「移动端」）
+- 下一步：t06 质量复审 → t07 compose postgres 换 Debian → t08 生产 compose+.env+网关模板 → t09 部署手册 → t10 package-release.sh → t11 deploy-check.sh → t12 构建回归（node:20 容器）→ t13 端到端演练 → t14 合并回 master
+- 关键上下文：worktree .worktrees/deploy-readiness（HEAD 63dae2a，分支 codex/deploy-readiness）；run deploy_readiness_20260810；新增技术债：package-lock.json 与 package.json 不同步（缺 @floating-ui/dom@1.8.0，容器 npm ci 失败改 npm install）；既有债：stripAppBase 兄弟路径边界、VITE_BASE_PATH 前导斜杠校验、workbox API 缓存正则、scope 根路径变宽、MainLayout activeTab warning、main.tsx 历史遗留入口
+- 正在做什么（2026-08-10，子代理·t04_review_spec）：规格合规审查完成，结论 ✅ PASS（worktree .worktrees\deploy-readiness，提交 b470cf1，父 3c1dca4）
+- 刚完成的动作：只读核查提交 b470cf1（`feat(deploy): strip app base in entry, menu and mobile tab paths`，仅 4 文件 12+/7-）五项逐项一致：①`frontend/src/entry.tsx` import stripAppBase + isMobilePath 改为 `const p = stripAppBase(window.location.pathname); return p === "/m" || p.startsWith("/m/");`；②`frontend/src/main.tsx` 同上；③`frontend/src/layouts/MainLayout.tsx` import + `selectedKeys={[stripAppBase(location.pathname)]}`（:21/:156）；④`frontend/src/mobile/layouts/MainTabsLayout.tsx` import + `const pathname = stripAppBase(location.pathname)` 用于 shouldHideTabBar/pattern.test/依赖数组 `[pathname,...]`/`key={pathname}` 全部 4 处；⑤提交消息精确匹配、无规格外改动（MobileRedirect 未触碰，3c1dca4..b470cf1 仅 1 提交）；门禁实测：npx tsc -b 退出码 0、npx vitest run 52 passed（7 文件）、eslint 4 改动文件 0 error/1 warning（:80 useCallback activeTab 多余依赖，父提交同代码，既有非新增）；注：全仓 npx eslint . 报 263 errors/21 warnings 均为未改动文件既有债，实现者报告「0 error」如指全仓则不准确，按规格「无新增」口径通过
+- 验证结果：✅ 符合规格（经代码检查后一切匹配）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\t04_review_spec--30796-60cb27c0307a.md）
+- 关键上下文：审查仅读+验证，未改任何源码；worktree HEAD=b470cf1，父提交 3c1dca4，工作区 clean
+- 正在做什么（2026-08-10，主控·部署可交付性分析）：子代理驱动执行中——任务 1 ✅（23cf567）、任务 2 ✅（b77ad77）、任务 3 实现 ✅（3c1dca4）待双审
+- 刚完成的动作：任务 2 双审 PASS（vite base/manifest 参数化；Node24 构建崩溃确认为既有工具链问题，非本次改动引入）；任务 3 实现完成（routes basename，tsc 0/vitest 52/eslint 基线无新增）；已入队任务 4-11（t04-t11 pending）
+- 下一步：t03 规格审（subagent_pool_8）→ 质量审 → t04 入口布局剥前缀 → t05 硬编码扫描 → t06 nginx → t07 compose → t08 生产配置 → t09 手册 → t10/t11 脚本 → t12/t13 验证演练（改走 node:20 容器构建，规避 Node24 崩溃）→ t14 合并回 master
+- 关键上下文：worktree .worktrees/deploy-readiness（分支 codex/deploy-readiness），run deploy_readiness_20260810；每任务 = 实现者 + 规格审 + 质量审（deepseek_anthropic_worker，fork none）；技术债待收尾汇总：任务1质量审 3 项次要 + 任务2质量审 3 项次要（workbox API 缓存正则未适配子路径、scope 根路径变宽、BASE_PATH 前导斜杠校验）
+- 正在做什么（2026-08-10，子代理·t02_review_quality）：代码质量审查完成，结论 ✅ 通过（worktree .worktrees\deploy-readiness，提交 b77ad77）
+- 刚完成的动作：只读审查 `frontend/vite.config.ts`（1 文件 6+/1-）——①BASE_PATH 模块顶层常量 + `||` 兜底与 API_TARGET 风格一致；②去尾斜杠 `replace(/\/+$/, "")` 后 manifest/base 三处统一补单斜杠，与任务 1 APP_BASE（BASE_URL 派生）归一一致，参数化闭环正确；③无 VITE_BASE_PATH 时默认 base="/"、start_url="/m/dashboard" 与基线一致；④git show --check 干净、diff 仅 1 文件；3 项次要建议（workbox runtimeCaching urlPattern 未适配子路径前缀 / scope 显式 "/" 比基线浏览器默认 /m/ 宽 / BASE_PATH 前导斜杠未校验），均非阻塞
+- 下一步：向主控返回质量审查报告（任务文件 .codex-custom-subagents\claimed\t02_review_quality--28100-76bf00deeab0.md）
+- 关键上下文：审查仅读+验证，未改任何源码；worktree HEAD=b77ad77，父提交 23cf567，工作区 clean
+- 正在做什么（2026-08-10，子代理·t02_review_spec）：规格合规审查完成，结论 ✅ PASS（worktree .worktrees\deploy-readiness，提交 b77ad77）
+- 刚完成的动作：只读核查提交 b77ad77（`feat(deploy): parameterize vite base and PWA manifest via VITE_BASE_PATH`，仅 1 文件 6+/1-）四项逐项一致：①`frontend/vite.config.ts:11-13` `const BASE_PATH = (process.env.VITE_BASE_PATH || "").replace(/\/+$/, "")` 位于 API_TARGET 之后（附 1 行注释无行为影响）；②`:36` `start_url: BASE_PATH ? \`${BASE_PATH}/m/dashboard\` : "/m/dashboard"`、`:37` 新增 `scope: BASE_PATH ? \`${BASE_PATH}/\` : "/"` 模板字符串/引号正确；③`:77` defineConfig 内 `plugins: await getPlugins()` 之前新增 `base: BASE_PATH ? \`${BASE_PATH}/\` : "/"`；④提交仅 1 文件、消息精确匹配；无 VITE_BASE_PATH 时 BASE_PATH="" → base="/"、start_url="/m/dashboard"（与基线一致，无前缀）；门禁实测：npx tsc -b 退出码 0、npx vitest run 52 passed（7 文件）、eslint vite.config.ts 1 error（18:18 any，基线 23cf567 同样存在仅行号位移 15→18，非本次新增）、git show --check 干净、工作区 clean
+- 验证结果：✅ 符合规格（经代码检查后一切匹配）；构建复验：默认构建与基线 23cf567 对照均崩溃 exit -1073740791（0xC0000409，8633 modules transformed 后），--minify=false 亦崩 → Node v24.13.0 既有工具链问题，与本次改动无关，不判失败
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\t02_review_spec--31104-e57dc7006b2f.md）
+- 关键上下文：审查仅读+验证（临时替换基线配置构建后已 git checkout 恢复），未改任何源码；worktree HEAD=b77ad77，父提交 23cf567，工作区干净
+- 正在做什么（2026-08-10，主控·部署可交付性分析）：子代理驱动执行中——任务 1 完成（platform.ts APP_BASE/stripAppBase，提交 23cf567，规格+质量双审 PASS），任务 2（vite base/manifest 参数化）实现中（subagent_pool_4 已领取 t02，未提交）
+- 刚完成的动作：worktree .worktrees/deploy-readiness（分支 codex/deploy-readiness，基于 master 1fa1696）+ npm ci + 基线（tsc 0 / vitest 48）；delegation_runtime begin run deploy_readiness_20260810（active=deepseek_anthropic_worker）；任务 1 全流程：t01_platform_utils（23cf567，vitest 52）→ t01_review_spec PASS → t01_review_quality PASS（3 项次要建议非阻塞）；已入队 t02/t03/t04/t05
+- 下一步：等 t02 实现 → 双审 → t03 路由 basename → t04 入口布局剥前缀 → t05 硬编码扫描 → t06 nginx → t07 compose → t08 生产配置 → t09 手册 → t10/t11 脚本 → t12/t13 验证演练 → t14 合并回 master
+- 关键上下文：pending 队列 t02-t05 已写好；每任务 = 实现者 + 规格审 + 质量审（deepseek_anthropic_worker，fork none）；master 并行会话已推进到 1fa1696；任务 1 质量审次要建议（APP_BASE 行为断言/边界用例）记入技术债待办，不阻塞
+- 正在做什么（2026-08-10，子代理·t01_review_spec）：规格合规审查完成，结论 ✅ PASS（worktree .worktrees\deploy-readiness，提交 23cf567）
+- 刚完成的动作：只读核查提交 23cf567（`feat(deploy): add APP_BASE and stripAppBase for subpath deployment`，仅 2 文件 35+）：①`frontend/src/utils/platform.test.ts` 4 项测试逐项与规格一致（空 appBase 原样 / 剥离子路径前缀 / 前缀不匹配原样 / typeof APP_BASE string）；②`frontend/src/utils/platform.ts:30` `APP_BASE = import.meta.env.BASE_URL.replace(/\/+$/, "")`、`:32-35` `stripAppBase(pathname, appBase=APP_BASE)` 空则原样/前缀匹配 slice/否则原样，逻辑与规格逐字一致；③无规格外改动（git show --stat 仅 2 文件、无多余功能/无关文件/过度工程化，工作区 clean）；④门禁实测：`npx vitest run src/utils/platform.test.ts` 4 passed、全量 `npx vitest run` 52 passed（7 文件）、`npx tsc -b` 退出码 0
+- 验证结果：✅ 符合规格（经代码检查后一切匹配）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\t01_review_spec--4868-f31048cc862d.md）
+- 关键上下文：审查仅读+验证，未改任何源码；worktree HEAD=23cf567，父提交 1fa1696，工作区干净
+- 正在做什么（2026-08-10 21:52，本会话·四色图导入预览 A+B 组合）：完成并提交 ✅
+- 刚完成的动作：`frontend/src/components/enterprise/riskMapping/FourColorImportModal.tsx` A+B 组合改造（图上点选多边形→气泡改名/删除；右侧列表等级分组折叠+搜索+筛选+批量删除）已提交 `1fa1696`；E2E 新增用例「预览支持图上点选改名、等级分组筛选与批量删除」通过；E2E 调试根因=antd 双字按钮自动插空格（"保 存"）导致 `getByRole(name:'保存', exact:true)` 匹配不到，改正则 `/保\s*存/` 修复
+- 验证结果：playwright four-color-import 4 passed ✅ / tsc -b ✅ / vitest 48 passed ✅ / pytest 318 passed ✅
+- 关键上下文：master HEAD=1fa1696；临时调试文件（preview-debug2.cjs/debug-out.txt/preview-debug-pop.png）已删除；改动仅 2 文件（Modal 231+/39-、spec 28+）
+- 下一步：无阻塞；如需可推远程/图谱同步
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-10 18:xx）：图谱增量更新（用户指令「更新图谱」，覆盖 08-08~08-10 两天工作）
+- 刚完成的动作：
+  - 增量检测：129 代码 + 43 文档 + 2 图片变更，1 删除（frontend/src/mobile/screens/AIModelConfigScreen.tsx）
+  - 变更内容：易用性/onboarding 引导建档（routers/onboarding.py、UX 原型 24 个）、预案附图扩展（plan_diagram_service + LLM mermaid 图）、质量检查增强（plan_quality_service 扩展）、部署可交付性（APP_BASE/子路径/nginx/postgres Debian）、08-09 后端大规模重构
+  - AST 提取 129 文件（1461 节点/3892 边）+ 语义 43 文档（46 节点/50 边，新增 4 概念）→ `build_merge(dedup=False)`（7097 节点）→ 手动剪除已删文件 AIModelConfigScreen 的 4 个残留节点 → Step 4 `to_json` 写回 → 重聚类 616 社区 → 重打标签（0 占位符）→ 重生成报告/HTML → manifest 已更新基线
+- 验证结果：`graphify-out/graph.json` = 7093 节点 / 12185 边；`routers_onboarding`、`services_plan_diagram_service`、4 个新概念（usability_onboarding / plan_diagrams / plan_quality_check / deploy_readiness）均在图中
+- 关键上下文：manifest 基线已含本次 174 个文件；删除文件节点已清理；临时脚本 `graphify-out/_build_semantic4.py` 可复现语义数据
+- 下一步：可用 graphify query/path/explain 查询新特性（onboarding、plan_diagram_service、质量检查、部署就绪）
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-08 22:xx）：图谱增量更新（用户指令「更新图谱」，后端三连重构实现落地后）
+- 正在做什么（2026-08-10，子代理·task_q_t3_review_quality2）：L1-L3 质量复审完成，结论 FAIL——5 项修复中 4 项达标，索引节点过滤引入回归（详见下方）
+- 刚完成的动作：worktree .worktrees/codex-quality-check 复审 3c7ad30+a27df46+3d02442（只读未改源码）：①`_regulation_exists` 已删除（rg 0 命中）✅；②令号正则 `[（(][^）)]{0,20}?第?\s*\d{1,4}\s*号[）)]` 支持 1-4 位/全半角括号 ✅（轻微：第12345号 可通过前缀漂移误匹配；ref 含括号本身→warning 双书名号）；③❌ 索引过滤 `node_type in ("standard","regulation",None)` 但 graph.json 实际类型为 article(7413)/law(74)/policy(15)/standard(34)/topic(26)、无 regulation/无 None，过滤后仅剩 34 标准，74 个 law 法规节点被排除——实测《中华人民共和国安全生产法》《生产安全事故报告和调查处理条例》被误报「疑似引用不存在的法规」；④L3 术语对已补 抢险救援组/抢险组、通讯联络组/通信联络组、疏散引导组/疏散组 ✅（与 prompt_cache.COMPLIANCE_BLOCK 一致）；⑤L1 仅顶层 required ✅（export.py 遍历 tpl.structure 顶层，子章节在 subsections 内）；⑥合规测试 8 passed + 全量回归 341 passed ✅
+- 下一步：向主控返回复审报告（结论 FAIL，1 重要问题：索引过滤应改为含 law，如 `("law","standard")`；建议补真实 graph.json 过滤测试）
+- 关键上下文：本次审查文件 .codex-custom-subagents\claimed\task_q_t3_review_quality2--26696-ac9d7d10e1e3.md；worktree HEAD=3d02442；全量回归 docker run 2-backend + 2_chroma_cache
+- 正在做什么（2026-08-10，本会话·部署可交付性分析）：实现计划已写完并提交（a96cec9），等待用户选择执行方式
+- 刚完成的动作：docs/superpowers/plans/2026-08-10-deploy-readiness.md（1059 行，15 任务）：任务 0 worktree+基线 / 1 platform.ts TDD（APP_BASE+stripAppBase）/ 2 vite base+manifest 参数化 / 3 路由 basename / 4 入口与布局剥前缀 / 5 硬编码扫描（预期不改）/ 6 nginx 子路径 location / 7 compose postgres 换 Debian / 8 生产 compose+.env+网关模板 / 9 部署手册 / 10 package-release.sh / 11 deploy-check.sh / 12 根路径回归+子路径构建验证 / 13 端到端演练 / 14 合并回 master；自检通过（任务 0-14 齐全、无占位符）
+- 下一步：等用户选执行方式（子代理驱动 / 内联）→ 按计划实施（建议 worktree .worktrees/deploy-readiness 隔离，避开并行会话）
+- 关键上下文：master HEAD=a96cec9；规格 2026-08-10-deploy-readiness-design.md（639c882）；并行会话引导页方案 A 已合入 master（ca66d22），实现避开其文件
+- 正在做什么（2026-08-10，主控）：方案 A（统一引导/编辑企业信息）完成 ✅。实现：5f76fd3（新增 EnterpriseInfoWorkspace）+ ca66d22（StepEnterprise/EnterpriseEditPage 各减至 10 行）；双审通过（规格 PASS + 质量 ✅，5 项次要技术债记录）。全量验证 tsc ✅/vitest 48 ✅。注意：另有并行会话在提交（部署可交付性/预案质量检查），HEAD 现为 639c882
+- 之前状态（2026-08-10，本会话·部署可交付性分析）：设计规格已写完并提交（639c882），等待用户审查
+- 正在做什么（2026-08-10，本会话·部署可交付性分析）：设计规格已写完并提交（639c882），等待用户审查
+- 刚完成的动作：docs/superpowers/specs/2026-08-10-deploy-readiness-design.md（235 行）：D-1 前端子路径参数化回灌（VITE_BASE_PATH 驱动 base+PWA manifest，APP_BASE 从 BASE_URL 派生）/ D-2 配置修正（根 compose postgres 换 Debian + deploy/docker-compose.prod.yml + deploy/gateway-nginx.conf.example）/ D-3 docs/deploy/README-DEPLOY.md 部署手册（预检表+构建+部署+验证+踩坑6条+回滚）/ D-4 scripts/package-release.sh / D-5 scripts/deploy-check.sh / D-6 端到端演练；自检通过（无 TODO、D-1~D-6 一致）；已 commit（仅 1 文件 235+）
+- 下一步：用户审查规格 → 批准后 writing-plans 生成实现计划 → 实施
+- 关键上下文：master HEAD=639c882；门禁 tsc/eslint/vitest/根路径回归/子路径产物验证/bash -n；改动不碰后端业务代码；另一会话并行推进引导页方案 A（HEAD 已到 ca66d22），实现时避免文件冲突
 - 正在做什么（2026-08-10，子代理·task_unify_enterprise_edit）：统一引导页第 1 步与编辑企业页已完成并提交（5f76fd3 加公共组件 + ca66d22 两页变薄），完成脚本已执行，等待主控复核
 - 刚完成的动作：新建 frontend/src/components/enterprise/EnterpriseInfoWorkspace.tsx（完成度条+EnterpriseInfoCards+GIS/平面图 Card+📄导入现有数据+CandidatesReview+onDone 按钮；一次保存合并提交 GIS 字段，清除语义保留即提交 null）；StepEnterprise.tsx（仅标题/描述/错误态+透传 imported 链路）/ EnterpriseEditPage.tsx（PageHeader+Workspace，保存后停留）变薄复用；门禁 tsc ✅ / eslint 三文件 0 问题（与 154d90d 基线逐项一致）✅ / git show --check 干净 ✅ / 无新增 any、无 >100 字符行 ✅
 - 下一步：主控审阅 → 双审 → 确认合入
@@ -779,6 +1085,7 @@
 - 另一会话补记 16：「预览拉长」真正根因=透视校正误触发（commit 642b020）——用户 DOM 里画布与预览图尺寸一致（1416x1000），前端渲染不可能拉伸；合成复现：密集分区图里占 35% 的斜形大区域触发 warp，整图比例 1.429→1.191 被拉正变形；修复：warp 门槛收紧为"面积 ≥50% 且 bbox 覆盖 ≥75%"（只对几乎铺满画面的真纸张生效）；验证：后端 152 passed，运行环境实测斜形图 canvas=1429x1000（比例保持 1.429）、2 分区，不再变形；用户需重新上传验证（若仍异常请提供原图对比）
 - 另一会话补记 17：「预览拉长」仍存在——用户正确指出未修好；复现确认占 55%-68% 的大斜形区域即使过新门槛仍触发 warp（比例 1.429→1.451/1.49）；根治：**默认关闭自动透视校正**（commit 12cb771）——电子图与拍照纸张在几何上无法可靠区分，关闭后预览永远保持原图比例，照片仍可识别（区域在原图坐标系上，不做自动拉正）；运行环境实测 68% 斜形图 canvas=1429x1000（比例 1.429 保持）、2 分区；后端 152 passed
 - 另一会话补记 18：6 项反馈全部修复（commit 83757bc/87c8d2c/a0e1b50/8aee366）——①乱码：Vite 对 \uXXXX 双重转义，6 个文件转真实中文（5173 实测标题正常）②工作台返回跳转企业风险分级管控 tab（?tab=risk-management）③风险点不显示：workbench/overview 查询兜底加载绑定当前楼层分区的风险点（含 floor_id 为空的历史数据），另提醒按楼层显示 ④事故类型多选（join"、"存储，展示兼容）⑤预览拉长：当前部署实测 3000x2000 密集斜形图 canvas=1500x1000（比例 1.5 保持）、预览 PNG 与画布一致→前端不可能拉伸（此前根因=透视校正已关闭）⑥导入后灰色=commit 响应缺 effective_color（已补，实测 #ff4d4f/#fa8c16）；画布变小/边界=工作台 Stage 改铺满容器+自动适配（导入后自动重适配）；验证：前端 tsc/vitest 42、E2E 16、后端 152 全过；后端容器已重启生效
+- 另一会话补记 19：「预览拉长」真正渲染根因找到（用户"分区太多"假设正确，commit aeab3c4）——预览弹窗左侧图片列是 grid 子项，默认被拉伸到与右侧分区列表同高；分区多→列表高→左侧容器被拉高→绝对定位的分区叠显 SVG 被纵向拉伸（图片本身保持比例）。修复：左侧容器加 alignSelf:start + 显式 aspectRatio，图片改 absolute 铺满；验证：密集图 123 分区时图片盒=叠显盒=520x346.66（比例 1.5 一致），不再拉伸
 - 以下为历史快照，保留供压缩恢复参考
 - 以下为历史快照，保留供压缩恢复参考
 
@@ -1330,3 +1637,30 @@
   - 结论：❌ 需修复（门禁全过，但 StepOrg 单组采纳误删其他 AI 候选组影响功能可用性；修复点为 generate() 补 _key 或改用 group_key 过滤）
 - 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_onboarding_v2_review_quality--24428-eca6ce9ff147.md）
 - 关键上下文：审查仅读+验证，未改源码（临时基线目录已清理）；工作区仅有 .graphifyignore/TASKS.md 修改与既有未跟踪目录
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_07_review_spec）：完成风险告知卡任务 7（AI 优化 + 快照端点）规格合规审查（worktree .worktrees\risk-notice-card，提交 0901c75，4 文件 205+/2-）
+- 刚完成的动作：独立核对 0901c75 全量 diff——①optimize_right_column(db,user_id,enterprise_name,object_name,original) 签名匹配，llm_text_completion(timeout=60)（测试断言 timeout==60），prompt 含 JSON 输出约束/①②③ 编号/事故类型不得改动/中文，与设计 §12 提示词约束逐条对应；字段缺失回落原值（.get(field, original.field)）、accident_types 恒取 original（不变）；复用 risk_ai_service 通道（_get_ai_config + llm_client）②POST ai-optimize：_get_ent 企业 404 → RiskObject(id+enterprise_id) 404「风险点不存在」→ original=build_right_column → AiOptimizeResponse(original,optimized) → 异常统一 502「AI 优化失败，请稍后重试或保留原版」精确匹配；③PUT snapshot：企业归属校验 → save_snapshot(db,enterprise_id,object_id,user_id,content)（existing version+1+SOURCE_AI+created_by 更新，新建 version=1+SOURCE_AI="ai"）→ ApiResponse({version,source:"ai"})；④范围仅 4 文件无导出/token/公开端点，commit 消息精确匹配，661476d..0901c75 区间无 TASKS.md 提交（git save 误提交已清理）
+- 刚完成的验证：pytest tests/test_risk_notice_card_api.py tests/test_risk_notice_card_service.py 25 passed；全量后端 390 passed；git show --check 0901c75 干净（exit 0）
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_07_review_spec--28292-c21d37ef24db.md）；结论 ✅ 符合规格（参考 3 项：ai-optimize 统一 502 会吞掉 llm_client 的 500/504 语义但符合规格要求；.get 回落不覆盖 JSON null/类型错误字段（校验失败→502，语义合理）；PUT snapshot 未校验 object_id 存在性但规格只要求企业归属且 FK 兜底）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=0901c75，工作区仅 TASKS.md 修改（项目惯例）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_07_review_quality）：完成风险告知卡任务 7（AI 优化 + 快照端点）代码质量审查（worktree .worktrees\risk-notice-card，提交 0901c75，4 文件 205+/2-）
+- 刚完成的动作：只读通读 0901c75 全量（service 31 行 + 路由 55 行 + 测试 121 行）+ 对照 risk_ai_service/llm_client/surrounding_ai/hazardous_chemicals 惯例；docker 只读挂载复跑 pytest 25 passed；git show --check 干净；探针实测确认 2 个重要项——①PUT snapshot 只校验企业归属不校验 object_id（任意/他人 object_id → 200，可跨企业写快照污染他人卡片；同 commit ai_optimize 却校验 id+enterprise_id，不一致）②ai_optimize 裸 except Exception 把 _get_ai_config 的 400「未配置 AI」吞成 502 且无任何日志
+- 刚完成的验证：pytest 25 passed（docker run -v 只读挂载 worktree backend）；git show --check exit 0；探针：foreign object snapshot→200、缺配置→502 通用文案
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_07_review_quality--25660-9873e0798d47.md）；结论 ❌ 需修复（2 重要+3 次要+2 参考）
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=0901c75，工作区仅 TASKS.md 修改（项目惯例）；临时探针文件已清理
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_14_review_quality）：完成风险告知卡任务 14（风险对象表单责任信息字段）代码质量审查（worktree .worktrees\risk-notice-card，提交 66b69ca，7 文件 77+/4-）
+- 刚完成的动作：独立只读通读 66b69ca 全量 diff + 前后端全链路核对——DB 模型列（risk_management.py:56-58）→ schema 三模型（Create/Update/Response 各 +3 字段，默认 None）→ 前端类型（RiskObject string|null 必填 / RiskObjectCreate 可选）→ 表单分组 → RiskManagementTab objectPayload 透传 → 路由 exclude_unset=True（create:668/update:679）空字段不覆盖；resolve_responsible 兜底逻辑与提示条文案核对一致；WorkbenchCanvas 新增 3 个 null 字段仅为满足 RiskObject 必填类型，未触碰行既有 lint 债务 11 项与本次无关
+- 刚完成的验证：npx tsc -b exit 0；npx eslint 4 目标文件 exit 0（WorkbenchCanvas 11 lint 全为未触碰行既有债务）；npx vitest run 61/61 passed；pytest tests/ -q 408 passed（407 基线+1 新增）；git show --check 66b69ca 干净
+- 下一步：向主控返回审查报告（任务文件 .codex-custom-subagents\claimed\task_14_review_quality--30484-7864e1a4c158.md）；结论 ✅ 通过（次要 3：分组标题自定义 div 未用项目 Divider 惯例、编辑不回填责任字段、Response 默认值风格不一致；参考 4：兜底文案未提责任单位兜底企业名、无端到端持久化断言、函数内 import、无电话格式校验）；任务 15 回归
+- 关键上下文：审查仅读+验证，未改源码未提交；worktree HEAD=66b69ca（父 b740201）；工作区仅 TASKS.md 修改（项目惯例）；task_id=task_14_review_quality claim_id=30484-7864e1a4c158 attempt_id=57378b7e16ae4beab35272ca55b9add3
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-11，子代理·task_final_review）：风险告知卡分支最终整体审查（worktree .worktrees\risk-notice-card，HEAD=9cbd30b，只读）
+- 刚完成的动作：对照规格 §1-§15 逐节核验全部实现位置；核对前后端契约（CardData/CardSummary 字段一一对应，schemas/risk_notice_card.py ↔ types/riskNoticeCard.ts）；安全项（6 鉴权端点全部 _get_ent 企业归属校验、公开端点无效 token 404 不泄露、snapshot/ai-optimize 均校验 object 归属、reset_token 原生 SQL 防 stale 误标）；分支卫生（master..HEAD 36 提交、TASKS.md 仅 savepoint cada4dd 含 8 行、工作区仅 TASKS.md 未提交、git diff --check 干净）
+- 刚完成的验证：pytest 5 个风险告知卡测试文件 48 passed（PYTHONPATH=%TEMP%\codex_qr_probe）；npx tsc -b exit 0；npx vitest run 61/61 passed（8 文件）；tests/test_static_signs.py 4 passed；36 个 SVG 资产核对齐；qrcode==8.2/python-docx==1.1.2 已入 requirements
+- 发现的问题：①重要-二维码内容为相对路径 /r/{token}（risk_notice_card_docx.py _render_header make_qr_png(card.public_url)），规格 §11 要求完整 URL {APP_BASE}/r/{token}，后端无 APP_BASE 配置，手机扫码无法解析主机 → 现场扫码场景失效；②次要-管理页缺规格 10.1「生成全部」按钮（规则生成随列表实时组装，功能上无缺失）；③参考-公开端点 Cache-Control public max-age=300 与 token 重置后「旧链接立即 404」存在 5 分钟缓存窗口；docx 测试用绝对 URL 但渲染传相对路径，测试未覆盖真实内容
+- 下一步：向主控返回最终审查报告（任务文件 .codex-custom-subagents\claimed\task_final_review--21740-9e36fac877b2.md，结论：❌ 存在问题（1 重要可合并前修复，其余非阻塞））；遗留：本地 DB 已应用迁移、主栈容器跑旧代码属正常；task_id=task_final_review claim_id=21740-9e36fac877b2 attempt_id=84e251bed33c47adadb42e5a18ab34d0

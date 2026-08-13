@@ -2,6 +2,7 @@
 # 业务数据/产物目录不进入知识图谱（2026-08-08 用户决策）。
 backend/app/regulations/data/
 backend/app/services/mermaid.min.js
+backend/uploads/
 graphify-out/
 .playwright-cli/
 .codex-custom-subagents/
