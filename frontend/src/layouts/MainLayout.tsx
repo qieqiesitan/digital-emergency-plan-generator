@@ -16,7 +16,6 @@ import {
   EditOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
-import { EnterpriseSwitcher } from "@/components/enterprise/EnterpriseSwitcher";
 import FloatingChat from "@/components/common/FloatingChat";
 import { stripAppBase } from "@/utils/platform";
 
@@ -182,7 +181,6 @@ export function MainLayout() {
                 {proMode ? "专业模式 开" : "专业模式 关"}
               </Button>
             )}
-            <EnterpriseSwitcher />
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                 <Avatar size="small" icon={<UserOutlined />} />
