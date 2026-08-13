@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 ENV PIP_DEFAULT_TIMEOUT=300 PIP_RETRIES=10
 RUN pip install --no-cache-dir -r requirements.txt
 # rapidocr 依赖会带入 opencv-python（GUI 版），与 headless 并存会破坏 cv2 包：卸载并用 headless 重建
