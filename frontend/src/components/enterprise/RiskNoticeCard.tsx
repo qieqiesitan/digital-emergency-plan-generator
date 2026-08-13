@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
+import QRCode from "qrcode";
 import { QrcodeOutlined } from "@ant-design/icons";
 import type { CardData } from "@/types/riskNoticeCard";
 
@@ -55,6 +57,11 @@ const RNC_CSS = `
   color: #999;
   font-size: 10px;
   margin-top: 2px;
+}
+.rnc-qr-img {
+  display: block;
+  height: 56px;
+  width: 56px;
 }
 .rnc-body {
   display: flex;
@@ -280,21 +287,41 @@ export default function RiskNoticeCard({ card }: RiskNoticeCardProps) {
     ? `${card.accident_types.join("、")}（GB 6441 事故类别）`
     : "";
   const versionText = card.snapshot ? `V1.${card.snapshot.version}` : "V1.0";
+  const [qrDataUrl, setQrDataUrl] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const fullUrl = `${window.location.origin}${card.public_url}`;
+    QRCode.toDataURL(fullUrl, { width: 112, margin: 1 })
+      .then((url) => {
+        if (!cancelled) setQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [card.public_url]);
 
   return (
     <div className="rnc-card">
       <style>{RNC_CSS}</style>
       <div className="rnc-header">
         <div className="rnc-qr">
-          <div className="rnc-qr-box">
-            <QrcodeOutlined />
-          </div>
+          {qrDataUrl ? (
+            <img className="rnc-qr-img" src={qrDataUrl} alt="扫码查看" />
+          ) : (
+            <div className="rnc-qr-box">
+              <QrcodeOutlined />
+            </div>
+          )}
           <div className="rnc-qr-text">扫码查看</div>
         </div>
         <div className="rnc-enterprise">{card.enterprise_name}</div>
         <div className="rnc-title">{card.name}安全风险告知卡</div>
-        <div className="rnc-rule" style={{ background: card.level_color }} />
       </div>
+      <div className="rnc-rule" style={{ background: card.level_color }} />
 
       <div className="rnc-body">
         <div className="rnc-left">

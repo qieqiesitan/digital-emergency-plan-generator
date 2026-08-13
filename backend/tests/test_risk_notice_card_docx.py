@@ -174,6 +174,30 @@ def test_render_cards_docx_one_page_per_card(tmp_path):
     ]
 
 
+def test_render_cards_docx_uses_two_column_body_layout(tmp_path):
+    """导出与预览一致：左栏键值/标志，右栏信息块（左右分栏，非上下堆叠）。"""
+    cards = [_card("o1", "LPG 储罐区")]
+    out = tmp_path / "layout.docx"
+    render_cards_docx(
+        cards,
+        str(out),
+        {"warning-explosion": PLACEHOLDER_PNG},
+        base_url="http://testserver",
+    )
+    doc = Document(str(out))
+    tables = doc.tables
+    assert len(tables) == 2  # header(3列) + body(左右分栏 2列)
+    body = tables[1]
+    assert len(body.columns) == 2
+    left, right = body.rows[0].cells
+    # 左栏：嵌套键值表含「风险点名称」；右栏：信息块标题
+    left_text = " ".join(c.text for t in left.tables for row in t.rows for c in row.cells)
+    right_text = "\n".join(p.text for p in right.paragraphs)
+    assert "风险点名称" in left_text
+    assert "主要危险因素描述" in right_text
+    assert "应急处置措施" in right_text
+
+
 def test_render_cards_docx_qr_falls_back_to_public_url_without_base(tmp_path):
     """未传 base_url 时（纯函数调用方）二维码保留 public_url 原值，不崩。"""
     out = tmp_path / "cards.docx"

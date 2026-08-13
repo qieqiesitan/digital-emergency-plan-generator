@@ -126,9 +126,9 @@ def _render_header(doc, card: CardData, base_url: str | None = None):
     qr_run.add_picture(io.BytesIO(make_qr_png(qr_content)), width=Cm(1.4))
 
 
-def _render_level_band(doc, card: CardData):
+def _render_level_band(cell, card: CardData):
     """等级色带：全宽底纹 + 白字「{等级}风险」。"""
-    p = doc.add_paragraph()
+    p = cell.add_paragraph()
     _shade_paragraph(p, card.level_color or "#d9d9d9")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(6)
@@ -136,9 +136,9 @@ def _render_level_band(doc, card: CardData):
     _set_run(p.add_run(), f"{card.level}风险", size=12, bold=True, color="FFFFFF")
 
 
-def _render_left(doc, card: CardData, sign_pngs: dict[str, bytes]):
+def _render_left(cell, card: CardData, sign_pngs: dict[str, bytes]):
     """左栏：等级色带 + 键值表格 6 行 + 「安全标志」标题 + 标志 PNG。"""
-    _render_level_band(doc, card)
+    _render_level_band(cell, card)
 
     rows = [
         ("风险点名称", card.name),
@@ -148,7 +148,7 @@ def _render_left(doc, card: CardData, sign_pngs: dict[str, bytes]):
         ("责任人", card.responsible_person),
         ("联系电话", card.contact_phone),
     ]
-    table = doc.add_table(rows=len(rows), cols=2)
+    table = cell.add_table(rows=len(rows), cols=2)
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     for i, (key, value) in enumerate(rows):
@@ -159,12 +159,12 @@ def _render_left(doc, card: CardData, sign_pngs: dict[str, bytes]):
         p_value = cell_value.paragraphs[0]
         _set_run(p_value.add_run(), value, size=10, bold=True)
 
-    p_title = doc.add_paragraph()
+    p_title = cell.add_paragraph()
     _shade_paragraph(p_title, "434343")
     p_title.paragraph_format.space_before = Pt(6)
     _set_run(p_title.add_run(), "安全标志", size=11, bold=True, color="FFFFFF")
 
-    sign_par = doc.add_paragraph()
+    sign_par = cell.add_paragraph()
     for sign in card.signs:
         png = sign_pngs.get(sign.svg_name) if sign_pngs else None
         if png and png[:8] == _PNG_HEADER:
@@ -173,7 +173,7 @@ def _render_left(doc, card: CardData, sign_pngs: dict[str, bytes]):
         _set_run(sign_par.add_run(), f" {sign.name}  ", size=9)
 
 
-def _render_right(doc, card: CardData):
+def _render_right(cell, card: CardData):
     """右栏：四个信息块，标题深色底 + 白字加粗，正文小字。"""
     accident_text = "、".join(card.accident_types)
     accident_text = f"{accident_text}（GB 6441 事故类别）" if accident_text else ""
@@ -184,7 +184,7 @@ def _render_right(doc, card: CardData):
         ("应急处置措施", "\n".join(card.emergency_measures)),
     ]
     for title, body in blocks:
-        p_title = doc.add_paragraph()
+        p_title = cell.add_paragraph()
         _shade_paragraph(p_title, "434343")
         p_title.paragraph_format.space_before = Pt(6)
         _set_run(p_title.add_run(), title, size=11, bold=True, color="FFFFFF")
@@ -192,7 +192,7 @@ def _render_right(doc, card: CardData):
         if not body:
             body = "暂无，请先完善风险评估数据"
         for line in body.split("\n"):
-            p_body = doc.add_paragraph()
+            p_body = cell.add_paragraph()
             _set_run(p_body.add_run(), line, size=10)
 
 
@@ -235,8 +235,13 @@ def render_cards_docx(
 
     for i, card in enumerate(cards):
         _render_header(doc, card, base_url)
-        _render_left(doc, card, sign_pngs)
-        _render_right(doc, card)
+        body = doc.add_table(rows=1, cols=2)
+        body.alignment = WD_TABLE_ALIGNMENT.CENTER
+        left_cell, right_cell = body.rows[0].cells
+        left_cell.width = Cm(7.0)
+        right_cell.width = Cm(10.4)
+        _render_left(left_cell, card, sign_pngs)
+        _render_right(right_cell, card)
         _render_footer(doc, card)
         if i < len(cards) - 1:
             doc.add_page_break()

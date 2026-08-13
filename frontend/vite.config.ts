@@ -97,6 +97,7 @@ export default defineConfig(async () => ({
     proxy: {
       "/api": { target: API_TARGET, changeOrigin: true },
       "/uploads": { target: API_TARGET, changeOrigin: true },
+      "/signs": { target: API_TARGET, changeOrigin: true },
     },
   },
   build: {
