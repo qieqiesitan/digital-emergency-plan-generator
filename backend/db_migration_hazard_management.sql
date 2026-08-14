@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS hazard_checklist_templates (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_hazard_checklist_templates_system_name
     ON hazard_checklist_templates(name) WHERE enterprise_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_hazard_checklist_templates_enterprise
+    ON hazard_checklist_templates(enterprise_id);
 
 -- 1) 排查计划
 CREATE TABLE IF NOT EXISTS hazard_inspection_plans (
@@ -32,6 +34,7 @@ CREATE TABLE IF NOT EXISTS hazard_inspection_plans (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_hazard_inspection_plans_enterprise ON hazard_inspection_plans(enterprise_id);
+CREATE INDEX IF NOT EXISTS idx_hazard_inspection_plans_template ON hazard_inspection_plans(template_id);
 
 -- 2) 排查任务
 CREATE TABLE IF NOT EXISTS hazard_inspection_tasks (
@@ -102,7 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_hazard_records_enterprise ON hazard_records(enter
 CREATE TABLE IF NOT EXISTS hazard_rectifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     record_id UUID NOT NULL REFERENCES hazard_records(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL,
     content TEXT NOT NULL,
     evidence JSONB NULL,
     submitted_at TIMESTAMPTZ NULL,
@@ -110,13 +113,24 @@ CREATE TABLE IF NOT EXISTS hazard_rectifications (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_hazard_rectifications_record ON hazard_rectifications(record_id);
+CREATE INDEX IF NOT EXISTS idx_hazard_rectifications_user ON hazard_rectifications(user_id);
+
+-- 留痕语义：删除用户后保留整改记录，user_id 置空（幂等升级既有库）
+DO $$
+BEGIN
+    ALTER TABLE hazard_rectifications ALTER COLUMN user_id DROP NOT NULL;
+    ALTER TABLE hazard_rectifications DROP CONSTRAINT IF EXISTS hazard_rectifications_user_id_fkey;
+    ALTER TABLE hazard_rectifications
+        ADD CONSTRAINT hazard_rectifications_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+END $$;
 
 -- 6) 复查
 CREATE TABLE IF NOT EXISTS hazard_reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     record_id UUID NOT NULL REFERENCES hazard_records(id) ON DELETE CASCADE,
     review_type VARCHAR(20) NOT NULL,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL,
     result VARCHAR(10) NOT NULL,
     comment TEXT NULL,
     evidence JSONB NULL,
@@ -125,17 +139,35 @@ CREATE TABLE IF NOT EXISTS hazard_reviews (
 );
 CREATE INDEX IF NOT EXISTS idx_hazard_reviews_record ON hazard_reviews(record_id);
 
+DO $$
+BEGIN
+    ALTER TABLE hazard_reviews ALTER COLUMN user_id DROP NOT NULL;
+    ALTER TABLE hazard_reviews DROP CONSTRAINT IF EXISTS hazard_reviews_user_id_fkey;
+    ALTER TABLE hazard_reviews
+        ADD CONSTRAINT hazard_reviews_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+END $$;
+
 -- 7) 审批
 CREATE TABLE IF NOT EXISTS hazard_approvals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     record_id UUID NOT NULL REFERENCES hazard_records(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL,
     action VARCHAR(10) NOT NULL,
     comment TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_hazard_approvals_record ON hazard_approvals(record_id);
+
+DO $$
+BEGIN
+    ALTER TABLE hazard_approvals ALTER COLUMN user_id DROP NOT NULL;
+    ALTER TABLE hazard_approvals DROP CONSTRAINT IF EXISTS hazard_approvals_user_id_fkey;
+    ALTER TABLE hazard_approvals
+        ADD CONSTRAINT hazard_approvals_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+END $$;
 
 -- 8) 审计日志
 CREATE TABLE IF NOT EXISTS hazard_audit_logs (

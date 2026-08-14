@@ -178,8 +178,8 @@ class HazardRectification(Base):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     record_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("hazard_records.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     evidence: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -200,8 +200,8 @@ class HazardReview(Base):
     record_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("hazard_records.id", ondelete="CASCADE"), nullable=False, index=True)
     review_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    user_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     result: Mapped[str] = mapped_column(String(10), nullable=False)
     comment: Mapped[Optional[str]] = mapped_column(Text)
     evidence: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
@@ -217,8 +217,8 @@ class HazardApproval(Base):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     record_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("hazard_records.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action: Mapped[str] = mapped_column(String(10), nullable=False)
     comment: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

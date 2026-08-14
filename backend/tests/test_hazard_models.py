@@ -5,6 +5,8 @@
 """
 
 from datetime import datetime
+import os
+import re
 
 from app.models.hazard_management import (
     HazardApproval,
@@ -127,6 +129,13 @@ def test_hazard_rectification_construct():
     assert r.submitted_at is None
 
 
+def test_hazard_rectification_user_fk_set_null():
+    """留痕语义：删除用户后整改记录保留，user_id 置空。"""
+    fk = next(f for f in HazardRectification.__table__.foreign_keys if f.parent.name == "user_id")
+    assert fk.ondelete == "SET NULL"
+    assert HazardRectification.__table__.c.user_id.nullable is True
+
+
 # ── hazard_reviews ──
 
 def test_hazard_review_metadata():
@@ -140,6 +149,13 @@ def test_hazard_review_construct():
     assert r.evidence == []
 
 
+def test_hazard_review_user_fk_set_null():
+    """留痕语义：删除用户后复查记录保留，user_id 置空。"""
+    fk = next(f for f in HazardReview.__table__.foreign_keys if f.parent.name == "user_id")
+    assert fk.ondelete == "SET NULL"
+    assert HazardReview.__table__.c.user_id.nullable is True
+
+
 # ── hazard_approvals ──
 
 def test_hazard_approval_metadata():
@@ -150,6 +166,13 @@ def test_hazard_approval_metadata():
 def test_hazard_approval_construct():
     a = HazardApproval(record_id="r1", user_id="u1", action="approve")
     assert a.comment is None
+
+
+def test_hazard_approval_user_fk_set_null():
+    """留痕语义：删除用户后审批记录保留，user_id 置空。"""
+    fk = next(f for f in HazardApproval.__table__.foreign_keys if f.parent.name == "user_id")
+    assert fk.ondelete == "SET NULL"
+    assert HazardApproval.__table__.c.user_id.nullable is True
 
 
 # ── hazard_audit_logs ──
@@ -178,6 +201,13 @@ def test_hazard_notification_construct():
     assert n.read_at is None
 
 
+def test_hazard_notification_user_fk_kept_not_null_cascade():
+    """通知属轻量临时数据：user_id 保持 NOT NULL + CASCADE（删用户清通知合理）。"""
+    fk = next(f for f in HazardNotification.__table__.foreign_keys if f.parent.name == "user_id")
+    assert fk.ondelete == "CASCADE"
+    assert HazardNotification.__table__.c.user_id.nullable is False
+
+
 # ── hazard_checklist_templates ──
 
 def test_hazard_checklist_template_metadata():
@@ -190,3 +220,19 @@ def test_hazard_checklist_template_construct():
     assert tpl.is_system is False
     assert tpl.items == []
     assert tpl.enterprise_id is None
+
+
+# ── 迁移索引与模型 index=True 对齐 ──
+
+def _migration_sql() -> str:
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "db_migration_hazard_management.sql")
+    with open(path, encoding="utf-8") as f:
+        return re.sub(r"\s+", " ", f.read())
+
+
+def test_migration_indexes_align_with_model_index_true():
+    """模型 index=True 的 3 个新列必须由迁移补建索引。"""
+    sql = _migration_sql()
+    assert "CREATE INDEX IF NOT EXISTS idx_hazard_checklist_templates_enterprise ON hazard_checklist_templates(enterprise_id)" in sql
+    assert "CREATE INDEX IF NOT EXISTS idx_hazard_inspection_plans_template ON hazard_inspection_plans(template_id)" in sql
+    assert "CREATE INDEX IF NOT EXISTS idx_hazard_rectifications_user ON hazard_rectifications(user_id)" in sql
