@@ -126,7 +126,13 @@ async def update_member(
 ):
     await _get_owned_ent(enterprise_id, current_user.id, db)
     member = await _get_member(enterprise_id, member_id, db)
-    for key, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    # role/enabled 为 NOT NULL 列，显式 null 会导致提交时 500，直接拒绝；
+    # position/org_node_id 保留显式 null 的清空语义。
+    for key in ("role", "enabled"):
+        if key in updates and updates[key] is None:
+            raise HTTPException(422, f"{key} 不能为 null")
+    for key, value in updates.items():
         setattr(member, key, value)
     await db.commit()
     await db.refresh(member)

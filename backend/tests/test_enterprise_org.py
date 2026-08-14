@@ -11,6 +11,20 @@ from app.models.enterprise import Enterprise
 from app.models.user import User
 from app.routers import enterprise_org
 from app.services.enterprise_org_service import validate_org_tree, sync_org_structure, normalize_org_nodes
+from app.schemas.enterprise_org import OrgMember as OrgMemberSchema, OrgNode as OrgNodeSchema
+
+
+def test_org_member_preserves_extra_fields_in_dump():
+    member = OrgMemberSchema(name="张三", role="team_leader", phone="13800000000")
+    dumped = member.model_dump()
+    assert dumped["role"] == "team_leader"
+    assert dumped["phone"] == "13800000000"
+
+
+def test_org_node_preserves_extra_fields_in_dump():
+    node = OrgNodeSchema(id="d1", type="dept", name="生产部", description="厂级部门")
+    dumped = node.model_dump()
+    assert dumped["description"] == "厂级部门"
 
 
 def test_enterprise_member_metadata():
@@ -230,6 +244,23 @@ def test_org_nodes_put_invalid_tree_422(client):
     db.commit.assert_not_awaited()
 
 
+def test_org_nodes_put_preserves_extra_fields(client):
+    ent = _org_ent(org_structure=[])
+    db = _org_db(ent)
+    client.app.dependency_overrides[get_db] = lambda: db
+    body = {"nodes": [
+        {"id": "d1", "type": "dept", "name": "生产部", "parent_id": None,
+         "description": "厂级部门",
+         "members": [{"name": "张三", "role": "team_leader", "phone": "13800000000"}]},
+    ]}
+    resp = client.put("/enterprises/e1/org/nodes", json=body)
+    assert resp.status_code == 200
+    saved = ent.org_structure[0]
+    assert saved["description"] == "厂级部门"
+    assert saved["members"][0]["role"] == "team_leader"
+    assert saved["members"][0]["phone"] == "13800000000"
+
+
 def test_org_nodes_put_non_owner_403(client):
     client.app.dependency_overrides[get_db] = lambda: _org_db(_org_ent(user_id="u2"))
     body = {"nodes": [{"id": "d1", "type": "dept", "name": "A", "parent_id": None, "members": []}]}
@@ -296,6 +327,44 @@ def test_members_put_updates_fields_without_clearing_others(client):
     data = resp.json()["data"]
     assert data["position"] == "新岗位"
     assert data["org_node_id"] == "n1"  # exclude_unset：未传字段不误清
+    assert member.role == "member"
+    assert member.enabled is True
+    db.commit.assert_awaited()
+
+
+def test_members_put_explicit_null_role_rejected_422(client):
+    ent = _org_ent()
+    member = _org_member(role="member", enabled=True)
+    db = _org_db(ent, member=member)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.put("/enterprises/e1/org/members/m1", json={"role": None})
+    assert resp.status_code == 422
+    assert "role 不能为 null" in resp.json()["detail"]
+    assert member.role == "member"  # 未落库
+    db.commit.assert_not_awaited()
+
+
+def test_members_put_explicit_null_enabled_rejected_422(client):
+    ent = _org_ent()
+    member = _org_member(role="member", enabled=True)
+    db = _org_db(ent, member=member)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.put("/enterprises/e1/org/members/m1", json={"enabled": None})
+    assert resp.status_code == 422
+    assert "enabled 不能为 null" in resp.json()["detail"]
+    assert member.enabled is True
+    db.commit.assert_not_awaited()
+
+
+def test_members_put_explicit_null_position_clears(client):
+    ent = _org_ent()
+    member = _org_member(org_node_id="n1", position="旧岗位", role="member", enabled=True)
+    db = _org_db(ent, member=member)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.put("/enterprises/e1/org/members/m1", json={"position": None})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["position"] is None
+    assert member.position is None  # 显式 null 保留清空语义
     assert member.role == "member"
     assert member.enabled is True
     db.commit.assert_awaited()

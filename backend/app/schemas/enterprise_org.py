@@ -6,6 +6,8 @@ class OrgMember(BaseModel):
     name: str
     user_id: str | None = None
     position: str | None = None
+    # 透传 onboarding 等来源的扩展字段（如 role/phone），整树保存时不静默丢弃
+    model_config = {"extra": "allow"}
 
 
 class OrgNode(BaseModel):
@@ -14,6 +16,8 @@ class OrgNode(BaseModel):
     name: str
     parent_id: str | None = None
     members: list[OrgMember] = Field(default_factory=list)
+    # 透传扩展字段（如 description），避免整树保存后清除下游数据
+    model_config = {"extra": "allow"}
 
 
 class OrgTreeUpdate(BaseModel):
