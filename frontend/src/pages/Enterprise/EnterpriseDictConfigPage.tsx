@@ -85,6 +85,17 @@ export default function EnterpriseDictConfigPage() {
     [data],
   );
 
+  // 企业已覆盖的 (dict_type, code) 集合，用于隐藏/禁用系统行的「覆盖」按钮
+  const coveredKeys = useMemo(
+    () =>
+      new Set(
+        data
+          .filter(d => d.scope === "enterprise")
+          .map(d => `${d.dict_type}:${d.code}`),
+      ),
+    [data],
+  );
+
   const refetchAll = () => {
     refetch();
     queryClient.invalidateQueries({ queryKey: ["enterprise-data-dicts"] });
@@ -171,7 +182,15 @@ export default function EnterpriseDictConfigPage() {
     if (drawer.mode === "create") {
       createMut.mutate(payload);
     } else {
-      updateMut.mutate({ id: drawer.source.id, patch: payload });
+      // 编辑只提交可更新字段，避免把 dict_type/code 一起发回
+      const patch: Partial<DataDictPayload> = {
+        label: payload.label,
+        value: payload.value,
+        sort_order: payload.sort_order,
+        enabled: payload.enabled,
+        description: payload.description,
+      };
+      updateMut.mutate({ id: drawer.source.id, patch });
     }
   };
 
@@ -216,15 +235,28 @@ export default function EnterpriseDictConfigPage() {
       width: 190,
       render: (_: unknown, record) =>
         record.scope === "system" ? (
-          <Tooltip title="复制系统条目为企业条目，之后可编辑">
-            <Button
-              type="link"
-              size="small"
-              onClick={() => openOverride(record)}
-            >
-              覆盖
-            </Button>
-          </Tooltip>
+          coveredKeys.has(`${record.dict_type}:${record.code}`) ? (
+            <Tooltip title="已覆盖，可编辑企业条目">
+              <Button
+                type="link"
+                size="small"
+                disabled
+                onClick={() => openOverride(record)}
+              >
+                覆盖
+              </Button>
+            </Tooltip>
+          ) : (
+            <Tooltip title="复制系统条目为企业条目，之后可编辑">
+              <Button
+                type="link"
+                size="small"
+                onClick={() => openOverride(record)}
+              >
+                覆盖
+              </Button>
+            </Tooltip>
+          )
         ) : (
           <Space size={0}>
             <Button

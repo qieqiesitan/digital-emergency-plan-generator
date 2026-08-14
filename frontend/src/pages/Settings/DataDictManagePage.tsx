@@ -134,7 +134,15 @@ export default function DataDictManagePage() {
       description: values.description || null,
     };
     if (drawer.editing) {
-      updateMut.mutate({ id: drawer.editing.id, patch: payload });
+      // 编辑只提交可更新字段，避免把 dict_type/code 一起发回
+      const patch: Partial<DataDictPayload> = {
+        label: payload.label,
+        value: payload.value,
+        sort_order: payload.sort_order,
+        enabled: payload.enabled,
+        description: payload.description,
+      };
+      updateMut.mutate({ id: drawer.editing.id, patch });
     } else {
       createMut.mutate(payload);
     }

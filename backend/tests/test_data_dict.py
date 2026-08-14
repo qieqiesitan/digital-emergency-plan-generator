@@ -2,6 +2,33 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from app.services.data_dict_service import get_dict_map, invalidate_dict_cache
 from app.models.data_dict import DataDict
+from pathlib import Path
+
+PERMISSION_SQL = Path(__file__).resolve().parents[1] / "db_migration_data_dicts_permission.sql"
+
+
+def _permission_sql() -> str:
+    return PERMISSION_SQL.read_text(encoding="utf-8")
+
+
+def test_permission_migration_seeds_menu_data_dicts():
+    sql = _permission_sql()
+    assert "menu:data_dicts" in sql
+    assert "'数据字典管理'" in sql
+    assert "'menu'" in sql and "'view'" in sql
+
+
+def test_permission_migration_is_idempotent():
+    sql = _permission_sql()
+    assert "ON CONFLICT (code) DO NOTHING" in sql
+    assert "ON CONFLICT DO NOTHING" in sql
+
+
+def test_permission_migration_assigns_super_admin_and_admin():
+    sql = _permission_sql()
+    assert "role_permissions" in sql
+    assert "super_admin" in sql
+    assert "admin" in sql
 
 def test_data_dict_table_metadata():
     assert DataDict.__tablename__ == "data_dicts"
