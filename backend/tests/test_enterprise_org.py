@@ -97,10 +97,41 @@ def test_validate_org_tree_rejects_empty_member_name():
     assert any("无姓名成员" in e for e in errors)
 
 
+def test_validate_org_tree_rejects_non_string_member_name():
+    # 数字等非字符串 name 不再抛 TypeError，按无姓名成员拒绝
+    nodes = [{"id": "d1", "type": "dept", "name": "A", "parent_id": None, "members": [{"name": 123}]}]
+    errors = validate_org_tree(nodes)
+    assert any("无姓名成员" in e for e in errors)
+
+
 def test_validate_org_tree_handles_string_member():
     nodes = [{"id": "d1", "type": "dept", "name": "A", "parent_id": None, "members": ["张三"]}]
     errors = validate_org_tree(nodes)
     assert any("非法成员" in e for e in errors)
+
+
+def test_validate_org_tree_rejects_self_parent():
+    nodes = [{"id": "d1", "type": "dept", "name": "A", "parent_id": "d1", "members": []}]
+    errors = validate_org_tree(nodes)
+    assert any("自身" in e for e in errors)
+
+
+def test_validate_org_tree_rejects_cycle():
+    nodes = [
+        {"id": "a", "type": "dept", "name": "A", "parent_id": "b", "members": []},
+        {"id": "b", "type": "dept", "name": "B", "parent_id": "a", "members": []},
+    ]
+    errors = validate_org_tree(nodes)
+    assert any("循环引用" in e for e in errors)
+
+
+def test_validate_org_tree_accepts_normal_chain_with_shared_root():
+    nodes = [
+        {"id": "d1", "type": "dept", "name": "生产部", "parent_id": None, "members": []},
+        {"id": "t1", "type": "team", "name": "甲班", "parent_id": "d1", "members": []},
+        {"id": "t2", "type": "team", "name": "乙班", "parent_id": "d1", "members": []},
+    ]
+    assert validate_org_tree(nodes) == []
 
 
 def test_normalize_org_nodes_generates_ids_and_defaults_members():
@@ -256,6 +287,35 @@ def test_org_nodes_put_invalid_tree_422(client):
     assert detail["code"] == "ORG_TREE_INVALID"
     assert any("重复" in e for e in detail["errors"])
     assert "重复" in detail["message"]
+    db.commit.assert_not_awaited()
+
+
+def test_org_nodes_put_self_loop_422(client):
+    ent = _org_ent()
+    db = _org_db(ent)
+    client.app.dependency_overrides[get_db] = lambda: db
+    body = {"nodes": [
+        {"id": "d1", "type": "dept", "name": "A", "parent_id": "d1", "members": []},
+    ]}
+    resp = client.put("/enterprises/e1/org/nodes", json=body)
+    assert resp.status_code == 422
+    errors = resp.json()["detail"]["errors"]
+    assert any("自身" in e for e in errors)
+    db.commit.assert_not_awaited()
+
+
+def test_org_nodes_put_cycle_422(client):
+    ent = _org_ent()
+    db = _org_db(ent)
+    client.app.dependency_overrides[get_db] = lambda: db
+    body = {"nodes": [
+        {"id": "a", "type": "dept", "name": "A", "parent_id": "b", "members": []},
+        {"id": "b", "type": "dept", "name": "B", "parent_id": "a", "members": []},
+    ]}
+    resp = client.put("/enterprises/e1/org/nodes", json=body)
+    assert resp.status_code == 422
+    errors = resp.json()["detail"]["errors"]
+    assert any("循环引用" in e for e in errors)
     db.commit.assert_not_awaited()
 
 

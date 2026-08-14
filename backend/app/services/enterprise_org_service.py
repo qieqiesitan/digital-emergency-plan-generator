@@ -22,9 +22,10 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def validate_org_tree(nodes: list) -> list[str]:
-    """校验组织树：id 唯一、parent 存在（根为 None）、type 合法、members 为列表且 name 非空。返回错误列表。"""
+    """校验组织树：id 唯一、parent 存在（根为 None）、无自环/环、type 合法、members 为列表且 name 非空。返回错误列表。"""
     errors: list[str] = []
     ids = [n.get("id") for n in nodes if isinstance(n, dict)]
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
     seen: set[str] = set()
     for i, n in enumerate(nodes):
         if not isinstance(n, dict):
@@ -42,6 +43,18 @@ def validate_org_tree(nodes: list) -> list[str]:
         parent = n.get("parent_id")
         if parent is not None and parent not in ids:
             errors.append(f"节点 {nid} parent 不存在: {parent}")
+        elif parent == nid:
+            errors.append(f"节点 {nid} 不能以自身为父节点")
+        elif parent is not None:
+            # 沿 parent 链检测环：从父节点一路向上，回到自身即循环引用
+            cur = parent
+            walked: set[str] = set()
+            while cur in by_id and cur not in walked:
+                if cur == nid:
+                    errors.append(f"节点 {nid} 存在循环引用")
+                    break
+                walked.add(cur)
+                cur = by_id[cur].get("parent_id")
         members = n.get("members")
         if not isinstance(members, list):
             errors.append(f"节点 {nid} members 必须为数组")
@@ -49,7 +62,7 @@ def validate_org_tree(nodes: list) -> list[str]:
             for m in members:
                 if not isinstance(m, dict):
                     errors.append(f"节点 {nid} 存在非法成员")
-                elif not m.get("name"):
+                elif not isinstance(m.get("name"), str) or not m.get("name").strip():
                     errors.append(f"节点 {nid} 存在无姓名成员")
     return errors
 

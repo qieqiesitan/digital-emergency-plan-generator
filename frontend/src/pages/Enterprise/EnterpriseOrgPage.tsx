@@ -135,12 +135,13 @@ function collectSubtreeIds(nodes: OrgNode[], rootId: string): Set<string> {
   return ids;
 }
 
-/** 前端基础校验：name 非空、type 合法、parent 存在、id 唯一、成员 name 非空。 */
+/** 前端基础校验：name 非空（非字符串按非法处理）、type 合法、parent 存在、无自环/环、id 唯一、成员 name 非空。 */
 function validateNodes(nodes: OrgNode[]): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();
+  const byId = new Map<string, OrgNode>(nodes.map(n => [n.id, n]));
   for (const n of nodes) {
-    if (!n.name?.trim()) {
+    if (typeof n.name !== "string" || !n.name.trim()) {
       errors.push(`节点 ${n.id || "(无 id)"} 名称不能为空`);
     }
     if (!["dept", "team", "position"].includes(n.type)) {
@@ -150,14 +151,28 @@ function validateNodes(nodes: OrgNode[]): string[] {
       errors.push(`节点 id 重复: ${n.id}`);
     }
     ids.add(n.id);
-    if (n.parent_id != null && !nodes.some(x => x.id === n.parent_id)) {
+    if (n.parent_id != null && !byId.has(n.parent_id)) {
       errors.push(`节点 ${n.id} parent 不存在: ${n.parent_id}`);
+    } else if (n.parent_id === n.id) {
+      errors.push(`节点 ${n.id} 不能以自身为父节点`);
+    } else if (n.parent_id != null) {
+      // 沿 parent 链检测环：从父节点一路向上，回到自身即循环引用
+      const walked = new Set<string>();
+      let cur: string | null | undefined = n.parent_id;
+      while (cur != null && byId.has(cur) && !walked.has(cur)) {
+        if (cur === n.id) {
+          errors.push(`节点 ${n.id} 存在循环引用`);
+          break;
+        }
+        walked.add(cur);
+        cur = byId.get(cur)?.parent_id ?? null;
+      }
     }
     if (!Array.isArray(n.members)) {
       errors.push(`节点 ${n.id} members 必须为数组`);
     } else {
       for (const m of n.members) {
-        if (typeof m !== "object" || m === null || !m.name?.trim()) {
+        if (typeof m !== "object" || m === null || typeof m.name !== "string" || !m.name.trim()) {
           errors.push(`节点 ${n.id} 存在非法或无姓名成员`);
         }
       }
@@ -272,7 +287,13 @@ export default function EnterpriseOrgPage() {
   );
 
   const handleSaveTree = useCallback(async () => {
-    const errors = validateNodes(nodes);
+    let errors: string[];
+    try {
+      errors = validateNodes(nodes);
+    } catch {
+      message.error("组织树校验失败：数据格式异常");
+      return;
+    }
     if (errors.length) {
       message.error(`组织树校验失败：${errors.join("；")}`);
       return;
