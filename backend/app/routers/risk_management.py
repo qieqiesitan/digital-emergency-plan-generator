@@ -375,16 +375,21 @@ def _validate_point_range(x, y) -> None:
             raise HTTPException(422, detail={"code": "POINT_OUT_OF_RANGE", "message": "风险点坐标必须是 0-100 范围内的有限数值"})
 
 
+def _zone_dual_levels(zone):
+    """返回 (max_level, effective_color, inherent_max_level, inherent_effective_color)。"""
+    current = max_risk_level(zone)
+    inherent = max_risk_level(zone, "inherent")
+    return (current, effective_color(zone.floor_plan_polygon, current),
+            inherent, effective_color(zone.floor_plan_polygon, inherent))
+
+
 def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
     """将分区 ORM 对象规范化为工作台/总览响应，补齐楼层名、多边形 v2、风险等级与有效色。"""
     resp = RiskZoneResponse.model_validate(z)
     resp.floor_name = floor.name
-    resp.max_risk_level = max_risk_level(z)
-    resp.inherent_max_level = max_risk_level(z, "inherent")
+    resp.max_risk_level, resp.effective_color, resp.inherent_max_level, resp.inherent_effective_color = _zone_dual_levels(z)
     normalized = normalize_polygon(z.floor_plan_polygon, z.name)
     resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
-    resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
-    resp.inherent_effective_color = effective_color(resp.floor_plan_polygon, resp.inherent_max_level)
     resp.object_count = len(z.objects or [])
     return WorkbenchZone(
         id=resp.id,
@@ -610,13 +615,9 @@ async def list_zones(enterprise_id: str, current_user=Depends(get_current_user),
     )).scalars().all()
     out = []
     for z in zones:
-        cnt = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.zone_id==z.id))).scalar() or 0
         r = RiskZoneResponse.model_validate(z)
-        r.object_count = cnt
-        r.max_risk_level = max_risk_level(z)
-        r.effective_color = effective_color(z.floor_plan_polygon, r.max_risk_level)
-        r.inherent_max_level = max_risk_level(z, "inherent")
-        r.inherent_effective_color = effective_color(z.floor_plan_polygon, r.inherent_max_level)
+        r.object_count = len(z.objects or [])
+        r.max_risk_level, r.effective_color, r.inherent_max_level, r.inherent_effective_color = _zone_dual_levels(z)
         out.append(r)
     return ApiResponse(data=out)
 
@@ -971,10 +972,7 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
         resp.floor_name = f.name if f else None
         normalized = normalize_polygon(z.floor_plan_polygon, z.name)
         resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
-        resp.max_risk_level = max_risk_level(z)
-        resp.inherent_max_level = max_risk_level(z, "inherent")
-        resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
-        resp.inherent_effective_color = effective_color(resp.floor_plan_polygon, resp.inherent_max_level)
+        resp.max_risk_level, resp.effective_color, resp.inherent_max_level, resp.inherent_effective_color = _zone_dual_levels(z)
         out.append(resp)
     return ApiResponse(data=out)
 

@@ -102,6 +102,28 @@ def test_max_risk_level_by_mode_unit_branch():
     assert max_risk_level(zone, "inherent") == "重大"
 
 
+def test_max_risk_level_defaults_to_current():
+    from app.models.risk_management import RiskZone, RiskObject, RiskEvent
+    zone = RiskZone(id="z3", enterprise_id="e1", floor_id="f1", name="储罐区")
+    obj = RiskObject(id="o3", enterprise_id="e1", zone_id="z3", name="1#储罐")
+    obj.events = [RiskEvent(accident_type="火灾", risk_level="一般", inherent_risk_level="重大")]
+    zone.objects = [obj]
+    assert max_risk_level(zone) == "一般"  # 默认 current 向后兼容
+
+
+def test_max_risk_level_aggregates_object_and_unit():
+    from app.models.risk_management import RiskZone, RiskObject, RiskUnit, RiskEvent
+    zone = RiskZone(id="z4", enterprise_id="e1", floor_id="f1", name="储罐区")
+    obj = RiskObject(id="o4", enterprise_id="e1", zone_id="z4", name="1#储罐")
+    obj.events = [RiskEvent(accident_type="火灾", risk_level="一般", inherent_risk_level="重大")]
+    unit = RiskUnit(id="u4", object_id="o4", name="阀门组")
+    unit.events = [RiskEvent(accident_type="泄漏", risk_level="较大", inherent_risk_level="重大")]
+    obj.units = [unit]
+    zone.objects = [obj]
+    assert max_risk_level(zone, "current") == "较大"   # 对象 一般 + 单元 较大 → 较大
+    assert max_risk_level(zone, "inherent") == "重大"
+
+
 def _event(**overrides):
     ev = RiskEvent(
         id="ev1",
