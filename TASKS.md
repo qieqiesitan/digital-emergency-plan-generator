@@ -1,4 +1,154 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：7 项 AI 辅助已确认全量纳入并写入规格/计划，commit 422f202；下一步写「组织与成员」「隐患排查治理主体」两份实现计划并确认执行方式
+- 刚完成的动作：读取视觉伴侣 events 确认用户 7 项全选；A 规格加 §5.2 方式三（AI 双等级参数建议，文本通道）；B 规格加 §3.7（7 项 AI 辅助矩阵+文本原则）/§3.8（智能引导向导）+ 相关章节接口与测试；A 计划插入任务 11（AI 双等级建议，含 mock 测试）；全部 commit 422f202
+- 下一步：写组织成员计划 + B 主体计划 → 用户选执行方式（子代理驱动/内联）→ 执行
+- 关键上下文：master HEAD=422f202；规格 A/B 完整（含数据字典/组织成员/AI 辅助）；视觉伴侣 .superpowers\brainstorm\12680-1786715250（port 60420）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：用户提出「企业自己配置太麻烦，哪些能用 AI 辅助」——已推送 AI 辅助矩阵（8/8 屏，7 项可多选），等待用户圈定
+- 刚完成的动作：盘点配置负担点（组织树/成员绑定、排查计划、检查表、治理方案、双等级参数、隐患登记、初始引导）；推送 content\design-8-ai-assist.html（7 项多选卡片，⭐推荐 5 项：组织 AI 建树/计划一键生成/检查表生成/双等级参数建议/智能引导）
+- 下一步：用户圈定 AI 辅助范围 → 更新 A/B 规格（AI 辅助章节 + 对应接口/测试）→ 重新 commit → 继续 writing-plans
+- 关键上下文：master HEAD=f4fee16（A 计划已 commit）；视觉伴侣 .superpowers\brainstorm\12680-1786715250（port 60420）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：A 规格实现计划已完成并 commit f4fee16；等待用户选择执行方式（子代理驱动 / 内联执行）
+- 刚完成的动作：读完 writing-plans SKILL.md；编写 docs\superpowers\plans\2026-08-14-risk-control-enhancement.md（11 任务 TDD 步骤：字典表/管理接口→双等级字段→折算工具→事件表单→双模式四色图→管控清单+导出→公示前后端→告知卡+字典页→回归门禁），含自检结论；commit f4fee16
+- 下一步：用户选执行方式 → 写「组织与成员」「隐患排查治理主体」两份计划 → 按选定方式执行
+- 关键上下文：master HEAD=f4fee16；规格 A/B 已 commit（e130075 及之前）；视觉伴侣 .superpowers\brainstorm\12680-1786715250（port 60420）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：数据字典体系已确认（A 系统默认+企业覆盖）并写入两份规格，commit e130075；等待用户最终审查批准 → writing-plans
+- 刚完成的动作：A 规格新增 §5.4 data_dicts（表结构/合并规则/短缓存/管理界面/迁移种子）+ §2 决策、§5.2 系数、§7 层级映射、§10/§12/§13/§14 同步；B 规格新增 §3.6（hazard_type/judgment_points/deadline_rules/publicity_scope/source_type 字典类型）+ 期限/判定/复查/公示口径改走字典 + 接口/测试/部署/验收同步；表数修正为 11 张
+- 下一步：用户批准 → 调用 writing-plans（A 规格 → 组织成员 → B 主体 → 四色图叠加）；规格已全部 commit，TASKS.md 未提交（项目惯例）
+- 关键上下文：master HEAD=e130075；视觉伴侣 .superpowers\brainstorm\12680-1786715250（port 60420）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：用户想把常量/规则做成可配置可维护的数据字典表——已推送设计 7/7（字典体系+编辑抽屉示例），等待用户确认配置粒度
+- 刚完成的动作：推送 content\design-7-dict-config.html——字典清单（隐患类型/折算系数/层级映射/判定要点/期限/公示口径/枚举文案/模板）+ 系统级/企业级/双范围标记 + JSONB value 编辑示例 + 「安全关键逻辑不进表」边界说明
+- 下一步：用户选配置粒度（A 系统默认+企业覆盖【推荐】/ B 仅系统级 / C 仅企业级）→ 将「数据字典与配置体系」章节写入 A/B 规格 → 重 commit → 最终审查 → writing-plans
+- 关键上下文：master HEAD=82f1f7b；视觉伴侣 .superpowers\brainstorm\12680-1786715250（port 60420）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：二次完整性补审完成——新增「企业组织与成员管理」前置能力及 8 项补缺，已更新两份规格并 commit 82f1f7b；等待用户批准
+- 刚完成的动作：核查确认 org_structure 仅存部门+成员姓名（供预案签署），无班组结构/账号绑定/企业角色；推送 content\design-6-gaps-v2.html（组织树+成员管理原型、补缺清单、消息角标示意）；B 规格新增 §3.5 前置能力（enterprise_members/组织树升级/Excel 导入/角色）+ §5.11/5.12 表 + hazard_type/cause_analysis/hazard_config/hazard_notifications + 期限规则/提前提醒/打印/穿透/四色图叠加；A 规格二期加岗位/班组告知卡
+- 下一步：用户批准补审结论 → 最终规格审查 → 调用 writing-plans（建议实施顺序：A 规格 → 组织成员（B 前置）→ B 主体 → 四色图叠加）
+- 关键上下文：master HEAD=82f1f7b；视觉伴侣 .superpowers\brainstorm\12680-1786715250（port 60420）；TASKS.md 保持未提交（项目惯例）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：A 规格已按用户选择 C 更新（双参数评估 + 自动折算参考）并 commit 4c1a97c；等待用户最终批准两份规格后进入 writing-plans
+- 刚完成的动作：A 规格 §2/§5.2/§10/§12/§14 更新——自动折算参考：措施类别系数（engineering 0.5/management 0.7/ppe 0.85/emergency 0.9，企业可覆盖）、综合系数默认取最小值（保守）可切乘积、参考分值=固有分值×系数、阈值映射复用 compute_risk、DIRECT 不适用、UI「自动折算参考」按钮可一键采用
+- 下一步：用户确认规格 → 调用 writing-plans 技能（先 A：风险分级管控增强 → 后 B：隐患排查治理）
+- 关键上下文：master HEAD=4c1a97c；B 规格未变（docs\superpowers\specs\2026-08-14-hazard-management-design.md）；视觉伴侣会话 .superpowers\brainstorm\12680-1786715250（port 60420）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：用户问「管控措施与固有风险如何计算成现有风险」——正在解释算法并确认是否引入自动折算，涉及 A 规格 §5.2 可能调整
+- 刚完成的动作：视觉伴侣 11 屏原型已推送（新会话 port 60420）；本轮为纯问答+方案澄清，未改代码
+- 下一步：用户选定算法方案（双参数评估 / 自动折算参考 / 两者）→ 若变更则更新 A 规格并重新 commit → 用户批准后 writing-plans
+- 关键上下文：master HEAD=63da57d；A 规格现状=同一方法两套参数（固有/现有），管控措施作为参数调整依据而非自动公式
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：用户要求把两份规格的界面效果用视觉伴侣展示——已完成全部 11 屏原型并推送，等待用户浏览反馈
+- 刚完成的动作：原视觉伴侣服务器空闲退出，已重启新会话 .superpowers\brainstorm\12680-1786715250（port 60420）；写入 content\all-design-preview.html——A 规格 4 屏（事件表单双参数/四色图双模式/管控清单/重大风险公示）+ B 规格 7 屏（台账/计划/AI 任务执行/隐患单详情/驾驶舱/扫码上报/公示公开页），顶部锚点导航一页通览
+- 下一步：收集用户对界面效果的反馈 → 必要时调整规格 → 用户批准规格后调用 writing-plans（先 A 后 B）
+- 关键上下文：master HEAD=63da57d（两份规格已 commit）；新 URL http://localhost:60420/?key=b8423e16872bdadef543fcaf1e1fc13217969c28ab759965853d14c413cc4b29
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 设计文档已完成并 commit（63da57d），等待用户审查两份规格
+- 刚完成的动作：写 A 规格 docs\superpowers\specs\2026-08-14-risk-control-enhancement-design.md（固有/现有双等级+四色图切换+管控清单+重大风险公示）与 B 规格 docs\superpowers\specs\2026-08-14-hazard-management-design.md（隐患排查治理 9 表+状态机+三渠道+AI+驾驶舱）；规格自检修正一处表述（超期=派生标记不改 status）；git add + commit 63da57d（TASKS.md 保持未提交，项目惯例）
+- 下一步：用户审查规格（重点确认：①APScheduler 定时任务假设 ②状态回写采用实时派生实现 ③判定要点库免责标注）→ 批准后调用 writing-plans 技能（先 A 后 B 或按用户顺序）
+- 关键上下文：master HEAD=63da57d；会话 .superpowers\brainstorm\22676-1786635459（port 62975，4 小时空闲自动退出）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：用户要求设计全面性复查——已完成缺口审计，确认原有设计不完整；已推送设计 5/5 完整功能地图（两条支柱×已有/缺失矩阵），等待用户批准扩充后的设计
+- 刚完成的动作：全库核查——①风险事件仅单一 risk_level/risk_score，无「固有/现有」之分，四色图仅单一 max_risk_level 版本；②无风险分级管控清单/管控层级、无重大风险公示、无检查表模板/隐患来源/治理方案/整改证据/公示/超期升级等；③现有模块：四色工作台/导入、风险总览、告知卡、AI 评估报告（含"现有管控措施评价"章节）可复用。推送 content\design-5-completeness.html
+- 下一步：用户批准完整设计 → 确认拆两份规格（A 风险分级管控增强：固有/现有双等级+四色图切换+管控清单+公示；B 隐患排查治理：全流程）→ 写规格并自检 → 用户审查 → writing-plans
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459（port 62975）；master HEAD=91b3408；二期可选：未闭环重大隐患入预案、监管平台对接
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 分节展示中——第 3 节（三渠道页面）已批准；已推送设计 4/4 屏（联动/驾驶舱/技术架构/测试），等待批准
+- 刚完成的动作：写入 content\design-4-linkage-tech-test.html——驾驶舱六宫格 + 状态回写规则；技术架构（独立 router/8 表/AI 复用/定时调度【待确认】/公开 token 复用/移动端同 API/迁移文件）；错误处理与测试策略（降级、幂等、权限 422、pytest 状态机矩阵、vitest、门禁）
+- 下一步：用户批准第 4 节 → 确认定时任务部署方式 → 写规格 docs/superpowers/specs/2026-08-14-hazard-management-design.md → 规格自检 → 用户审查 → writing-plans
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459（port 62975）；master HEAD=91b3408；TASKS.md 顶部快照保持最新
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 分节展示中——第 2 节（计划/任务/AI）已批准；已推送设计 3/4 屏（三渠道页面形态），等待批准
+- 刚完成的动作：写入 content\design-3-channels-pages.html——四宫格线框：Web 台账列表（统计条+筛选）、隐患单详情（处理流时间线+按角色操作按钮+风险点关联标记）、扫码公开上报（自动关联位置+防抖）、移动端（今日任务+上报入口+同一 API）
+- 下一步：用户批准第 3 节 → 设计 4/4 联动报表与技术测试（状态回写、驾驶舱、导出、错误处理、测试策略）→ 批准后写规格文档
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459（port 62975）；master HEAD=91b3408
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 分节展示中——第 1 节（数据模型+状态机）已批准；已推送设计 2/4 屏（计划配置+任务执行+AI），等待批准
+- 刚完成的动作：写入 content\design-2-plan-task-ai.html——左：计划配置（频次/责任人/覆盖范围 + AI 排程建议卡）；右：任务执行（清单项 正常/异常/不适用 + AI 清单补全卡 + 一键转隐患 + 超期预警）
+- 下一步：用户批准第 2 节 → 设计 3/4 三渠道与页面（Web 隐患单页/扫码公开上报/移动端）→ 4/4 联动报表与技术测试 → 批准后写规格
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459（port 62975）；master HEAD=91b3408
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 进入分节展示设计——方案一（独立模块）已确认；已推送设计第 1 屏（数据模型 + 状态机），等待用户批准该节
+- 刚完成的动作：确认视觉伴侣服务器存活（port 62975）；写入 content\design-1-module-state.html（9 张表/配置 + 一般/重大双路径状态机，虚线=严格模式节点）
+- 下一步：用户批准第 1 节后 → 设计 2/4 排查计划与任务（AI 清单生成/智能排程）→ 3/4 三渠道与页面 → 4/4 联动报表与技术测试 → 批准后写规格文档
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459；master HEAD=91b3408；TASKS.md 保持未提交（项目惯例）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 澄清完成，进入「2-3 种实现方案」阶段——先定模块归属（独立模块 vs 挂现有 risk-management vs 微服务）
+- 刚完成的动作：决策链全部确认——范围 C 全流程；任务模型 C 混合；AI A+C（清单生成+智能排程）；分级 B（AI 辅助判定+管理员审批挂牌）；渠道 B+C（Web+扫码公开+移动端）；闭环模式按企业配置（标准/严格可选）；联动 B 状态回写；统计 C 完整驾驶舱（含风险联动看板+监管台账导出）
+- 下一步：用户选定实现方案 → 分节展示设计（架构/数据流/页面，含视觉原型）→ 批准后写规格 docs/superpowers/specs/
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459；master HEAD=91b3408；现有 AI 管线 llm_text_completion / 公开 token 页 / 移动端 8082 均可复用
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 继续——联动深度已确认 B 状态回写；正在澄清统计报表维度（最后一个功能澄清）
+- 刚完成的动作：决策链再 +1——隐患与风险点/管控措施中联动：闭环后状态回写，未闭环显示标记（风险告知卡/清单可见）；预案生成联动（C 强联动）暂不做
+- 下一步：确认统计报表维度 → 提出 2-3 种实现方案（模块归属/数据模型）→ 分节展示设计（含视觉原型）→ 用户批准后写规格
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459；master HEAD=91b3408
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 继续——闭环模式已确认按企业配置（B，默认标准/严格可选）；正在澄清「与风险点/管控措施的联动深度」
+- 刚完成的动作：决策链再 +1——整改闭环模式按企业配置（enterprise 级设置，默认标准，严格=重大隐患二次复核+强化留痕）
+- 下一步：确认联动深度（台账关联 vs 状态回写 vs 全链路联动含预案）→ 统计报表维度 → 2-3 方案 → 分节展示设计
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459；master HEAD=91b3408；TASKS.md 顶部快照保持最新
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-14，主控）：brainstorming 继续——用户要求整改闭环「B 标准 / C 严格」做成可选模式，正在确认配置粒度
+- 刚完成的动作：已确认决策链——范围 C 全流程数字化；任务模型 C 混合（计划派发×风险清单）；AI A+C（清单生成补全 + 智能排程）；分级 B（AI 辅助判定 + 重大挂牌督办需管理员审批）；渠道 B+C（Web + 扫码公开上报 + 移动端）；整改闭环 B/C 可选（标准：整改人≠复查人、超期预警、管理员销号；严格：+重大隐患二次复核、全程留痕）
+- 下一步：确认闭环模式配置粒度（全局 vs 按企业）→ 剩余澄清：与风险点/管控措施联动深度、统计报表维度 → 2-3 方案 → 分节展示设计
+- 关键上下文：会话 .superpowers\brainstorm\22676-1786635459（URL http://localhost:62975/?key=053eb160e6aa6a1fc17e382bc5f6006eedca48b937879b47a5a376061144b71b，需注意 4 小时空闲自动退出，用前查 .server-info）；master HEAD=91b3408
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：brainstorming 继续——用户问「排查任务/清单生成这步加 AI 辅助决策可行么」，正在澄清 AI 具体角色
+- 刚完成的动作：核查现有 AI 基建——backend/app/services/risk_ai_service.py 已有 suggest_objects/events/measures、smart_guide、analyze_floor_plan、migrate_preview 等，统一走 llm_text_completion（DeepSeek，系统级 AI 配置加密存储，routers/ai_config.py）；另有 risk_notice_card_ai.py 先例；结论：AI 辅助决策完全可行，复用现有管线即可
+- 下一步：向用户确认 AI 角色的三种理解（A 生成/补全排查清单项；B 排查记录研判+初定级+整改建议；C 智能排程建议频次/责任人）→ 继续澄清
+- 关键上下文：会话目录 .superpowers\brainstorm\22676-1786635459；master HEAD=91b3408；用户已选 C 范围 + Q1 混合模型（计划派发×风险清单）
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：brainstorming 继续——用户选 C「全流程数字化」；浏览器已推 waiting 屏，进入终端澄清问题阶段
+- 刚完成的动作：读取 state\events 确认用户点击 choice=c（终端消息「我想要C」一致）；写入 content\waiting.html 清屏
+- 下一步：逐个澄清问题——Q1 排查任务生成模型（计划自动派发 vs 风险点清单驱动 vs 混合）→ 后续：隐患分级标准/与风险点联动深度/上报渠道/统计口径/整改复查权限
+- 关键上下文：会话目录 .superpowers\brainstorm\22676-1786635459，URL http://localhost:62975/?key=053eb160e6aa6a1fc17e382bc5f6006eedca48b937879b47a5a376061144b71b；master HEAD=91b3408
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：brainstorming 进行中——用户已接受视觉伴侣，首个屏幕「隐患治理闭环范围选择」已推送到浏览器，等待用户反馈
+- 刚完成的动作：读完 visual-companion.md；用 node server.cjs（Start-Process 隐藏窗口）启动视觉伴侣，会话目录 .superpowers\brainstorm\22676-1786635459，URL http://localhost:62975/?key=053eb160e6aa6a1fc17e382bc5f6006eedca48b937879b47a5a376061144b71b（端口 62975）；确认 .superpowers/ 已在 .gitignore；写入首个内容片段 content\hidden-danger-scope.html（A 基础闭环 / B 分级管控闭环【推荐】/ C 全流程数字化 三选）
+- 下一步：等用户在终端反馈范围选择（或读取 state\events 合并判断）→ 继续逐个澄清问题（分级规则/与风险点关联/责任闭环/统计口径）→ 2-3 方案 → 分节展示设计
+- 关键上下文：master HEAD=91b3408；探索确认无独立隐患模块；既有 risk_management 模型可复用（RiskObject/RiskMeasure 有责任字段先例）；历史会话目录 .superpowers\brainstorm\32980-1786439184 为之前视觉伴侣会话可参考
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：用户想把「隐患排查治理」补进系统，进入 brainstorming 阶段（已声明使用该技能），探索中、未改码
+- 刚完成的动作：读完 brainstorming SKILL.md；探索项目上下文——确认现有风险分级管控模块结构（backend/app/models/risk_management.py：RiskAssessmentMethod/RiskZone/RiskObject/RiskUnit/RiskEvent/RiskMeasure；routers/risk_management.py 已含 floors/zones/objects/units/events/measures/迁移/四色导入；frontend/src/pages/Enterprise/ 有 RiskManagementTab/RiskMappingWorkbenchPage/RiskNoticeCardPage 等）；全库 rg「隐患」仅 chat.py 等零星出现，无独立隐患模块
+- 下一步：向用户提供视觉伴侣提议（独立消息）→ 逐个澄清问题（流程/分级/责任/闭环/与风险点关系）→ 2-3 方案 → 分节展示设计
+- 关键上下文：master HEAD=91b3408；既有 design 规格在 docs/superpowers/specs/；风险告知卡已有 responsible_unit/responsible_person/contact_phone 责任字段可复用思路
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：用户问「是否知道企业双重预防机制」——知识性问答，未涉及代码改动
+- 刚完成的动作：读取 TASKS.md 顶部快照确认项目状态；准备向用户讲解双重预防机制（风险分级管控 + 隐患排查治理），并结合本项目已有的风险分级管控 Tab / 四色导入 / 风险告知卡模块关联说明
+- 下一步：视用户反馈决定是否深入（如结合本系统实现展开或做差距分析）
+- 关键上下文：master HEAD=91b3408；项目已含 enterprise 风险分级管控（四色）与风险告知卡功能
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-13，主控）：✅ 完成移除右上角企业选择器（EnterpriseSwitcher），已提交 commit 91b3408
+- 刚完成的动作：git save 保存点 fd316fb；删除 frontend/src/components/enterprise/EnterpriseSwitcher.tsx；修改 frontend/src/layouts/MainLayout.tsx 删除 import 与 <EnterpriseSwitcher /> 引用；保留 EnterpriseContext（仍被 CompletionCard.tsx / PlanCreatePage.tsx 消费）；验证 npx tsc -b exit 0 / eslint MainLayout.tsx 0 问题 / vitest 8 文件 61 用例全通过 / git diff --check 干净
+- 下一步：无阻塞。是否 git finish 推送 origin/Gitee 待用户确认（当前 savepoint fd316fb 混有并行 agent 的 claimed 临时文件与 uploads，直接 finish 会一并推送）
+- 关键上下文：master HEAD=91b3408（父 fd316fb savepoint → f362a8b）；e2e/enterprise-switch.spec.ts 走 URL 切换企业，与本改动无关不受影响
+
+## 当前状态快照（压缩恢复用）
 - 正在做什么（2026-08-13 22:5x）：图谱增量更新（用户指令「更新图谱」，覆盖 08-10~08-13 工作）
 - 刚完成的动作：
   - 增量检测：49 代码 + 25 文档变更，3 删除（2 个 archive SQL + 1 个上传平面图 PNG）
