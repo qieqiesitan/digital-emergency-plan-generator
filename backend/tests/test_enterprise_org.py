@@ -1,6 +1,8 @@
 import io
 import json
 
+from openpyxl import load_workbook
+
 from app.models.enterprise_org import EnterpriseMember
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,6 +16,7 @@ from app.models.enterprise import Enterprise
 from app.models.user import User
 from app.routers import enterprise_org
 from app.services.enterprise_org_service import (
+    IMPORT_HEADERS,
     ROLE_LABEL_MAP,
     _summarize_org_structure,
     build_member_import_template,
@@ -436,6 +439,65 @@ def test_members_get_joins_email_and_name(client):
     assert item["position"] == "班组长"
     assert item["role"] == "team_leader"
     assert item["enabled"] is True
+
+
+# ── GET /members/search（按邮箱搜索可绑定账号）与 GET /members/template（模板下载） ──
+
+def test_members_search_returns_bindable_users(client):
+    ent = _org_ent()
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, user=user, member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/org/members/search", params={"email": "zhang"})
+    assert resp.status_code == 200
+    assert resp.json()["data"] == [{"id": "u2", "email": "zhang@x.com", "name": "张三"}]
+
+
+def test_members_search_excludes_existing_members(client):
+    ent = _org_ent()
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, user=user, member=_org_member(user_id="u2"))
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/org/members/search", params={"email": "zhang"})
+    assert resp.status_code == 200
+    assert resp.json()["data"] == []
+
+
+def test_members_search_empty_email_returns_empty(client):
+    ent = _org_ent()
+    db = _org_db(ent)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/org/members/search", params={"email": "  "})
+    assert resp.status_code == 200
+    assert resp.json()["data"] == []
+
+
+def test_members_search_non_owner_404(client):
+    ent = _org_ent(user_id="u2")
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    resp = client.get("/enterprises/e1/org/members/search", params={"email": "zhang"})
+    assert resp.status_code == 404
+    assert "企业不存在" in resp.json()["detail"]
+
+
+def test_members_template_downloads_xlsx(client):
+    ent = _org_ent()
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    resp = client.get("/enterprises/e1/org/members/template")
+    assert resp.status_code == 200
+    assert "spreadsheetml" in resp.headers["content-type"]
+    assert "member_import_template.xlsx" in resp.headers["content-disposition"]
+    wb = load_workbook(io.BytesIO(resp.content))
+    ws = wb.active
+    assert [ws.cell(row=1, column=c).value for c in range(1, 7)] == IMPORT_HEADERS
+
+
+def test_members_template_non_owner_404(client):
+    ent = _org_ent(user_id="u2")
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    resp = client.get("/enterprises/e1/org/members/template")
+    assert resp.status_code == 404
+    assert "企业不存在" in resp.json()["detail"]
 
 
 # ── Excel 导入 + 责任人选择器（任务 4） ──

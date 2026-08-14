@@ -35,6 +35,7 @@ import RiskNoticeCardPreviewPage from "@/pages/Enterprise/RiskNoticeCardPreviewP
 import RiskControlListPage from "@/pages/Enterprise/RiskControlListPage";
 import RiskPublicityPage from "@/pages/Enterprise/RiskPublicityPage";
 import EnterpriseDictConfigPage from "@/pages/Enterprise/EnterpriseDictConfigPage";
+import EnterpriseOrgPage from "@/pages/Enterprise/EnterpriseOrgPage";
 import PublicRiskNoticePage from "@/pages/PublicRiskNoticePage";
 import PublicRiskPage from "@/pages/PublicRiskPage";
 import ChatPage from "@/pages/Chat";
@@ -65,6 +66,7 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-notice-cards/:objectId", element: <RiskNoticeCardPreviewPage /> },
   { path: "/enterprises/:id/risk-control-list", element: <RiskControlListPage /> },
   { path: "/enterprises/:id/risk-publicity", element: <RiskPublicityPage /> },
+  { path: "/enterprises/:id/org", element: <EnterpriseOrgPage /> },
   { path: "/plans", element: <PlanCardsPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
   { path: "/plans/new", element: <PlanCreatePage /> },

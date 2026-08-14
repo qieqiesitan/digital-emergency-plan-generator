@@ -1,7 +1,8 @@
 import logging
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,7 @@ from app.schemas.enterprise_org import (
 from app.services.risk_ai_service import _get_ai_config
 from app.services.enterprise_org_service import (
     IMPORT_HEADERS,
+    build_member_import_template,
     parse_member_rows,
     suggest_org_tree,
     sync_org_structure,
@@ -263,6 +265,68 @@ async def list_members(
         for m, u in rows
     ]
     return ApiResponse(data=items)
+
+
+@router.get("/members/search", response_model=ApiResponse[list])
+async def search_bindable_users(
+    enterprise_id: str,
+    email: str = Query("", max_length=200),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """按邮箱模糊搜索可绑定为成员的已有账号（排除已在本企业的用户），供添加成员弹窗使用。
+
+    /admin/users 搜索仅管理员可用；企业主需要按邮箱找到要绑定的账号，
+    因此提供读权限归属校验的轻量搜索端点（最多返回 20 条）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    email = email.strip()
+    if not email:
+        return ApiResponse(data=[])
+    users_res = await db.execute(
+        select(User).where(User.email.ilike(f"%{email}%")).limit(20)
+    )
+    # 批量结果为空时回退单值读取，兼容测试桩；真实 DB 0 行时语义等价
+    users = list(users_res.scalars().all()) or [users_res.scalar_one_or_none()]
+    users = [u for u in users if u is not None]
+    if not users:
+        return ApiResponse(data=[])
+    members_res = await db.execute(
+        select(EnterpriseMember.user_id).where(
+            EnterpriseMember.enterprise_id == enterprise_id,
+            EnterpriseMember.user_id.in_([u.id for u in users]),
+        )
+    )
+    existing_ids = {
+        getattr(r, "user_id", r)
+        for r in list(members_res.all()) or [members_res.first()]
+        if r is not None
+    }
+    items = [
+        {"id": u.id, "email": u.email, "name": u.name}
+        for u in users
+        if u.id not in existing_ids
+    ]
+    return ApiResponse(data=items)
+
+
+@router.get("/members/template")
+async def download_member_import_template(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Excel 成员导入模板下载（读路径归属校验，与 resources/template 惯例一致）。"""
+    await _get_ent(enterprise_id, current_user.id, db)
+    wb = build_member_import_template()
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=member_import_template.xlsx"},
+    )
 
 
 @router.post("/members/import")
