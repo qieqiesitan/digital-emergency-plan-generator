@@ -107,6 +107,13 @@ def test_match_signs_merges_and_orders():
     assert "prohibition" in cats and "instruction" in cats
 
 
+def test_match_signs_excludes_eyewash_for_burn_and_poisoning():
+    """热烫伤/吸入中毒场景不应自动匹配洗眼台（化学灼伤专用设施）。"""
+    for accident_types in (["灼烫"], ["其他伤害", "灼烫"], ["中毒和窒息"]):
+        signs = match_signs(accident_types)
+        assert all(s["name"] != "洗眼台" for s in signs), accident_types
+
+
 def test_compute_code_increments():
     objs = [RiskObject(name="A"), RiskObject(name="B")]
     assert compute_code(objs, objs[1]) == "FX-002"

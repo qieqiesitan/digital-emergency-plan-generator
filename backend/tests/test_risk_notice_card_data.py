@@ -42,3 +42,10 @@ def test_emergency_templates_cover_all_types():
     assert set(EMERGENCY_TEMPLATES) == set(GB6441_ACCIDENT_TYPES)
     for accident_type, steps in EMERGENCY_TEMPLATES.items():
         assert len(steps) >= 2, accident_type
+
+
+def test_eyewash_not_mapped_to_thermal_burn_or_inhalation():
+    """洗眼台仅用于化学灼伤/腐蚀品溅眼，不应出现在热烫伤与吸入中毒的通用标志组。"""
+    for accident_type in ("灼烫", "中毒和窒息"):
+        names = [s["name"] for s in SIGN_GROUPS[accident_type]]
+        assert "洗眼台" not in names, f"{accident_type} 不应包含洗眼台"

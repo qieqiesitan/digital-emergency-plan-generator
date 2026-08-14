@@ -30,8 +30,9 @@ SIGN_GROUPS: dict[str, list[dict]] = {
     "触电": [W("当心触电", "warning-electric"), P("禁止触摸", "prohibition-touch"),
              I("必须穿绝缘鞋", "instruction-insulating-shoes"), I("必须戴防护手套", "instruction-gloves"), N("紧急出口", "notice-exit")],
     "淹溺": [W("当心落水", "warning-drowning"), I("必须穿救生衣", "instruction-lifejacket")],
+    # 洗眼台仅用于化学灼伤/腐蚀品溅眼（如酸/碱作业），热烫伤不适用，故不放通用灼烫组
     "灼烫": [W("当心烫伤", "warning-burn"), I("必须穿防护服", "instruction-protective-suit"),
-             I("必须戴防护手套", "instruction-gloves"), N("洗眼台", "notice-eyewash")],
+             I("必须戴防护手套", "instruction-gloves")],
     "火灾": [W("当心火灾", "warning-fire"), P("禁止烟火", "prohibition-smoking"),
              P("禁止动火作业", "prohibition-hot-work"), N("紧急出口", "notice-exit")],
     "高处坠落": [W("当心坠落", "warning-fall"), P("禁止抛物", "prohibition-throwing"), I("必须系安全带", "instruction-seatbelt")],
@@ -49,8 +50,7 @@ SIGN_GROUPS: dict[str, list[dict]] = {
     "其他爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"),
                  I("必须消除静电", "instruction-eliminate-static")],
     "中毒和窒息": [W("当心中毒", "warning-poison"), W("当心窒息", "warning-suffocation"),
-                    I("必须戴防毒面具", "instruction-gas-mask"), I("必须通风", "instruction-ventilate"),
-                    N("洗眼台", "notice-eyewash")],
+                    I("必须戴防毒面具", "instruction-gas-mask"), I("必须通风", "instruction-ventilate")],
     "其他伤害": [W("当心机械伤人", "warning-machinery"), P("禁止烟火", "prohibition-smoking"),
                  I("必须戴安全帽", "instruction-helmet"), N("紧急出口", "notice-exit")],
 }
