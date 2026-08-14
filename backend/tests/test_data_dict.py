@@ -18,7 +18,7 @@ def test_data_dict_model_construct():
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from app.services.data_dict_service import get_dict_map
+from app.services.data_dict_service import get_dict_map, invalidate_dict_cache
 from app.models.data_dict import DataDict
 
 @pytest.mark.asyncio
@@ -49,3 +49,21 @@ async def test_disabled_entry_excluded():
     db.execute.return_value = result
     merged = await get_dict_map(db, "ent-1", "measure_factors")
     assert "ppe" not in merged
+
+
+@pytest.mark.asyncio
+async def test_enterprise_wins_regardless_of_row_order():
+    invalidate_dict_cache("ent-1", "measure_factors")
+    db = MagicMock()
+    db.execute = AsyncMock()
+    rows = [
+        DataDict(dict_type="measure_factors", code="engineering", label="工程技术",
+                 value={"factor": 0.3}, scope="enterprise", enterprise_id="ent-1"),
+        DataDict(dict_type="measure_factors", code="engineering", label="工程技术",
+                 value={"factor": 0.5}, scope="system", is_system=True),
+    ]
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = rows
+    db.execute.return_value = result
+    merged = await get_dict_map(db, "ent-1", "measure_factors")
+    assert merged["engineering"]["value"]["factor"] == 0.3

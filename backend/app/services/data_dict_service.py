@@ -23,7 +23,8 @@ async def get_dict_map(db: AsyncSession, enterprise_id: str | None, dict_type: s
     )).scalars().all()
     merged: dict[str, dict] = {}
     for r in rows:
-        merged[r.code] = {"label": r.label, "value": r.value, "description": r.description}
+        if r.code not in merged or r.enterprise_id is not None:
+            merged[r.code] = {"label": r.label, "value": r.value, "description": r.description}
     _cache[key] = (now, merged)
     return merged
 
