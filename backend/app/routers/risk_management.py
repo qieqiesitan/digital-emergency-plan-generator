@@ -792,11 +792,12 @@ async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str,
     if body.method_type or body.method_params:
         config = await get_active_method_config(db, enterprise_id, ev.method_type)
         rating = compute_risk(ev.method_type, ev.method_params, config)
-        try:
-            validate_dual_level(rating.risk_level, ev.inherent_risk_level)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
         ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score
+    # 无条件校验双等级约束：仅改固有等级（不重算）时也要拦截
+    try:
+        validate_dual_level(ev.risk_level, ev.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     await db.commit(); await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))
 

@@ -10,6 +10,10 @@ from app.database import Base
 
 class Enterprise(Base):
     __tablename__ = "enterprises"
+    __table_args__ = (
+        Index("uq_enterprises_public_risk_token", "public_risk_token",
+              unique=True, postgresql_where=text("public_risk_token IS NOT NULL")),
+    )
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     user_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
