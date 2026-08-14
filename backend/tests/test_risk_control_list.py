@@ -87,12 +87,15 @@ def test_flatten_rows_includes_zone_id():
     assert rows[0]["object_id"] == "o1"
     assert rows[0]["inherent"] == "重大"
     assert rows[0]["control_level"] == "企业"
+    # 位置缺省回退 "-"
+    assert rows[0]["location"] == "-"
 
 
 def test_flatten_rows_unit_measures_and_mapping_fallback():
     zone = RiskZone(id="z1", enterprise_id="e1", floor_id="f1", name="储罐区")
     obj = RiskObject(id="o1", enterprise_id="e1", zone_id="z1", name="1#储罐",
-                     responsible_unit="生产部", responsible_person="李四", contact_phone="13800000000")
+                     location="储罐区东侧", responsible_unit="生产部",
+                     responsible_person="李四", contact_phone="13800000000")
     unit = RiskUnit(id="u1", object_id="o1", name="阀门组")
     ev = RiskEvent(accident_type="泄漏", risk_level="较大", inherent_risk_level="重大")
     ev.measures = [RiskMeasure(event_id="m1", measure_category="工程技术", description="报警器年检")]
@@ -108,11 +111,12 @@ def test_flatten_rows_unit_measures_and_mapping_fallback():
     assert row["unit_name"] == "生产部"
     assert row["person"] == "李四"
     assert row["phone"] == "13800000000"
+    assert row["location"] == "储罐区东侧"
 
 
 def test_desensitize_drops_person_phone_and_internal_keys():
     rows = [{"zone_id": "z1", "object_id": "o1", "zone": "储罐区", "object": "1#储罐",
-             "unit": "-", "accident": "泄漏", "inherent": "重大", "current": "重大",
+             "unit": "-", "location": "储罐区东侧", "accident": "泄漏", "inherent": "重大", "current": "重大",
              "control_level": "企业", "measures": "报警器年检", "unit_name": "生产部",
              "person": "李四", "phone": "13800000000"}]
     out = desensitize(rows)
@@ -124,6 +128,7 @@ def test_desensitize_drops_person_phone_and_internal_keys():
     assert out[0]["zone"] == "储罐区"
     assert out[0]["object"] == "1#储罐"
     assert out[0]["unit_name"] == "生产部"
+    assert out[0]["location"] == "储罐区东侧"
 
 
 # ── 端点测试公共设施 ──
@@ -192,6 +197,7 @@ def _db(ent, zones=None, dict_rows=None):
 def _zone_with_events():
     zone = RiskZone(id="z1", enterprise_id="e1", floor_id="f1", name="储罐区")
     obj = RiskObject(id="o1", enterprise_id="e1", zone_id="z1", name="1#储罐",
+                     location="储罐区东侧",
                      responsible_unit="生产部", responsible_person="李四",
                      contact_phone="13800000000")
     obj.events = [
@@ -355,6 +361,36 @@ def test_control_list_export_empty(client):
     assert ws["A1"].value == "分区"
 
 
+def test_control_list_export_applies_filters(client):
+    # 与 control-list 同口径筛选：level 过滤后 xlsx 行数减少
+    zone = _zone_with_events()
+    db = _db(_ent(), zones=[zone])
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.get("/enterprises/e1/risk-management/control-list/export",
+                      params={"level": "重大"})
+    assert resp.status_code == 200
+    wb = load_workbook(io.BytesIO(resp.content))
+    ws = wb.active
+    assert ws.max_row == 2  # 表头 + 1 行（仅「泄漏」事件命中现有等级=重大）
+
+    # zone_id / control_level / keyword 也透传过滤
+    resp = client.get("/enterprises/e1/risk-management/control-list/export",
+                      params={"zone_id": "z-other"})
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.active.max_row == 1
+
+    resp = client.get("/enterprises/e1/risk-management/control-list/export",
+                      params={"control_level": "企业"})
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.active.max_row == 2
+
+    resp = client.get("/enterprises/e1/risk-management/control-list/export",
+                      params={"keyword": "不存在"})
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.active.max_row == 1
+
+
 # ── risk-publicity ──
 
 def test_risk_publicity_generates_token_and_filters_major(client):
@@ -372,6 +408,9 @@ def test_risk_publicity_generates_token_and_filters_major(client):
     assert len(data["items"]) == 1
     assert data["items"][0]["accident"] == "泄漏"
     assert "zone_id" not in data["items"][0]
+    # 公示 items 保留 object_id（供告知卡入口链接）并含位置
+    assert data["items"][0]["object_id"] == "o1"
+    assert data["items"][0]["location"] == "储罐区东侧"
     # zones：四色图数据源，含双模式等级与有效色
     assert len(data["zones"]) == 1
     zone = data["zones"][0]
@@ -450,6 +489,7 @@ def test_public_risk_valid_token_returns_desensitized_major_items(public_client)
     assert item["accident"] == "泄漏"
     assert item["control_level"] == "企业"
     assert item["unit_name"] == "生产部"
+    assert item["location"] == "储罐区东侧"
     assert datetime.fromisoformat(data["generated_at"]).tzinfo is not None
     # 脱敏：无 person/phone，也无内部键
     assert "person" not in item

@@ -100,6 +100,7 @@ export interface ControlListRow {
   zone: string;
   object: string;
   unit: string;
+  location: string;
   accident: string;
   inherent: string;
   current: string;
@@ -108,6 +109,8 @@ export interface ControlListRow {
   unit_name: string;
   person: string;
   phone: string;
+  /** 仅公示 items 返回（供告知卡入口链接），清单 items 已脱敏移除 */
+  object_id?: string;
 }
 export interface ControlListResponse {
   items: ControlListRow[];
@@ -139,6 +142,7 @@ export interface PublicRiskRow {
   zone: string;
   object: string;
   unit: string;
+  location: string;
   accident: string;
   inherent: string;
   current: string;
@@ -155,8 +159,11 @@ export interface PublicRiskResponse {
 export async function getControlList(enterpriseId: string, params: object) {
   return api.get<ApiResponse<ControlListResponse>>(`${BASE(enterpriseId)}/control-list`, { params });
 }
-export async function exportControlList(enterpriseId: string) {
-  return api.get<Blob>(`${BASE(enterpriseId)}/control-list/export`, { responseType: "blob" });
+export async function exportControlList(enterpriseId: string, params?: object) {
+  return api.get<Blob>(`${BASE(enterpriseId)}/control-list/export`, {
+    params,
+    responseType: "blob",
+  });
 }
 export async function getRiskPublicity(enterpriseId: string) {
   return api.get<ApiResponse<RiskPublicityResponse>>(`${BASE(enterpriseId)}/risk-publicity`);

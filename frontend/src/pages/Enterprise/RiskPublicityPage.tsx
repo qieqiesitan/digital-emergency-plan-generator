@@ -146,10 +146,16 @@ export default function RiskPublicityPage() {
       content: "重置后原链接将立即失效，需要重新公示新链接。",
       okText: "确认重置",
       cancelText: "取消",
-      onOk: async () => {
-        await resetRiskPublicityToken(enterpriseId);
-        message.success("链接已重置");
-        refetch();
+      onOk: close => {
+        resetRiskPublicityToken(enterpriseId)
+          .then(() => {
+            message.success("链接已重置");
+            void refetch();
+            close();
+          })
+          .catch(() => {
+            message.error("重置失败，请稍后重试");
+          });
       },
     });
   };
@@ -157,6 +163,7 @@ export default function RiskPublicityPage() {
   const columns: TableColumnsType<ControlListRow> = [
     { title: "分区", dataIndex: "zone", width: 110, ellipsis: true },
     { title: "风险点", dataIndex: "object", width: 130, ellipsis: true },
+    { title: "位置", dataIndex: "location", width: 120, ellipsis: true },
     { title: "事故类型", dataIndex: "accident", width: 110, ellipsis: true },
     {
       title: "现有等级",
@@ -169,6 +176,19 @@ export default function RiskPublicityPage() {
     },
     { title: "管控层级", dataIndex: "control_level", width: 85 },
     { title: "责任单位", dataIndex: "unit_name", width: 120, ellipsis: true },
+    {
+      title: "告知卡入口",
+      dataIndex: "object_id",
+      width: 110,
+      render: (objectId?: string) =>
+        objectId ? (
+          <Button type="link" size="small" onClick={() => navigate(`/enterprises/${enterpriseId}/risk-notice-cards/${objectId}`)}>
+            查看告知卡
+          </Button>
+        ) : (
+          <span>—</span>
+        ),
+    },
     {
       title: "主要措施",
       dataIndex: "measures",
@@ -241,7 +261,7 @@ export default function RiskPublicityPage() {
               dataSource={data.items}
               columns={columns}
               size="small"
-              scroll={{ x: 900 }}
+              scroll={{ x: 1120 }}
               pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
               locale={{ emptyText: "暂无重大风险" }}
             />

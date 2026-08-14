@@ -999,9 +999,11 @@ async def _control_level_mapping(db: AsyncSession, enterprise_id: str) -> dict[s
     }
 
 
-def _strip_internal_keys(rows: list[dict]) -> list[dict]:
-    """去掉 zone_id/object_id 等内部筛选键，仅返回展示字段。"""
-    return [{k: v for k, v in r.items() if k not in ("zone_id", "object_id")} for r in rows]
+def _strip_internal_keys(rows: list[dict], keep: tuple[str, ...] = ()) -> list[dict]:
+    """去掉 zone_id/object_id 等内部筛选键，仅返回展示字段；keep 可保留内部键
+    （如公示 items 需要 object_id 组装告知卡入口链接）。"""
+    drop = {"zone_id", "object_id"} - set(keep)
+    return [{k: v for k, v in r.items() if k not in drop} for r in rows]
 
 
 @router.get("/control-list", response_model=ApiResponse[dict])
@@ -1041,6 +1043,10 @@ async def control_list(
 async def control_list_export(
     enterprise_id: str,
     floor_id: str | None = Query(None),
+    zone_id: str | None = Query(None),
+    level: str | None = Query(None),
+    control_level: str | None = Query(None),
+    keyword: str | None = Query(None),
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
@@ -1051,6 +1057,14 @@ async def control_list_export(
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = flatten_rows(zones, mapping)
+    if zone_id:
+        rows = [r for r in rows if r["zone_id"] == zone_id]
+    if level:
+        rows = [r for r in rows if r["current"] == level or r["inherent"] == level]
+    if control_level:
+        rows = [r for r in rows if r["control_level"] == control_level]
+    if keyword:
+        rows = [r for r in rows if keyword in r["object"] or keyword in r["zone"]]
     buf = BytesIO()
     build_ledger_workbook(rows).save(buf)
     buf.seek(0)
@@ -1095,7 +1109,7 @@ async def get_risk_publicity(
     return ApiResponse(data={
         "token": ent.public_risk_token,
         "enterprise_name": ent.name,
-        "items": _strip_internal_keys(rows),
+        "items": _strip_internal_keys(rows, keep=("object_id",)),
         "zones": zones_data,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     })

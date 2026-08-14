@@ -73,7 +73,7 @@ export default function RiskControlListPage() {
     if (exporting) return;
     setExporting(true);
     try {
-      const res = await exportControlList(enterpriseId);
+      const res = await exportControlList(enterpriseId, filters);
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -108,6 +108,7 @@ export default function RiskControlListPage() {
     },
     { title: "责任单位", dataIndex: "unit_name", width: 120, ellipsis: true },
     { title: "责任人", dataIndex: "person", width: 85 },
+    { title: "联系电话", dataIndex: "phone", width: 120, render: (phone?: string) => phone || "-" },
   ];
 
   return (
@@ -170,7 +171,7 @@ export default function RiskControlListPage() {
         loading={isLoading}
         dataSource={items}
         columns={columns}
-        scroll={{ x: 1080 }}
+        scroll={{ x: 1220 }}
         locale={{ emptyText: isError ? "加载失败，请稍后重试" : "暂无管控清单数据" }}
         pagination={{
           current: page,

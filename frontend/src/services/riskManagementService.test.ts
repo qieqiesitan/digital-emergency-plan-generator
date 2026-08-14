@@ -98,7 +98,7 @@ describe("riskManagementService dual-level", () => {
     );
   });
 
-  it("exportControlList 以 blob responseType 请求导出 URL", async () => {
+  it("exportControlList 以 blob responseType 请求导出 URL（无筛选时不带 params）", async () => {
     apiMock.get.mockResolvedValue({ data: new Blob(["xlsx"]) });
 
     await exportControlList("e1");
@@ -106,6 +106,17 @@ describe("riskManagementService dual-level", () => {
     expect(apiMock.get).toHaveBeenCalledWith(
       "/enterprises/e1/risk-management/control-list/export",
       { responseType: "blob" },
+    );
+  });
+
+  it("exportControlList 透传当前筛选参数", async () => {
+    apiMock.get.mockResolvedValue({ data: new Blob(["xlsx"]) });
+
+    await exportControlList("e1", { floor_id: "f1", level: "重大", keyword: "仓库" });
+
+    expect(apiMock.get).toHaveBeenCalledWith(
+      "/enterprises/e1/risk-management/control-list/export",
+      { params: { floor_id: "f1", level: "重大", keyword: "仓库" }, responseType: "blob" },
     );
   });
 

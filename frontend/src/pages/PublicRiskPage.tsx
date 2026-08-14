@@ -104,7 +104,7 @@ export default function PublicRiskPage() {
         locale={{ emptyText: "暂无重大风险公示数据" }}
       />
       <div style={{ color: "#8c8c8c", fontSize: 12, marginTop: 16, textAlign: "center" }}>
-        公开只读页面 · 数据来自系统快照 · 无需登录
+        公开只读页面 · 数据为实时生成 · 无需登录
       </div>
     </div>
   );

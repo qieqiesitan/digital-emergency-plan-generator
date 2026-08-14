@@ -37,6 +37,7 @@ def _row(z, obj, unit, ev, mapping) -> dict:
     return {
         "zone_id": z.id, "object_id": obj.id,
         "zone": z.name, "object": obj.name, "unit": unit.name if unit else "-",
+        "location": obj.location or "-",
         "accident": ev.accident_type, "inherent": ev.inherent_risk_level or ev.risk_level or "-",
         "current": ev.risk_level or "-",
         "control_level": ev.control_level or default_control_level(mapping, ev.risk_level),
@@ -91,8 +92,8 @@ def build_ledger_workbook(rows: list[dict]) -> Workbook:
     return wb
 
 
-PUBLIC_FIELDS = ["zone", "object", "unit", "accident", "inherent", "current",
-                 "control_level", "measures", "unit_name"]
+PUBLIC_FIELDS = ["zone", "object", "unit", "location", "accident", "inherent",
+                 "current", "control_level", "measures", "unit_name"]
 
 
 def desensitize(rows: list[dict]) -> list[dict]:
