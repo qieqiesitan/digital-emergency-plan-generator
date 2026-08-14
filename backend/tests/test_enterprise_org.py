@@ -1,10 +1,11 @@
 import io
+import json
 
 from app.models.enterprise_org import EnterpriseMember
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.database import get_db
@@ -17,6 +18,7 @@ from app.services.enterprise_org_service import (
     build_member_import_template,
     normalize_org_nodes,
     parse_member_rows,
+    suggest_org_tree,
     sync_org_structure,
     validate_org_tree,
 )
@@ -746,3 +748,68 @@ def test_members_available_non_owner_read_404(client):
     resp = client.get("/enterprises/e1/org/members/available")
     assert resp.status_code == 404
     assert "企业不存在" in resp.json()["detail"]
+
+
+# ── AI 建树建议（任务 5，文本通道，mock LLM） ──
+
+@pytest.mark.asyncio
+async def test_ai_suggest_org_tree_ok():
+    fake = {"nodes": [
+        {"id": "d1", "type": "dept", "name": "生产部", "parent_id": None, "members": [{"name": "张三", "position": "班组长"}]},
+        {"id": "t1", "type": "team", "name": "甲班", "parent_id": "d1", "members": []},
+    ]}
+    with patch("app.services.enterprise_org_service.llm_text_completion",
+               AsyncMock(return_value=json.dumps(fake, ensure_ascii=False))):
+        out = await suggest_org_tree({"industry": "化工", "employee_count": 120}, None)
+    assert out["available"] is True
+    assert out["nodes"][0]["type"] == "dept"
+
+
+@pytest.mark.asyncio
+async def test_ai_suggest_org_tree_fallback():
+    with patch("app.services.enterprise_org_service.llm_text_completion",
+               AsyncMock(side_effect=Exception("timeout"))):
+        out = await suggest_org_tree({"industry": "化工"}, None)
+    assert out["available"] is False
+
+
+# ── POST /org/ai-suggest 端点 ──
+
+def test_ai_suggest_endpoint_returns_result(client):
+    ent = _org_ent(industry="化工", employee_count=120, org_structure=[])
+    db = _org_db(ent)
+    client.app.dependency_overrides[get_db] = lambda: db
+    fake_result = {"available": True, "nodes": [
+        {"id": "d1", "type": "dept", "name": "生产部", "parent_id": None, "members": []},
+    ]}
+    with patch("app.routers.enterprise_org._get_ai_config", AsyncMock(return_value=MagicMock())), \
+         patch("app.routers.enterprise_org.suggest_org_tree", AsyncMock(return_value=fake_result)) as mock_suggest:
+        resp = client.post("/enterprises/e1/org/ai-suggest")
+    assert resp.status_code == 200
+    assert resp.json()["data"] == fake_result
+    assert mock_suggest.await_count == 1
+    info = mock_suggest.await_args.args[0]
+    assert info["industry"] == "化工"
+    assert info["employee_count"] == 120
+
+
+def test_ai_suggest_endpoint_no_ai_config_still_200(client):
+    ent = _org_ent(industry="化工")
+    db = _org_db(ent)
+    client.app.dependency_overrides[get_db] = lambda: db
+    fallback = {"available": False, "note": "AI 不可用，请手动维护组织架构"}
+    with patch("app.routers.enterprise_org._get_ai_config",
+               AsyncMock(side_effect=HTTPException(400, "系统未配置 AI 模型，请联系管理员"))), \
+         patch("app.routers.enterprise_org.suggest_org_tree", AsyncMock(return_value=fallback)) as mock_suggest:
+        resp = client.post("/enterprises/e1/org/ai-suggest")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["available"] is False
+    # 未配置 AI 时配置转 None 传给服务兜底
+    assert mock_suggest.await_args.args[1] is None
+
+
+def test_ai_suggest_endpoint_non_owner_403(client):
+    ent = _org_ent(user_id="u2")
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    resp = client.post("/enterprises/e1/org/ai-suggest")
+    assert resp.status_code == 403

@@ -1,7 +1,15 @@
+import json
+import logging
 import re
 
 from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
+
+from app.services.llm_client import llm_text_completion
+from app.services.risk_ai_service import _parse_ai_json
+
+
+logger = logging.getLogger(__name__)
 
 
 ORG_TYPES = {"dept", "team", "position"}
@@ -98,3 +106,69 @@ def parse_member_rows(rows: list[dict]) -> list[dict]:
             item["error"] = "邮箱格式不正确"
         out.append(item)
     return out
+
+
+def _summarize_org_structure(nodes: list) -> str:
+    """把现有组织树压成提示词摘要：沿 parent_id 拼 部门/班组 路径。"""
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
+    parts = []
+    for n in nodes:
+        if not isinstance(n, dict) or not n.get("name"):
+            continue
+        path = []
+        cur = n.get("id")
+        seen = set()
+        while cur and cur in by_id and cur not in seen:
+            seen.add(cur)
+            path.append(by_id[cur].get("name", ""))
+            cur = by_id[cur].get("parent_id")
+        parts.append("/".join(reversed([p for p in path if p])))
+    return "；".join(parts) if parts else "（暂无）"
+
+
+async def suggest_org_tree(enterprise_info: dict, ai_config) -> dict:
+    """AI 建议组织树（文本通道，不依赖图像识别）。
+
+    Args:
+        enterprise_info: 企业基础信息（industry / employee_count / 可选的
+            org_structure 现有节点列表）
+        ai_config: AI 配置（未配置时由调用方传 None，服务兜底降级）
+
+    Returns:
+        available=True 时含 nodes 列表；否则
+        {"available": False, "note": "AI 不可用，请手动维护组织架构"}
+    """
+    existing = enterprise_info.get("org_structure")
+    org_summary = (
+        _summarize_org_structure(existing)
+        if isinstance(existing, list)
+        else str(existing or "（暂无）")
+    )
+    info_for_prompt = {
+        k: v for k, v in enterprise_info.items() if k != "org_structure"
+    }
+    prompt = (
+        "你是企业组织架构专家。根据企业基础信息，建议合理的组织架构树。\n\n"
+        f"企业信息：\n{json.dumps(info_for_prompt, ensure_ascii=False, indent=2)}\n"
+        f"现有组织架构：{org_summary}\n\n"
+        '输出 JSON：{"nodes": [{"id": "唯一短 id", "type": "dept|team|position", '
+        '"name": "部门/班组/岗位名称", "parent_id": "父节点 id 或 null", '
+        '"members": [{"name": "姓名", "position": "岗位"}]}]}\n'
+        "要求：type 仅限 dept（部门）/team（班组）/position（岗位）；"
+        "根节点 parent_id 为 null；members 只含姓名和岗位，不要编造邮箱；"
+        "中文输出；只输出 JSON，不要任何解释。"
+    )
+    messages = [
+        {"role": "system", "content": "你是企业组织架构专家，输出严格 JSON。"},
+        {"role": "user", "content": prompt},
+    ]
+    try:
+        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        data = _parse_ai_json(raw)
+        nodes = data.get("nodes")
+        if not isinstance(nodes, list):
+            raise ValueError("AI 返回缺少 nodes")
+        return {"available": True, "nodes": nodes}
+    except Exception:
+        logger.exception("AI org tree suggestion failed: industry=%s", enterprise_info.get("industry"))
+        return {"available": False, "note": "AI 不可用，请手动维护组织架构"}

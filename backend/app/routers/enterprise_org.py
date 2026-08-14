@@ -18,9 +18,11 @@ from app.schemas.enterprise_org import (
     MemberUpdate,
     OrgTreeUpdate,
 )
+from app.services.risk_ai_service import _get_ai_config
 from app.services.enterprise_org_service import (
     IMPORT_HEADERS,
     parse_member_rows,
+    suggest_org_tree,
     sync_org_structure,
     validate_org_tree,
 )
@@ -140,6 +142,32 @@ async def update_org_nodes(
     sync_org_structure(ent, nodes)
     await db.commit()
     return ApiResponse(data=ent.org_structure)
+
+
+@router.post("/ai-suggest", response_model=ApiResponse[dict])
+async def ai_suggest_org_tree(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 建议组织树（文本通道，不依赖图像识别）。
+
+    写权限归属校验；未配置 AI 模型时配置转 None，由服务兜底返回
+    available:false（仍 200），不阻塞用户手动维护组织架构。
+    """
+    ent = await _get_owned_ent(enterprise_id, current_user.id, db)
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        # 系统未配置 AI 模型 → 由服务兜底返回 available:false
+        ai_config = None
+    enterprise_info = {
+        "industry": ent.industry,
+        "employee_count": ent.employee_count,
+        "org_structure": ent.org_structure or [],
+    }
+    result = await suggest_org_tree(enterprise_info, ai_config)
+    return ApiResponse(data=result)
 
 
 @router.post("/members", response_model=ApiResponse[MemberResponse], status_code=201)
