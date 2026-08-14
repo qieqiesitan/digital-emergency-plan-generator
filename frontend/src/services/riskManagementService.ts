@@ -156,21 +156,17 @@ export interface PublicRiskResponse {
   generated_at: string;
 }
 
-export async function getControlList(enterpriseId: string, params: object) {
-  return api.get<ApiResponse<ControlListResponse>>(`${BASE(enterpriseId)}/control-list`, { params });
-}
-export async function exportControlList(enterpriseId: string, params?: object) {
-  return api.get<Blob>(`${BASE(enterpriseId)}/control-list/export`, {
+export const getControlList = (enterpriseId: string, params: Record<string, unknown>) =>
+  api.get<ApiResponse<ControlListResponse>>(`${BASE(enterpriseId)}/control-list`, { params }).then(r => r.data.data);
+/** 导出需保留响应体供页面构造 blob 下载，与其他服务下载惯例一致保持 AxiosResponse。 */
+export const exportControlList = (enterpriseId: string, params?: Record<string, unknown>) =>
+  api.get<Blob>(`${BASE(enterpriseId)}/control-list/export`, {
     params,
     responseType: "blob",
   });
-}
-export async function getRiskPublicity(enterpriseId: string) {
-  return api.get<ApiResponse<RiskPublicityResponse>>(`${BASE(enterpriseId)}/risk-publicity`);
-}
-export async function resetRiskPublicityToken(enterpriseId: string) {
-  return api.post<ApiResponse<{ token: string }>>(`${BASE(enterpriseId)}/risk-publicity/token`);
-}
-export async function fetchPublicRisk(token: string) {
-  return api.get<ApiResponse<PublicRiskResponse>>(`/public/risk/${token}`);
-}
+export const getRiskPublicity = (enterpriseId: string) =>
+  api.get<ApiResponse<RiskPublicityResponse>>(`${BASE(enterpriseId)}/risk-publicity`).then(r => r.data.data);
+export const resetRiskPublicityToken = (enterpriseId: string) =>
+  api.post<ApiResponse<{ token: string }>>(`${BASE(enterpriseId)}/risk-publicity/token`).then(r => r.data.data);
+export const fetchPublicRisk = (token: string) =>
+  api.get<ApiResponse<PublicRiskResponse>>(`/public/risk/${token}`).then(r => r.data.data);

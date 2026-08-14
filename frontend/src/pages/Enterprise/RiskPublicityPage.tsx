@@ -111,7 +111,7 @@ export default function RiskPublicityPage() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["risk-publicity", enterpriseId],
-    queryFn: () => getRiskPublicity(enterpriseId).then(r => r.data.data),
+    queryFn: () => getRiskPublicity(enterpriseId),
     enabled: !!enterpriseId,
   });
 

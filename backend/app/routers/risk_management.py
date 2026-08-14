@@ -1006,6 +1006,20 @@ def _strip_internal_keys(rows: list[dict], keep: tuple[str, ...] = ()) -> list[d
     return [{k: v for k, v in r.items() if k not in drop} for r in rows]
 
 
+def _apply_control_list_filters(rows: list[dict], zone_id: str | None, level: str | None,
+                                control_level: str | None, keyword: str | None) -> list[dict]:
+    """按分区/等级/管控层级/关键词过滤清单行；control-list 与 export 共用，行为一致。"""
+    if zone_id:
+        rows = [r for r in rows if r["zone_id"] == zone_id]
+    if level:
+        rows = [r for r in rows if r["current"] == level or r["inherent"] == level]
+    if control_level:
+        rows = [r for r in rows if r["control_level"] == control_level]
+    if keyword:
+        rows = [r for r in rows if keyword in r["object"] or keyword in r["zone"]]
+    return rows
+
+
 @router.get("/control-list", response_model=ApiResponse[dict])
 async def control_list(
     enterprise_id: str,
@@ -1026,14 +1040,7 @@ async def control_list(
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = flatten_rows(zones, mapping)
-    if zone_id:
-        rows = [r for r in rows if r["zone_id"] == zone_id]
-    if level:
-        rows = [r for r in rows if r["current"] == level or r["inherent"] == level]
-    if control_level:
-        rows = [r for r in rows if r["control_level"] == control_level]
-    if keyword:
-        rows = [r for r in rows if keyword in r["object"] or keyword in r["zone"]]
+    rows = _apply_control_list_filters(rows, zone_id, level, control_level, keyword)
     total = len(rows)
     start = (page - 1) * size
     return ApiResponse(data={"items": _strip_internal_keys(rows[start:start + size]), "total": total})
@@ -1057,14 +1064,7 @@ async def control_list_export(
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = flatten_rows(zones, mapping)
-    if zone_id:
-        rows = [r for r in rows if r["zone_id"] == zone_id]
-    if level:
-        rows = [r for r in rows if r["current"] == level or r["inherent"] == level]
-    if control_level:
-        rows = [r for r in rows if r["control_level"] == control_level]
-    if keyword:
-        rows = [r for r in rows if keyword in r["object"] or keyword in r["zone"]]
+    rows = _apply_control_list_filters(rows, zone_id, level, control_level, keyword)
     buf = BytesIO()
     build_ledger_workbook(rows).save(buf)
     buf.seek(0)

@@ -114,6 +114,32 @@ def test_flatten_rows_unit_measures_and_mapping_fallback():
     assert row["location"] == "储罐区东侧"
 
 
+def test_apply_control_list_filters_matches_endpoint_semantics():
+    from app.routers.risk_management import _apply_control_list_filters
+
+    rows = [
+        {"zone_id": "z1", "zone": "储罐区", "object": "1#储罐",
+         "current": "重大", "inherent": "重大", "control_level": "企业"},
+        {"zone_id": "z1", "zone": "储罐区", "object": "2#储罐",
+         "current": "一般", "inherent": "较大", "control_level": "部门"},
+        {"zone_id": "z2", "zone": "仓库", "object": "1#仓库",
+         "current": "一般", "inherent": "一般", "control_level": "班组"},
+    ]
+    # zone_id
+    assert len(_apply_control_list_filters(rows, "z2", None, None, None)) == 1
+    # level：命中 current 或 inherent
+    assert len(_apply_control_list_filters(rows, None, "重大", None, None)) == 1
+    assert len(_apply_control_list_filters(rows, None, "较大", None, None)) == 1
+    # control_level
+    assert len(_apply_control_list_filters(rows, None, None, "部门", None)) == 1
+    # keyword：匹配 object 或 zone
+    assert len(_apply_control_list_filters(rows, None, None, None, "储罐")) == 2
+    assert len(_apply_control_list_filters(rows, None, None, None, "仓库")) == 1
+    # 组合筛选与空筛选
+    assert len(_apply_control_list_filters(rows, "z1", "一般", "部门", "2#储罐")) == 1
+    assert len(_apply_control_list_filters(rows, None, None, None, None)) == 3
+
+
 def test_desensitize_drops_person_phone_and_internal_keys():
     rows = [{"zone_id": "z1", "object_id": "o1", "zone": "储罐区", "object": "1#储罐",
              "unit": "-", "location": "储罐区东侧", "accident": "泄漏", "inherent": "重大", "current": "重大",

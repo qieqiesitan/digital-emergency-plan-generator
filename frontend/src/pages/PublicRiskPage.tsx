@@ -19,7 +19,7 @@ export default function PublicRiskPage() {
 
   const { data, error, isLoading, isError, refetch } = useQuery({
     queryKey: ["public-risk", token],
-    queryFn: () => fetchPublicRisk(token).then(r => r.data.data),
+    queryFn: () => fetchPublicRisk(token),
     retry: false,
     enabled: !!token,
   });

@@ -86,61 +86,81 @@ describe("riskManagementService dual-level", () => {
   });
 
   it("getControlList 请求管控清单 URL 并透传筛选分页参数", async () => {
-    apiMock.get.mockResolvedValue({
+    const response = {
       data: { code: 0, message: "ok", data: { items: [], total: 0 } },
-    });
+    };
+    apiMock.get.mockResolvedValue(response);
 
-    await getControlList("e1", { floor_id: "f1", keyword: "仓库", page: 2, size: 50 });
+    const result = await getControlList("e1", { floor_id: "f1", keyword: "仓库", page: 2, size: 50 });
 
     expect(apiMock.get).toHaveBeenCalledWith(
       "/enterprises/e1/risk-management/control-list",
       { params: { floor_id: "f1", keyword: "仓库", page: 2, size: 50 } },
     );
+    // 服务内已解包 ApiResponse.data，直接返回业务数据
+    expect(result).toEqual({ items: [], total: 0 });
   });
 
   it("exportControlList 以 blob responseType 请求导出 URL（无筛选时不带 params）", async () => {
-    apiMock.get.mockResolvedValue({ data: new Blob(["xlsx"]) });
+    const response = { data: new Blob(["xlsx"]) };
+    apiMock.get.mockResolvedValue(response);
 
-    await exportControlList("e1");
+    const result = await exportControlList("e1");
 
     expect(apiMock.get).toHaveBeenCalledWith(
       "/enterprises/e1/risk-management/control-list/export",
       { responseType: "blob" },
     );
+    // 导出需响应体构造 blob 下载，保留 AxiosResponse
+    expect(result).toBe(response);
   });
 
   it("exportControlList 透传当前筛选参数", async () => {
-    apiMock.get.mockResolvedValue({ data: new Blob(["xlsx"]) });
+    const response = { data: new Blob(["xlsx"]) };
+    apiMock.get.mockResolvedValue(response);
 
-    await exportControlList("e1", { floor_id: "f1", level: "重大", keyword: "仓库" });
+    const result = await exportControlList("e1", { floor_id: "f1", level: "重大", keyword: "仓库" });
 
     expect(apiMock.get).toHaveBeenCalledWith(
       "/enterprises/e1/risk-management/control-list/export",
       { params: { floor_id: "f1", level: "重大", keyword: "仓库" }, responseType: "blob" },
     );
+    expect(result).toBe(response);
   });
 
   it("risk-publicity / token 重置 / 公开脱敏页 请求对应 URL", async () => {
+    const publicity = {
+      token: "t1",
+      enterprise_name: "e1",
+      items: [],
+      zones: [],
+      generated_at: "",
+    };
     apiMock.get.mockResolvedValue({
       data: {
         code: 0,
         message: "ok",
-        data: { token: "t1", enterprise_name: "e1", items: [], zones: [], generated_at: "" },
+        data: publicity,
       },
     });
-    await getRiskPublicity("e1");
+    const publicityResult = await getRiskPublicity("e1");
     expect(apiMock.get).toHaveBeenCalledWith("/enterprises/e1/risk-management/risk-publicity");
+    expect(publicityResult).toEqual(publicity);
 
+    const tokenData = { token: "t2" };
     apiMock.post.mockResolvedValue({
-      data: { code: 0, message: "ok", data: { token: "t2" } },
+      data: { code: 0, message: "ok", data: tokenData },
     });
-    await resetRiskPublicityToken("e1");
+    const resetResult = await resetRiskPublicityToken("e1");
     expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/risk-management/risk-publicity/token");
+    expect(resetResult).toEqual(tokenData);
 
+    const publicData = { enterprise_name: "e1", items: [], generated_at: "" };
     apiMock.get.mockResolvedValue({
-      data: { code: 0, message: "ok", data: { enterprise_name: "e1", items: [], generated_at: "" } },
+      data: { code: 0, message: "ok", data: publicData },
     });
-    await fetchPublicRisk("tk-123");
+    const publicResult = await fetchPublicRisk("tk-123");
     expect(apiMock.get).toHaveBeenCalledWith("/public/risk/tk-123");
+    expect(publicResult).toEqual(publicData);
   });
 });

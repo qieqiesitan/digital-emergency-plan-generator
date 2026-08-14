@@ -12,13 +12,13 @@ import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 const LEVEL_OPTIONS = ["重大", "较大", "一般", "低"];
 const CONTROL_LEVEL_OPTIONS = ["岗位", "班组", "部门", "企业"];
 
-interface ListFilters {
+type ListFilters = {
   floor_id?: string;
   zone_id?: string;
   level?: string;
   control_level?: string;
   keyword?: string;
-}
+};
 
 function LevelTag({ level }: { level?: string }) {
   const color = level ? RISK_LEVEL_COLORS[level] : undefined;
@@ -47,17 +47,20 @@ export default function RiskControlListPage() {
     enabled: !!enterpriseId,
   });
 
+  // 后端 control-list 未传 floor_id 时 _resolve_zone_floor 缺省解析默认楼层；
+  // 前端分区下拉按「所选楼层 ?? 默认楼层」过滤，与后端查询口径保持一致。
+  const activeFloorId = filters.floor_id ?? floors.find(f => f.is_default)?.id;
   const zoneOptions = useMemo(
     () =>
       zones
-        .filter(z => !filters.floor_id || z.floor_id === filters.floor_id)
+        .filter(z => !activeFloorId || z.floor_id === activeFloorId)
         .map(z => ({ label: z.name, value: z.id })),
-    [zones, filters.floor_id],
+    [zones, activeFloorId],
   );
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["risk-control-list", enterpriseId, filters, page, pageSize],
-    queryFn: () => getControlList(enterpriseId, { ...filters, page, size: pageSize }).then(r => r.data.data),
+    queryFn: () => getControlList(enterpriseId, { ...filters, page, size: pageSize }),
     enabled: !!enterpriseId,
   });
 
