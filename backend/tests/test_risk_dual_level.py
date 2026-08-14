@@ -488,6 +488,42 @@ def test_ai_dual_level_suggestion_cross_enterprise_404():
     assert "事件不存在" in resp.json()["detail"]
 
 
+def test_ai_dual_level_suggestion_unit_chain_owned(monkeypatch):
+    """unit_id 链归属：事件挂在单元下，经单元→对象链校验属于当前企业 → 200。"""
+    event = RiskEvent(id="ev1", unit_id="u1", accident_type="火灾", description="阀门组泄漏")
+    event.measures = []
+    client = _ai_app(event)
+    monkeypatch.setattr(risk_management, "_get_ai_config", AsyncMock(return_value=MagicMock()))
+    sugg = AsyncMock(return_value={
+        "available": True,
+        "inherent": {"risk_level": "重大", "risk_score": "-"},
+        "current": {"risk_level": "一般", "risk_score": "-"},
+        "note": "",
+    })
+    monkeypatch.setattr(risk_management, "suggest_dual_level", sugg)
+
+    resp = client.post(
+        "/api/v1/enterprises/e1/risk-management/events/ev1/ai-dual-level-suggestion"
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["available"] is True
+
+
+def test_ai_dual_level_suggestion_unit_chain_cross_enterprise_404():
+    """unit_id 链归属：单元所属对象属于其他企业 → 404，不泄露建议。"""
+    event = RiskEvent(id="ev1", unit_id="u1", accident_type="火灾")
+    event.measures = []
+    client = _ai_app(event, object_ent_id="e2")
+
+    resp = client.post(
+        "/api/v1/enterprises/e1/risk-management/events/ev1/ai-dual-level-suggestion"
+    )
+
+    assert resp.status_code == 404
+    assert "事件不存在" in resp.json()["detail"]
+
+
 def test_ai_dual_level_suggestion_missing_event_404():
     client = _ai_app(None)
 

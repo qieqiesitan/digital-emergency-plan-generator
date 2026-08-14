@@ -499,7 +499,11 @@ export default function RiskEventForm({
             showIcon
             style={{ marginBottom: 12 }}
             message={`固有风险（AI 建议采用）：${adoptedInherent.score || "-"} / ${adoptedInherent.level}`}
-            description="保存后生效；可继续调整固有参数覆盖，或点击取消恢复按参数预览。"
+            description={
+              methodType === "DIRECT"
+                ? "保存后生效；DIRECT 采用后修改固有等级将覆盖建议值（以手动选择为准），或点击取消恢复按参数预览。"
+                : "保存后生效；可继续调整固有参数覆盖，或点击取消恢复按参数预览。"
+            }
             action={<Button size="small" onClick={() => setAdoptedInherent(null)}>取消采用</Button>}
           />
         )}

@@ -862,6 +862,17 @@ async def recalc_event(event_id: str, enterprise_id: str, current_user=Depends(g
     await db.commit(); await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))
 
+async def _event_owned_by_enterprise(db: AsyncSession, event, enterprise_id: str) -> bool:
+    """事件归属校验：事件经 object_id 或 unit_id 链归属对象，须属于当前企业。"""
+    owned_object = None
+    if event.object_id:
+        owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == event.object_id))).scalar_one_or_none()
+    elif event.unit_id:
+        unit = (await db.execute(select(RiskUnit).where(RiskUnit.id == event.unit_id))).scalar_one_or_none()
+        if unit:
+            owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == unit.object_id))).scalar_one_or_none()
+    return bool(owned_object and owned_object.enterprise_id == enterprise_id)
+
 @router.get("/events/{event_id}/conversion-reference", response_model=ApiResponse[dict])
 async def event_conversion_reference(enterprise_id: str, event_id: str,
                                      current_user=Depends(get_current_user), db=Depends(get_db)):
@@ -870,15 +881,7 @@ async def event_conversion_reference(enterprise_id: str, event_id: str,
     event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
     if not event:
         raise HTTPException(404, "风险事件不存在")
-    # 归属校验：事件必须属于当前企业（事件经 object_id 或 unit_id 链归属对象，与创建路径一致）
-    owned_object = None
-    if event.object_id:
-        owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == event.object_id))).scalar_one_or_none()
-    elif event.unit_id:
-        unit = (await db.execute(select(RiskUnit).where(RiskUnit.id == event.unit_id))).scalar_one_or_none()
-        if unit:
-            owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == unit.object_id))).scalar_one_or_none()
-    if not owned_object or owned_object.enterprise_id != enterprise_id:
+    if not await _event_owned_by_enterprise(db, event, enterprise_id):
         raise HTTPException(404, "风险事件不存在")
     from app.services.data_dict_service import get_dict_map
     from app.services.risk_conversion_service import conversion_reference
@@ -913,15 +916,7 @@ async def ai_dual_level_suggestion(enterprise_id: str, event_id: str,
     event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
     if not event:
         raise HTTPException(404, "风险事件不存在")
-    # 归属校验：事件必须属于当前企业（事件经 object_id 或 unit_id 链归属对象，与 conversion-reference 一致）
-    owned_object = None
-    if event.object_id:
-        owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == event.object_id))).scalar_one_or_none()
-    elif event.unit_id:
-        unit = (await db.execute(select(RiskUnit).where(RiskUnit.id == event.unit_id))).scalar_one_or_none()
-        if unit:
-            owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == unit.object_id))).scalar_one_or_none()
-    if not owned_object or owned_object.enterprise_id != enterprise_id:
+    if not await _event_owned_by_enterprise(db, event, enterprise_id):
         raise HTTPException(404, "风险事件不存在")
     try:
         ai_config = await _get_ai_config(current_user.id, db)

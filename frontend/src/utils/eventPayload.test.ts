@@ -127,7 +127,7 @@ describe("buildEventPayload", () => {
     expect(payload.risk_score).toBe("R=10");
   });
 
-  it("采用 AI 建议：DIRECT 无条件以建议固有等级/分值覆盖（既有等级已改动也覆盖）", () => {
+  it("采用 AI 建议：DIRECT 已改让位用户值（不覆盖建议值）", () => {
     const initialValues: RiskEventFormValues = {
       accident_type: "火灾",
       method_type: "DIRECT",
@@ -152,11 +152,12 @@ describe("buildEventPayload", () => {
       },
     );
 
-    expect(payload.inherent_risk_level).toBe("一般");
-    expect(payload.inherent_risk_score).toBe("-");
+    // 用户已把固有等级改为「较大」，建议值让位，不携带建议分值
+    expect(payload.inherent_risk_level).toBe("较大");
+    expect(payload).not.toHaveProperty("inherent_risk_score");
   });
 
-  it("采用 AI 建议：DIRECT 固有等级未改动时也显式携带建议等级/分值", () => {
+  it("采用 AI 建议：DIRECT 未改（表单与建议一致）时显式携带建议等级/分值", () => {
     const initialValues: RiskEventFormValues = {
       accident_type: "火灾",
       method_type: "DIRECT",
@@ -177,11 +178,11 @@ describe("buildEventPayload", () => {
         initialValues,
         methodType: "DIRECT",
         initialParams: { directLevel: 4 },
-        adoptedInherent: { level: "低", score: "-" },
+        adoptedInherent: { level: "重大", score: "-" },
       },
     );
 
-    expect(payload.inherent_risk_level).toBe("低");
+    expect(payload.inherent_risk_level).toBe("重大");
     expect(payload.inherent_risk_score).toBe("-");
   });
 

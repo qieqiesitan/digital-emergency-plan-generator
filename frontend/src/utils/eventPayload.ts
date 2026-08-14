@@ -41,7 +41,8 @@ export interface BuildEventPayloadOptions {
 // - 编辑模式方法未改动时不提交 method_type/method_params，避免后端按（空/旧）参数重算覆盖已存等级；
 // - 固有风险：编辑未改动对应参数则保持已存等级（不携带键），DIRECT 显式清空以 null 透传；
 // - 现有风险：参数未改动且采用折算参考时显式携带 risk_level/risk_score，其余场景省略由后端重算；
-// - AI 建议采用（adoptedInherent）：DIRECT 无条件携带建议固有等级/分值（覆盖既有）；
+// - AI 建议采用（adoptedInherent）：DIRECT 仅当表单当前固有等级与建议值一致（用户未改）时
+//   携带建议固有等级/分值，用户已改则让位给用户值（不覆盖）；
 //   LS/LEC/COAL_LS 仅在固有参数未改动（未携带计算值）时透传，改参数后以重算为准；
 // - 新建/参数改动时 method_params 使用小写键（l/s/e/c），DIRECT 使用 risk_level 文案键（与后端一致）。
 export function buildEventPayload(
@@ -115,9 +116,16 @@ export function buildEventPayload(
   // ── AI 建议采用：固有等级/分值显式携带 ──
   if (adoptedInherent) {
     if (methodType === "DIRECT") {
-      // DIRECT 无条件以建议值覆盖（含既存等级），并显式携带分值
-      payload.inherent_risk_level = adoptedInherent.level;
-      payload.inherent_risk_score = adoptedInherent.score;
+      // DIRECT 采用后手动修改让位：仅当表单当前固有等级与建议值一致（用户未改）时
+      // 才以建议值覆盖并显式携带分值；用户已改则让位给用户值（不覆盖）
+      const formLevel = values.inherent_risk_level ?? null;
+      const formLabel = typeof formLevel === "number"
+        ? DIRECT_LEVELS.find((d) => d.value === formLevel)?.label
+        : formLevel;
+      if (formLabel === adoptedInherent.level) {
+        payload.inherent_risk_level = adoptedInherent.level;
+        payload.inherent_risk_score = adoptedInherent.score;
+      }
     } else if (payload.inherent_risk_level == null) {
       // LS/LEC/COAL_LS：固有参数未改动（未携带计算值）时透传建议值；
       // 用户改动固有参数后 payload 已有计算值，以计算值优先
