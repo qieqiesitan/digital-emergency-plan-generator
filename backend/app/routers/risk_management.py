@@ -1073,15 +1073,32 @@ async def get_risk_publicity(
         ent.public_risk_token = secrets.token_hex(32)
         await db.commit()
     zones = (await db.execute(
-        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id).options(*_ZONE_TREE_OPTIONS)
+        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id)
+        .options(selectinload(RiskZone.floor), *_ZONE_TREE_OPTIONS)
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = [r for r in flatten_rows(zones, mapping)
             if r["current"] == "重大" or r["control_level"] == "企业"]
+    zones_data = []
+    for z in zones:
+        cur, cur_color, inh, inh_color = _zone_dual_levels(z)
+        zones_data.append({
+            "id": z.id,
+            "floor_id": z.floor_id,
+            "floor_name": z.floor.name if z.floor else None,
+            "name": z.name,
+            "floor_plan_polygon": z.floor_plan_polygon,
+            "max_level": cur,
+            "effective_color": cur_color,
+            "inherent_max_level": inh,
+            "inherent_effective_color": inh_color,
+        })
     return ApiResponse(data={
         "token": ent.public_risk_token,
         "enterprise_name": ent.name,
         "items": _strip_internal_keys(rows),
+        "zones": zones_data,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     })
 
 

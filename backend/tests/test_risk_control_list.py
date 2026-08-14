@@ -4,6 +4,7 @@
 dependency_overrides 替换鉴权与 DB 依赖（参考 test_risk_notice_card_api.py）。
 """
 import io
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -41,19 +42,38 @@ def test_default_control_level_from_dict():
 
 
 def test_build_ledger_workbook():
-    rows = [{"zone": "储罐区", "object": "1#储罐", "unit": "阀门组",
-             "accident": "泄漏", "inherent": "重大", "current": "一般",
-             "control_level": "班组", "measures": "报警器年检", "unit_name": "生产部",
-             "person": "李四", "phone": "13800000000"}]
+    rows = [
+        {"zone": "储罐区", "object": "1#储罐", "unit": "阀门组",
+         "accident": "泄漏", "inherent": "重大", "current": "一般",
+         "control_level": "班组", "measures": "报警器年检", "unit_name": "生产部",
+         "person": "李四", "phone": "13800000000"},
+        {"zone": "罐区", "object": "2#储罐", "unit": "-",
+         "accident": "火灾", "inherent": "一般", "current": "一般",
+         "control_level": "企业", "measures": "-", "unit_name": "安全部",
+         "person": "王五", "phone": "13900000000"},
+    ]
     wb = build_ledger_workbook(rows)
+    assert wb.sheetnames == ["风险管控清单", "等级层级汇总"]
     ws = wb.active
     assert ws.title == "风险管控清单"
     assert ws["A1"].value == "分区"
-    assert ws.max_row == 2
+    assert ws.max_row == 3
     assert ws["B2"].value == "1#储罐"
     assert ws["G2"].value == "班组"
     assert ws["J2"].value == "李四"
     assert ws["A1"].font.bold is True
+    # sheet2：固有等级/管控层级汇总，按固定顺序，数量正确
+    ws2 = wb["等级层级汇总"]
+    assert ws2["A1"].value == "固有等级"
+    assert ws2["B1"].value == "数量"
+    assert [ws2.cell(row=i, column=1).value for i in range(2, 6)] == ["低", "一般", "较大", "重大"]
+    assert [ws2.cell(row=i, column=2).value for i in range(2, 6)] == [0, 1, 0, 1]
+    assert ws2.cell(row=6, column=1).value is None  # 空行分隔
+    assert ws2["A7"].value == "管控层级"
+    assert ws2["B7"].value == "数量"
+    assert [ws2.cell(row=i, column=1).value for i in range(8, 12)] == ["岗位", "班组", "部门", "企业"]
+    assert [ws2.cell(row=i, column=2).value for i in range(8, 12)] == [0, 1, 0, 1]
+    assert ws2["A1"].font.bold is True
 
 
 def test_flatten_rows_includes_zone_id():
@@ -282,6 +302,7 @@ def test_control_list_export_xlsx(client):
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     assert "risk_control_list.xlsx" in resp.headers["content-disposition"]
     wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == ["风险管控清单", "等级层级汇总"]
     ws = wb.active
     assert ws.title == "风险管控清单"
     assert ws.max_row == 3  # 表头 + 2 行
@@ -305,6 +326,20 @@ def test_risk_publicity_generates_token_and_filters_major(client):
     assert len(data["items"]) == 1
     assert data["items"][0]["accident"] == "泄漏"
     assert "zone_id" not in data["items"][0]
+    # zones：四色图数据源，含双模式等级与有效色
+    assert len(data["zones"]) == 1
+    zone = data["zones"][0]
+    assert zone["id"] == "z1"
+    assert zone["floor_id"] == "f1"
+    assert zone["floor_name"] is None
+    assert zone["name"] == "储罐区"
+    assert zone["floor_plan_polygon"] is None
+    assert zone["max_level"] == "重大"
+    assert zone["effective_color"] == "#ff4d4f"
+    assert zone["inherent_max_level"] == "重大"
+    assert zone["inherent_effective_color"] == "#ff4d4f"
+    # generated_at：ISO 时间，可解析
+    assert datetime.fromisoformat(data["generated_at"]).tzinfo is not None
     db.commit.assert_awaited()
 
 
@@ -354,6 +389,7 @@ def test_public_risk_valid_token_returns_desensitized_major_items(public_client)
     assert item["accident"] == "泄漏"
     assert item["control_level"] == "企业"
     assert item["unit_name"] == "生产部"
+    assert datetime.fromisoformat(data["generated_at"]).tzinfo is not None
     # 脱敏：无 person/phone，也无内部键
     assert "person" not in item
     assert "phone" not in item

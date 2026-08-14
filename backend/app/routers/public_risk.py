@@ -1,4 +1,6 @@
 """重大风险公示公开只读端点（无鉴权，token 校验 + 数据脱敏）。"""
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,4 +32,8 @@ async def public_risk(token: str, db: AsyncSession = Depends(get_db)):
     )).scalars().all()
     rows = [r for r in flatten_rows(zones, {})
             if r["current"] == "重大" or r["control_level"] == "企业"]
-    return ApiResponse(data={"enterprise_name": ent.name, "items": desensitize(rows)})
+    return ApiResponse(data={
+        "enterprise_name": ent.name,
+        "items": desensitize(rows),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    })

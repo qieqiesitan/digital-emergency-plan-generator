@@ -41,19 +41,38 @@ _COLUMN_MAP = {
     "管控措施": "measures", "责任单位": "unit_name", "责任人": "person", "联系电话": "phone",
 }
 
+RISK_LEVEL_ORDER = ["低", "一般", "较大", "重大"]
+CONTROL_LEVEL_ORDER = ["岗位", "班组", "部门", "企业"]
+
+
+def _style_header_row(ws, row_idx: int) -> None:
+    """给指定表头行加粗 + 浅灰底纹。"""
+    for c in ws[row_idx]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor="EEF2F7")
+
 
 def build_ledger_workbook(rows: list[dict]) -> Workbook:
-    """把英文键行（flatten_rows 输出）写入中文表头台账。"""
+    """把英文键行（flatten_rows 输出）写入中文表头台账；sheet2 为等级/层级汇总。"""
     wb = Workbook()
     ws = wb.active
     ws.title = "风险管控清单"
     headers = list(_COLUMN_MAP)
     ws.append(headers)
-    for c in ws[1]:
-        c.font = Font(bold=True)
-        c.fill = PatternFill("solid", fgColor="EEF2F7")
+    _style_header_row(ws, 1)
     for r in rows:
         ws.append([r[_COLUMN_MAP[h]] for h in headers])
+
+    ws2 = wb.create_sheet("等级层级汇总")
+    ws2.append(["固有等级", "数量"])
+    for level in RISK_LEVEL_ORDER:
+        ws2.append([level, sum(1 for r in rows if r.get("inherent") == level)])
+    ws2.append([None, None])  # 空行分隔两个汇总区
+    ws2.append(["管控层级", "数量"])
+    for level in CONTROL_LEVEL_ORDER:
+        ws2.append([level, sum(1 for r in rows if r.get("control_level") == level)])
+    _style_header_row(ws2, 1)
+    _style_header_row(ws2, 7)
     return wb
 
 
