@@ -1,6 +1,6 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig, SmartGuideZone, MigrationPreviewResponse, MigrationExecutePayload, MigrationExecuteResponse } from "@/types/riskManagement";
+import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig, SmartGuideZone, MigrationPreviewResponse, MigrationExecutePayload, MigrationExecuteResponse, RiskZoneFloorPlanPolygon } from "@/types/riskManagement";
 
 const BASE = (eid: string) => `/enterprises/${eid}/risk-management`;
 
@@ -93,3 +93,77 @@ export const getRiskMappingOverview = (eid: string, floorId?: string) =>
       pendingRegions: [],
     };
   });
+
+// ── 风险分级管控清单 & 重大风险公示 ──
+
+export interface ControlListRow {
+  zone: string;
+  object: string;
+  unit: string;
+  accident: string;
+  inherent: string;
+  current: string;
+  control_level: string;
+  measures: string;
+  unit_name: string;
+  person: string;
+  phone: string;
+}
+export interface ControlListResponse {
+  items: ControlListRow[];
+  total: number;
+}
+
+/** 公示页四色图分区数据（后端 risk-publicity zones 字段，含双模式等级与有效色）。 */
+export interface PublicityZone {
+  id: string;
+  floor_id: string | null;
+  floor_name: string | null;
+  name: string;
+  floor_plan_polygon: RiskZoneFloorPlanPolygon | null;
+  max_level: string | null;
+  effective_color: string | null;
+  inherent_max_level: string | null;
+  inherent_effective_color: string | null;
+}
+export interface RiskPublicityResponse {
+  token: string;
+  enterprise_name: string;
+  items: ControlListRow[];
+  zones: PublicityZone[];
+  generated_at: string;
+}
+
+/** 公开脱敏清单行（不含责任人/电话等敏感字段）。 */
+export interface PublicRiskRow {
+  zone: string;
+  object: string;
+  unit: string;
+  accident: string;
+  inherent: string;
+  current: string;
+  control_level: string;
+  measures: string;
+  unit_name: string;
+}
+export interface PublicRiskResponse {
+  enterprise_name: string;
+  items: PublicRiskRow[];
+  generated_at: string;
+}
+
+export async function getControlList(enterpriseId: string, params: object) {
+  return api.get<ApiResponse<ControlListResponse>>(`${BASE(enterpriseId)}/control-list`, { params });
+}
+export async function exportControlList(enterpriseId: string) {
+  return api.get<Blob>(`${BASE(enterpriseId)}/control-list/export`, { responseType: "blob" });
+}
+export async function getRiskPublicity(enterpriseId: string) {
+  return api.get<ApiResponse<RiskPublicityResponse>>(`${BASE(enterpriseId)}/risk-publicity`);
+}
+export async function resetRiskPublicityToken(enterpriseId: string) {
+  return api.post<ApiResponse<{ token: string }>>(`${BASE(enterpriseId)}/risk-publicity/token`);
+}
+export async function fetchPublicRisk(token: string) {
+  return api.get<ApiResponse<PublicRiskResponse>>(`/public/risk/${token}`);
+}

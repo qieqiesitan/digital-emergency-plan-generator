@@ -3,6 +3,11 @@ import {
   previewMethod,
   previewRiskMethod,
   previewRiskConversion,
+  getControlList,
+  exportControlList,
+  getRiskPublicity,
+  resetRiskPublicityToken,
+  fetchPublicRisk,
 } from "./riskManagementService";
 
 const { apiMock } = vi.hoisted(() => ({
@@ -78,5 +83,53 @@ describe("riskManagementService dual-level", () => {
       "/enterprises/e1/risk-management/events/ev1/conversion-reference",
     );
     expect(result).toEqual({ factor: 0.5, reference_score: 10, reference_level: "一般" });
+  });
+
+  it("getControlList 请求管控清单 URL 并透传筛选分页参数", async () => {
+    apiMock.get.mockResolvedValue({
+      data: { code: 0, message: "ok", data: { items: [], total: 0 } },
+    });
+
+    await getControlList("e1", { floor_id: "f1", keyword: "仓库", page: 2, size: 50 });
+
+    expect(apiMock.get).toHaveBeenCalledWith(
+      "/enterprises/e1/risk-management/control-list",
+      { params: { floor_id: "f1", keyword: "仓库", page: 2, size: 50 } },
+    );
+  });
+
+  it("exportControlList 以 blob responseType 请求导出 URL", async () => {
+    apiMock.get.mockResolvedValue({ data: new Blob(["xlsx"]) });
+
+    await exportControlList("e1");
+
+    expect(apiMock.get).toHaveBeenCalledWith(
+      "/enterprises/e1/risk-management/control-list/export",
+      { responseType: "blob" },
+    );
+  });
+
+  it("risk-publicity / token 重置 / 公开脱敏页 请求对应 URL", async () => {
+    apiMock.get.mockResolvedValue({
+      data: {
+        code: 0,
+        message: "ok",
+        data: { token: "t1", enterprise_name: "e1", items: [], zones: [], generated_at: "" },
+      },
+    });
+    await getRiskPublicity("e1");
+    expect(apiMock.get).toHaveBeenCalledWith("/enterprises/e1/risk-management/risk-publicity");
+
+    apiMock.post.mockResolvedValue({
+      data: { code: 0, message: "ok", data: { token: "t2" } },
+    });
+    await resetRiskPublicityToken("e1");
+    expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/risk-management/risk-publicity/token");
+
+    apiMock.get.mockResolvedValue({
+      data: { code: 0, message: "ok", data: { enterprise_name: "e1", items: [], generated_at: "" } },
+    });
+    await fetchPublicRisk("tk-123");
+    expect(apiMock.get).toHaveBeenCalledWith("/public/risk/tk-123");
   });
 });

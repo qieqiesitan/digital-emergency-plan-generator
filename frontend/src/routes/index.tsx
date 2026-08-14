@@ -31,7 +31,10 @@ import RiskMethodEditorPage from "@/pages/Enterprise/RiskMethodEditorPage";
 import RiskMappingWorkbenchPage from "@/pages/Enterprise/RiskMappingWorkbenchPage";
 import RiskNoticeCardPage from "@/pages/Enterprise/RiskNoticeCardPage";
 import RiskNoticeCardPreviewPage from "@/pages/Enterprise/RiskNoticeCardPreviewPage";
+import RiskControlListPage from "@/pages/Enterprise/RiskControlListPage";
+import RiskPublicityPage from "@/pages/Enterprise/RiskPublicityPage";
 import PublicRiskNoticePage from "@/pages/PublicRiskNoticePage";
+import PublicRiskPage from "@/pages/PublicRiskPage";
 import ChatPage from "@/pages/Chat";
 import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
 
@@ -57,6 +60,8 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-mapping-workbench", element: <RiskMappingWorkbenchPage /> },
   { path: "/enterprises/:id/risk-notice-cards", element: <RiskNoticeCardPage /> },
   { path: "/enterprises/:id/risk-notice-cards/:objectId", element: <RiskNoticeCardPreviewPage /> },
+  { path: "/enterprises/:id/risk-control-list", element: <RiskControlListPage /> },
+  { path: "/enterprises/:id/risk-publicity", element: <RiskPublicityPage /> },
   { path: "/plans", element: <PlanCardsPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
   { path: "/plans/new", element: <PlanCreatePage /> },
@@ -91,6 +96,7 @@ export function createRouter() {
     },
     // 公开只读页：无登录守卫（token 无效由后端返回 404）
     { path: "/r/:token", element: <PublicRiskNoticePage /> },
+    { path: "/p/risk/:token", element: <PublicRiskPage /> },
     { path: "/m/*", element: <MobileRedirect /> },
     { path: "*", element: <Navigate to="/dashboard" replace /> },
   ], { basename: APP_BASE || undefined });
