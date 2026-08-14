@@ -22,7 +22,8 @@
 | # | 决策点 | 结论 |
 |---|--------|------|
 | 1 | 固有 / 现有双等级 | 风险事件新增固有等级/分值；现有 `risk_level` 语义定为「现有（剩余）风险」；存量数据迁移回填固有 = 现有 |
-| 2 | 四色图双模式 | 支持「固有 / 现有」切换；`manual` 手动色两模式共用，`auto` 自动色按模式计算 |
+| 2 | 现有风险算法 | 默认「双参数评估」（同一方法两套参数，人工/AI 辅助判断）；另提供「自动折算参考」工具：按管控措施类别系数给参考现有风险，人工确认后采用 |
+| 3 | 四色图双模式 | 支持「固有 / 现有」切换；`manual` 手动色两模式共用，`auto` 自动色按模式计算 |
 | 3 | 管控层级 | 按现有等级默认映射（重大→企业、较大→部门、一般→班组、低→岗位），事件级可覆盖 |
 | 4 | 风险管控清单 | 新增清单页 + Excel 导出（复用 `openpyxl`） |
 | 5 | 重大风险公示 | 企业内页面（可打印）+ 公开只读 token 页（仅清单、脱敏联系方式） |
@@ -78,12 +79,31 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 
 ### 5.2 评估方法引擎
 
-`compute_risk` 保持纯函数不变。固有 / 现有 = **同一方法的两套参数**：
+`compute_risk` 保持纯函数不变。现有风险计算提供两种方式，**默认双参数评估为主，自动折算仅作参考**：
+
+**方式一：双参数评估（默认）**。固有 / 现有 = 同一方法的两套参数：
 
 - LS / LEC / COAL_LS：表单新增「固有参数」区块（l/s 或 l/e/c 取无管控状态），保存时分别计算两组结果；
 - DIRECT：直接录入两个等级（`risk_level` + `inherent_risk_level`）。
 
 方法预览接口（`MethodPreviewRequest`）增加可选 `scenario: "inherent" | "current"`，用于表单实时预览，默认 `current`。
+
+**方式二：自动折算参考（工具）**。由固有风险 × 管控措施类别系数得到「参考现有风险」，仅作参考对比，人工确认后才落库：
+
+- 默认系数表（常量 `MEASURE_FACTORS`，企业 `risk_method_config` 可覆盖）：
+
+| 措施类别（`measure_category`） | 系数 |
+|------|------|
+| engineering 工程技术 | 0.50 |
+| management 管理措施 | 0.70 |
+| ppe 个体防护 | 0.85 |
+| emergency 应急措施 | 0.90 |
+
+- 综合系数口径（默认保守）：`综合系数 = 已配置类别系数的最小值`（最有效类别主导，不叠加）；企业可在 `risk_method_config` 切换为「乘积」模式（取各类别系数连乘）；
+- 参考分值 = 固有分值数值 × 综合系数（解析 `R=…` / `D=…` 数值；DIRECT 方法不适用，由 AI 给等级参考）；
+- 参考等级 = 参考分值落入该企业方法阈值区间（复用 `compute_risk` 的阈值匹配逻辑，抽成 `level_from_score(method_type, score, config)`）；
+- AI 解释：`hazard_ai_service`（或复用 `risk_ai_service` 通道）可选输出文字说明（如「报警器+联锁为主，综合系数 0.5，参考现有风险 一般」）；
+- UI：事件表单「自动折算参考」按钮 → 展示参考结果卡片 → 「采用为现有风险」一键填入（用户仍可修改）或仅作对比。
 
 ### 5.3 分区四色双模式
 
@@ -178,7 +198,7 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 
 | 页面 | 变更 |
 |------|------|
-| `RiskEventForm` | 新增「固有风险参数」区块（按方法渲染）+ 管控层级选择（带默认映射提示） |
+| `RiskEventForm` | 新增「固有风险参数」区块（按方法渲染）+ 管控层级选择（带默认映射提示）+「自动折算参考」按钮（展示参考现有风险卡片，可一键采用） |
 | `RiskMappingWorkbenchPage` | Segmented 固有/现有切换 |
 | `RiskOverviewPage` | Segmented 固有/现有切换（三视图同步） |
 | `RiskControlListPage`（新） | 清单表 + 筛选 + 导出；入口：风险管理 Tab「管控清单」按钮 |
@@ -200,7 +220,7 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 
 ## 12. 测试策略
 
-- **pytest**：双等级计算与迁移回填；`max_risk_level(mode)` 正确性；清单展平/筛选/导出；token 生成/重置/404；脱敏断言；现有>固有校验；
+- **pytest**：双等级计算与迁移回填；自动折算（系数表/最小值与乘积口径/分值解析/阈值映射/DIRECT 不适用）；`max_risk_level(mode)` 正确性；清单展平/筛选/导出；token 生成/重置/404；脱敏断言；现有>固有校验；
 - **前端 vitest**：双模式切换渲染、清单筛选、公示打印样式类、公开页渲染；
 - **回归**：告知卡 / 总览 / 工作台既有用例不破坏（响应新增字段向后兼容）；
 - **门禁**：tsc / eslint / vitest / pytest 全绿 + `git diff --check`。
@@ -218,11 +238,12 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 ## 14. 验收标准
 
 1. 风险事件可分别录入/计算固有与现有等级，存量数据自动回填；
-2. 工作台与总览四色图可切换固有/现有模式且颜色正确；
-3. 管控清单可按条件筛选并导出 xlsx；
-4. 公示页企业内可打印；公开 token 可打开且无敏感信息；
-5. 风险告知卡展示双等级；
-6. 全部门禁通过。
+2. 「自动折算参考」可给出参考现有风险（含系数说明），人工确认后采用；
+3. 工作台与总览四色图可切换固有/现有模式且颜色正确；
+4. 管控清单可按条件筛选并导出 xlsx；
+5. 公示页企业内可打印；公开 token 可打开且无敏感信息；
+6. 风险告知卡展示双等级；
+7. 全部门禁通过。
 
 ---
 
