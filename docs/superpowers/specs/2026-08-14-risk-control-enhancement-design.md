@@ -106,6 +106,13 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 - AI 解释：`hazard_ai_service`（或复用 `risk_ai_service` 通道）可选输出文字说明（如「报警器+联锁为主，综合系数 0.5，参考现有风险 一般」）；
 - UI：事件表单「自动折算参考」按钮 → 展示参考结果卡片 → 「采用为现有风险」一键填入（用户仍可修改）或仅作对比。
 
+**方式三：AI 双等级参数建议（文本通道，用户已确认）**：
+
+- 接口 `POST /enterprises/{id}/risk-management/events/{event_id}/ai-dual-level-suggestion`：输入 = 事件描述 + 管控措施文本（仅文本，**不依赖图像识别**）；
+- 输出 JSON：`{inherent: {l, e, c 或 l, s, risk_level, risk_score}, current: {...}, note}`，由 DeepSeek 建议两套参数与等级；
+- 前端：事件表单「AI 建议参数」按钮 → 展示对比 → 「采用」填入固有/现有区块（仍可改）；
+- AI 失败/超时 → 返回「无 AI 建议」，降级为纯人工或折算参考，不阻塞。
+
 ### 5.4 数据字典表 `data_dicts`（公共基础，随 A 落地）
 
 | 字段 | 类型 | 说明 |

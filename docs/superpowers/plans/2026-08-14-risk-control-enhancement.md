@@ -27,6 +27,7 @@
 | `backend/app/schemas/risk_management.py` | 修改：事件 Create/Update/Response 加 3 字段；Zone/Hierarchy 响应加 inherent 字段；MethodPreview 加 scenario |
 | `backend/app/services/data_dict_service.py` | 新建：字典合并读取（企业 > 系统，60s 缓存） |
 | `backend/app/services/risk_conversion_service.py` | 新建：自动折算参考（分值解析、系数合并、阈值映射） |
+| `backend/app/services/risk_dual_ai_service.py` | 新建：AI 双等级参数建议（文本通道，mock 可测） |
 | `backend/app/services/risk_control_list_service.py` | 新建：管控清单展平/筛选/导出 |
 | `backend/app/routers/data_dicts.py` | 新建：系统字典管理 + 企业字典覆盖 |
 | `backend/app/routers/public_risk.py` | 新建：GET /public/risk/{token}（脱敏） |
@@ -1003,7 +1004,118 @@ git commit -m "feat(risk): dual level on notice card and data dict management pa
 
 ---
 
-## 任务 11：回归门禁 + 手工冒烟
+## 任务 11：AI 双等级参数建议（文本通道）
+
+**文件：**
+- 创建：`backend/app/services/risk_dual_ai_service.py`
+- 修改：`backend/app/routers/risk_management.py`（AI 建议端点）
+- 修改：`frontend/src/components/enterprise/RiskEventForm.tsx`（「AI 建议参数」按钮）
+- 修改：`frontend/src/services/riskManagementService.ts`
+- 测试：`backend/tests/test_risk_dual_level.py`（追加）
+
+- [ ] **步骤 1：编写失败测试（mock LLM）**
+
+```python
+import json
+from unittest.mock import AsyncMock, patch
+from app.services.risk_dual_ai_service import suggest_dual_level
+
+async def test_suggest_dual_level_ok(db_session):
+    fake = {"inherent": {"risk_level": "重大", "risk_score": "D=270"},
+            "current": {"risk_level": "一般", "risk_score": "D=21"}, "note": "报警器+联锁降低L"}
+    with patch("app.services.risk_dual_ai_service.llm_text_completion",
+               AsyncMock(return_value=json.dumps(fake, ensure_ascii=False))):
+        out = await suggest_dual_level("储罐区可燃气体泄漏，已配报警器与联锁", {}, None)
+    assert out["current"]["risk_level"] == "一般"
+
+async def test_suggest_dual_level_fallback(db_session):
+    with patch("app.services.risk_dual_ai_service.llm_text_completion",
+               AsyncMock(side_effect=Exception("timeout"))):
+        out = await suggest_dual_level("描述", {}, None)
+    assert out["available"] is False
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：`cd backend && pytest tests/test_risk_dual_level.py::test_suggest_dual_level_ok -v`
+预期：FAIL，`ModuleNotFoundError: No module named 'app.services.risk_dual_ai_service'`
+
+- [ ] **步骤 3：实现服务与端点**
+
+```python
+# backend/app/services/risk_dual_ai_service.py
+import json
+from app.services.llm_client import llm_text_completion
+from app.services.risk_ai_service import _get_ai_config, _parse_ai_json
+
+async def suggest_dual_level(description: str, measures_text: str, ai_config) -> dict:
+    prompt = (
+        "你是安全风险评估专家。根据事故描述与管控措施，分别给出："
+        "固有风险（不考虑管控措施）与现有风险（考虑管控措施）的参数与等级。\n\n"
+        f"事故描述：{description}\n管控措施：{measures_text or '（无）'}\n\n"
+        '输出 JSON：{"inherent": {"risk_level": "重大/较大/一般/低", "risk_score": "D=270"},'
+        ' "current": {"risk_level": "...", "risk_score": "..."}, "note": "调参理由"}'
+    )
+    messages = [{"role": "system", "content": "你是安全风险评估专家，输出严格 JSON。"},
+                {"role": "user", "content": prompt}]
+    try:
+        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        data = _parse_ai_json(raw)
+        if "inherent" not in data or "current" not in data:
+            raise ValueError("missing keys")
+        return {"available": True, **data}
+    except Exception:
+        return {"available": False, "note": "AI 不可用，请手动评估或使用自动折算参考"}
+```
+
+`backend/app/routers/risk_management.py` 追加（鉴权 + 企业归属校验同既有模式）：
+
+```python
+@router.post("/events/{event_id}/ai-dual-level-suggestion", response_model=ApiResponse[dict])
+async def ai_dual_level_suggestion(enterprise_id: str, event_id: str,
+                                   current_user=Depends(get_current_user), db=Depends(get_db)):
+    await _get_ent(enterprise_id, current_user.id, db)
+    event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
+    if not event:
+        raise HTTPException(404, "风险事件不存在")
+    ai_config = await _get_ai_config(current_user.id, db)
+    measures_text = "；".join(f"{m.measure_category}:{m.description}" for m in (event.measures or []))
+    result = await suggest_dual_level(event.description or event.accident_type, measures_text, ai_config)
+    return ApiResponse(data=result)
+```
+
+- [ ] **步骤 4：运行测试验证通过**
+
+运行：`cd backend && pytest tests/test_risk_dual_level.py -v`
+预期：PASS
+
+- [ ] **步骤 5：前端接入**
+
+`riskManagementService.ts` 新增：
+
+```typescript
+export async function getAiDualLevelSuggestion(enterpriseId: string, eventId: string) {
+  return api.post(`/enterprises/${enterpriseId}/risk-management/events/${eventId}/ai-dual-level-suggestion`);
+}
+```
+
+`RiskEventForm.tsx`：现有区块旁加「AI 建议参数」按钮 → 调接口 → Modal 展示固有/现有建议对比 → 「采用」分别填入两区块（用户仍可改）；`available === false` 时提示降级文案。
+
+- [ ] **步骤 6：门禁**
+
+运行：`cd frontend && npx tsc -b && npx eslint src/components/enterprise/RiskEventForm.tsx src/services/riskManagementService.ts && npx vitest run`
+预期：全部通过
+
+- [ ] **步骤 7：Commit**
+
+```bash
+git add backend/app/services/risk_dual_ai_service.py backend/app/routers/risk_management.py backend/tests/test_risk_dual_level.py frontend/src/components/enterprise/RiskEventForm.tsx frontend/src/services/riskManagementService.ts
+git commit -m "feat(risk): AI dual-level parameter suggestion (text-only)"
+```
+
+---
+
+## 任务 12：回归门禁 + 手工冒烟
 
 **文件：** 无（验证任务）
 
