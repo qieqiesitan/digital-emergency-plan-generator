@@ -454,6 +454,12 @@ def test_members_put_404(client):
     assert "成员不存在" in resp.json()["detail"]
 
 
+def test_members_put_non_owner_403(client):
+    client.app.dependency_overrides[get_db] = lambda: _org_db(_org_ent(user_id="u2"))
+    resp = client.put("/enterprises/e1/org/members/m1", json={"position": "新岗位"})
+    assert resp.status_code == 403
+
+
 # ── DELETE /members ──
 
 def test_members_delete_success(client):
@@ -478,6 +484,12 @@ def test_members_delete_404(client):
     resp = client.delete("/enterprises/e1/org/members/missing")
     assert resp.status_code == 404
     assert "成员不存在" in resp.json()["detail"]
+
+
+def test_members_delete_non_owner_403(client):
+    client.app.dependency_overrides[get_db] = lambda: _org_db(_org_ent(user_id="u2"))
+    resp = client.delete("/enterprises/e1/org/members/m1")
+    assert resp.status_code == 403
 
 
 # ── GET /members ──
