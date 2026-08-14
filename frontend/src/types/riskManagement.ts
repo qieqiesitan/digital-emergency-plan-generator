@@ -102,6 +102,9 @@ export interface RiskEvent {
   method_params: Record<string, number>;
   risk_level: string | null;
   risk_score: string | null;
+  inherent_risk_level: string | null;
+  inherent_risk_score: string | null;
+  control_level: string | null;
   sort_order: number;
   created_at: string;
   measure_count: number;
@@ -116,6 +119,23 @@ export interface RiskEventCreate {
   consequences?: string;
   method_type?: MethodType;
   method_params?: Record<string, number>;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
+}
+
+export interface RiskEventFormValues {
+  accident_type: string | string[];
+  description?: string;
+  trigger_conditions?: string;
+  consequences?: string;
+  method_type?: MethodType;
+  method_params?: Record<string, number>;
+  inherent_params?: Record<string, number>;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
+  chemical_id?: string | null;
 }
 
 export interface RiskMeasure { id: string; event_id: string; measure_category: MeasureCategory; measure_type: string | null; description: string; responsible_person: string | null; deadline: string | null; check_items: CheckItem[]; status: MeasureStatus; sort_order: number; created_at: string; }

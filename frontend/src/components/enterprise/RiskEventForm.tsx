@@ -3,12 +3,12 @@ import {
   Drawer, Form, Input, Select, Button, Segmented, Radio,
   Space, Tag, message, Divider, Modal, List, Alert,
 } from "antd";
-import { RobotOutlined } from "@ant-design/icons";
+import { RobotOutlined, CalculatorOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { computeRiskLS, computeRiskLEC, getCellClass, ACCIDENT_TYPES, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
-import { aiSuggestEvents } from "@/services/riskManagementService";
+import { aiSuggestEvents, previewRiskConversion, type RiskConversionReference } from "@/services/riskManagementService";
 import { listChemicals } from "@/services/hazardousChemicalService";
-import type { MethodType } from "@/types/riskManagement";
+import type { MethodType, RiskEventFormValues } from "@/types/riskManagement";
 
 // ─── L / S label definitions ────────────────────────────────────
 const L_LABELS: Record<number, string> = {
@@ -67,15 +67,14 @@ const DIRECT_LEVELS = [
 
 type MethodTypeKey = "LS" | "LEC" | "COAL_LS" | "DIRECT";
 
-interface RiskEventFormValues {
-  accident_type: string | string[];
-  description?: string;
-  trigger_conditions?: string;
-  consequences?: string;
-  method_type?: string;
-  method_params?: Record<string, number>;
-  chemical_id?: string | null;
-}
+const RISK_LEVEL_OPTIONS = ["重大", "较大", "一般", "低"];
+
+const CONTROL_LEVEL_OPTIONS = [
+  { value: "企业", label: "企业" },
+  { value: "部门", label: "部门" },
+  { value: "班组", label: "班组" },
+  { value: "岗位", label: "岗位" },
+];
 
 interface Props {
   open: boolean;
@@ -83,6 +82,7 @@ interface Props {
   onSubmit: (values: RiskEventFormValues) => void;
   initialValues?: RiskEventFormValues;
   enterpriseId: string;
+  eventId?: string;
   defaultMethodType?: MethodType;
   zoneName?: string;
   objectName?: string;
@@ -100,21 +100,32 @@ interface AISuggestItem {
 }
 
 export default function RiskEventForm({
-  open, onClose, onSubmit, initialValues, enterpriseId, defaultMethodType,
+  open, onClose, onSubmit, initialValues, enterpriseId, eventId, defaultMethodType,
   zoneName, objectName, unitName,
 }: Props) {
   const [form] = Form.useForm<RiskEventFormValues>();
+  // 组件按 key 重挂载，直接用 initialValues 初始化即可回显编辑数据
+  const initialInherentParams = (initialValues?.inherent_params ?? {}) as Record<string, number>;
   const [methodType, setMethodType] = useState<MethodTypeKey>(
-    (defaultMethodType as MethodTypeKey) ?? "LS",
+    (initialValues?.method_type as MethodTypeKey) ?? (defaultMethodType as MethodTypeKey) ?? "LS",
   );
   const [lValue, setLValue] = useState<number>(1);
   const [sValue, setSValue] = useState<number>(1);
   const [lecL, setLecL] = useState<number>(1);
   const [lecE, setLecE] = useState<number>(3);
   const [lecC, setLecC] = useState<number>(7);
+  const [inherentL, setInherentL] = useState<number>(initialInherentParams.L ?? 1);
+  const [inherentS, setInherentS] = useState<number>(initialInherentParams.S ?? 1);
+  const [inherentLecL, setInherentLecL] = useState<number>(initialInherentParams.L ?? 1);
+  const [inherentLecE, setInherentLecE] = useState<number>(initialInherentParams.E ?? 3);
+  const [inherentLecC, setInherentLecC] = useState<number>(initialInherentParams.C ?? 7);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResults, setAiResults] = useState<AISuggestItem[]>([]);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [conversionLoading, setConversionLoading] = useState(false);
+  const [conversionResult, setConversionResult] = useState<RiskConversionReference | null>(null);
+  const [conversionError, setConversionError] = useState("");
+  const [adoptedRef, setAdoptedRef] = useState<{ level: string; score: string } | null>(null);
 
   const { data: chemicalsData } = useQuery({
     queryKey: ["chemicals", enterpriseId],
@@ -135,6 +146,16 @@ export default function RiskEventForm({
     }
     return null;
   }, [methodType, lValue, sValue, lecL, lecE, lecC]);
+
+  const inherentRiskResult = useMemo(() => {
+    if (methodType === "LS" || methodType === "COAL_LS") {
+      return computeRiskLS(inherentL, inherentS);
+    }
+    if (methodType === "LEC") {
+      return computeRiskLEC(inherentLecL, inherentLecE, inherentLecC);
+    }
+    return null;
+  }, [methodType, inherentL, inherentS, inherentLecL, inherentLecE, inherentLecC]);
 
   const directLevel = Form.useWatch("method_params", form);
 
@@ -192,7 +213,7 @@ export default function RiskEventForm({
       description: item.description || "",
       trigger_conditions: item.trigger_conditions || "",
       consequences: item.consequences || "",
-      method_type: item.method_type || methodType,
+      method_type: (item.method_type || methodType) as MethodType,
     });
     if (item.suggested_params) {
       const mp = item.suggested_params;
@@ -204,21 +225,78 @@ export default function RiskEventForm({
     message.success("已填入所选建议");
   };
 
+  const handleConversionReference = async () => {
+    if (!eventId) {
+      message.warning("请先保存事件，再进入编辑模式使用折算参考");
+      return;
+    }
+    setConversionLoading(true);
+    setConversionResult(null);
+    setConversionError("");
+    try {
+      const result = await previewRiskConversion(enterpriseId, eventId);
+      setConversionResult(result);
+    } catch (e) {
+      setConversionError(
+        "折算参考暂不可用：" + (e instanceof Error ? e.message : "请检查网络后重试"),
+      );
+    } finally {
+      setConversionLoading(false);
+    }
+  };
+
+  const handleAdoptConversion = () => {
+    if (!conversionResult?.reference_level) {
+      message.warning("暂无可用参考等级");
+      return;
+    }
+    const { reference_level, reference_score } = conversionResult;
+    if (methodType === "DIRECT") {
+      const matched = DIRECT_LEVELS.find((d) => d.label === reference_level);
+      if (matched) {
+        form.setFieldsValue({ method_params: { level: matched.value } });
+        message.success("已将折算参考等级填入现有风险");
+        return;
+      }
+    }
+    const score = reference_score != null
+      ? (methodType === "LEC" ? `D=${reference_score}` : `R=${reference_score}`)
+      : "";
+    setAdoptedRef({ level: reference_level, score });
+    message.success("已将折算参考填入现有风险预览，可继续调整参数覆盖");
+  };
+
   const handleFinish = (values: RiskEventFormValues) => {
     let params: Record<string, number> = {};
+    let inherentParams: Record<string, number> = {};
+    let inherentLevel: string | null = null;
+    let inherentScore: string | null = null;
     if (methodType === "LS" || methodType === "COAL_LS") {
       params = { L: lValue, S: sValue };
+      inherentParams = { L: inherentL, S: inherentS };
+      const ir = computeRiskLS(inherentL, inherentS);
+      inherentLevel = ir.riskLevel;
+      inherentScore = ir.riskScore;
     } else if (methodType === "LEC") {
       params = { L: lecL, E: lecE, C: lecC };
+      inherentParams = { L: inherentLecL, E: inherentLecE, C: inherentLecC };
+      const ir = computeRiskLEC(inherentLecL, inherentLecE, inherentLecC);
+      inherentLevel = ir.riskLevel;
+      inherentScore = ir.riskScore;
     } else if (methodType === "DIRECT") {
       const lv = values.method_params?.level ?? 1;
       params = { level: lv };
+      inherentLevel = values.inherent_risk_level ?? null;
     }
     onSubmit({
       ...values,
       accident_type: Array.isArray(values.accident_type) ? values.accident_type.join("、") : values.accident_type,
       method_type: methodType,
       method_params: params,
+      inherent_params: inherentParams,
+      inherent_risk_level: inherentLevel,
+      inherent_risk_score: inherentScore,
+      control_level: values.control_level ?? null,
     });
   };
 
@@ -318,7 +396,12 @@ export default function RiskEventForm({
           <Segmented
             block
             value={methodType}
-            onChange={(val) => setMethodType(val as MethodTypeKey)}
+            onChange={(val) => {
+              setMethodType(val as MethodTypeKey);
+              setAdoptedRef(null);
+              setConversionResult(null);
+              setConversionError("");
+            }}
             options={[
               { value: "LS", label: "LS 矩阵" },
               { value: "LEC", label: "LEC 评价" },
@@ -327,6 +410,137 @@ export default function RiskEventForm({
             ]}
           />
         </Form.Item>
+
+        {/* ─── Inherent risk (without controls) ──────────────── */}
+        <Divider plain style={{ fontSize: 13 }}>固有风险（不考虑管控措施）</Divider>
+
+        {(methodType === "LS" || methodType === "COAL_LS") && (
+          <>
+            <Form.Item label="固有可能性 L（不考虑管控）">
+              <Radio.Group
+                value={inherentL}
+                onChange={(e) => setInherentL(e.target.value)}
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+              >
+                {[1, 2, 3, 4, 5].map((v) => (
+                  <Radio.Button
+                    key={v}
+                    value={v}
+                    style={{
+                      height: "auto",
+                      padding: "8px 12px",
+                      lineHeight: 1.5,
+                      borderRadius: 6,
+                      marginBottom: v < 5 ? 0 : undefined,
+                    }}
+                  >
+                    <strong>{L_SHORT[v]}</strong>
+                    <div style={{ fontSize: 12, color: "#666" }}>
+                      {L_LABELS[v]?.split(" - ")[1]}
+                    </div>
+                  </Radio.Button>
+                ))}
+              </Radio.Group>
+            </Form.Item>
+
+            <Form.Item label="固有严重性 S（不考虑管控）">
+              <Radio.Group
+                value={inherentS}
+                onChange={(e) => setInherentS(e.target.value)}
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+              >
+                {[1, 2, 3, 4, 5].map((v) => (
+                  <Radio.Button
+                    key={v}
+                    value={v}
+                    style={{
+                      height: "auto",
+                      padding: "8px 12px",
+                      lineHeight: 1.5,
+                      borderRadius: 6,
+                      marginBottom: v < 5 ? 0 : undefined,
+                    }}
+                  >
+                    <strong>{S_SHORT[v]}</strong>
+                    <div style={{ fontSize: 12, color: "#666" }}>
+                      {S_LABELS[v]?.split(" - ")[1]}
+                    </div>
+                  </Radio.Button>
+                ))}
+              </Radio.Group>
+            </Form.Item>
+
+            {inherentRiskResult && (
+              <div style={{ marginBottom: 16 }}>
+                <Space size={8}>
+                  <span style={{ fontSize: 13, color: "#666" }}>固有等级：</span>
+                  <Tag color={RISK_LEVEL_COLORS[inherentRiskResult.riskLevel] ?? "#999"}>
+                    {inherentRiskResult.riskLevel}
+                  </Tag>
+                  <span style={{ color: "#999", fontSize: 12 }}>
+                    {inherentRiskResult.riskScore}
+                  </span>
+                </Space>
+              </div>
+            )}
+          </>
+        )}
+
+        {methodType === "LEC" && (
+          <>
+            <Form.Item label="固有 L — 事故发生可能性（不考虑管控）">
+              <Select
+                value={inherentLecL}
+                onChange={(v) => setInherentLecL(v)}
+                options={LEC_L_OPTIONS}
+              />
+            </Form.Item>
+            <Form.Item label="固有 E — 暴露频率（不考虑管控）">
+              <Select
+                value={inherentLecE}
+                onChange={(v) => setInherentLecE(v)}
+                options={LEC_E_OPTIONS}
+              />
+            </Form.Item>
+            <Form.Item label="固有 C — 事故后果（不考虑管控）">
+              <Select
+                value={inherentLecC}
+                onChange={(v) => setInherentLecC(v)}
+                options={LEC_C_OPTIONS}
+              />
+            </Form.Item>
+
+            {inherentRiskResult && (
+              <div style={{ marginBottom: 16 }}>
+                <Space size={8}>
+                  <span style={{ fontSize: 13, color: "#666" }}>固有等级：</span>
+                  <Tag color={RISK_LEVEL_COLORS[inherentRiskResult.riskLevel] ?? "#999"}>
+                    {inherentRiskResult.riskLevel}
+                  </Tag>
+                  <span style={{ color: "#999", fontSize: 12 }}>
+                    {inherentRiskResult.riskScore}
+                  </span>
+                </Space>
+              </div>
+            )}
+          </>
+        )}
+
+        {methodType === "DIRECT" && (
+          <Form.Item
+            name="inherent_risk_level"
+            label="固有等级（不考虑管控）"
+          >
+            <Select
+              allowClear
+              placeholder="选择固有风险等级"
+              options={RISK_LEVEL_OPTIONS.map((v) => ({ value: v, label: v }))}
+            />
+          </Form.Item>
+        )}
+
+        {/* ─── Existing risk (with controls) ─────────────────── */}
+        <Divider plain style={{ fontSize: 13 }}>现有风险（考虑管控措施）</Divider>
 
         {/* LS / COAL_LS */}
         {(methodType === "LS" || methodType === "COAL_LS") && (
@@ -429,10 +643,101 @@ export default function RiskEventForm({
           </Form.Item>
         )}
 
+        {/* ─── Section: Control level & conversion reference ── */}
+        <Divider plain style={{ fontSize: 13 }}>管控层级与折算参考</Divider>
+
+        <Form.Item
+          name="control_level"
+          label="管控层级"
+        >
+          <Select
+            allowClear
+            placeholder="按现有等级自动映射"
+            options={CONTROL_LEVEL_OPTIONS}
+          />
+        </Form.Item>
+
+        <Button
+          icon={<CalculatorOutlined />}
+          onClick={handleConversionReference}
+          loading={conversionLoading}
+          disabled={!eventId}
+          block
+          style={{ marginBottom: 8 }}
+        >
+          自动折算参考
+        </Button>
+        {!eventId && (
+          <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
+            保存事件后进入编辑模式，即可按固有分值折算现有风险参考
+          </div>
+        )}
+
+        {conversionError && (
+          <Alert
+            type="warning"
+            showIcon
+            message={conversionError}
+            style={{ marginBottom: 8 }}
+          />
+        )}
+
+        {conversionResult && (
+          <div
+            style={{
+              border: "1px solid #e8e8e8",
+              borderRadius: 6,
+              padding: 12,
+              marginBottom: 8,
+              background: "#fafafa",
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              折算参考结果
+            </div>
+            <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+              <div>
+                综合系数 factor：<strong>{conversionResult.factor}</strong>
+              </div>
+              <div>
+                参考分值：<strong>{conversionResult.reference_score ?? "-"}</strong>
+              </div>
+              <div>
+                参考等级：
+                <Tag color={RISK_LEVEL_COLORS[conversionResult.reference_level ?? ""] ?? "#999"}>
+                  {conversionResult.reference_level ?? "-"}
+                </Tag>
+              </div>
+              {conversionResult.note && (
+                <div style={{ color: "#999" }}>{conversionResult.note}</div>
+              )}
+            </div>
+            <Button
+              type="primary"
+              size="small"
+              style={{ marginTop: 8 }}
+              onClick={handleAdoptConversion}
+            >
+              采用为现有风险
+            </Button>
+          </div>
+        )}
+
         {/* ─── Section 3: Rating Preview ───────────────────────── */}
         {(methodType === "LS" || methodType === "COAL_LS" || methodType === "LEC") && (
           <>
             <Divider  plain style={{ fontSize: 13 }}>等级预览</Divider>
+
+            {adoptedRef && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={`现有风险（折算采用）：${adoptedRef.score || "-"} / ${adoptedRef.level}`}
+                description="保存后以后端按现有参数计算为准；可继续调整参数覆盖，或点击取消恢复按参数预览。"
+                action={<Button size="small" onClick={() => setAdoptedRef(null)}>取消采用</Button>}
+              />
+            )}
 
             {riskResult && (
               <div style={{ marginBottom: 16 }}>

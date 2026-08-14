@@ -10,7 +10,30 @@ export const createMethod = (eid: string, data: { method_type: string; name: str
 export const updateMethod = (eid: string, mid: string, data: Partial<{ name: string; config: MethodConfig; is_active: boolean }>) => api.put<ApiResponse<RiskAssessmentMethod>>(`${BASE(eid)}/methods/${mid}`, data).then(r => r.data.data);
 export const deleteMethod = (eid: string, mid: string) => api.delete(`${BASE(eid)}/methods/${mid}`);
 export const duplicateMethod = (eid: string, mid: string) => api.post<ApiResponse<RiskAssessmentMethod>>(`${BASE(eid)}/methods/${mid}/duplicate`).then(r => r.data.data);
-export const previewMethod = (eid: string, method_id: string, params: Record<string, number>) => api.post<ApiResponse<{risk_level:string;risk_score:string;action:string}>>(`${BASE(eid)}/methods/preview`, { method_id, params }).then(r => r.data.data);
+export interface RiskMethodPreviewPayload {
+  method_id: string;
+  params: Record<string, number>;
+  scenario?: "inherent" | "current";
+}
+export interface RiskMethodPreviewResult {
+  risk_level: string;
+  risk_score: string;
+  action: string;
+  scenario?: string;
+}
+export interface RiskConversionReference {
+  factor: number;
+  reference_score: number | null;
+  reference_level: string | null;
+  note?: string;
+}
+export const previewRiskMethod = (eid: string, payload: RiskMethodPreviewPayload) =>
+  api.post<ApiResponse<RiskMethodPreviewResult>>(`${BASE(eid)}/methods/preview`, payload).then(r => r.data.data);
+/** 兼容旧签名：previewMethod(eid, method_id, params) */
+export const previewMethod = (eid: string, method_id: string, params: Record<string, number>) =>
+  previewRiskMethod(eid, { method_id, params });
+export const previewRiskConversion = (eid: string, eventId: string) =>
+  api.get<ApiResponse<RiskConversionReference>>(`${BASE(eid)}/events/${eventId}/conversion-reference`).then(r => r.data.data);
 
 export const listZones = (eid: string) => api.get<ApiResponse<RiskZone[]>>(`${BASE(eid)}/zones`).then(r => r.data.data);
 export const createZone = (eid: string, data: RiskZoneCreate) => api.post<ApiResponse<RiskZone>>(`${BASE(eid)}/zones`, data).then(r => r.data.data);

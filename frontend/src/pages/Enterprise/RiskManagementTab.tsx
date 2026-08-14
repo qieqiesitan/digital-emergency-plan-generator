@@ -49,6 +49,9 @@ interface ZoneFormValues {
   chemical_id?: string | null;
   method_type?: string;
   method_params?: Record<string, number>;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
   measure_category?: string;
   check_items?: CheckItem[];
 }
@@ -268,6 +271,9 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
             description: values.description || "",
             method_type: (values.method_type || "LS") as MethodType,
             method_params: values.method_params || {},
+            inherent_risk_level: values.inherent_risk_level ?? null,
+            inherent_risk_score: values.inherent_risk_score ?? null,
+            control_level: values.control_level ?? null,
             chemical_id: values.chemical_id ?? null,
           };
           if (form.id) {
@@ -364,7 +370,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
        {form.type === "unit" && <RiskUnitForm key={`unit-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} />}
        {form.type === "event" && (() => {
          const pInfo = hierarchyMap[form.parentId || ""] || {};
-         return <RiskEventForm key={`event-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} zoneName={pInfo.zone?.name} objectName={pInfo.object?.name} unitName={pInfo.unit?.name} />;
+        return <RiskEventForm key={`event-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} eventId={form.id} zoneName={pInfo.zone?.name} objectName={pInfo.object?.name} unitName={pInfo.unit?.name} />;
        })()}
        {form.type === "measure" && <RiskMeasureForm key={`measure-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} />}
  
