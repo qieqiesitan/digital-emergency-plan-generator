@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from io import BytesIO
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +17,7 @@ from app.schemas.enterprise_org import (
     MemberUpdate,
     OrgTreeUpdate,
 )
-from app.services.enterprise_org_service import sync_org_structure, validate_org_tree
+from app.services.enterprise_org_service import parse_member_rows, sync_org_structure, validate_org_tree
 
 router = APIRouter(prefix="/enterprises/{enterprise_id}/org", tags=["Enterprise Org"])
 
@@ -54,6 +57,46 @@ async def _get_member(enterprise_id: str, member_id: str, db: AsyncSession) -> E
     if not member:
         raise HTTPException(404, "成员不存在")
     return member
+
+
+def _next_org_node_id(nodes: list) -> str:
+    """生成不与现有节点冲突的 node-<n> 短 id（对齐 normalize_org_nodes 规则）。"""
+    existing = {n.get("id") for n in nodes if isinstance(n, dict)}
+    i = 1
+    while f"node-{i}" in existing:
+        i += 1
+    return f"node-{i}"
+
+
+def _find_or_create_org_node(nodes: list, node_type: str, name: str, parent_id: str | None) -> str | None:
+    """按名称在同层查找节点，找不到则创建（id 复用 normalize 短 id 规则）。"""
+    if not name:
+        return None
+    for n in nodes:
+        if (
+            isinstance(n, dict)
+            and n.get("type") == node_type
+            and n.get("name") == name
+            and n.get("parent_id") == parent_id
+        ):
+            return n["id"]
+    node_id = _next_org_node_id(nodes)
+    nodes.append({"id": node_id, "type": node_type, "name": name, "parent_id": parent_id, "members": []})
+    return node_id
+
+
+def _build_org_path(node_id: str | None, nodes: dict) -> str:
+    """沿 parent_id 从节点向上拼 部门/班组 路径（无节点时为空串）。"""
+    if not node_id or node_id not in nodes:
+        return ""
+    parts = []
+    cur = node_id
+    seen = set()
+    while cur and cur in nodes and cur not in seen:
+        seen.add(cur)
+        parts.append(nodes[cur].get("name", ""))
+        cur = nodes[cur].get("parent_id")
+    return "/".join(reversed([p for p in parts if p]))
 
 
 @router.get("/nodes", response_model=ApiResponse[list])
@@ -180,6 +223,101 @@ async def list_members(
             role=m.role,
             enabled=m.enabled,
         )
+        for m, u in rows
+    ]
+    return ApiResponse(data=items)
+
+
+@router.post("/members/import")
+async def import_members(
+    enterprise_id: str,
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Excel 批量导入成员：按邮箱绑定已有账号，部门/班组名查或建节点。"""
+    ent = await _get_owned_ent(enterprise_id, current_user.id, db)
+    content = await file.read()
+    wb = load_workbook(BytesIO(content), data_only=True)
+    ws = wb.active
+    headers = [c.value for c in ws[1]]
+    raw_rows: list[tuple[int, dict]] = []
+    for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if row is None or all(v is None or str(v).strip() == "" for v in row):
+            continue
+        raw_rows.append((idx, dict(zip(headers, row))))
+
+    parsed = parse_member_rows([r for _, r in raw_rows])
+    imported = 0
+    skipped = 0
+    errors: list[dict] = []
+    imported_user_ids: set[str] = set()
+    nodes = list(ent.org_structure or [])
+    for (row_num, _), item in zip(raw_rows, parsed):
+        if item.get("error"):
+            errors.append({"row": row_num, "reason": item["error"]})
+            continue
+        user = (await db.execute(select(User).where(User.email == item["email"]))).scalar_one_or_none()
+        if not user:
+            errors.append({"row": row_num, "reason": f"用户不存在: {item['email']}"})
+            continue
+        # 文件内重复邮箱：提交前 DB 查询看不到本批未 flush 的成员，需请求内去重
+        if user.id in imported_user_ids:
+            skipped += 1
+            continue
+        exists = (await db.execute(
+            select(EnterpriseMember.id).where(
+                EnterpriseMember.enterprise_id == enterprise_id,
+                EnterpriseMember.user_id == user.id,
+            )
+        )).first()
+        if exists:
+            skipped += 1
+            continue
+        dept_id = _find_or_create_org_node(nodes, "dept", item["department"], None)
+        team_id = _find_or_create_org_node(nodes, "team", item["team"], dept_id) if item["team"] else None
+        db.add(EnterpriseMember(
+            enterprise_id=enterprise_id,
+            user_id=user.id,
+            org_node_id=team_id or dept_id,
+            position=item["position"] or None,
+            role=item["role"],
+        ))
+        imported += 1
+        imported_user_ids.add(user.id)
+
+    ent.org_structure = nodes
+    await db.commit()
+    return ApiResponse(data={"imported": imported, "skipped": skipped, "errors": errors})
+
+
+@router.get("/members/available", response_model=ApiResponse[list])
+async def get_available_members(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """返回启用成员（含 org_path），供隐患模块责任人选择器复用。"""
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    rows = (await db.execute(
+        select(EnterpriseMember, User)
+        .join(User, User.id == EnterpriseMember.user_id)
+        .where(
+            EnterpriseMember.enterprise_id == enterprise_id,
+            EnterpriseMember.enabled.is_(True),
+        )
+        .order_by(EnterpriseMember.created_at)
+    )).all()
+    nodes = {n.get("id"): n for n in (ent.org_structure or []) if isinstance(n, dict)}
+    items = [
+        {
+            "id": m.id,
+            "name": u.name,
+            "email": u.email,
+            "role": m.role,
+            "position": m.position,
+            "org_path": _build_org_path(m.org_node_id, nodes),
+        }
         for m, u in rows
     ]
     return ApiResponse(data=items)

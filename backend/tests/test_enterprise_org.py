@@ -1,3 +1,5 @@
+import io
+
 from app.models.enterprise_org import EnterpriseMember
 from unittest.mock import AsyncMock, MagicMock
 
@@ -10,7 +12,14 @@ from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise
 from app.models.user import User
 from app.routers import enterprise_org
-from app.services.enterprise_org_service import validate_org_tree, sync_org_structure, normalize_org_nodes
+from app.services.enterprise_org_service import (
+    ROLE_LABEL_MAP,
+    build_member_import_template,
+    normalize_org_nodes,
+    parse_member_rows,
+    sync_org_structure,
+    validate_org_tree,
+)
 from app.schemas.enterprise_org import OrgMember as OrgMemberSchema, OrgNode as OrgNodeSchema
 
 
@@ -424,3 +433,250 @@ def test_members_get_joins_email_and_name(client):
     assert item["position"] == "班组长"
     assert item["role"] == "team_leader"
     assert item["enabled"] is True
+
+
+# ── Excel 导入 + 责任人选择器（任务 4） ──
+
+def _import_xlsx_bytes(rows):
+    """用模板生成 xlsx 字节：rows 为表头后的数据行列表。"""
+    wb = build_member_import_template()
+    ws = wb.active
+    for r in rows:
+        ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+# ── 服务层：模板 + 解析 ──
+
+def test_build_member_import_template_has_headers_and_role_dropdown():
+    wb = build_member_import_template()
+    ws = wb.active
+    assert [ws.cell(row=1, column=c).value for c in range(1, 7)] == ["姓名", "邮箱", "部门", "班组", "岗位", "角色"]
+    dvs = ws.data_validations.dataValidation
+    assert dvs
+    assert any("企业管理员" in (dv.formula1 or "") and "班组长" in (dv.formula1 or "") and "员工" in (dv.formula1 or "")
+               for dv in dvs)
+
+
+def test_parse_member_rows_ok():
+    rows = [{"姓名": "张三", "邮箱": "zhang@x.com", "部门": "生产部", "班组": "甲班", "岗位": "班组长", "角色": "班组长"}]
+    parsed = parse_member_rows(rows)
+    assert parsed[0]["name"] == "张三"
+    assert parsed[0]["email"] == "zhang@x.com"
+    assert parsed[0]["department"] == "生产部"
+    assert parsed[0]["team"] == "甲班"
+    assert parsed[0]["position"] == "班组长"
+    assert parsed[0]["role"] == "team_leader"
+    assert "error" not in parsed[0]
+
+
+def test_parse_member_rows_role_mapping():
+    assert ROLE_LABEL_MAP == {"企业管理员": "enterprise_admin", "班组长": "team_leader", "员工": "member"}
+    rows = [
+        {"姓名": "张三", "邮箱": "zhang@x.com", "角色": "企业管理员"},
+        {"姓名": "李四", "邮箱": "li@x.com", "角色": "班组长"},
+        {"姓名": "王五", "邮箱": "wang@x.com", "角色": "员工"},
+        {"姓名": "赵六", "邮箱": "zhao@x.com", "角色": "未知角色"},
+        {"姓名": "孙七", "邮箱": "sun@x.com", "角色": ""},
+    ]
+    parsed = parse_member_rows(rows)
+    assert [p["role"] for p in parsed] == ["enterprise_admin", "team_leader", "member", "member", "member"]
+
+
+def test_parse_member_rows_missing_email_error():
+    parsed = parse_member_rows([{"姓名": "张三", "邮箱": "  ", "角色": "班组长"}])
+    assert parsed[0]["email"] == ""
+    assert parsed[0]["error"] == "邮箱必填"
+    assert parsed[0]["role"] == "team_leader"
+
+
+def test_parse_member_rows_invalid_email_error():
+    parsed = parse_member_rows([{"姓名": "张三", "邮箱": "zhangx.com", "角色": "员工"}])
+    assert "邮箱格式" in parsed[0]["error"]
+    assert parsed[0]["role"] == "member"
+
+
+# ── POST /members/import ──
+
+def test_members_import_success_creates_nodes_and_member(client):
+    ent = _org_ent(org_structure=[])
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, user=user, member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    content = _import_xlsx_bytes([
+        ["张三", "zhang@x.com", "生产部", "甲班", "班组长", "班组长"],
+    ])
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", content, _XLSX_MIME)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 1
+    assert data["skipped"] == 0
+    assert data["errors"] == []
+    # org_structure 按部门/班组名创建节点，id 复用 normalize 短 id 规则
+    dept = ent.org_structure[0]
+    assert dept["name"] == "生产部"
+    assert dept["type"] == "dept"
+    assert dept["id"].startswith("node-")
+    team = next(n for n in ent.org_structure if n["type"] == "team")
+    assert team["name"] == "甲班"
+    assert team["parent_id"] == dept["id"]
+    added = [c.args[0] for c in db.add.call_args_list if isinstance(c.args[0], EnterpriseMember)]
+    assert len(added) == 1
+    assert added[0].user_id == "u2"
+    assert added[0].role == "team_leader"
+    assert added[0].org_node_id == team["id"]
+    db.commit.assert_awaited()
+
+
+def test_members_import_user_not_found_error_row(client):
+    ent = _org_ent(org_structure=[])
+    db = _org_db(ent, user=None, member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    content = _import_xlsx_bytes([
+        ["张三", "nobody@x.com", "生产部", "甲班", "班组长", "班组长"],
+    ])
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", content, _XLSX_MIME)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 0
+    assert len(data["errors"]) == 1
+    assert data["errors"][0]["row"] == 2
+    assert "用户不存在" in data["errors"][0]["reason"]
+    db.commit.assert_awaited()
+
+
+def test_members_import_duplicate_skipped(client):
+    ent = _org_ent(org_structure=[])
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, user=user, member=_org_member(user_id="u2"))
+    client.app.dependency_overrides[get_db] = lambda: db
+    content = _import_xlsx_bytes([
+        ["张三", "zhang@x.com", "生产部", "甲班", "班组长", "班组长"],
+    ])
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", content, _XLSX_MIME)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 0
+    assert data["skipped"] == 1
+    assert data["errors"] == []
+    db.commit.assert_awaited()
+
+
+def test_members_import_duplicate_email_within_file_skipped(client):
+    # 文件内重复邮箱：请求内去重（提交前 DB 查不到本批未 flush 成员）
+    ent = _org_ent(org_structure=[])
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, user=user, member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    content = _import_xlsx_bytes([
+        ["张三", "zhang@x.com", "生产部", "甲班", "班组长", "班组长"],
+        ["张三", "zhang@x.com", "生产部", "甲班", "班组长", "班组长"],
+    ])
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", content, _XLSX_MIME)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 1
+    assert data["skipped"] == 1
+    assert data["errors"] == []
+    db.commit.assert_awaited()
+
+
+def test_members_import_invalid_email_error_row(client):
+    ent = _org_ent(org_structure=[])
+    db = _org_db(ent, user=None, member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    content = _import_xlsx_bytes([
+        ["张三", "bad-email", "生产部", "甲班", "班组长", "班组长"],
+    ])
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", content, _XLSX_MIME)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 0
+    assert len(data["errors"]) == 1
+    assert data["errors"][0]["row"] == 2
+    assert "邮箱" in data["errors"][0]["reason"]
+    db.commit.assert_awaited()
+
+
+def test_members_import_non_owner_403(client):
+    ent = _org_ent(user_id="u2", org_structure=[])
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    content = _import_xlsx_bytes([
+        ["张三", "zhang@x.com", "生产部", "甲班", "班组长", "班组长"],
+    ])
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", content, _XLSX_MIME)},
+    )
+    assert resp.status_code == 403
+
+
+# ── GET /members/available ──
+
+def test_members_available_returns_enabled_with_org_path(client):
+    tree = [
+        {"id": "d1", "type": "dept", "name": "生产部", "parent_id": None, "members": []},
+        {"id": "t1", "type": "team", "name": "甲班", "parent_id": "d1", "members": []},
+    ]
+    ent = _org_ent(org_structure=tree)
+    member = _org_member(user_id="u2", org_node_id="t1", position="班组长", role="team_leader", enabled=True)
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, member_rows=[(member, user)])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/org/members/available")
+    assert resp.status_code == 200
+    items = resp.json()["data"]
+    assert len(items) == 1
+    item = items[0]
+    assert item["id"] == "m1"
+    assert item["name"] == "张三"
+    assert item["email"] == "zhang@x.com"
+    assert item["role"] == "team_leader"
+    assert item["position"] == "班组长"
+    assert item["org_path"] == "生产部/甲班"
+
+
+def test_members_available_filters_enabled_and_missing_node_path(client):
+    ent = _org_ent(org_structure=[])
+    member = _org_member(user_id="u2", org_node_id=None, position="安全员", role="member", enabled=True)
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, member_rows=[(member, user)])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/org/members/available")
+    assert resp.status_code == 200
+    items = resp.json()["data"]
+    assert len(items) == 1
+    assert items[0]["org_path"] == ""
+    # SQL 层带 enabled 过滤（停用成员不被选中）
+    stmts = [str(c.args[0]) for c in db.execute.call_args_list]
+    members_stmt = next(s for s in stmts if "FROM enterprise_members" in s and "JOIN users" in s)
+    assert "enabled" in members_stmt
+
+
+def test_members_available_non_owner_read_404(client):
+    # 读路径沿用现有语义：当前无成员归属关系，非企业主视为企业不存在 → 404
+    ent = _org_ent(user_id="u2", org_structure=[])
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    resp = client.get("/enterprises/e1/org/members/available")
+    assert resp.status_code == 404
+    assert "企业不存在" in resp.json()["detail"]

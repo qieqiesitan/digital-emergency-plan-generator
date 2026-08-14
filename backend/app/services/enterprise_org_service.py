@@ -1,4 +1,16 @@
+import re
+
+from openpyxl import Workbook
+from openpyxl.worksheet.datavalidation import DataValidation
+
+
 ORG_TYPES = {"dept", "team", "position"}
+
+ROLE_LABEL_MAP = {"企业管理员": "enterprise_admin", "班组长": "team_leader", "员工": "member"}
+
+IMPORT_HEADERS = ["姓名", "邮箱", "部门", "班组", "岗位", "角色"]
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def validate_org_tree(nodes: list) -> list[str]:
@@ -47,5 +59,42 @@ def normalize_org_nodes(nodes: list) -> list:
         if not item.get("id"):
             item["id"] = f"node-{i + 1}"
         item.setdefault("members", [])
+        out.append(item)
+    return out
+
+
+def build_member_import_template() -> Workbook:
+    """openpyxl 模板：表头 姓名/邮箱/部门/班组/岗位/角色；角色列数据校验下拉。"""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "成员导入"
+    ws.append(IMPORT_HEADERS)
+    dv = DataValidation(type="list", formula1='"企业管理员,班组长,员工"', allow_blank=True)
+    ws.add_data_validation(dv)
+    dv.add("F2:F1000")
+    return wb
+
+
+def parse_member_rows(rows: list[dict]) -> list[dict]:
+    """rows 为 {列名: 值}；邮箱必填且格式校验；角色映射 ROLE_LABEL_MAP（缺省 member）。
+
+    返回 [{name, email, department, team, position, role, error?}]。
+    """
+    out = []
+    for row in rows:
+        email = str(row.get("邮箱") or "").strip()
+        role = ROLE_LABEL_MAP.get(str(row.get("角色") or "").strip(), "member")
+        item = {
+            "name": str(row.get("姓名") or "").strip(),
+            "email": email,
+            "department": str(row.get("部门") or "").strip(),
+            "team": str(row.get("班组") or "").strip(),
+            "position": str(row.get("岗位") or "").strip(),
+            "role": role,
+        }
+        if not email:
+            item["error"] = "邮箱必填"
+        elif not _EMAIL_RE.match(email):
+            item["error"] = "邮箱格式不正确"
         out.append(item)
     return out
