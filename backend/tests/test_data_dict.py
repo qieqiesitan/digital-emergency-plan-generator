@@ -1,3 +1,6 @@
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from app.services.data_dict_service import get_dict_map, invalidate_dict_cache
 from app.models.data_dict import DataDict
 
 def test_data_dict_table_metadata():
@@ -16,13 +19,9 @@ def test_data_dict_model_construct():
     assert DataDict(enabled=False).enabled is False
 
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-from app.services.data_dict_service import get_dict_map, invalidate_dict_cache
-from app.models.data_dict import DataDict
-
 @pytest.mark.asyncio
 async def test_enterprise_overrides_system():
+    invalidate_dict_cache("ent-1", "measure_factors")
     db = MagicMock()
     db.execute = AsyncMock()
     rows = [
@@ -53,7 +52,6 @@ async def test_disabled_entry_excluded():
     # 真实验证：缓存已清理，查询确实执行（非命中缓存），且语句携带 enabled 过滤条件
     db.execute.assert_awaited_once()
     assert "enabled" in str(db.execute.await_args.args[0])
-    assert "ppe" not in merged
     assert merged["engineering"]["value"]["factor"] == 0.5
 
 

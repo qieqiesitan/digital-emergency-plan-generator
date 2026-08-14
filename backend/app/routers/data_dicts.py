@@ -7,7 +7,7 @@ from app.models.data_dict import DataDict
 from app.models.enterprise import Enterprise
 from app.models.user import User
 from app.schemas.common import ApiResponse
-from app.schemas.data_dict import DataDictCreate, DataDictUpdate
+from app.schemas.data_dict import DataDictCreate, DataDictResponse, DataDictUpdate
 from app.services.data_dict_service import invalidate_dict_cache
 
 router = APIRouter(tags=["Data Dicts"])
@@ -21,7 +21,7 @@ async def _get_enterprise(enterprise_id: str, user_id: str, db: AsyncSession) ->
     return ent
 
 
-@router.get("/settings/data-dicts", response_model=ApiResponse[list])
+@router.get("/settings/data-dicts", response_model=ApiResponse[list[DataDictResponse]])
 async def list_system_dicts(dict_type: str | None = None, _=Depends(require_admin), db=Depends(get_db)):
     stmt = select(DataDict).where(DataDict.enterprise_id.is_(None))
     if dict_type:
@@ -39,7 +39,7 @@ async def create_system_dict(body: DataDictCreate, _=Depends(require_admin), db=
     db.add(DataDict(**body.model_dump(), scope="system", is_system=True, enterprise_id=None))
     await db.commit()
     invalidate_dict_cache(dict_type=body.dict_type)
-    return ApiResponse(message="已创建")
+    return ApiResponse(data={}, message="已创建")
 
 
 @router.put("/settings/data-dicts/{dict_id}", response_model=ApiResponse)
@@ -47,14 +47,14 @@ async def update_system_dict(dict_id: str, body: DataDictUpdate, _=Depends(requi
     row = await db.get(DataDict, dict_id)
     if not row or row.enterprise_id is not None:
         raise HTTPException(404, "字典条目不存在")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    for k, v in body.model_dump(exclude_unset=True, exclude_none=True).items():
         setattr(row, k, v)
     await db.commit()
     invalidate_dict_cache(dict_type=row.dict_type)
-    return ApiResponse(message="已更新")
+    return ApiResponse(data={}, message="已更新")
 
 
-@router.get("/enterprises/{enterprise_id}/data-dicts", response_model=ApiResponse[list])
+@router.get("/enterprises/{enterprise_id}/data-dicts", response_model=ApiResponse[list[DataDictResponse]])
 async def list_enterprise_dicts(enterprise_id: str, dict_type: str | None = None,
                                 current_user: User = Depends(get_current_user), db=Depends(get_db)):
     await _get_enterprise(enterprise_id, current_user.id, db)
@@ -78,7 +78,7 @@ async def create_enterprise_dict(enterprise_id: str, body: DataDictCreate,
     db.add(DataDict(**body.model_dump(), scope="enterprise", enterprise_id=enterprise_id, is_system=False))
     await db.commit()
     invalidate_dict_cache(enterprise_id, body.dict_type)
-    return ApiResponse(message="已创建")
+    return ApiResponse(data={}, message="已创建")
 
 
 @router.put("/enterprises/{enterprise_id}/data-dicts/{dict_id}", response_model=ApiResponse)
@@ -87,11 +87,11 @@ async def update_enterprise_dict(enterprise_id: str, dict_id: str, body: DataDic
     row = await db.get(DataDict, dict_id)
     if not row or row.enterprise_id != enterprise_id:
         raise HTTPException(404, "企业字典条目不存在")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    for k, v in body.model_dump(exclude_unset=True, exclude_none=True).items():
         setattr(row, k, v)
     await db.commit()
     invalidate_dict_cache(enterprise_id, row.dict_type)
-    return ApiResponse(message="已更新")
+    return ApiResponse(data={}, message="已更新")
 
 
 @router.delete("/enterprises/{enterprise_id}/data-dicts/{dict_id}", response_model=ApiResponse)
@@ -103,11 +103,8 @@ async def delete_enterprise_dict(enterprise_id: str, dict_id: str,
     await db.delete(row)
     await db.commit()
     invalidate_dict_cache(enterprise_id, row.dict_type)
-    return ApiResponse(message="已删除（恢复系统默认）")
+    return ApiResponse(data={}, message="已删除（恢复系统默认）")
 
 
-def _serialize(r: DataDict) -> dict:
-    return {"id": r.id, "dict_type": r.dict_type, "code": r.code, "label": r.label,
-            "value": r.value, "scope": r.scope, "enterprise_id": r.enterprise_id,
-            "sort_order": r.sort_order, "enabled": r.enabled, "is_system": r.is_system,
-            "description": r.description}
+def _serialize(r: DataDict) -> DataDictResponse:
+    return DataDictResponse.model_validate(r)
