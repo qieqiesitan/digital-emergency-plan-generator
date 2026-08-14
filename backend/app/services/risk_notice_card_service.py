@@ -24,6 +24,15 @@ def compute_level(events: list[RiskEvent]) -> str:
     return "未评估"
 
 
+def compute_inherent_level(events: list[RiskEvent]) -> str | None:
+    """取事件固有等级最大值（按 LEVEL_ORDER 严重度排序），无固有等级返回 None。"""
+    levels = {e.inherent_risk_level for e in events if e.inherent_risk_level}
+    for level in LEVEL_ORDER:
+        if level in levels:
+            return level
+    return None
+
+
 def resolve_responsible(obj: RiskObject, ent: Enterprise) -> tuple[str, str, str, bool]:
     if obj.responsible_unit or obj.responsible_person or obj.contact_phone:
         return (
@@ -219,6 +228,7 @@ async def build_card_data(
         name=obj.name,
         code=compute_code(objects, obj),
         level=level,
+        inherent_risk_level=compute_inherent_level(events),
         level_color=LEVEL_COLORS.get(level, "#bfbfbf"),
         responsible_unit=unit,
         responsible_person=person,

@@ -33,6 +33,7 @@ export interface CardData extends RightColumn {
   name: string;
   code: string;
   level: string;
+  inherent_risk_level?: string | null;
   level_color: string;
   responsible_unit: string;
   responsible_person: string;

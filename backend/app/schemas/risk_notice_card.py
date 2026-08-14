@@ -21,6 +21,7 @@ class CardData(RightColumn):
     name: str
     code: str
     level: str
+    inherent_risk_level: str | None = None
     level_color: str
     responsible_unit: str
     responsible_person: str
