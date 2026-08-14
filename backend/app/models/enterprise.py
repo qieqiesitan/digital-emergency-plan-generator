@@ -65,6 +65,11 @@ class Enterprise(Base):
     gis_lng: Mapped[Optional[float]] = mapped_column(Float)
     # 风险分级管控：公开风险页面 token
     public_risk_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # 隐患排查治理（B 规格 §5.11）：闭环模式（standard/strict）、公开公示/扫码上报 token、扩展配置
+    hazard_closure_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="standard")
+    hazard_public_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    hazard_report_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    hazard_config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
