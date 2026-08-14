@@ -123,6 +123,24 @@ def test_match_signs_vehicle_and_boiler():
     assert any(s["name"] == "紧急出口" for s in boiler)
 
 
+def test_match_signs_fallback_is_generic_only():
+    """未匹配事故类型（自定义）只用通用疏散提示，不配生产性防护标志。"""
+    for accident_type in ("踩踏/人员伤害", "人员滑倒/摔伤", "设备损坏/数据丢失", "食物中毒"):
+        signs = match_signs([accident_type])
+        names = [s["name"] for s in signs]
+        assert names, accident_type  # 非空（通用疏散提示）
+        for bad in ("必须戴安全帽", "当心机械伤人", "禁止烟火"):
+            assert bad not in names, f"{accident_type} 不应包含 {bad}"
+
+
+def test_match_signs_custom_fire_explosion_maps_to_fire():
+    """自定义「火灾爆炸」应映射到火灾组，而非兜底组。"""
+    signs = match_signs(["火灾爆炸"])
+    names = [s["name"] for s in signs]
+    assert "当心火灾" in names
+    assert "禁止烟火" in names
+
+
 def test_compute_code_increments():
     objs = [RiskObject(name="A"), RiskObject(name="B")]
     assert compute_code(objs, objs[1]) == "FX-002"

@@ -64,3 +64,11 @@ def test_boiler_explosion_group_has_no_static_instruction():
     assert "当心爆炸" in names
     assert "必须消除静电" not in names
     assert "紧急出口" in names
+
+
+def test_other_injury_group_has_no_production_ppe():
+    """其他伤害/兜底组不应含安全帽、机械伤人、禁止烟火等生产性防护标志。"""
+    names = [s["name"] for s in SIGN_GROUPS["其他伤害"]]
+    assert "紧急出口" in names
+    for bad in ("必须戴安全帽", "当心机械伤人", "禁止烟火"):
+        assert bad not in names, f"其他伤害组不应包含 {bad}"

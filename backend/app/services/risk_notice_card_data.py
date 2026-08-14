@@ -53,11 +53,16 @@ SIGN_GROUPS: dict[str, list[dict]] = {
                  I("必须消除静电", "instruction-eliminate-static")],
     "中毒和窒息": [W("当心中毒", "warning-poison"), W("当心窒息", "warning-suffocation"),
                     I("必须戴防毒面具", "instruction-gas-mask"), I("必须通风", "instruction-ventilate")],
-    "其他伤害": [W("当心机械伤人", "warning-machinery"), P("禁止烟火", "prohibition-smoking"),
-                 I("必须戴安全帽", "instruction-helmet"), N("紧急出口", "notice-exit")],
+    # 其他伤害/未匹配类型的兜底组：仅通用疏散提示，不配安全帽/机械伤人等生产性防护标志
+    "其他伤害": [N("紧急出口", "notice-exit")],
 }
 
 DEFAULT_SIGN_GROUP = list(SIGN_GROUPS["其他伤害"])
+
+# 自定义/非标准事故类型的合理映射（补充 GB 6441 20 类之外的常见表述）
+EXTRA_SIGN_GROUPS: dict[str, list[dict]] = {
+    "火灾爆炸": list(SIGN_GROUPS["火灾"]),
+}
 
 # 快照来源常量：AI 优化结果
 SOURCE_AI = "ai"

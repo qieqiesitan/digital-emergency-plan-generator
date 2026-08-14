@@ -9,7 +9,7 @@ from app.models.enterprise import Enterprise
 from app.models.risk_management import RiskObject, RiskUnit, RiskEvent, RiskMeasure
 from app.models.risk_notice_card import RiskNoticeCard
 from app.services.risk_notice_card_data import (
-    SIGN_GROUPS, DEFAULT_SIGN_GROUP, EMERGENCY_TEMPLATES,
+    SIGN_GROUPS, EXTRA_SIGN_GROUPS, DEFAULT_SIGN_GROUP, EMERGENCY_TEMPLATES,
     LEVEL_ORDER, LEVEL_COLORS, SIGN_CATEGORY_ORDER,
     DEFAULT_EMERGENCY_TEMPLATE, SOURCE_AI,
 )
@@ -113,7 +113,7 @@ def match_signs(accident_types: list[str]) -> list[dict]:
     merged: list[dict] = []
     seen: set[str] = set()
     for at in accident_types:
-        group = SIGN_GROUPS.get(at, DEFAULT_SIGN_GROUP)
+        group = EXTRA_SIGN_GROUPS.get(at) or SIGN_GROUPS.get(at, DEFAULT_SIGN_GROUP)
         for s in group:
             if s["svg_name"] not in seen:
                 seen.add(s["svg_name"])
