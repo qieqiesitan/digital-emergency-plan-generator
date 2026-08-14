@@ -20,6 +20,14 @@ def validate_dual_level(current_level: str | None, inherent_level: str | None) -
         raise ValueError("现有风险等级不应高于固有风险等级")
 
 
+def level_from_score(method_type: str, score: float, thresholds: list[dict]) -> str:
+    """按阈值区间将分值映射为风险等级，未命中时兜底为“低”。"""
+    for t in thresholds or []:
+        if t["min"] <= score <= t["max"]:
+            return t["level"]
+    return "低"
+
+
 @dataclass
 class RiskResult:
     """风险评估计算结果。
