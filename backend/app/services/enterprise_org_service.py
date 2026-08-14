@@ -4,9 +4,12 @@ ORG_TYPES = {"dept", "team", "position"}
 def validate_org_tree(nodes: list) -> list[str]:
     """校验组织树：id 唯一、parent 存在（根为 None）、type 合法、members 为列表且 name 非空。返回错误列表。"""
     errors: list[str] = []
-    ids = [n.get("id") for n in nodes]
+    ids = [n.get("id") for n in nodes if isinstance(n, dict)]
     seen: set[str] = set()
     for i, n in enumerate(nodes):
+        if not isinstance(n, dict):
+            errors.append(f"节点 {i + 1} 必须是对象")
+            continue
         nid = n.get("id")
         if not nid:
             errors.append(f"节点 {i + 1} 缺少 id")
@@ -24,7 +27,9 @@ def validate_org_tree(nodes: list) -> list[str]:
             errors.append(f"节点 {nid} members 必须为数组")
         else:
             for m in members:
-                if not (m or {}).get("name"):
+                if not isinstance(m, dict):
+                    errors.append(f"节点 {nid} 存在非法成员")
+                elif not m.get("name"):
                     errors.append(f"节点 {nid} 存在无姓名成员")
     return errors
 
