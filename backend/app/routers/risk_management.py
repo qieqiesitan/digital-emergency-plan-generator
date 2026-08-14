@@ -17,6 +17,7 @@ from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodRespo
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config, validate_dual_level, COAL_LS_DEFAULT_THRESHOLDS
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
+from app.services.risk_dual_ai_service import suggest_dual_level
 from app.services.risk_source_migration_service import (
     build_migration_preview,
     execute_migration as execute_risk_source_migration,
@@ -898,6 +899,37 @@ async def event_conversion_reference(enterprise_id: str, event_id: str,
     if event.method_type == "COAL_LS" and not thresholds:
         thresholds = COAL_LS_DEFAULT_THRESHOLDS
     result = conversion_reference(event.inherent_risk_score or "", factor_map, mode, thresholds, event.method_type)
+    return ApiResponse(data=result)
+
+
+@router.post("/events/{event_id}/ai-dual-level-suggestion", response_model=ApiResponse[dict])
+async def ai_dual_level_suggestion(enterprise_id: str, event_id: str,
+                                   current_user=Depends(get_current_user), db=Depends(get_db)):
+    """AI 双等级参数建议（文本通道）：按事件描述+管控措施文本给固有/现有参数与等级。
+
+    AI 失败/超时/未配置由服务兜底为 available:false，不阻塞表单操作。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
+    if not event:
+        raise HTTPException(404, "风险事件不存在")
+    # 归属校验：事件必须属于当前企业（事件经 object_id 或 unit_id 链归属对象，与 conversion-reference 一致）
+    owned_object = None
+    if event.object_id:
+        owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == event.object_id))).scalar_one_or_none()
+    elif event.unit_id:
+        unit = (await db.execute(select(RiskUnit).where(RiskUnit.id == event.unit_id))).scalar_one_or_none()
+        if unit:
+            owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == unit.object_id))).scalar_one_or_none()
+    if not owned_object or owned_object.enterprise_id != enterprise_id:
+        raise HTTPException(404, "风险事件不存在")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        # 系统未配置 AI 模型 → 由服务兜底返回 available:false
+        ai_config = None
+    measures_text = "；".join(f"{m.measure_category}:{m.description}" for m in (event.measures or []))
+    result = await suggest_dual_level(event.description or event.accident_type, measures_text, ai_config)
     return ApiResponse(data=result)
 
 # ── Measures ──

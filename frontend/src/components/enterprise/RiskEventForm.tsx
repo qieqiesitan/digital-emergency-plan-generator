@@ -7,7 +7,13 @@ import { RobotOutlined, CalculatorOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { computeRiskLS, computeRiskLEC, getCellClass, ACCIDENT_TYPES, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { buildEventPayload, DIRECT_LEVELS } from "@/utils/eventPayload";
-import { aiSuggestEvents, previewRiskConversion, type RiskConversionReference } from "@/services/riskManagementService";
+import {
+  aiSuggestEvents,
+  previewRiskConversion,
+  getAiDualLevelSuggestion,
+  type AiDualLevelSuggestion,
+  type RiskConversionReference,
+} from "@/services/riskManagementService";
 import { listChemicals } from "@/services/hazardousChemicalService";
 import type { MethodType, RiskEventFormValues } from "@/types/riskManagement";
 
@@ -137,6 +143,10 @@ export default function RiskEventForm({
   const [conversionResult, setConversionResult] = useState<RiskConversionReference | null>(null);
   const [conversionError, setConversionError] = useState("");
   const [adoptedRef, setAdoptedRef] = useState<{ level: string; score: string } | null>(null);
+  const [dualLoading, setDualLoading] = useState(false);
+  const [dualSuggestion, setDualSuggestion] = useState<AiDualLevelSuggestion | null>(null);
+  const [dualError, setDualError] = useState("");
+  const [adoptedInherent, setAdoptedInherent] = useState<{ level: string; score: string } | null>(null);
 
   const { data: chemicalsData } = useQuery({
     queryKey: ["chemicals", enterpriseId],
@@ -275,9 +285,52 @@ export default function RiskEventForm({
     message.success("已将折算参考填入现有风险，保存后生效；可继续调整参数覆盖");
   };
 
+  const handleAiDualLevel = async () => {
+    if (!eventId) {
+      message.warning("请先保存事件，再进入编辑模式使用 AI 建议参数");
+      return;
+    }
+    setDualLoading(true);
+    setDualSuggestion(null);
+    setDualError("");
+    try {
+      const result = await getAiDualLevelSuggestion(enterpriseId, eventId);
+      setDualSuggestion(result);
+    } catch (e) {
+      setDualError(
+        "AI 建议暂不可用：" + (e instanceof Error ? e.message : "请检查网络后重试"),
+      );
+    } finally {
+      setDualLoading(false);
+    }
+  };
+
+  const handleAdoptDual = () => {
+    const s = dualSuggestion;
+    const inherent = s?.inherent;
+    const current = s?.current;
+    if (!inherent?.risk_level || !current?.risk_level) {
+      message.warning("暂无可用 AI 建议");
+      return;
+    }
+    // 现有风险：沿用任务 5 折算参考的采用路径（显式等级/分值，保存后生效）
+    const currentScore = current.risk_score != null ? current.risk_score : "-";
+    if (methodType === "DIRECT") {
+      const matched = DIRECT_LEVELS.find((d) => d.label === current.risk_level);
+      if (matched) {
+        form.setFieldsValue({ method_params: { level: matched.value } });
+      }
+      form.setFieldsValue({ inherent_risk_level: inherent.risk_level });
+    }
+    setAdoptedRef({ level: current.risk_level, score: currentScore });
+    setAdoptedInherent({ level: inherent.risk_level, score: inherent.risk_score ?? "-" });
+    setDualSuggestion(null);
+    message.success("已填入 AI 建议的固有/现有等级，保存后生效；可继续调整参数覆盖");
+  };
+
   const handleFinish = (values: RiskEventFormValues) => {
     // payload 构建逻辑收敛到纯函数 eventPayload.buildEventPayload，便于单测覆盖
-    onSubmit(buildEventPayload(values, {
+    const payload = buildEventPayload(values, {
       isEdit,
       initialValues,
       methodType,
@@ -286,7 +339,14 @@ export default function RiskEventForm({
       adoptedRef,
       lValue, sValue, lecL, lecE, lecC,
       inherentL, inherentS, inherentLecL, inherentLecE, inherentLecC,
-    }));
+    });
+    // AI 建议采用：固有显式等级仅在「固有参数未改动」（payload 未携带计算值）时透传；
+    // 用户改动固有参数后以重新计算的等级为准
+    if (adoptedInherent && payload.inherent_risk_level == null) {
+      payload.inherent_risk_level = adoptedInherent.level;
+      payload.inherent_risk_score = adoptedInherent.score;
+    }
+    onSubmit(payload);
   };
 
   return (<>
@@ -388,8 +448,11 @@ export default function RiskEventForm({
             onChange={(val) => {
               setMethodType(val as MethodTypeKey);
               setAdoptedRef(null);
+              setAdoptedInherent(null);
               setConversionResult(null);
               setConversionError("");
+              setDualSuggestion(null);
+              setDualError("");
             }}
             options={[
               { value: "LS", label: "LS 矩阵" },
@@ -402,6 +465,17 @@ export default function RiskEventForm({
 
         {/* ─── Inherent risk (without controls) ──────────────── */}
         <Divider plain style={{ fontSize: 13 }}>固有风险（不考虑管控措施）</Divider>
+
+        {adoptedInherent && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={`固有风险（AI 建议采用）：${adoptedInherent.score || "-"} / ${adoptedInherent.level}`}
+            description="保存后生效；可继续调整固有参数覆盖，或点击取消恢复按参数预览。"
+            action={<Button size="small" onClick={() => setAdoptedInherent(null)}>取消采用</Button>}
+          />
+        )}
 
         {isEdit && initialValues?.inherent_risk_level && (
           <div style={{ marginBottom: 12, fontSize: 12, color: "#8c8c8c" }}>
@@ -654,20 +728,39 @@ export default function RiskEventForm({
           />
         </Form.Item>
 
-        <Button
-          icon={<CalculatorOutlined />}
-          onClick={handleConversionReference}
-          loading={conversionLoading}
-          disabled={!eventId}
-          block
-          style={{ marginBottom: 8 }}
-        >
-          自动折算参考
-        </Button>
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Button
+            icon={<CalculatorOutlined />}
+            onClick={handleConversionReference}
+            loading={conversionLoading}
+            disabled={!eventId}
+            block
+          >
+            自动折算参考
+          </Button>
+          <Button
+            icon={<RobotOutlined />}
+            onClick={handleAiDualLevel}
+            loading={dualLoading}
+            disabled={!eventId}
+            block
+          >
+            AI 建议参数
+          </Button>
+        </Space>
         {!eventId && (
           <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
-            保存事件后进入编辑模式，即可按固有分值折算现有风险参考
+            保存事件后进入编辑模式，即可使用自动折算参考或 AI 建议参数
           </div>
+        )}
+
+        {dualError && (
+          <Alert
+            type="warning"
+            showIcon
+            message={dualError}
+            style={{ marginBottom: 8 }}
+          />
         )}
 
         {conversionError && (
@@ -908,6 +1001,65 @@ export default function RiskEventForm({
         )}
         locale={{ emptyText: "暂无建议" }}
       />
+    </Modal>
+
+    <Modal
+      title="AI 双等级参数建议"
+      open={dualSuggestion !== null}
+      onCancel={() => setDualSuggestion(null)}
+      footer={
+        dualSuggestion?.available === false
+          ? <Button onClick={() => setDualSuggestion(null)}>关闭</Button>
+          : (
+            <Space>
+              <Button onClick={() => setDualSuggestion(null)}>关闭</Button>
+              <Button type="primary" onClick={handleAdoptDual}>采用建议</Button>
+            </Space>
+          )
+      }
+      width={560}
+    >
+      {dualSuggestion?.available === false && (
+        <Alert
+          type="warning"
+          showIcon
+          message={dualSuggestion.note || "AI 不可用"}
+          description="不阻塞保存：可继续手动评估，或使用自动折算参考获取现有风险参考。"
+        />
+      )}
+      {dualSuggestion?.available !== false && dualSuggestion?.inherent && dualSuggestion.current && (
+        <>
+          <Alert
+            type="info"
+            showIcon
+            message="以下为 AI 基于事件描述与管控措施的建议，采用后仍可修改，不会自动覆盖已填写内容"
+            style={{ marginBottom: 16 }}
+          />
+          <div style={{ fontSize: 13, lineHeight: 2 }}>
+            <div>
+              固有风险（不考虑管控）：
+              <Tag color={RISK_LEVEL_COLORS[dualSuggestion.inherent.risk_level ?? ""] ?? "#999"}>
+                {dualSuggestion.inherent.risk_level ?? "-"}
+              </Tag>
+              <span style={{ color: "#999", fontSize: 12 }}>
+                {dualSuggestion.inherent.risk_score ?? ""}
+              </span>
+            </div>
+            <div>
+              现有风险（考虑管控）：
+              <Tag color={RISK_LEVEL_COLORS[dualSuggestion.current.risk_level ?? ""] ?? "#999"}>
+                {dualSuggestion.current.risk_level ?? "-"}
+              </Tag>
+              <span style={{ color: "#999", fontSize: 12 }}>
+                {dualSuggestion.current.risk_score ?? ""}
+              </span>
+            </div>
+            {dualSuggestion.note && (
+              <div style={{ color: "#999" }}>建议理由：{dualSuggestion.note}</div>
+            )}
+          </div>
+        </>
+      )}
     </Modal>
   </>);
 }

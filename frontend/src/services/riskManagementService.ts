@@ -27,6 +27,13 @@ export interface RiskConversionReference {
   reference_level: string | null;
   note?: string;
 }
+/** AI 双等级参数建议（文本通道）：固有/现有等级与分值，available=false 时仅含降级 note。 */
+export interface AiDualLevelSuggestion {
+  available: boolean;
+  inherent?: { risk_level?: string | null; risk_score?: string | null };
+  current?: { risk_level?: string | null; risk_score?: string | null };
+  note?: string;
+}
 export const previewRiskMethod = (eid: string, payload: RiskMethodPreviewPayload) =>
   api.post<ApiResponse<RiskMethodPreviewResult>>(`${BASE(eid)}/methods/preview`, payload).then(r => r.data.data);
 /** 兼容旧签名：previewMethod(eid, method_id, params) */
@@ -34,6 +41,8 @@ export const previewMethod = (eid: string, method_id: string, params: Record<str
   previewRiskMethod(eid, { method_id, params });
 export const previewRiskConversion = (eid: string, eventId: string) =>
   api.get<ApiResponse<RiskConversionReference>>(`${BASE(eid)}/events/${eventId}/conversion-reference`).then(r => r.data.data);
+export const getAiDualLevelSuggestion = (eid: string, eventId: string) =>
+  api.post<ApiResponse<AiDualLevelSuggestion>>(`${BASE(eid)}/events/${eventId}/ai-dual-level-suggestion`).then(r => r.data.data);
 
 export const listZones = (eid: string) => api.get<ApiResponse<RiskZone[]>>(`${BASE(eid)}/zones`).then(r => r.data.data);
 export const createZone = (eid: string, data: RiskZoneCreate) => api.post<ApiResponse<RiskZone>>(`${BASE(eid)}/zones`, data).then(r => r.data.data);

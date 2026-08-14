@@ -1,11 +1,12 @@
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.database import get_db
@@ -15,6 +16,7 @@ from app.models.risk_management import RiskEvent, RiskUnit
 from app.routers import risk_management
 from app.services.risk_method_engine import validate_dual_level
 from app.services.risk_mapping_service import max_risk_level
+from app.services.risk_dual_ai_service import suggest_dual_level
 from app.schemas.risk_management import RiskEventCreate, RiskEventResponse, RiskEventUpdate
 
 
@@ -327,3 +329,174 @@ def test_create_event_explicit_risk_level_still_validates_dual_level(client, mon
 
     assert resp.status_code == 422
     assert "不应高于" in resp.json()["detail"]
+
+
+# ── AI 双等级参数建议（任务 11，文本通道，mock LLM） ──
+
+
+@pytest.mark.asyncio
+async def test_suggest_dual_level_ok():
+    fake = {"inherent": {"risk_level": "重大", "risk_score": "D=270"},
+            "current": {"risk_level": "一般", "risk_score": "D=21"}, "note": "报警器+联锁降低L"}
+    with patch("app.services.risk_dual_ai_service.llm_text_completion",
+               AsyncMock(return_value=json.dumps(fake, ensure_ascii=False))):
+        out = await suggest_dual_level("储罐区可燃气体泄漏，已配报警器与联锁", {}, None)
+    assert out["available"] is True
+    assert out["current"]["risk_level"] == "一般"
+    assert out["inherent"]["risk_score"] == "D=270"
+
+
+@pytest.mark.asyncio
+async def test_suggest_dual_level_fallback():
+    with patch("app.services.risk_dual_ai_service.llm_text_completion",
+               AsyncMock(side_effect=Exception("timeout"))):
+        out = await suggest_dual_level("描述", {}, None)
+    assert out["available"] is False
+    assert "AI 不可用" in out["note"]
+
+
+@pytest.mark.asyncio
+async def test_suggest_dual_level_missing_keys_fallback():
+    """AI 返回缺 inherent/current 键时同样兜底为 available:false。"""
+    with patch("app.services.risk_dual_ai_service.llm_text_completion",
+               AsyncMock(return_value=json.dumps({"inherent": {"risk_level": "重大"}}, ensure_ascii=False))):
+        out = await suggest_dual_level("描述", {}, None)
+    assert out["available"] is False
+
+
+def _ai_app(event, object_ent_id="e1"):
+    """AI 双等级建议端点测试专用 TestClient：按 SQL 文本路由 enterprise/event/object/unit。"""
+    app = FastAPI()
+    app.include_router(risk_management.router, prefix="/api/v1")
+
+    async def _db():
+        db = MagicMock()
+
+        async def execute(stmt, *a, **k):
+            res = MagicMock()
+            text = str(stmt)
+            if "risk_events" in text and "id =" in text:
+                res.scalar_one_or_none.return_value = event
+            elif "risk_objects" in text:
+                obj = MagicMock()
+                obj.id = "o1"
+                obj.enterprise_id = object_ent_id
+                res.scalar_one_or_none.return_value = obj
+            elif "risk_units" in text:
+                unit = MagicMock()
+                unit.id = "u1"
+                unit.object_id = "o1"
+                res.scalar_one_or_none.return_value = unit
+            elif "enterprises" in text:
+                ent = MagicMock()
+                ent.id = "e1"
+                ent.user_id = "u1"
+                res.scalar_one_or_none.return_value = ent
+            else:
+                res.scalar_one_or_none.return_value = None
+            return res
+
+        db.execute = AsyncMock(side_effect=execute)
+        db.get = AsyncMock(return_value=event)
+        return db
+
+    app.dependency_overrides[get_db] = _db
+    app.dependency_overrides[get_current_user] = lambda: MagicMock(id="u1")
+    return TestClient(app)
+
+
+def _measure(category: str, description: str):
+    m = MagicMock()
+    m.measure_category = category
+    m.description = description
+    return m
+
+
+def test_ai_dual_level_suggestion_endpoint_ok(monkeypatch):
+    """端点成功：组装事件描述+措施文本调用服务，透传 AI 建议结果。"""
+    event = RiskEvent(
+        id="ev1",
+        object_id="o1",
+        accident_type="火灾",
+        description="储罐区可燃气体泄漏",
+    )
+    event.measures = [
+        _measure("engineering", "安装报警器"),
+        _measure("emergency", "配置联锁"),
+    ]
+    client = _ai_app(event)
+    fake_config = MagicMock()
+    monkeypatch.setattr(risk_management, "_get_ai_config", AsyncMock(return_value=fake_config))
+    sugg = AsyncMock(
+        return_value={
+            "available": True,
+            "inherent": {"risk_level": "重大", "risk_score": "D=270"},
+            "current": {"risk_level": "一般", "risk_score": "D=21"},
+            "note": "报警器+联锁降低L",
+        }
+    )
+    monkeypatch.setattr(risk_management, "suggest_dual_level", sugg)
+
+    resp = client.post(
+        "/api/v1/enterprises/e1/risk-management/events/ev1/ai-dual-level-suggestion"
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["available"] is True
+    assert data["current"]["risk_level"] == "一般"
+    desc, measures_text, config = sugg.await_args.args
+    assert "储罐区可燃气体泄漏" in desc
+    assert "engineering:安装报警器" in measures_text
+    assert "emergency:配置联锁" in measures_text
+    assert config is fake_config
+
+
+def test_ai_dual_level_suggestion_cross_enterprise_404():
+    """事件属于其他企业时返回 404，不泄露 AI 建议。"""
+    event = RiskEvent(id="ev1", object_id="o1", accident_type="火灾")
+    event.measures = []
+    client = _ai_app(event, object_ent_id="e2")
+
+    resp = client.post(
+        "/api/v1/enterprises/e1/risk-management/events/ev1/ai-dual-level-suggestion"
+    )
+
+    assert resp.status_code == 404
+    assert "事件不存在" in resp.json()["detail"]
+
+
+def test_ai_dual_level_suggestion_missing_event_404():
+    client = _ai_app(None)
+
+    resp = client.post(
+        "/api/v1/enterprises/e1/risk-management/events/missing/ai-dual-level-suggestion"
+    )
+
+    assert resp.status_code == 404
+    assert "事件不存在" in resp.json()["detail"]
+
+
+def test_ai_dual_level_suggestion_degraded_keeps_200(monkeypatch):
+    """AI 不可用/未配置时端点仍 200，返回 available:false 降级文案，不阻塞表单。"""
+    event = RiskEvent(id="ev1", object_id="o1", accident_type="火灾", description="描述")
+    event.measures = []
+    client = _ai_app(event)
+    monkeypatch.setattr(
+        risk_management,
+        "_get_ai_config",
+        AsyncMock(side_effect=HTTPException(400, "系统未配置 AI 模型，请联系管理员")),
+    )
+    monkeypatch.setattr(
+        "app.services.risk_dual_ai_service.llm_text_completion",
+        AsyncMock(side_effect=Exception("timeout")),
+    )
+
+    resp = client.post(
+        "/api/v1/enterprises/e1/risk-management/events/ev1/ai-dual-level-suggestion"
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["available"] is False
+    assert "AI 不可用" in data["note"]
