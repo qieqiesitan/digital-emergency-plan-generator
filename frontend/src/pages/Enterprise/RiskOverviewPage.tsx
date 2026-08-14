@@ -12,11 +12,16 @@ import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import type { HierarchyZone } from "@/types/riskManagement";
 
 type ViewMode = "quad" | "floorplan" | "data";
+type ColorMode = "current" | "inherent";
 
 export default function RiskOverviewPage() {
   const { id: enterpriseId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>("quad");
+  const [colorMode, setColorMode] = useState<ColorMode>(() => {
+    const saved = localStorage.getItem("risk-overview-color-mode");
+    return saved === "inherent" ? "inherent" : "current";
+  });
   const [rightView, setRightView] = useState<"tree" | "topology">(() => (localStorage.getItem("risk-overview-right") as "tree" | "topology") || "tree");
   const [highlightZone, setHighlightZone] = useState<string | null>(null);
   const [treeSelectedKeys, setTreeSelectedKeys] = useState<React.Key[]>([]);
@@ -54,6 +59,14 @@ export default function RiskOverviewPage() {
     setTreeSelectedKeys([]);
   };
 
+  // 切换现有/固有模式 → 清理旧模式的选中/高亮残留
+  const handleColorModeChange = (mode: ColorMode) => {
+    setColorMode(mode);
+    setHighlightZone(null);
+    setTreeSelectedKeys([]);
+    localStorage.setItem("risk-overview-color-mode", mode);
+  };
+
   // Build compact tree
   const treeData = useMemo(() => zones.map(z => ({ title: <span>🏭 {z.name} {getMaxLevel(z) !== "低" && <Tag color={RISK_LEVEL_COLORS[getMaxLevel(z)]}>{getMaxLevel(z)}</Tag>}</span>, key: z.id, children: z.objects?.map(o => ({ title: <span>📦 {o.name}{o.is_risk_point ? " ◆" : ""}</span>, key: o.id, children: [...(o.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[e.risk_level||"低"]}>{e.risk_level||"?"}</Tag></span>, key: e.id, isLeaf: true })), ...(o.units||[]).map(u => ({ title: <span>⚙ {u.name}</span>, key: u.id, children: (u.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[e.risk_level||"低"]}>{e.risk_level||"?"}</Tag></span>, key: e.id, isLeaf: true })) }))] })) || [] })), [zones]);
 
@@ -77,6 +90,7 @@ export default function RiskOverviewPage() {
           options={floors.map(f => ({ label: f.name, value: f.id }))}
           onChange={handleFloorChange}
         />
+        <Segmented options={[{ label: "现有风险图", value: "current" }, { label: "固有风险图", value: "inherent" }]} value={colorMode} onChange={v => handleColorModeChange(v as ColorMode)} />
         <Segmented options={[{ label: "四象限", value: "quad" }, { label: "分布图优先", value: "floorplan" }, { label: "数据优先", value: "data" }]} value={viewMode} onChange={v => setViewMode(v as ViewMode)} />
       </Space>
       {zones.length === 0 ? (
@@ -93,10 +107,10 @@ export default function RiskOverviewPage() {
             style={{ overflow: "hidden", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 1) }}
             styles={{ body: { flex: 1, minHeight: 0, padding: 12, position: "relative", overflow: "hidden" } }}
           >
-            <RiskDistributionStage floorId={effectiveFloorId} highlightZone={highlightZone} onZoneClick={handleZoneClick} />
+            <RiskDistributionStage floorId={effectiveFloorId} highlightZone={highlightZone} onZoneClick={handleZoneClick} mode={colorMode} />
           </Card>
           {/* Q2: Risk Matrix */}
-          <Card size="small" title="② 风险矩阵热力图" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 2) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} /></Card>
+          <Card size="small" title="② 风险矩阵热力图" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 2) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} mode={colorMode} /></Card>
           {/* Q3: Stats */}
           {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 3) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewStats zones={zones} /></Card>}
           {/* Q4: Tree/Topology */}

@@ -23,7 +23,7 @@ import {
   toCanvasY,
   toPercent,
 } from "@/utils/riskMappingGeometry";
-import type { RiskPolygonPoint, RiskCanvasText } from "@/types/riskMappingWorkbench";
+import type { RiskPolygonPoint, RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
 import WorkbenchRiskPointLayer from "./WorkbenchRiskPointLayer";
 
@@ -79,7 +79,7 @@ const isEditableTarget = (target: Element | null) => {
   return tag === "INPUT" || tag === "TEXTAREA" || (target as HTMLElement).isContentEditable;
 };
 
-export default function WorkbenchCanvas() {
+export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?: "current" | "inherent" }) {
   const zones = useRiskMappingWorkbenchStore(s => s.zones);
   const pendingRegions = useRiskMappingWorkbenchStore(s => s.pendingRegions);
   const texts = useRiskMappingWorkbenchStore(s => s.texts);
@@ -142,6 +142,8 @@ export default function WorkbenchCanvas() {
   const [spacePressed, setSpacePressed] = useState(false);
   const canvasBoxRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const zoneColor = (z: WorkbenchZone) =>
+    colorMode === "inherent" ? (z.inherent_effective_color ?? z.effective_color) : z.effective_color;
 
   useEffect(() => {
     const url = floor?.floor_plan_url;
@@ -884,7 +886,7 @@ export default function WorkbenchCanvas() {
                       id={regionId}
                       points={pointsToKonva(p.points, canvasWidth, canvasHeight)}
                       closed
-                      fill={z.effective_color || "#d9d9d9"}
+                      fill={zoneColor(z) || "#d9d9d9"}
                       opacity={0.22}
                       stroke={selected ? "#1677ff" : "#ffffff"}
                       strokeWidth={selected ? 3.5 : 2.5}

@@ -178,6 +178,8 @@ export interface HierarchyZone {
   floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
   max_risk_level?: string | null;
   effective_color?: string | null;
+  inherent_max_level?: string | null;
+  inherent_effective_color?: string | null;
   objects: HierarchyObject[];
 }
 

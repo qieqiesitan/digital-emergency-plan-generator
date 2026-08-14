@@ -49,6 +49,8 @@ export interface WorkbenchZone {
   floor_plan_polygon: RiskZoneFloorPlanPolygon | null;
   max_risk_level: RiskLevel | null;
   effective_color: string | null;
+  inherent_max_level?: RiskLevel | null;
+  inherent_effective_color?: string | null;
   object_count: number;
   created_at: string;
   updated_at: string;
