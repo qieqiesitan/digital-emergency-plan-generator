@@ -336,14 +336,32 @@ def test_create_event_explicit_risk_level_still_validates_dual_level(client, mon
 
 @pytest.mark.asyncio
 async def test_suggest_dual_level_ok():
-    fake = {"inherent": {"risk_level": "重大", "risk_score": "D=270"},
-            "current": {"risk_level": "一般", "risk_score": "D=21"}, "note": "报警器+联锁降低L"}
+    fake = {"inherent": {"risk_level": "重大", "risk_score": "D=270",
+                         "params": {"l": 3, "e": 6, "c": 15}},
+            "current": {"risk_level": "一般", "risk_score": "D=21",
+                        "params": {"l": 1, "e": 3, "c": 7}},
+            "note": "报警器+联锁降低L"}
     with patch("app.services.risk_dual_ai_service.llm_text_completion",
                AsyncMock(return_value=json.dumps(fake, ensure_ascii=False))):
         out = await suggest_dual_level("储罐区可燃气体泄漏，已配报警器与联锁", {}, None)
     assert out["available"] is True
     assert out["current"]["risk_level"] == "一般"
     assert out["inherent"]["risk_score"] == "D=270"
+    assert out["inherent"]["params"] == {"l": 3, "e": 6, "c": 15}
+    assert out["current"]["params"] == {"l": 1, "e": 3, "c": 7}
+
+
+@pytest.mark.asyncio
+async def test_suggest_dual_level_params_default_empty():
+    """AI 未返回原始参数时服务补缺省空对象，随结果透传。"""
+    fake = {"inherent": {"risk_level": "重大", "risk_score": "D=270"},
+            "current": {"risk_level": "一般", "risk_score": "D=21"}, "note": "x"}
+    with patch("app.services.risk_dual_ai_service.llm_text_completion",
+               AsyncMock(return_value=json.dumps(fake, ensure_ascii=False))):
+        out = await suggest_dual_level("描述", {}, None)
+    assert out["available"] is True
+    assert out["inherent"]["params"] == {}
+    assert out["current"]["params"] == {}
 
 
 @pytest.mark.asyncio
@@ -430,8 +448,10 @@ def test_ai_dual_level_suggestion_endpoint_ok(monkeypatch):
     sugg = AsyncMock(
         return_value={
             "available": True,
-            "inherent": {"risk_level": "重大", "risk_score": "D=270"},
-            "current": {"risk_level": "一般", "risk_score": "D=21"},
+            "inherent": {"risk_level": "重大", "risk_score": "D=270",
+                         "params": {"l": 3, "e": 6, "c": 15}},
+            "current": {"risk_level": "一般", "risk_score": "D=21",
+                        "params": {"l": 1, "e": 3, "c": 7}},
             "note": "报警器+联锁降低L",
         }
     )
@@ -445,6 +465,8 @@ def test_ai_dual_level_suggestion_endpoint_ok(monkeypatch):
     data = resp.json()["data"]
     assert data["available"] is True
     assert data["current"]["risk_level"] == "一般"
+    assert data["inherent"]["params"] == {"l": 3, "e": 6, "c": 15}
+    assert data["current"]["params"] == {"l": 1, "e": 3, "c": 7}
     desc, measures_text, config = sugg.await_args.args
     assert "储罐区可燃气体泄漏" in desc
     assert "engineering:安装报警器" in measures_text

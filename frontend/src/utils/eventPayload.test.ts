@@ -127,6 +127,127 @@ describe("buildEventPayload", () => {
     expect(payload.risk_score).toBe("R=10");
   });
 
+  it("采用 AI 建议：DIRECT 无条件以建议固有等级/分值覆盖（既有等级已改动也覆盖）", () => {
+    const initialValues: RiskEventFormValues = {
+      accident_type: "火灾",
+      method_type: "DIRECT",
+      method_params: { risk_level: "重大" } as unknown as Record<string, number>,
+      risk_level: "重大",
+      inherent_risk_level: "重大",
+    };
+    const payload = buildEventPayload(
+      {
+        accident_type: "火灾",
+        method_type: "DIRECT",
+        method_params: { level: 4 },
+        inherent_risk_level: "较大",
+      },
+      {
+        ...baseOpts,
+        isEdit: true,
+        initialValues,
+        methodType: "DIRECT",
+        initialParams: { directLevel: 4 },
+        adoptedInherent: { level: "一般", score: "-" },
+      },
+    );
+
+    expect(payload.inherent_risk_level).toBe("一般");
+    expect(payload.inherent_risk_score).toBe("-");
+  });
+
+  it("采用 AI 建议：DIRECT 固有等级未改动时也显式携带建议等级/分值", () => {
+    const initialValues: RiskEventFormValues = {
+      accident_type: "火灾",
+      method_type: "DIRECT",
+      method_params: { risk_level: "重大" } as unknown as Record<string, number>,
+      risk_level: "重大",
+      inherent_risk_level: "重大",
+    };
+    const payload = buildEventPayload(
+      {
+        accident_type: "火灾",
+        method_type: "DIRECT",
+        method_params: { level: 4 },
+        inherent_risk_level: "重大",
+      },
+      {
+        ...baseOpts,
+        isEdit: true,
+        initialValues,
+        methodType: "DIRECT",
+        initialParams: { directLevel: 4 },
+        adoptedInherent: { level: "低", score: "-" },
+      },
+    );
+
+    expect(payload.inherent_risk_level).toBe("低");
+    expect(payload.inherent_risk_score).toBe("-");
+  });
+
+  it("采用 AI 建议：LS 固有参数未改动时透传建议固有等级/分值", () => {
+    const initialValues: RiskEventFormValues = {
+      accident_type: "火灾",
+      method_type: "LS",
+      method_params: { l: 4, s: 5 },
+      risk_level: "重大",
+      risk_score: "R=20",
+      inherent_params: { L: 4, S: 5 },
+      inherent_risk_level: "重大",
+      inherent_risk_score: "R=20",
+    };
+    const payload = buildEventPayload(
+      { accident_type: "火灾", method_type: "LS" },
+      {
+        ...baseOpts,
+        isEdit: true,
+        initialValues,
+        initialParams: { l: 4, s: 5 },
+        initialInherentParams: { L: 4, S: 5 },
+        lValue: 4,
+        sValue: 5,
+        inherentL: 4,
+        inherentS: 5,
+        adoptedInherent: { level: "一般", score: "R=10" },
+      },
+    );
+
+    expect(payload.inherent_risk_level).toBe("一般");
+    expect(payload.inherent_risk_score).toBe("R=10");
+  });
+
+  it("采用 AI 建议：LS 固有参数改动后以重算等级/分值优先（不透传建议值）", () => {
+    const initialValues: RiskEventFormValues = {
+      accident_type: "火灾",
+      method_type: "LS",
+      method_params: { l: 4, s: 5 },
+      risk_level: "重大",
+      risk_score: "R=20",
+      inherent_params: { L: 4, S: 5 },
+      inherent_risk_level: "重大",
+      inherent_risk_score: "R=20",
+    };
+    const payload = buildEventPayload(
+      { accident_type: "火灾", method_type: "LS" },
+      {
+        ...baseOpts,
+        isEdit: true,
+        initialValues,
+        initialParams: { l: 4, s: 5 },
+        initialInherentParams: { L: 4, S: 5 },
+        lValue: 4,
+        sValue: 5,
+        inherentL: 1,
+        inherentS: 1,
+        adoptedInherent: { level: "重大", score: "R=20" },
+      },
+    );
+
+    expect(payload.inherent_params).toEqual({ L: 1, S: 1 });
+    expect(payload.inherent_risk_level).toBe("低");
+    expect(payload.inherent_risk_score).toBe("R=1");
+  });
+
   it("DIRECT 固有等级显式清空时透传 null", () => {
     const initialValues: RiskEventFormValues = {
       accident_type: "火灾",

@@ -315,12 +315,44 @@ export default function RiskEventForm({
     }
     // 现有风险：沿用任务 5 折算参考的采用路径（显式等级/分值，保存后生效）
     const currentScore = current.risk_score != null ? current.risk_score : "-";
-    if (methodType === "DIRECT") {
-      const matched = DIRECT_LEVELS.find((d) => d.label === current.risk_level);
+    // 建议含原始参数时回填固有/现有参数输入（LS/COAL_LS: l/s；LEC: l/e/c；DIRECT: risk_level 文案）；
+    // 无 params 时保持现状（仅采用等级）
+    const pNum = (params: Record<string, number | string> | undefined, key: string): number | undefined => {
+      const v = params?.[key];
+      return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+    };
+    const ip = inherent.params;
+    const cp = current.params;
+    if (methodType === "LS" || methodType === "COAL_LS") {
+      const il = pNum(ip, "l");
+      const is = pNum(ip, "s");
+      const cl = pNum(cp, "l");
+      const cs = pNum(cp, "s");
+      if (il !== undefined && il >= 1 && il <= 5) setInherentL(il);
+      if (is !== undefined && is >= 1 && is <= 5) setInherentS(is);
+      if (cl !== undefined && cl >= 1 && cl <= 5) setLValue(cl);
+      if (cs !== undefined && cs >= 1 && cs <= 5) setSValue(cs);
+    } else if (methodType === "LEC") {
+      const il = pNum(ip, "l");
+      const ie = pNum(ip, "e");
+      const ic = pNum(ip, "c");
+      const cl = pNum(cp, "l");
+      const ce = pNum(cp, "e");
+      const cc = pNum(cp, "c");
+      if (il !== undefined && LEC_L_OPTIONS.some((o) => o.value === il)) setInherentLecL(il);
+      if (ie !== undefined && LEC_E_OPTIONS.some((o) => o.value === ie)) setInherentLecE(ie);
+      if (ic !== undefined && LEC_C_OPTIONS.some((o) => o.value === ic)) setInherentLecC(ic);
+      if (cl !== undefined && LEC_L_OPTIONS.some((o) => o.value === cl)) setLecL(cl);
+      if (ce !== undefined && LEC_E_OPTIONS.some((o) => o.value === ce)) setLecE(ce);
+      if (cc !== undefined && LEC_C_OPTIONS.some((o) => o.value === cc)) setLecC(cc);
+    } else if (methodType === "DIRECT") {
+      const inherentLabel = typeof ip?.risk_level === "string" ? ip.risk_level : inherent.risk_level;
+      form.setFieldsValue({ inherent_risk_level: inherentLabel });
+      const currentLabel = typeof cp?.risk_level === "string" ? cp.risk_level : current.risk_level;
+      const matched = DIRECT_LEVELS.find((d) => d.label === currentLabel);
       if (matched) {
         form.setFieldsValue({ method_params: { level: matched.value } });
       }
-      form.setFieldsValue({ inherent_risk_level: inherent.risk_level });
     }
     setAdoptedRef({ level: current.risk_level, score: currentScore });
     setAdoptedInherent({ level: inherent.risk_level, score: inherent.risk_score ?? "-" });
@@ -337,15 +369,10 @@ export default function RiskEventForm({
       initialParams,
       initialInherentParams,
       adoptedRef,
+      adoptedInherent,
       lValue, sValue, lecL, lecE, lecC,
       inherentL, inherentS, inherentLecL, inherentLecE, inherentLecC,
     });
-    // AI 建议采用：固有显式等级仅在「固有参数未改动」（payload 未携带计算值）时透传；
-    // 用户改动固有参数后以重新计算的等级为准
-    if (adoptedInherent && payload.inherent_risk_level == null) {
-      payload.inherent_risk_level = adoptedInherent.level;
-      payload.inherent_risk_score = adoptedInherent.score;
-    }
     onSubmit(payload);
   };
 

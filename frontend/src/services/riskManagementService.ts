@@ -27,11 +27,21 @@ export interface RiskConversionReference {
   reference_level: string | null;
   note?: string;
 }
-/** AI 双等级参数建议（文本通道）：固有/现有等级与分值，available=false 时仅含降级 note。 */
+/** AI 双等级参数建议（文本通道）：固有/现有等级与分值，available=false 时仅含降级 note。
+ *  params 为原始评价参数（LS/COAL_LS: l/s；LEC: l/e/c；DIRECT: risk_level 文案），
+ *  供采用时回填对应参数输入。 */
 export interface AiDualLevelSuggestion {
   available: boolean;
-  inherent?: { risk_level?: string | null; risk_score?: string | null };
-  current?: { risk_level?: string | null; risk_score?: string | null };
+  inherent?: {
+    risk_level?: string | null;
+    risk_score?: string | null;
+    params?: Record<string, number | string>;
+  };
+  current?: {
+    risk_level?: string | null;
+    risk_score?: string | null;
+    params?: Record<string, number | string>;
+  };
   note?: string;
 }
 export const previewRiskMethod = (eid: string, payload: RiskMethodPreviewPayload) =>
