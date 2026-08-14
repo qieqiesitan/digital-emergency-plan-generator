@@ -24,7 +24,8 @@ GB6441_ACCIDENT_TYPES = [
 # 事故类型 → 标志组（每个类别（警告/禁止/指令/提示）最多 2 个，顺序已符合 警告→禁止→指令→提示）
 SIGN_GROUPS: dict[str, list[dict]] = {
     "物体打击": [W("当心坠落物", "warning-falling-object"), I("必须戴安全帽", "instruction-helmet")],
-    "车辆伤害": [W("当心车辆", "warning-vehicle"), P("禁止通行", "prohibition-pass"), N("紧急出口", "notice-exit")],
+    # 车辆伤害发生在厂区道路/装卸区，安全出口标志与其无直接关联
+    "车辆伤害": [W("当心车辆", "warning-vehicle"), P("禁止通行", "prohibition-pass")],
     "机械伤害": [W("当心机械伤人", "warning-machinery"), I("必须戴防护手套", "instruction-gloves")],
     "起重伤害": [W("当心起重伤害", "warning-crane"), P("禁止站人", "prohibition-standing"), I("必须戴安全帽", "instruction-helmet")],
     "触电": [W("当心触电", "warning-electric"), P("禁止触摸", "prohibition-touch"),
@@ -44,7 +45,8 @@ SIGN_GROUPS: dict[str, list[dict]] = {
                  P("禁止动火作业", "prohibition-hot-work"), I("必须消除静电", "instruction-eliminate-static")],
     "瓦斯爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"),
                  I("必须消除静电", "instruction-eliminate-static"), I("必须穿防静电工作服", "instruction-anti-static-clothes")],
-    "锅炉爆炸": [W("当心爆炸", "warning-explosion"), I("必须消除静电", "instruction-eliminate-static")],
+    # 锅炉爆炸主因是超压/缺水/安全阀失效，与静电无关联；配疏散出口
+    "锅炉爆炸": [W("当心爆炸", "warning-explosion"), N("紧急出口", "notice-exit")],
     "容器爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"),
                  I("必须消除静电", "instruction-eliminate-static")],
     "其他爆炸": [W("当心爆炸", "warning-explosion"), P("禁止烟火", "prohibition-smoking"),

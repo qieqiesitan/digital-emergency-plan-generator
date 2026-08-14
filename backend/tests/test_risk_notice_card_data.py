@@ -49,3 +49,18 @@ def test_eyewash_not_mapped_to_thermal_burn_or_inhalation():
     for accident_type in ("灼烫", "中毒和窒息"):
         names = [s["name"] for s in SIGN_GROUPS[accident_type]]
         assert "洗眼台" not in names, f"{accident_type} 不应包含洗眼台"
+
+
+def test_vehicle_injury_group_has_no_emergency_exit():
+    """车辆伤害发生在厂区道路/装卸区，与安全出口标志无直接关联。"""
+    names = [s["name"] for s in SIGN_GROUPS["车辆伤害"]]
+    assert "当心车辆" in names
+    assert "紧急出口" not in names
+
+
+def test_boiler_explosion_group_has_no_static_instruction():
+    """锅炉爆炸主因是超压/缺水/安全阀失效，与静电无关联；应有疏散出口。"""
+    names = [s["name"] for s in SIGN_GROUPS["锅炉爆炸"]]
+    assert "当心爆炸" in names
+    assert "必须消除静电" not in names
+    assert "紧急出口" in names

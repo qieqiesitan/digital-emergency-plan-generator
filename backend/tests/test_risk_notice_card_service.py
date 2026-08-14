@@ -114,6 +114,15 @@ def test_match_signs_excludes_eyewash_for_burn_and_poisoning():
         assert all(s["name"] != "洗眼台" for s in signs), accident_types
 
 
+def test_match_signs_vehicle_and_boiler():
+    """车辆伤害不出现紧急出口；锅炉爆炸不出现必须消除静电。"""
+    vehicle = match_signs(["车辆伤害"])
+    assert all(s["name"] != "紧急出口" for s in vehicle)
+    boiler = match_signs(["锅炉爆炸"])
+    assert all(s["name"] != "必须消除静电" for s in boiler)
+    assert any(s["name"] == "紧急出口" for s in boiler)
+
+
 def test_compute_code_increments():
     objs = [RiskObject(name="A"), RiskObject(name="B")]
     assert compute_code(objs, objs[1]) == "FX-002"
