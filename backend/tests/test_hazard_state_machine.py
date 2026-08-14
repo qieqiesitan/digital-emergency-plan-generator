@@ -1,10 +1,12 @@
 """隐患排查治理状态机测试（任务 2，TDD）。
 
 覆盖 can_transition 状态流转/权限矩阵（非法动作 409 语义、角色不符、
-复查人=整改人 422、严格+重大 close 前必须 second_review），
-以及 apply_transition 各动作字段更新（grade 重大→pending_approval、
-approve→rectifying、reject→grading、rectify→reviewing、
-review pass/fail 分支、close 写 closed_at + audit log）。
+复查人=整改人 422、严格+重大 close 前必须 second_review、pending_approval
+禁 rectify 防绕过审批门、grading 仅保留 grade），
+以及 apply_transition 各动作字段更新（grade 重大→pending_approval 且指定
+rectification_user_id、approve→rectifying、reject→grading 后 grade 重新定级、
+rectify→reviewing 且校验整改人本人、review pass 停留/严格+重大→second_review、
+close 销号写 review_type=close + closed_at + audit log）。
 """
 
 from datetime import date, timedelta
@@ -91,8 +93,8 @@ def test_transitions_constant_shape():
     """业务矩阵（契约字面 rectify/review 与目标状态名同形错位，已按行为描述修正）。"""
     assert TRANSITIONS == {
         "registered": {"grade"},
-        "grading": {"rectify", "pending_approval"},
-        "pending_approval": {"rectify"},
+        "grading": {"grade"},
+        "pending_approval": set(),
         "rectifying": {"rectify"},
         "reviewing": {"close", "review"},
         "second_review": {"close", "review"},
@@ -128,6 +130,27 @@ def test_illegal_action_rejected():
     assert ok is False
     assert reason
     assert "registered" in reason
+
+
+def test_pending_approval_rejects_rectify():
+    """必须修复：pending_approval 不允许 rectify（防绕过重大挂牌审批门）。"""
+    r = _record(status="pending_approval", level="major", rectifier="u1")
+    ok, reason = can_transition(r, "rectify", "rectifier", strict_mode=False)
+    assert ok is False
+    assert reason
+    assert "pending_approval" in reason
+
+
+def test_grading_only_allows_grade():
+    """建议修复：grading 允许集只保留 grade（rectify/独立 pending_approval 均禁止）。"""
+    r = _record(status="grading", level="major")
+    ok, reason = can_transition(r, "rectify", "rectifier", strict_mode=False)
+    assert ok is False
+    assert "grading" in reason
+    ok, reason = can_transition(r, "pending_approval", "enterprise_admin", strict_mode=False)
+    assert ok is False
+    ok, reason = can_transition(r, "grade", "enterprise_admin", strict_mode=False)
+    assert ok is True, reason
 
 
 def test_unknown_status_rejected():
@@ -228,6 +251,57 @@ async def test_apply_grade_general_goes_rectifying():
 
 
 @pytest.mark.asyncio
+async def test_apply_grade_sets_rectification_user():
+    """建议修复：grade 时从 payload 指定整改责任人（rectification_user_id）。"""
+    r = _record()
+    out = await apply_transition(
+        _db(), r, "grade", _user(), "enterprise_admin",
+        {"level": "general", "deadline_rules": _DEADLINE_RULES, "rectification_user_id": "u7"},
+        _enterprise(),
+    )
+    assert out.status == "rectifying"
+    assert out.rectification_user_id == "u7"
+
+
+@pytest.mark.asyncio
+async def test_apply_reject_then_grade_general_redetermines_level():
+    """建议修复：reject→grading 后可通过 grade 重新定级（一般→rectifying）。"""
+    r = _record(status="pending_approval", level="major")
+    await apply_transition(_db(), r, "reject", _user(), "enterprise_admin", {"comment": "材料不足"}, _enterprise())
+    assert r.status == "grading"
+    out = await apply_transition(
+        _db(), r, "grade", _user(), "enterprise_admin",
+        {"level": "general", "deadline_rules": _DEADLINE_RULES},
+        _enterprise(),
+    )
+    assert out.status == "rectifying"
+    assert out.level == "general"
+
+
+@pytest.mark.asyncio
+async def test_apply_reject_then_grade_major_redetermines_level():
+    """建议修复：reject→grading 后 grade 重新定级为重大→再次 pending_approval（更新方案/期限）。"""
+    r = _record(status="pending_approval", level="general")
+    await apply_transition(_db(), r, "reject", _user(), "enterprise_admin", {"comment": "材料不足"}, _enterprise())
+    assert r.status == "grading"
+    out = await apply_transition(
+        _db(), r, "grade", _user(), "enterprise_admin",
+        {
+            "level": "major",
+            "grading_basis": "依据 B",
+            "deadline_rules": _DEADLINE_RULES,
+            "rectification_plan": _PLAN,
+            "rectification_user_id": "u7",
+        },
+        _enterprise(),
+    )
+    assert out.status == "pending_approval"
+    assert out.level == "major"
+    assert out.grading_basis == "依据 B"
+    assert out.rectification_user_id == "u7"
+
+
+@pytest.mark.asyncio
 async def test_apply_grade_major_requires_plan_and_basis():
     r = _record()
     with pytest.raises(HTTPException) as exc:
@@ -268,12 +342,14 @@ async def test_apply_grade_major_requires_full_plan_keys():
 
 
 @pytest.mark.asyncio
-async def test_apply_pending_approval_action():
+async def test_apply_pending_approval_action_rejected_from_grading():
+    """建议修复：grading 状态不再支持独立 pending_approval 动作（重新定级走 grade）。"""
     r = _record(status="grading", level="major")
-    out = await apply_transition(
-        _db(), r, "pending_approval", _user(), "enterprise_admin", {"comment": "挂牌督办"}, _enterprise()
-    )
-    assert out.status == "pending_approval"
+    with pytest.raises(HTTPException) as exc:
+        await apply_transition(
+            _db(), r, "pending_approval", _user(), "enterprise_admin", {"comment": "挂牌督办"}, _enterprise()
+        )
+    assert exc.value.status_code == 409
 
 
 # ── apply_transition：approve / reject ──
@@ -286,6 +362,19 @@ async def test_apply_approve_goes_rectifying_and_writes_approval():
     assert out.status == "rectifying"
     added = [a.args[0] for a in db.add.call_args_list]
     assert any(isinstance(x, HazardApproval) and x.action == "approve" for x in added)
+
+
+@pytest.mark.asyncio
+async def test_apply_approve_sets_rectification_user():
+    """建议修复：approve 挂牌时从 payload 指定整改责任人（rectification_user_id）。"""
+    r = _record(status="pending_approval", level="major")
+    out = await apply_transition(
+        _db(), r, "approve", _user(), "enterprise_admin",
+        {"comment": "同意挂牌", "rectification_user_id": "u7"},
+        _enterprise(),
+    )
+    assert out.status == "rectifying"
+    assert out.rectification_user_id == "u7"
 
 
 @pytest.mark.asyncio
@@ -314,8 +403,33 @@ async def test_apply_approve_requires_admin_role():
 # ── apply_transition：rectify ──
 
 @pytest.mark.asyncio
+async def test_apply_rectify_rejected_from_pending_approval():
+    """必须修复：pending_approval 下 rectify 由 can_transition 拦截返回 409（防绕过审批门）。"""
+    r = _record(status="pending_approval", level="major", rectifier="u1")
+    with pytest.raises(HTTPException) as exc:
+        await apply_transition(
+            _db(), r, "rectify", _user("u1"), "rectifier",
+            {"content": "已更换", "reviewer_user_id": "u2"},
+            _enterprise(),
+        )
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_apply_rectify_rejected_from_grading():
+    """建议修复：grading 下 rectify 由 can_transition 拦截返回 409。"""
+    r = _record(status="grading", level="general", rectifier="u1")
+    with pytest.raises(HTTPException) as exc:
+        await apply_transition(
+            _db(), r, "rectify", _user("u1"), "rectifier", {"content": "已更换"},
+            _enterprise(),
+        )
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_apply_rectify_goes_reviewing_and_writes_rectification():
-    r = _record(status="rectifying", reviewer="u2")
+    r = _record(status="rectifying", reviewer="u2", rectifier="u1")
     db = _db()
     out = await apply_transition(
         db, r, "rectify", _user("u1"), "rectifier",
@@ -334,7 +448,7 @@ async def test_apply_rectify_goes_reviewing_and_writes_rectification():
 
 @pytest.mark.asyncio
 async def test_apply_rectify_reviewer_assignable_in_payload():
-    r = _record(status="rectifying")
+    r = _record(status="rectifying", rectifier="u1")
     out = await apply_transition(
         _db(), r, "rectify", _user("u1"), "rectifier",
         {"content": "已更换", "reviewer_user_id": "u2"},
@@ -344,30 +458,100 @@ async def test_apply_rectify_reviewer_assignable_in_payload():
     assert out.reviewer_user_id == "u2"
 
 
+@pytest.mark.asyncio
+async def test_apply_rectify_non_assigned_rectifier_rejected():
+    """建议修复：非指定整改责任人 rectify → 422（与 review 身份校验对称）。"""
+    r = _record(status="rectifying", reviewer="u2", rectifier="u1")
+    with pytest.raises(HTTPException) as exc:
+        await apply_transition(
+            _db(), r, "rectify", _user("u9"), "rectifier",
+            {"content": "已更换", "reviewer_user_id": "u2"},
+            _enterprise(),
+        )
+    assert exc.value.status_code == 422
+    assert "整改" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_apply_rectify_admin_bypasses_rectifier_check():
+    """建议修复：enterprise_admin 可代整改人提交（身份校验例外）。"""
+    r = _record(status="rectifying", reviewer="u2", rectifier="u1")
+    out = await apply_transition(
+        _db(), r, "rectify", _user("u9"), "enterprise_admin",
+        {"content": "已更换", "reviewer_user_id": "u2"},
+        _enterprise(),
+    )
+    assert out.status == "reviewing"
+    # 整改人仍保持 grade/approve 指定的责任人，不被 admin 覆盖
+    assert out.rectification_user_id == "u1"
+
+
 # ── apply_transition：review pass/fail 分支 ──
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("level", "mode", "status", "expected"),
     [
-        ("general", "standard", "reviewing", "closed"),
-        ("general", "strict", "reviewing", "closed"),
-        ("major", "standard", "reviewing", "closed"),
+        ("general", "standard", "reviewing", "reviewing"),
+        ("general", "strict", "reviewing", "reviewing"),
+        ("major", "standard", "reviewing", "reviewing"),
         ("major", "strict", "reviewing", "second_review"),
-        ("major", "strict", "second_review", "closed"),
+        ("major", "strict", "second_review", "second_review"),
     ],
 )
 async def test_apply_review_pass_target_matrix(level, mode, status, expected):
+    """建议修复：review pass 不再直接 closed——标准/一般停留 reviewing，严格+重大→second_review，二次复核 pass 停留。"""
     r = _record(status=status, level=level, reviewer="u2", rectifier="u1")
     out = await apply_transition(
         _db(), r, "review", _user("u2"), "reviewer", {"result": "pass", "comment": "合格"},
         _enterprise(mode),
     )
     assert out.status == expected
-    if expected == "closed":
-        assert out.closed_at is not None
-    else:
-        assert out.closed_at is None
+    assert out.closed_at is None
+
+
+@pytest.mark.asyncio
+async def test_apply_review_pass_then_close_standard():
+    """建议修复：标准模式 review pass 停留 reviewing，再由管理员 close 销号。"""
+    r = _record(status="reviewing", level="general", reviewer="u2", rectifier="u1")
+    db = _db()
+    out = await apply_transition(
+        db, r, "review", _user("u2"), "reviewer", {"result": "pass", "comment": "合格"},
+        _enterprise("standard"),
+    )
+    assert out.status == "reviewing"
+    assert out.closed_at is None
+    review = next(x for x in (a.args[0] for a in db.add.call_args_list) if isinstance(x, HazardReview))
+    assert review.review_type == "first_review"
+    out = await apply_transition(
+        db, r, "close", _user("u0"), "enterprise_admin", {"comment": "销号"}, _enterprise("standard")
+    )
+    assert out.status == "closed"
+    assert out.closed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_apply_review_pass_then_close_strict_major():
+    """建议修复：严格+重大 review pass→second_review，二次复核 pass 停留，再由管理员 close 销号。"""
+    r = _record(status="reviewing", level="major", reviewer="u2", rectifier="u1")
+    db = _db()
+    out = await apply_transition(
+        db, r, "review", _user("u2"), "reviewer", {"result": "pass", "comment": "整改合格"},
+        _enterprise("strict"),
+    )
+    assert out.status == "second_review"
+    assert out.closed_at is None
+    out = await apply_transition(
+        db, r, "review", _user("u2"), "reviewer", {"result": "pass", "comment": "二次复核通过"},
+        _enterprise("strict"),
+    )
+    assert out.status == "second_review"
+    assert out.closed_at is None
+    out = await apply_transition(
+        db, r, "close", _user("u0"), "enterprise_admin", {"comment": "销号"}, _enterprise("strict")
+    )
+    assert out.status == "closed"
+    assert out.closed_at is not None
 
 
 @pytest.mark.asyncio
@@ -412,12 +596,13 @@ async def test_apply_review_non_assigned_reviewer_422():
 
 
 @pytest.mark.asyncio
-async def test_apply_review_admin_can_review_without_reviewer_role():
+async def test_apply_review_admin_pass_stays_reviewing():
     r = _record(status="reviewing", level="general", reviewer="u2", rectifier="u1")
     out = await apply_transition(
         _db(), r, "review", _user("u1"), "enterprise_admin", {"result": "pass"}, _enterprise()
     )
-    assert out.status == "closed"
+    assert out.status == "reviewing"
+    assert out.closed_at is None
 
 
 @pytest.mark.asyncio
@@ -476,7 +661,7 @@ async def test_apply_close_illegal_action_409():
 async def test_every_action_writes_audit_log(action, payload, from_status):
     kwargs = {}
     if from_status == "rectifying":
-        kwargs["reviewer"] = "u2"
+        kwargs.update(reviewer="u2", rectifier="u1")
     if from_status == "reviewing":
         kwargs.update(level="general", reviewer="u2", rectifier="u1")
     if from_status == "second_review":

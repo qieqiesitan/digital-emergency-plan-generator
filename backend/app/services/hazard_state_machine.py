@@ -5,14 +5,22 @@ rectifying / reviewing / second_review / closed。
 
 流转：
 registered --grade(一般)--> rectifying；--grade(重大)--> pending_approval
-grading --pending_approval--> pending_approval
+grading --grade--> 重新定级（一般→rectifying / 重大→pending_approval）
 pending_approval --approve--> rectifying；--reject--> grading
+  （不允许 rectify，防绕过重大挂牌审批门）
 rectifying --rectify--> reviewing
-reviewing --review pass--> closed（或严格+重大 --> second_review）；--fail--> rectifying
-second_review --review pass--> closed；--fail--> rectifying
+reviewing --review pass--> 停留 reviewing（标准模式/一般）；严格+重大 --> second_review
+second_review --review pass--> 停留 second_review；--fail--> rectifying
+reviewing / second_review --close(enterprise_admin)--> closed
+  （写 review_type=close 记录 + closed_at，销号语义统一为管理员确认）
 
-权限：ROLE_GATE；复查人 ≠ 整改人（422 语义）；严格模式+重大销号前必须
-second_review。每个动作写 hazard_audit_logs 留痕。
+权限：ROLE_GATE；复查人 ≠ 整改人（422 语义）；整改须由 grade/approve 指定的
+rectification_user_id 本人执行（enterprise_admin 例外）；严格模式+重大销号前
+必须 second_review。每个动作写 hazard_audit_logs 留痕。
+
+销号语义（B 规格 §10/§3.5）：review pass 不再直接 closed——标准模式 pass 后
+记录留在 reviewing（写 first_review pass 记录）；严格+重大 pass → second_review；
+second_review pass 留在 second_review；由 enterprise_admin 执行 close 才 closed。
 
 说明：计划/交接契约中的 TRANSITIONS 字面将「rectifying: {"review"}」与
 「reviewing: {"close","rectify"}」写成动作名（与目标状态名 rectify/reviewing
@@ -40,8 +48,8 @@ from app.models.hazard_management import (
 
 TRANSITIONS = {
     "registered": {"grade"},
-    "grading": {"rectify", "pending_approval"},
-    "pending_approval": {"rectify"},
+    "grading": {"grade"},
+    "pending_approval": set(),
     "rectifying": {"rectify"},
     "reviewing": {"close", "review"},
     "second_review": {"close", "review"},
@@ -151,11 +159,11 @@ async def apply_transition(
 
     if action == "grade":
         _apply_grade(record, payload)
-    elif action == "pending_approval":
-        record.status = "pending_approval"
     elif action == "approve":
         db.add(HazardApproval(record_id=record.id, user_id=getattr(actor_user, "id", None), action="approve",
                               comment=payload.get("comment")))
+        if payload.get("rectification_user_id"):
+            record.rectification_user_id = payload["rectification_user_id"]
         record.status = "rectifying"
     elif action == "reject":
         db.add(HazardApproval(record_id=record.id, user_id=getattr(actor_user, "id", None), action="reject",
@@ -165,7 +173,7 @@ async def apply_transition(
         # 契约允许 grading 或 registered，此处选 grading 并说明）。
         record.status = "grading"
     elif action == "rectify":
-        _apply_rectify(db, record, actor_user, payload)
+        _apply_rectify(db, record, actor_user, actor_role, payload)
     elif action == "review":
         _apply_review(db, record, actor_user, actor_role, payload, strict_mode)
     elif action == "close":
@@ -187,6 +195,8 @@ def _apply_grade(record: HazardRecord, payload: dict) -> None:
     record.level = level
     record.hazard_type = payload.get("hazard_type") or record.hazard_type
     record.grading_basis = payload.get("grading_basis")
+    if payload.get("rectification_user_id"):
+        record.rectification_user_id = payload["rectification_user_id"]
     if payload.get("level_source"):
         record.level_source = payload["level_source"]
     days = _rule_days(payload.get("deadline_rules"), LEVEL_MAJOR if _is_major(record) else LEVEL_GENERAL)
@@ -204,8 +214,10 @@ def _apply_grade(record: HazardRecord, payload: dict) -> None:
         record.status = "rectifying"
 
 
-def _apply_rectify(db, record: HazardRecord, actor_user, payload: dict) -> None:
-    """整改：写 hazard_rectifications + 证据，状态→reviewing，记录整改人。"""
+def _apply_rectify(db, record: HazardRecord, actor_user, actor_role: str, payload: dict) -> None:
+    """整改：校验整改人本人（enterprise_admin 例外），写 hazard_rectifications + 证据，状态→reviewing。"""
+    if actor_role != "enterprise_admin" and getattr(actor_user, "id", None) != record.rectification_user_id:
+        raise HTTPException(422, "仅指定的整改责任人可提交整改")
     db.add(HazardRectification(
         record_id=record.id,
         user_id=getattr(actor_user, "id", None),
@@ -213,14 +225,13 @@ def _apply_rectify(db, record: HazardRecord, actor_user, payload: dict) -> None:
         evidence=payload.get("evidence") or [],
         submitted_at=_now(),
     ))
-    record.rectification_user_id = getattr(actor_user, "id", None)
     if payload.get("reviewer_user_id"):
         record.reviewer_user_id = payload["reviewer_user_id"]
     record.status = "reviewing"
 
 
 def _apply_review(db, record: HazardRecord, actor_user, actor_role: str, payload: dict, strict_mode: bool) -> None:
-    """复查：pass→（严格+重大→second_review 否则 closed）；fail→退回 rectifying。"""
+    """复查：pass→（严格+重大→second_review，其余停留当前复查状态，不直接销号）；fail→退回 rectifying。"""
     result = payload.get("result")
     if result not in ("pass", "fail"):
         raise HTTPException(422, "复查结果 result 必须为 pass 或 fail")
@@ -238,8 +249,7 @@ def _apply_review(db, record: HazardRecord, actor_user, actor_role: str, payload
     ))
     if result == "fail":
         record.status = "rectifying"
-    elif record.status == "second_review" or not (strict_mode and _is_major(record)):
-        record.status = "closed"
-        record.closed_at = _now()
-    else:
+    elif strict_mode and _is_major(record):
         record.status = "second_review"
+    else:
+        record.status = "reviewing"

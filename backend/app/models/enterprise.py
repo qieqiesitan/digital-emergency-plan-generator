@@ -13,6 +13,10 @@ class Enterprise(Base):
     __table_args__ = (
         Index("uq_enterprises_public_risk_token", "public_risk_token",
               unique=True, postgresql_where=text("public_risk_token IS NOT NULL")),
+        Index("uq_enterprises_hazard_public_token", "hazard_public_token",
+              unique=True, postgresql_where=text("hazard_public_token IS NOT NULL")),
+        Index("uq_enterprises_hazard_report_token", "hazard_report_token",
+              unique=True, postgresql_where=text("hazard_report_token IS NOT NULL")),
     )
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
