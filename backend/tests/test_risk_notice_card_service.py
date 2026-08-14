@@ -59,6 +59,21 @@ def test_compute_inherent_level_takes_highest():
     assert compute_inherent_level([]) is None
 
 
+def test_compute_level_tolerates_unknown_levels():
+    """域外等级值（如「未评估」）静默忽略：不抛异常，按已知等级取最严重或回退默认。"""
+    events = [_event("火灾", "未评估", "", ""), _event("爆炸", "一般", "", "")]
+    assert compute_level(events) == "一般"
+    assert compute_level([_event("火灾", "未评估", "", "")]) == "未评估"
+
+    def ev(level: str | None) -> RiskEvent:
+        e = _event("火灾", "一般", "", "")
+        e.inherent_risk_level = level
+        return e
+
+    assert compute_inherent_level([ev("未评估"), ev("较大")]) == "较大"
+    assert compute_inherent_level([ev("未评估")]) is None
+
+
 def test_resolve_responsible_fallback():
     ent = Enterprise(name="测试公司", safety_officer="李四", safety_officer_phone="13900000000")
     obj = RiskObject(name="配电室", responsible_unit=None, responsible_person=None, contact_phone=None)

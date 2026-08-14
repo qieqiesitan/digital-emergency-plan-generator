@@ -18,7 +18,8 @@ from app.schemas.risk_notice_card import CardData, RightColumn
 
 def _max_level(events: list, attr: str, default: str | None) -> str | None:
     values = {getattr(ev, attr) for ev in events if getattr(ev, attr, None)}
-    return max(values, key=lambda v: -LEVEL_ORDER.index(v)) if values else default
+    known = [v for v in values if v in LEVEL_ORDER]
+    return max(known, key=lambda v: -LEVEL_ORDER.index(v)) if known else default
 
 
 def compute_level(events: list[RiskEvent]) -> str:
