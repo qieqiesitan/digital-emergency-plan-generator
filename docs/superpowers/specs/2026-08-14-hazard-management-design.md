@@ -31,7 +31,8 @@
 | 11 | 补充字段（补审） | 隐患类型字典（设备设施/消防/作业行为/管理缺陷/环境/其他）、原因分析（四不放过）、整改期限默认规则（重大 15 天/一般 7 天，企业可配）、复查期限（整改完成后 N 天内复查） |
 | 12 | 通知（补审） | 新增轻量站内通知 `hazard_notifications`：超期 / 到期前 2h / 审批待办，隐患 Tab 与驾驶舱角标（移动端同步） |
 | 13 | 其他（补审） | 成员 Excel 导入、隐患单详情打印、风险点 badge 穿透到隐患列表、四色图叠加未闭环隐患数（B 联动阶段） |
-| 14 | 二期 | 未闭环重大隐患写入预案生成、监管平台真实对接、岗位/班组风险告知卡（本次不做） |
+| 14 | 配置化（补审） | 常量与规则统一走数据字典（A §5.4）：隐患类型 / 判定要点 / 期限规则 / 公示口径 / 枚举文案，系统默认 + 企业覆盖 |
+| 15 | 二期 | 未闭环重大隐患写入预案生成、监管平台真实对接、岗位/班组风险告知卡（本次不做） |
 
 ---
 
@@ -59,13 +60,27 @@
 - **写入策略**：组织/成员编辑走新接口，写后同步镜像更新 `org_structure`，保证旧消费者继续可用；
 - **接口**：`/enterprises/{id}/org/nodes` CRUD、`/enterprises/{id}/members` CRUD、`/members/import`、`/members/available`（责任人选择器）。
 
+### 3.6 数据字典与配置体系（复用 A 规格 §5.4）
+
+隐患模块涉及的常量/规则统一使用通用数据字典表 `data_dicts`（随 A 规格落地），B 规格扩展的字典类型：
+
+| dict_type | 用途 | 默认内容 |
+|-----------|------|----------|
+| hazard_type | 隐患类型（驾驶舱分布） | equipment 设备设施 / fire 消防 / behavior 作业行为 / management 管理缺陷 / environment 环境 / other 其他 |
+| judgment_points | 重大隐患判定要点 | 危化品储运 / 消防 / 特种设备 / 粉尘涉爆 / 有限空间 参考要点（页面标注「以现行有效判定标准为准」） |
+| deadline_rules | 整改/复查期限 | 重大 15 天 / 一般 7 天 / 复查 N 天 |
+| publicity_scope | 公示口径 | 进行中 / 已闭环 / 全部 |
+| source_type / record_status_label | 来源与状态展示文案 | 排查 / 举报 / 监管检查 / 事故 / 移动端 / 手工 等 |
+
+系统默认由超级管理员维护，企业管理员在「风险与隐患配置」维护覆盖值（新增 / 覆盖同 code / 禁用 / 重置为系统默认）。
+
 ---
 
 ## 4. 架构与组件
 
 ```
 backend/
-  app/models/hazard_management.py        9 张表（§5）+ enterprises.hazard_closure_mode
+  app/models/hazard_management.py        9 张隐患业务表 + enterprise_members + hazard_notifications（§5）
   app/models/enterprise_org.py           企业成员/组织树（§3.5，含 org_structure 镜像同步）
   app/schemas/hazard_management.py       请求/响应模型
   app/services/enterprise_org_service.py 组织树/成员/导入/镜像同步
@@ -93,7 +108,7 @@ mobile/（8082） 新增：今日任务 / 任务执行 / 上报隐患 / 我的�
 
 ---
 
-## 5. 数据模型（9 张表 + 1 配置）
+## 5. 数据模型（11 张表 + 企业配置）
 
 ### 5.1 `hazard_inspection_plans` 排查计划
 
@@ -155,7 +170,7 @@ mobile/（8082） 新增：今日任务 / 任务执行 / 上报隐患 / 我的�
 | description | Text NOT NULL | |
 | photo_urls | JSONB NULL | 现场照片 |
 | location | String(500) NULL | 位置描述（未关联对象时） |
-| hazard_type | String(20) NULL | 隐患类型字典：equipment / fire / behavior / management / environment / other（驾驶舱类型分布数据源） |
+| hazard_type | String(20) NULL | 隐患类型（来自数据字典 `hazard_type`：equipment / fire / behavior / management / environment / other，驾驶舱类型分布数据源） |
 | cause_analysis | Text NULL | 原因分析（四不放过-原因；重大建议填写） |
 | level | String(10) NULL | 一般 / 重大；分级前为 NULL |
 | level_source | String(10) NULL | ai / manual |
@@ -232,7 +247,7 @@ mobile/（8082） 新增：今日任务 / 任务执行 / 上报隐患 / 我的�
 
 - `enterprises.hazard_closure_mode` String(20) 默认 `standard`（standard / strict）；
 - `enterprises.hazard_public_token` String(64) UNIQUE NULL（隐患公示公开页 token，生成/重置）；
-- `enterprises.hazard_config` JSONB 默认 `{}`：默认整改期限（重大 15 天 / 一般 7 天）、复查期限天数（整改完成后 N 天内复查）、公示口径（进行中/已闭环/全部）、默认措施折算口径；
+- `enterprises.hazard_config` JSONB 默认 `{}`：预留扩展位；整改期限、复查期限、公示口径等规则由数据字典 `deadline_rules` / `publicity_scope` 提供（§3.6），企业可在「风险与隐患配置」覆盖；
 - 扫码上报 token：**复用 `risk_objects.public_token`**（风险点二维码）与新增企业级 `enterprises.hazard_report_token`（无风险点场景/通用二维码）。
 
 ### 5.11 `enterprise_members` 企业成员（§3.5）
@@ -312,7 +327,7 @@ registered → grading（AI 建议后人工确认）
 
 - **AI 分级建议**：`POST /ai/grade`，输入描述/照片说明 + 判定要点，返回 `{suggested_level, basis, confidence}`；人工确认或修改后落库（`level_source` 记录 ai / manual）；
 - **判定要点库**：内置常见行业重大隐患判定要点（危化品储运 / 消防 / 特种设备 / 粉尘涉爆 / 有限空间等，文本常量，来源为国家重大事故隐患判定标准要点摘要）；页面标注「参考提示，以现行有效判定标准为准」，不声称完整法律效力；
-- **分级规则**：一般 → 直接进入整改（按配置生成默认期限）；重大 → 治理方案必填（goal / measures / budget / emergency_measures / acceptance_criteria）→ 管理员审批挂牌（hazard_approvals）→ 整改；
+- **分级规则**：一般 → 直接进入整改（期限来自字典 `deadline_rules` 默认）；重大 → 治理方案必填（goal / measures / budget / emergency_measures / acceptance_criteria）→ 管理员审批挂牌（hazard_approvals）→ 整改；
 - 重大隐患 `grading_basis` 必填。
 
 ---
@@ -320,7 +335,7 @@ registered → grading（AI 建议后人工确认）
 ## 10. 整改 / 复查 / 销号
 
 - **整改**：责任人提交整改内容 + 证据照片（hazard_rectifications）；
-- **复查**：复查人由管理员指定且 ≠ 整改人（422 拦截）；整改完成后按 `hazard_config.review_deadline_days` 生成复查期限，超期提醒；pass/fail + 证据；fail → 退回整改并留痕；
+- **复查**：复查人由管理员指定且 ≠ 整改人（422 拦截）；整改完成后按字典 `deadline_rules` 的复查天数生成复查期限，超期提醒；pass/fail + 证据；fail → 退回整改并留痕；
 - **销号**：标准模式管理员 close；严格模式且重大 → second_review（安全总监级，即管理员角色）通过后 close；
 - 全程 `hazard_audit_logs` 留痕（两种模式都记录，严格模式额外多一道复核节点）。
 
@@ -339,7 +354,7 @@ registered → grading（AI 建议后人工确认）
 
 - 企业内公示列表（编号/名称/等级/状态/整改情况）+ 打印样式；
 - 公开页 `/h/:token`（`enterprises.hazard_public_token`）：只读、脱敏（不含责任人/联系方式）；
-- 公示口径可配：进行中 / 已闭环（默认全部）。
+- 公示口径可配：进行中 / 已闭环 / 全部（来自字典 `publicity_scope`，默认全部）。
 
 ---
 
@@ -390,6 +405,8 @@ registered → grading（AI 建议后人工确认）
 | GET | `/enterprises/{id}/members/available` | 责任人/复查人选择器 |
 | GET | `/enterprises/{id}/hazard-inspection/notifications` | 站内通知列表 + 未读数 |
 | GET/PUT | `/enterprises/{id}/hazard-inspection/config` | 企业隐患配置（hazard_config） |
+| GET/PUT | `/settings/data-dicts` | 系统数据字典管理（超级管理员，A §5.4） |
+| GET/PUT | `/enterprises/{id}/data-dicts` | 企业字典覆盖管理（新增/覆盖/禁用/重置） |
 | POST | `/enterprises/{id}/hazard-inspection/ai/schedule-suggestion` | AI 排程建议 |
 | POST | `/enterprises/{id}/hazard-inspection/ai/checklist` | AI 清单补全 |
 | POST | `/enterprises/{id}/hazard-inspection/ai/grade` | AI 分级建议 |
@@ -437,6 +454,7 @@ registered → grading（AI 建议后人工确认）
   - 权限矩阵：登记/整改/复查/审批/销号各角色；
   - 超期扫描与防重通知；到期前 2h 提醒；任务到期生成；
   - AI 降级（mock LLM 失败）；分级校验；幂等 nonce；
+  - 数据字典：B 类型字典系统种子/企业覆盖合并、同 code 覆盖、禁用与重置；
   - 回写派生计数；驾驶舱统计口径（含 hazard_type 分布）；导出内容；
   - 公开端点脱敏与 404；
 - **前端 vitest**：清单核对交互、表单校验、筛选、驾驶舱数据映射、公开页渲染；
@@ -447,7 +465,7 @@ registered → grading（AI 建议后人工确认）
 
 ## 18. 部署与迁移
 
-- 应用 `db_migration_hazard_management.sql`（9 张表 + 企业配置列 + 系统模板种子数据）；
+- 应用 `db_migration_hazard_management.sql`（9 张表 + 企业配置列 + 系统模板种子数据）；`data_dicts` 表随 A 规格落地，B 的字典类型种子随本迁移扩展；
 - 新增依赖：`apscheduler`；
 - 后端容器重建；移动端 8082 构建部署；
 - 公开路由 `/h/report/:token`、`/h/:token` 加入 SPA 路由（Vite fallback 已在 `signs` 先例中处理）。
@@ -459,12 +477,13 @@ registered → grading（AI 建议后人工确认）
 1. 企业可配置部门→班组→岗位树，成员账号绑定与企业角色可用，责任人/复查人/审批人可从成员中选择；
 2. 按计划自动生成任务，清单含默认 + 模板 + AI 项，可执行核对；
 3. 三渠道均可登记隐患，排查异常项一键转隐患；
-4. 一般/重大流程 × 标准/严格模式行为正确（含退回、二次复核）；
-5. 超期预警与到期前提醒、审批待办通知生效且不重复（角标正确）；
-6. 隐患闭环后风险点「未闭环隐患」标记消失，告知卡/清单实时反映；
-7. 驾驶舱数据正确（含类型分布），台账与监管上报台账可导出；
-8. 公示页/公开页无敏感信息；
-9. 全部门禁通过。
+4. 隐患类型、判定要点、期限、公示口径等字典可配置并即时生效（企业覆盖 > 系统默认，可重置）；
+5. 一般/重大流程 × 标准/严格模式行为正确（含退回、二次复核）；
+6. 超期预警与到期前提醒、审批待办通知生效且不重复（角标正确）；
+7. 隐患闭环后风险点「未闭环隐患」标记消失，告知卡/清单实时反映；
+8. 驾驶舱数据正确（含类型分布），台账与监管上报台账可导出；
+9. 公示页/公开页无敏感信息；
+10. 全部门禁通过。
 
 ---
 

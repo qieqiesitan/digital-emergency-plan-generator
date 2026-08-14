@@ -28,7 +28,8 @@
 | 4 | 风险管控清单 | 新增清单页 + Excel 导出（复用 `openpyxl`） |
 | 5 | 重大风险公示 | 企业内页面（可打印）+ 公开只读 token 页（仅清单、脱敏联系方式） |
 | 6 | 风险告知卡 | 等级色带与键值表展示固有/现有双等级 |
-| 7 | 范围边界 | 本次不做：未闭环隐患写入预案生成、监管平台真实对接（二期） |
+| 7 | 配置化（补审） | 常量和规则统一收进通用数据字典表 `data_dicts`（系统默认 + 企业覆盖，界面维护、即时生效）；状态机/权限等安全关键逻辑不进表 |
+| 8 | 范围边界 | 本次不做：未闭环隐患写入预案生成、监管平台真实对接（二期） |
 
 ---
 
@@ -90,7 +91,7 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 
 **方式二：自动折算参考（工具）**。由固有风险 × 管控措施类别系数得到「参考现有风险」，仅作参考对比，人工确认后才落库：
 
-- 默认系数表（常量 `MEASURE_FACTORS`，企业 `risk_method_config` 可覆盖）：
+- 系数表来自数据字典 `measure_factors`（系统默认 + 企业覆盖，见 §5.4）：
 
 | 措施类别（`measure_category`） | 系数 |
 |------|------|
@@ -99,11 +100,40 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 | ppe 个体防护 | 0.85 |
 | emergency 应急措施 | 0.90 |
 
-- 综合系数口径（默认保守）：`综合系数 = 已配置类别系数的最小值`（最有效类别主导，不叠加）；企业可在 `risk_method_config` 切换为「乘积」模式（取各类别系数连乘）；
+- 综合系数口径（默认保守）：`综合系数 = 已配置类别系数的最小值`（最有效类别主导，不叠加）；`mode` 存于字典 value，企业可切换为「乘积」模式（取各类别系数连乘）；
 - 参考分值 = 固有分值数值 × 综合系数（解析 `R=…` / `D=…` 数值；DIRECT 方法不适用，由 AI 给等级参考）；
 - 参考等级 = 参考分值落入该企业方法阈值区间（复用 `compute_risk` 的阈值匹配逻辑，抽成 `level_from_score(method_type, score, config)`）；
 - AI 解释：`hazard_ai_service`（或复用 `risk_ai_service` 通道）可选输出文字说明（如「报警器+联锁为主，综合系数 0.5，参考现有风险 一般」）；
 - UI：事件表单「自动折算参考」按钮 → 展示参考结果卡片 → 「采用为现有风险」一键填入（用户仍可修改）或仅作对比。
+
+### 5.4 数据字典表 `data_dicts`（公共基础，随 A 落地）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| dict_type | String(50) NOT NULL | 字典类型：hazard_type / measure_factors / control_level_map / judgment_points / deadline_rules / publicity_scope / source_type / record_status_label |
+| code | String(50) NOT NULL | 条目 code（如 equipment / engineering / major） |
+| label | String(100) NOT NULL | 展示文案 |
+| value | JSONB NOT NULL 默认 {} | 结构化值（系数、映射、天数等） |
+| scope | String(10) NOT NULL | system / enterprise |
+| enterprise_id | UUID FK NULL | enterprise 范围记录所属企业 |
+| sort_order | Integer 默认 0 | |
+| enabled | Boolean 默认 true | |
+| is_system | Boolean | 系统默认条目标记 |
+| description | Text NULL | |
+| created_at / updated_at | DateTime | |
+| 唯一约束 | (dict_type, enterprise_id, code) | enterprise_id 为 NULL 表示系统默认 |
+
+**合并与生效规则**：
+
+- 读取顺序：企业条目（enterprise_id = 当前企业）> 系统默认（enterprise_id IS NULL）；同 code 企业条目覆盖系统条目 value / label；
+- 企业可新增字典类型内条目、覆盖同 code 条目、禁用条目；
+- 进程内短缓存（60s）+ 变更失效；数据量小，读取成本可忽略；
+- **安全关键逻辑不进表**：状态机流转、权限校验、复查人≠整改人保持代码强类型。
+
+**管理界面**：系统设置「数据字典管理」（超级管理员维护系统默认）；企业设置「风险与隐患配置」（企业管理员维护覆盖值，含「重置为系统默认」）。
+
+**迁移**：`db_migration_data_dicts.sql`——建表 + 种子数据（系统默认：hazard_type 6 项、measure_factors 4 类系数 + mode、control_level_map 4 映射、deadline_rules、publicity_scope、source_type / record_status_label 文案；B 规格的字典类型在其迁移中扩展）。
 
 ### 5.3 分区四色双模式
 
@@ -144,7 +174,7 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 | 管控措施 | event.measures（category + description） |
 | 责任单位 / 责任人 / 联系电话 | object.responsible_unit / responsible_person / contact_phone |
 
-**默认映射**（常量 `CONTROL_LEVEL_MAP`，可在企业 `risk_method_config` 覆盖）：
+**默认映射**（来自数据字典 `control_level_map`，系统默认 + 企业覆盖，见 §5.4）：
 
 | 现有风险等级 | 管控层级 |
 |-------------|----------|
@@ -205,6 +235,7 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 | `RiskPublicityPage`（新） | 公示预览/打印 + 生成链接 |
 | `PublicRiskPage`（新，路由 `/p/risk/:token`） | 公开只读公示 |
 | `RiskNoticeCard.tsx` | 等级色带/键值表显示「固有 / 现有」双等级 |
+| 系统设置「数据字典管理」/ 企业「风险与隐患配置」 | 维护 `data_dicts`（折算系数、层级映射等，企业可覆盖/重置） |
 
 ---
 
@@ -220,7 +251,7 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 
 ## 12. 测试策略
 
-- **pytest**：双等级计算与迁移回填；自动折算（系数表/最小值与乘积口径/分值解析/阈值映射/DIRECT 不适用）；`max_risk_level(mode)` 正确性；清单展平/筛选/导出；token 生成/重置/404；脱敏断言；现有>固有校验；
+- **pytest**：双等级计算与迁移回填；自动折算（系数表/最小值与乘积口径/分值解析/阈值映射/DIRECT 不适用）；数据字典（系统种子/企业覆盖合并、同 code 覆盖、禁用、重置）；`max_risk_level(mode)` 正确性；清单展平/筛选/导出；token 生成/重置/404；脱敏断言；现有>固有校验；
 - **前端 vitest**：双模式切换渲染、清单筛选、公示打印样式类、公开页渲染；
 - **回归**：告知卡 / 总览 / 工作台既有用例不破坏（响应新增字段向后兼容）；
 - **门禁**：tsc / eslint / vitest / pytest 全绿 + `git diff --check`。
@@ -229,7 +260,7 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 
 ## 13. 部署与迁移
 
-- 应用 `db_migration_risk_control_enhancement.sql`；
+- 应用 `db_migration_risk_control_enhancement.sql` 与 `db_migration_data_dicts.sql`；
 - 无新依赖（`openpyxl` 已有）；
 - 后端容器重建即可（`docker compose build backend`）。
 
@@ -239,11 +270,12 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 
 1. 风险事件可分别录入/计算固有与现有等级，存量数据自动回填；
 2. 「自动折算参考」可给出参考现有风险（含系数说明），人工确认后采用；
-3. 工作台与总览四色图可切换固有/现有模式且颜色正确；
-4. 管控清单可按条件筛选并导出 xlsx；
-5. 公示页企业内可打印；公开 token 可打开且无敏感信息；
-6. 风险告知卡展示双等级；
-7. 全部门禁通过。
+3. 折算系数/管控层级映射等字典项可配置并即时生效（企业覆盖 > 系统默认，可重置）；
+4. 工作台与总览四色图可切换固有/现有模式且颜色正确；
+5. 管控清单可按条件筛选并导出 xlsx；
+6. 公示页企业内可打印；公开 token 可打开且无敏感信息；
+7. 风险告知卡展示双等级；
+8. 全部门禁通过。
 
 ---
 
