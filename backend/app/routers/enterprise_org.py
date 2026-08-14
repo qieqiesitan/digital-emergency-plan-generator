@@ -1,3 +1,4 @@
+import logging
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -25,6 +26,7 @@ from app.services.enterprise_org_service import (
 )
 
 router = APIRouter(prefix="/enterprises/{enterprise_id}/org", tags=["Enterprise Org"])
+logger = logging.getLogger(__name__)
 
 MAX_IMPORT_SIZE = 5 * 1024 * 1024  # 5MB
 
@@ -251,7 +253,8 @@ async def import_members(
     # 与 file_parser 的宽异常兜底惯例一致，避免裸 500。
     try:
         wb = load_workbook(BytesIO(content), data_only=True)
-    except Exception:
+    except Exception as exc:
+        logger.exception("member import file parse failed: %s", exc)
         raise HTTPException(400, "导入文件格式无效，请使用模板")
     ws = wb.active
     # 表头须与模板一致（忽略顺序、去空白），避免整表误报「邮箱必填」
@@ -265,6 +268,29 @@ async def import_members(
         raw_rows.append((idx, dict(zip(headers, row))))
 
     parsed = parse_member_rows([r for _, r in raw_rows])
+    # N+1 预取：先一次 in_ 批量取邮箱→用户映射，再一次企业成员 in_ 查重，
+    # 循环内改查内存映射，避免每行 2 次 DB 查询（用户不存在 error / 重复 skipped 语义不变）。
+    emails = sorted({item["email"] for item in parsed if not item.get("error")})
+    users_by_email: dict[str, User] = {}
+    existing_user_ids: set[str] = set()
+    if emails:
+        users_res = await db.execute(select(User).where(User.email.in_(emails)))
+        # 批量结果为空时回退单值读取：真实 DB 0 行时 scalar_one_or_none 同样返回 None
+        user_rows = list(users_res.scalars().all()) or [users_res.scalar_one_or_none()]
+        users_by_email = {u.email: u for u in user_rows if u is not None}
+        if users_by_email:
+            members_res = await db.execute(
+                select(EnterpriseMember.user_id).where(
+                    EnterpriseMember.enterprise_id == enterprise_id,
+                    EnterpriseMember.user_id.in_([u.id for u in users_by_email.values()]),
+                )
+            )
+            # first() 返回行对象而 scalars() 返回标量，统一按 user_id 属性取值
+            member_rows = list(members_res.scalars().all()) or [members_res.first()]
+            existing_user_ids = {
+                getattr(r, "user_id", r) for r in member_rows if r is not None
+            }
+
     imported = 0
     skipped = 0
     errors: list[dict] = []
@@ -274,7 +300,7 @@ async def import_members(
         if item.get("error"):
             errors.append({"row": row_num, "reason": item["error"]})
             continue
-        user = (await db.execute(select(User).where(User.email == item["email"]))).scalar_one_or_none()
+        user = users_by_email.get(item["email"])
         if not user:
             errors.append({"row": row_num, "reason": f"用户不存在: {item['email']}"})
             continue
@@ -282,13 +308,7 @@ async def import_members(
         if user.id in imported_user_ids:
             skipped += 1
             continue
-        exists = (await db.execute(
-            select(EnterpriseMember.id).where(
-                EnterpriseMember.enterprise_id == enterprise_id,
-                EnterpriseMember.user_id == user.id,
-            )
-        )).first()
-        if exists:
+        if user.id in existing_user_ids:
             skipped += 1
             continue
         dept_id = _find_or_create_org_node(nodes, "dept", item["department"], None)
