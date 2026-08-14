@@ -288,17 +288,19 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           }
           break;
         case "event": {
+          // 表单负责判定「未改动」并省略对应字段；提交层仅携带表单显式提供的字段，
+          // 未改动保存时不发送 method_type/method_params/risk_*/inherent_*，避免覆盖已存等级
           const eventPayload = {
             accident_type: Array.isArray(values.accident_type)
               ? values.accident_type.join("、")
               : (values.accident_type || ""),
             description: values.description || "",
-            method_type: (values.method_type || "LS") as MethodType,
-            method_params: values.method_params || {},
+            ...(values.method_type ? { method_type: values.method_type as MethodType } : {}),
+            ...(values.method_params ? { method_params: values.method_params } : {}),
             risk_level: values.risk_level ?? undefined,
             risk_score: values.risk_score ?? undefined,
-            inherent_risk_level: values.inherent_risk_level ?? null,
-            inherent_risk_score: values.inherent_risk_score ?? null,
+            inherent_risk_level: values.inherent_risk_level ?? undefined,
+            inherent_risk_score: values.inherent_risk_score ?? undefined,
             control_level: values.control_level ?? null,
             chemical_id: values.chemical_id ?? null,
           };

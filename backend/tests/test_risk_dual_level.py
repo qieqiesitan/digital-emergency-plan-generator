@@ -109,6 +109,64 @@ def test_update_event_rejects_inherent_above_current(client):
     assert "不应高于" in resp.json()["detail"]
 
 
+def test_update_event_no_overwrite_omitted_params(client, monkeypatch):
+    """未改动保存：载荷仅含 accident_type/description（无 method_*/risk_*/inherent_*）
+    时不重算、不置空，已存等级与参数保持不变。"""
+    ent = Enterprise(id="e1", user_id="u1", name="甲公司")
+    ev = _event(
+        method_type="LS",
+        method_params={"l": 4, "s": 5},
+        risk_level="重大",
+        risk_score="R=20",
+        inherent_risk_level="重大",
+        inherent_risk_score="R=20",
+    )
+    db = _risk_db(ent, ev)
+    client.app.dependency_overrides[get_db] = lambda: db
+    compute = AsyncMock()
+    monkeypatch.setattr(risk_management, "compute_risk", compute)
+
+    resp = client.put(
+        "/enterprises/e1/risk-management/events/ev1",
+        json={"accident_type": "火灾", "description": "仅改描述"},
+    )
+
+    assert resp.status_code == 200
+    compute.assert_not_awaited()
+    assert ev.risk_level == "重大"
+    assert ev.risk_score == "R=20"
+    assert ev.inherent_risk_level == "重大"
+    assert ev.inherent_risk_score == "R=20"
+    assert ev.method_params == {"l": 4, "s": 5}
+    assert resp.json()["data"]["risk_level"] == "重大"
+
+
+def test_update_event_no_overwrite_direct(client, monkeypatch):
+    """DIRECT 未改动保存：已存「重大」（method_params.risk_level）不被覆盖为默认「一般」。"""
+    ent = Enterprise(id="e1", user_id="u1", name="甲公司")
+    ev = _event(
+        method_type="DIRECT",
+        method_params={"risk_level": "重大"},
+        risk_level="重大",
+        inherent_risk_level="重大",
+    )
+    db = _risk_db(ent, ev)
+    client.app.dependency_overrides[get_db] = lambda: db
+    compute = AsyncMock()
+    monkeypatch.setattr(risk_management, "compute_risk", compute)
+
+    resp = client.put(
+        "/enterprises/e1/risk-management/events/ev1",
+        json={"accident_type": "火灾", "description": "未改动保存"},
+    )
+
+    assert resp.status_code == 200
+    compute.assert_not_awaited()
+    assert ev.risk_level == "重大"
+    assert ev.method_params == {"risk_level": "重大"}
+    assert resp.json()["data"]["risk_level"] == "重大"
+
+
 def test_create_event_explicit_risk_level_overrides(client, monkeypatch):
     """显式 risk_level/risk_score：create 路径不调用 compute_risk，当前等级取请求值。"""
     ent = Enterprise(id="e1", user_id="u1", name="甲公司")

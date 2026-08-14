@@ -801,7 +801,9 @@ async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str,
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     for k, v in body.model_dump(exclude_unset=True).items(): setattr(ev, k, v)
-    if body.risk_level is None and (body.method_type or body.method_params):
+    # 重算守卫：仅当显式提供了 method_type/method_params（参数变更）才重算；
+    # 两者都未提供（未改动保存）时不重算，避免空参数覆盖已存等级
+    if body.risk_level is None and (body.method_type is not None or body.method_params is not None):
         config = await get_active_method_config(db, enterprise_id, ev.method_type)
         rating = compute_risk(ev.method_type, ev.method_params, config)
         ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score

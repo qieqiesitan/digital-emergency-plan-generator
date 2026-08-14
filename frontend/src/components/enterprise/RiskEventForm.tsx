@@ -285,10 +285,13 @@ export default function RiskEventForm({
     const payload: RiskEventFormValues = {
       ...values,
       accident_type: Array.isArray(values.accident_type) ? values.accident_type.join("、") : values.accident_type,
-      method_type: methodType,
       control_level: values.control_level ?? null,
     };
     const methodUnchanged = isEdit && methodType === (initialValues?.method_type as MethodTypeKey | undefined);
+    // 编辑模式方法参数未改动时不提交 method_type，避免后端按（空/旧）参数重算覆盖已存等级
+    if (!methodUnchanged) {
+      payload.method_type = methodType;
+    }
 
     // ── 固有风险：编辑模式未改动对应参数则保持已存等级，不重算不覆盖 ──
     if (methodType === "DIRECT") {
@@ -359,6 +362,9 @@ export default function RiskEventForm({
       } else if (!directUnchanged) {
         // 与后端 compute_risk DIRECT 一致：等级文案存于 method_params.risk_level
         payload.method_params = { risk_level: label } as unknown as Record<string, number>;
+      } else {
+        // 未改动且未采用折算参考：不提交 method_params，保持后端已存等级
+        delete payload.method_params;
       }
     }
     onSubmit(payload);
