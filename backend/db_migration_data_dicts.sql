@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS data_dicts (
     UNIQUE (dict_type, enterprise_id, code)
 );
 CREATE INDEX IF NOT EXISTS idx_data_dicts_type_scope ON data_dicts(dict_type, scope);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_data_dicts_system_code
+    ON data_dicts(dict_type, code) WHERE enterprise_id IS NULL;
 
 INSERT INTO data_dicts (dict_type, code, label, value, scope, is_system, sort_order, description) VALUES
   ('measure_factors', 'engineering', '工程技术', '{"factor":0.5}', 'system', TRUE, 1, '自动折算参考系数'),
@@ -31,4 +33,5 @@ INSERT INTO data_dicts (dict_type, code, label, value, scope, is_system, sort_or
   ('hazard_type', 'behavior', '作业行为', '{}', 'system', TRUE, 3, '隐患类型（B 规格使用）'),
   ('hazard_type', 'management', '管理缺陷', '{}', 'system', TRUE, 4, '隐患类型（B 规格使用）'),
   ('hazard_type', 'environment', '环境', '{}', 'system', TRUE, 5, '隐患类型（B 规格使用）'),
-  ('hazard_type', 'other', '其他', '{}', 'system', TRUE, 6, '隐患类型（B 规格使用）');
+  ('hazard_type', 'other', '其他', '{}', 'system', TRUE, 6, '隐患类型（B 规格使用）')
+ON CONFLICT DO NOTHING;

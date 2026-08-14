@@ -13,3 +13,4 @@ def test_data_dict_model_construct():
                    value={"factor": 0.5}, scope="system", is_system=True)
     assert row.value["factor"] == 0.5
     assert row.enabled is True
+    assert DataDict(enabled=False).enabled is False
