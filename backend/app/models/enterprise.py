@@ -59,6 +59,8 @@ class Enterprise(Base):
     floor_plan_url: Mapped[Optional[str]] = mapped_column(String(500))
     gis_lat: Mapped[Optional[float]] = mapped_column(Float)
     gis_lng: Mapped[Optional[float]] = mapped_column(Float)
+    # 风险分级管控：公开风险页面 token
+    public_risk_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

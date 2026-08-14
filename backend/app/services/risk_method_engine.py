@@ -9,6 +9,17 @@ from sqlalchemy import select
 from app.models.risk_management import RiskAssessmentMethod
 
 
+RISK_LEVEL_ORDER = ["低", "一般", "较大", "重大"]
+
+
+def validate_dual_level(current_level: str | None, inherent_level: str | None) -> None:
+    """现有风险等级不应高于固有风险等级，否则抛 ValueError。"""
+    if (current_level and inherent_level
+            and current_level in RISK_LEVEL_ORDER and inherent_level in RISK_LEVEL_ORDER
+            and RISK_LEVEL_ORDER.index(current_level) > RISK_LEVEL_ORDER.index(inherent_level)):
+        raise ValueError("现有风险等级不应高于固有风险等级")
+
+
 @dataclass
 class RiskResult:
     """风险评估计算结果。

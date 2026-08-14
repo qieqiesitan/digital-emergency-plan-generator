@@ -13,7 +13,7 @@ from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObjec
 from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewResponse, MigrationExecuteRequest, MigrationExecuteResponse, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse, FourColorAnalyzeResponse, FourColorCommitRequest, FourColorCommitResponse)
 from app.schemas.common import ApiResponse
-from app.services.risk_method_engine import compute_risk, get_active_method_config
+from app.services.risk_method_engine import compute_risk, get_active_method_config, validate_dual_level
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
 from app.services.risk_source_migration_service import (
     build_migration_preview,
@@ -742,7 +742,11 @@ async def create_event(unit_id: str, body: RiskEventCreate, enterprise_id: str, 
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
     rating = compute_risk(body.method_type, body.method_params, config)
-    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
+    try:
+        validate_dual_level(rating.risk_level, body.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -762,7 +766,11 @@ async def create_object_event(object_id: str, body: RiskEventCreate, enterprise_
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
     rating = compute_risk(body.method_type, body.method_params, config)
-    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
+    try:
+        validate_dual_level(rating.risk_level, body.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -784,6 +792,10 @@ async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str,
     if body.method_type or body.method_params:
         config = await get_active_method_config(db, enterprise_id, ev.method_type)
         rating = compute_risk(ev.method_type, ev.method_params, config)
+        try:
+            validate_dual_level(rating.risk_level, ev.inherent_risk_level)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score
     await db.commit(); await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))
@@ -804,6 +816,10 @@ async def recalc_event(event_id: str, enterprise_id: str, current_user=Depends(g
     if not ev: raise HTTPException(404, "事件不存在")
     config = await get_active_method_config(db, enterprise_id, ev.method_type)
     rating = compute_risk(ev.method_type, ev.method_params, config)
+    try:
+        validate_dual_level(rating.risk_level, ev.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score
     await db.commit(); await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))

@@ -94,6 +94,10 @@ class RiskEvent(Base):
     method_params: Mapped[dict] = mapped_column(JSONB, default=dict)
     risk_level: Mapped[Optional[str]] = mapped_column(String(20))
     risk_score: Mapped[Optional[str]] = mapped_column(String(50))
+    # 双重预防：固有风险与管控层级
+    inherent_risk_level: Mapped[Optional[str]] = mapped_column(String(20))
+    inherent_risk_score: Mapped[Optional[str]] = mapped_column(String(50))
+    control_level: Mapped[Optional[str]] = mapped_column(String(20))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
