@@ -16,21 +16,18 @@ from app.services.risk_notice_card_data import (
 from app.schemas.risk_notice_card import CardData, RightColumn
 
 
+def _max_level(events: list, attr: str, default: str | None) -> str | None:
+    values = {getattr(ev, attr) for ev in events if getattr(ev, attr, None)}
+    return max(values, key=lambda v: -LEVEL_ORDER.index(v)) if values else default
+
+
 def compute_level(events: list[RiskEvent]) -> str:
-    levels = {e.risk_level for e in events if e.risk_level}
-    for level in LEVEL_ORDER:
-        if level in levels:
-            return level
-    return "未评估"
+    return _max_level(events, "risk_level", "未评估")
 
 
 def compute_inherent_level(events: list[RiskEvent]) -> str | None:
     """取事件固有等级最大值（按 LEVEL_ORDER 严重度排序），无固有等级返回 None。"""
-    levels = {e.inherent_risk_level for e in events if e.inherent_risk_level}
-    for level in LEVEL_ORDER:
-        if level in levels:
-            return level
-    return None
+    return _max_level(events, "inherent_risk_level", None)
 
 
 def resolve_responsible(obj: RiskObject, ent: Enterprise) -> tuple[str, str, str, bool]:

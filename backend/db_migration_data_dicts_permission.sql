@@ -5,7 +5,7 @@
 -- super_admin 全量权限、admin 菜单权限（除 menu:roles）。
 
 INSERT INTO permissions (id, code, name, resource, action, category) VALUES
-  (gen_random_uuid(), 'menu:data_dicts', '数据字典管理', 'menu', 'view', 'menu')
+  (gen_random_uuid(), 'menu:data_dicts', '数据字典管理', 'menu', 'data_dicts', 'menu')
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id)

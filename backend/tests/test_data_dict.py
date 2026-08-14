@@ -15,7 +15,7 @@ def test_permission_migration_seeds_menu_data_dicts():
     sql = _permission_sql()
     assert "menu:data_dicts" in sql
     assert "'数据字典管理'" in sql
-    assert "'menu'" in sql and "'view'" in sql
+    assert "'menu'" in sql and "'data_dicts'" in sql
 
 
 def test_permission_migration_is_idempotent():
