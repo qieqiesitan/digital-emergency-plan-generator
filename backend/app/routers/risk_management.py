@@ -42,6 +42,13 @@ def _validate_zone_polygon(polygon) -> None:
     if errors:
         raise HTTPException(status_code=422, detail={"code": "POLYGON_INVALID", "message": "；".join(errors)})
 
+def _resolve_current_level(body, config) -> tuple[str, str]:
+    """显式 risk_level 优先；否则按 method_params 计算。返回 (level, score)。"""
+    if body.risk_level:
+        return body.risk_level, body.risk_score or "-"
+    rating = compute_risk(body.method_type, body.method_params, config)
+    return rating.risk_level, rating.risk_score
+
 # ── Floors ──
 async def _default_floor(db: AsyncSession, enterprise_id: str) -> EnterpriseFloor:
     """获取或创建默认楼层；并发首访依赖 enterprise_floors 唯一索引防重，冲突时回滚后回退查询。"""
@@ -741,13 +748,7 @@ async def create_event(unit_id: str, body: RiskEventCreate, enterprise_id: str, 
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
-    if body.risk_level is None:
-        rating = compute_risk(body.method_type, body.method_params, config)
-        current_level, current_score = rating.risk_level, rating.risk_score
-    else:
-        # 显式指定现有等级（如「采用折算参考」）：不按 method_params 重算，仍执行双等级校验
-        current_level = body.risk_level
-        current_score = body.risk_score if body.risk_score is not None else "-"
+    current_level, current_score = _resolve_current_level(body, config)
     try:
         validate_dual_level(current_level, body.inherent_risk_level)
     except ValueError as exc:
@@ -771,13 +772,7 @@ async def create_object_event(object_id: str, body: RiskEventCreate, enterprise_
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
-    if body.risk_level is None:
-        rating = compute_risk(body.method_type, body.method_params, config)
-        current_level, current_score = rating.risk_level, rating.risk_score
-    else:
-        # 显式指定现有等级（如「采用折算参考」）：不按 method_params 重算，仍执行双等级校验
-        current_level = body.risk_level
-        current_score = body.risk_score if body.risk_score is not None else "-"
+    current_level, current_score = _resolve_current_level(body, config)
     try:
         validate_dual_level(current_level, body.inherent_risk_level)
     except ValueError as exc:
@@ -860,9 +855,17 @@ async def event_conversion_reference(enterprise_id: str, event_id: str,
     from app.services.data_dict_service import get_dict_map
     from app.services.risk_conversion_service import conversion_reference
     factors = await get_dict_map(db, enterprise_id, "measure_factors")
-    mode = (factors.get("mode") or {}).get("value", {}).get("mode", "min")
-    factor_map = {code: entry["value"]["factor"]
-                  for code, entry in factors.items() if code != "mode" and entry.get("value", {}).get("factor") is not None}
+    factor_map: dict[str, float] = {}
+    for code, entry in factors.items():
+        if code == "mode":
+            continue
+        value = entry.get("value") if isinstance(entry, dict) else None
+        factor = value.get("factor") if isinstance(value, dict) else None
+        if isinstance(factor, (int, float)):
+            factor_map[code] = float(factor)
+    mode_entry = factors.get("mode")
+    mode_value = mode_entry.get("value") if isinstance(mode_entry, dict) else None
+    mode = mode_value.get("mode", "min") if isinstance(mode_value, dict) else "min"
     config = await get_active_method_config(db, enterprise_id, event.method_type)
     thresholds = (config or {}).get("risk_thresholds", [])
     if event.method_type == "COAL_LS" and not thresholds:

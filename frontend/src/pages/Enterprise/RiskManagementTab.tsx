@@ -297,10 +297,11 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
             description: values.description || "",
             ...(values.method_type ? { method_type: values.method_type as MethodType } : {}),
             ...(values.method_params ? { method_params: values.method_params } : {}),
-            risk_level: values.risk_level ?? undefined,
-            risk_score: values.risk_score ?? undefined,
-            inherent_risk_level: values.inherent_risk_level ?? undefined,
-            inherent_risk_score: values.inherent_risk_score ?? undefined,
+            // 显式透传：null 表示清空固有/现有等级（序列化保留），undefined 序列化时省略
+            risk_level: values.risk_level,
+            risk_score: values.risk_score,
+            inherent_risk_level: values.inherent_risk_level,
+            inherent_risk_score: values.inherent_risk_score,
             control_level: values.control_level ?? null,
             chemical_id: values.chemical_id ?? null,
           };

@@ -6,6 +6,7 @@ import {
 import { RobotOutlined, CalculatorOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { computeRiskLS, computeRiskLEC, getCellClass, ACCIDENT_TYPES, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { buildEventPayload, DIRECT_LEVELS } from "@/utils/eventPayload";
 import { aiSuggestEvents, previewRiskConversion, type RiskConversionReference } from "@/services/riskManagementService";
 import { listChemicals } from "@/services/hazardousChemicalService";
 import type { MethodType, RiskEventFormValues } from "@/types/riskManagement";
@@ -56,13 +57,6 @@ const LEC_C_OPTIONS = [
   { value: 15, label: "15 - 非常严重，1人死亡" },
   { value: 40, label: "40 - 灾难，数人死亡" },
   { value: 100, label: "100 - 大灾难，多人死亡" },
-];
-
-const DIRECT_LEVELS = [
-  { value: 1, label: "低" },
-  { value: 2, label: "一般" },
-  { value: 3, label: "较大" },
-  { value: 4, label: "重大" },
 ];
 
 type MethodTypeKey = "LS" | "LEC" | "COAL_LS" | "DIRECT";
@@ -282,92 +276,17 @@ export default function RiskEventForm({
   };
 
   const handleFinish = (values: RiskEventFormValues) => {
-    const payload: RiskEventFormValues = {
-      ...values,
-      accident_type: Array.isArray(values.accident_type) ? values.accident_type.join("、") : values.accident_type,
-      control_level: values.control_level ?? null,
-    };
-    const methodUnchanged = isEdit && methodType === (initialValues?.method_type as MethodTypeKey | undefined);
-    // 编辑模式方法参数未改动时不提交 method_type，避免后端按（空/旧）参数重算覆盖已存等级
-    if (!methodUnchanged) {
-      payload.method_type = methodType;
-    }
-
-    // ── 固有风险：编辑模式未改动对应参数则保持已存等级，不重算不覆盖 ──
-    if (methodType === "DIRECT") {
-      const inherentLevel = values.inherent_risk_level ?? null;
-      const inherentUnchanged = isEdit && inherentLevel === (initialValues?.inherent_risk_level ?? null);
-      if (!inherentUnchanged) {
-        payload.inherent_risk_level = inherentLevel;
-      }
-    } else if (methodType === "LS" || methodType === "COAL_LS") {
-      payload.inherent_params = { L: inherentL, S: inherentS };
-      const inherentUnchanged = isEdit
-        && (initialInherentParams.L ?? 1) === inherentL
-        && (initialInherentParams.S ?? 1) === inherentS;
-      if (!inherentUnchanged) {
-        const ir = computeRiskLS(inherentL, inherentS);
-        payload.inherent_risk_level = ir.riskLevel;
-        payload.inherent_risk_score = ir.riskScore;
-      }
-    } else {
-      payload.inherent_params = { L: inherentLecL, E: inherentLecE, C: inherentLecC };
-      const inherentUnchanged = isEdit
-        && (initialInherentParams.L ?? 1) === inherentLecL
-        && (initialInherentParams.E ?? 3) === inherentLecE
-        && (initialInherentParams.C ?? 7) === inherentLecC;
-      if (!inherentUnchanged) {
-        const ir = computeRiskLEC(inherentLecL, inherentLecE, inherentLecC);
-        payload.inherent_risk_level = ir.riskLevel;
-        payload.inherent_risk_score = ir.riskScore;
-      }
-    }
-
-    // ── 现有风险：编辑模式未改动则不提交，保持后端已存等级；改动/新建才重算提交 ──
-    if (methodType === "LS" || methodType === "COAL_LS") {
-      const params = { l: lValue, s: sValue };
-      const paramsUnchanged = methodUnchanged
-        && (initialParams?.l ?? 1) === lValue
-        && (initialParams?.s ?? 1) === sValue;
-      if (adoptedRef && paramsUnchanged) {
-        // 采用折算参考：显式提交等级/分值，后端不按参数重算
-        payload.method_params = params;
-        payload.risk_level = adoptedRef.level;
-        payload.risk_score = adoptedRef.score;
-      } else if (!paramsUnchanged) {
-        // 提交小写键与后端 compute_risk 一致，由后端按企业配置阈值重算
-        payload.method_params = params;
-      }
-    } else if (methodType === "LEC") {
-      const params = { l: lecL, e: lecE, c: lecC };
-      const paramsUnchanged = methodUnchanged
-        && (initialParams?.l ?? 1) === lecL
-        && (initialParams?.e ?? 3) === lecE
-        && (initialParams?.c ?? 7) === lecC;
-      if (adoptedRef && paramsUnchanged) {
-        payload.method_params = params;
-        payload.risk_level = adoptedRef.level;
-        payload.risk_score = adoptedRef.score;
-      } else if (!paramsUnchanged) {
-        payload.method_params = params;
-      }
-    } else if (methodType === "DIRECT") {
-      const lv = values.method_params?.level ?? 1;
-      const label = DIRECT_LEVELS.find((d) => d.value === lv)?.label ?? "一般";
-      const directUnchanged = methodUnchanged && (initialParams?.directLevel ?? 1) === lv;
-      if (adoptedRef && label === adoptedRef.level) {
-        payload.method_params = { risk_level: label } as unknown as Record<string, number>;
-        payload.risk_level = adoptedRef.level;
-        payload.risk_score = adoptedRef.score;
-      } else if (!directUnchanged) {
-        // 与后端 compute_risk DIRECT 一致：等级文案存于 method_params.risk_level
-        payload.method_params = { risk_level: label } as unknown as Record<string, number>;
-      } else {
-        // 未改动且未采用折算参考：不提交 method_params，保持后端已存等级
-        delete payload.method_params;
-      }
-    }
-    onSubmit(payload);
+    // payload 构建逻辑收敛到纯函数 eventPayload.buildEventPayload，便于单测覆盖
+    onSubmit(buildEventPayload(values, {
+      isEdit,
+      initialValues,
+      methodType,
+      initialParams,
+      initialInherentParams,
+      adoptedRef,
+      lValue, sValue, lecL, lecE, lecC,
+      inherentL, inherentS, inherentLecL, inherentLecE, inherentLecC,
+    }));
   };
 
   return (<>

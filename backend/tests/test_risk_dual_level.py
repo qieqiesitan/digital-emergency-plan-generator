@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -45,6 +46,37 @@ def test_risk_event_schemas_have_explicit_level_override_fields():
     assert "risk_score" in RiskEventCreate.model_fields
     assert "risk_level" in RiskEventUpdate.model_fields
     assert "risk_score" in RiskEventUpdate.model_fields
+
+
+def test_risk_event_schemas_reject_invalid_level_enum():
+    """risk_level/inherent_risk_level/control_level 非空时必须属于允许枚举。"""
+    with pytest.raises(ValidationError, match="风险等级必须是"):
+        RiskEventCreate(accident_type="火灾", risk_level="高")
+    with pytest.raises(ValidationError, match="风险等级必须是"):
+        RiskEventCreate(accident_type="火灾", inherent_risk_level="严重")
+    with pytest.raises(ValidationError, match="管控层级必须是"):
+        RiskEventCreate(accident_type="火灾", control_level="全厂")
+    with pytest.raises(ValidationError, match="风险等级必须是"):
+        RiskEventUpdate(risk_level="未知")
+    with pytest.raises(ValidationError, match="管控层级必须是"):
+        RiskEventUpdate(inherent_risk_level="一般", control_level="车间")
+
+
+def test_risk_event_schemas_allow_valid_or_empty_level_enum():
+    """合法等级与空值放行。"""
+    create = RiskEventCreate(
+        accident_type="火灾",
+        risk_level="低",
+        inherent_risk_level=None,
+        control_level="岗位",
+    )
+    assert create.risk_level == "低"
+    assert create.inherent_risk_level is None
+    assert create.control_level == "岗位"
+    update = RiskEventUpdate(accident_type="火灾", inherent_risk_level="较大", control_level="部门")
+    assert update.inherent_risk_level == "较大"
+    assert update.control_level == "部门"
+    assert RiskEventUpdate(accident_type="火灾").risk_level is None
 
 
 def _event(**overrides):
