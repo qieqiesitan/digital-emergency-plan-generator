@@ -17,9 +17,16 @@ from app.schemas.enterprise_org import (
     MemberUpdate,
     OrgTreeUpdate,
 )
-from app.services.enterprise_org_service import parse_member_rows, sync_org_structure, validate_org_tree
+from app.services.enterprise_org_service import (
+    IMPORT_HEADERS,
+    parse_member_rows,
+    sync_org_structure,
+    validate_org_tree,
+)
 
 router = APIRouter(prefix="/enterprises/{enterprise_id}/org", tags=["Enterprise Org"])
+
+MAX_IMPORT_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 async def _get_ent(enterprise_id: str, user_id: str, db: AsyncSession) -> Enterprise:
@@ -238,9 +245,19 @@ async def import_members(
     """Excel 批量导入成员：按邮箱绑定已有账号，部门/班组名查或建节点。"""
     ent = await _get_owned_ent(enterprise_id, current_user.id, db)
     content = await file.read()
-    wb = load_workbook(BytesIO(content), data_only=True)
+    if len(content) > MAX_IMPORT_SIZE:
+        raise HTTPException(413, "导入文件过大，请使用 5MB 以内的模板文件")
+    # 非 xlsx/损坏文件会抛 InvalidFileException/BadZipFile/解析类异常，统一 400；
+    # 与 file_parser 的宽异常兜底惯例一致，避免裸 500。
+    try:
+        wb = load_workbook(BytesIO(content), data_only=True)
+    except Exception:
+        raise HTTPException(400, "导入文件格式无效，请使用模板")
     ws = wb.active
-    headers = [c.value for c in ws[1]]
+    # 表头须与模板一致（忽略顺序、去空白），避免整表误报「邮箱必填」
+    headers = ["" if c.value is None else str(c.value).strip() for c in ws[1]]
+    if sorted(headers) != sorted(IMPORT_HEADERS):
+        raise HTTPException(400, "表头与模板不符，请使用模板")
     raw_rows: list[tuple[int, dict]] = []
     for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if row is None or all(v is None or str(v).strip() == "" for v in row):

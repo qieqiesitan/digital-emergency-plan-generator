@@ -631,6 +631,72 @@ def test_members_import_non_owner_403(client):
     assert resp.status_code == 403
 
 
+def test_members_import_corrupt_file_400(client):
+    ent = _org_ent(org_structure=[])
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", b"not an xlsx file", _XLSX_MIME)},
+    )
+    assert resp.status_code == 400
+    assert "导入文件格式无效" in resp.json()["detail"]
+
+
+def test_members_import_header_mismatch_400(client):
+    from openpyxl import Workbook
+
+    ent = _org_ent(org_structure=[])
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["姓名", "邮箱", "部门", "班组", "岗位", "备注"])
+    ws.append(["张三", "zhang@x.com", "生产部", "甲班", "班组长", "x"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", buf.getvalue(), _XLSX_MIME)},
+    )
+    assert resp.status_code == 400
+    assert "表头与模板不符" in resp.json()["detail"]
+
+
+def test_members_import_header_order_and_whitespace_insensitive(client):
+    from openpyxl import Workbook
+
+    ent = _org_ent(org_structure=[])
+    user = User(id="u2", email="zhang@x.com", name="张三", role="user")
+    db = _org_db(ent, user=user, member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    wb = Workbook()
+    ws = wb.active
+    ws.append([" 邮箱 ", "姓名", "角色", "岗位", "班组", "部门"])
+    ws.append(["zhang@x.com", "张三", "班组长", "班组长", "甲班", "生产部"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", buf.getvalue(), _XLSX_MIME)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 1
+    assert data["errors"] == []
+    assert ent.org_structure[0]["name"] == "生产部"
+
+
+def test_members_import_file_too_large_413(client):
+    ent = _org_ent(org_structure=[])
+    client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
+    oversized = b"x" * (5 * 1024 * 1024 + 1)
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", oversized, _XLSX_MIME)},
+    )
+    assert resp.status_code == 413
+    assert "5MB" in resp.json()["detail"]
+
+
 # ── GET /members/available ──
 
 def test_members_available_returns_enabled_with_org_path(client):
