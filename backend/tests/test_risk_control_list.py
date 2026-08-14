@@ -175,6 +175,9 @@ def _db(ent, zones=None, dict_rows=None):
         if "FROM enterprises" in text:
             return _scalar_result(ent)
         if "FROM enterprise_floors" in text:
+            if "enterprise_floors.id =" in text:
+                # 显式 floor_id 查询：楼层不存在（如他企业楼层）→ None
+                return _scalar_result(None)
             return _scalar_result(_default_floor())
         if "FROM data_dicts" in text:
             return _rows_result(dict_rows)
@@ -291,6 +294,35 @@ def test_control_list_pagination_and_filters(client):
     assert len(resp.json()["data"]["items"]) == 1
 
 
+def test_control_list_level_filter_inherent_only(client):
+    # level 筛选 inherent-only 分支：current=一般 / inherent=较大，按 level=较大 命中
+    zone = RiskZone(id="z1", enterprise_id="e1", floor_id="f1", name="储罐区")
+    obj = RiskObject(id="o1", enterprise_id="e1", zone_id="z1", name="1#储罐")
+    obj.events = [RiskEvent(accident_type="火灾", risk_level="一般",
+                            inherent_risk_level="较大")]
+    zone.objects = [obj]
+    db = _db(_ent(), zones=[zone])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/risk-management/control-list",
+                      params={"level": "较大"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["total"] == 1
+    assert data["items"][0]["accident"] == "火灾"
+    assert data["items"][0]["current"] == "一般"
+    assert data["items"][0]["inherent"] == "较大"
+
+
+def test_control_list_other_enterprise_floor_404(client):
+    # 显式传他企业 floor_id → 404「楼层不存在」
+    db = _db(_ent())
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/risk-management/control-list",
+                      params={"floor_id": "f-other"})
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "楼层不存在"
+
+
 # ── control-list/export ──
 
 def test_control_list_export_xlsx(client):
@@ -306,6 +338,20 @@ def test_control_list_export_xlsx(client):
     ws = wb.active
     assert ws.title == "风险管控清单"
     assert ws.max_row == 3  # 表头 + 2 行
+    assert ws["A1"].value == "分区"
+
+
+def test_control_list_export_empty(client):
+    # 空清单：仅表头 1 行，双 sheet 结构完整
+    db = _db(_ent(), zones=[])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/risk-management/control-list/export")
+    assert resp.status_code == 200
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == ["风险管控清单", "等级层级汇总"]
+    ws = wb.active
+    assert ws.title == "风险管控清单"
+    assert ws.max_row == 1
     assert ws["A1"].value == "分区"
 
 
@@ -341,6 +387,21 @@ def test_risk_publicity_generates_token_and_filters_major(client):
     # generated_at：ISO 时间，可解析
     assert datetime.fromisoformat(data["generated_at"]).tzinfo is not None
     db.commit.assert_awaited()
+
+
+def test_risk_publicity_floor_name_with_real_floor(client):
+    # 分区挂真实楼层时 floor_name 非 None
+    ent = _ent()
+    zone = _zone_with_events()
+    zone.floor = _default_floor()
+    db = _db(ent, zones=[zone])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/risk-management/risk-publicity")
+    assert resp.status_code == 200
+    zones_data = resp.json()["data"]["zones"]
+    assert len(zones_data) == 1
+    assert zones_data[0]["floor_id"] == "f1"
+    assert zones_data[0]["floor_name"] == "默认总图"
 
 
 def test_risk_publicity_keeps_existing_token(client):

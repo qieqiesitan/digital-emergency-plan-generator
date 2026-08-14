@@ -1,6 +1,16 @@
 """风险分级管控清单：层级展平、默认管控层级、Excel 台账导出、公开脱敏。"""
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
+from sqlalchemy.orm import selectinload
+
+from app.models.risk_management import RiskEvent, RiskObject, RiskUnit, RiskZone
+
+
+# 分区→风险点→单元→事件 树形查询的公共加载选项，管理端与公开端共用。
+ZONE_TREE_OPTIONS = (
+    selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
+    selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures),
+)
 
 
 def default_control_level(mapping: dict, current_level: str | None) -> str:
@@ -33,6 +43,11 @@ def _row(z, obj, unit, ev, mapping) -> dict:
         "measures": measures, "unit_name": obj.responsible_unit or "-",
         "person": obj.responsible_person or "-", "phone": obj.contact_phone or "-",
     }
+
+
+def is_major_publicity_row(row: dict) -> bool:
+    """重大风险公示口径：现有等级为「重大」或管控层级为「企业」。"""
+    return row["current"] == "重大" or row["control_level"] == "企业"
 
 
 _COLUMN_MAP = {

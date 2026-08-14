@@ -22,7 +22,12 @@ from app.services.risk_source_migration_service import (
     execute_migration as execute_risk_source_migration,
 )
 from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS
-from app.services.risk_control_list_service import build_ledger_workbook, flatten_rows
+from app.services.risk_control_list_service import (
+    ZONE_TREE_OPTIONS,
+    build_ledger_workbook,
+    flatten_rows,
+    is_major_publicity_row,
+)
 from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
@@ -981,12 +986,6 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
     return ApiResponse(data=out)
 
 # ── Control list & publicity ──
-_ZONE_TREE_OPTIONS = (
-    selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
-    selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures),
-)
-
-
 async def _control_level_mapping(db: AsyncSession, enterprise_id: str) -> dict[str, str]:
     """从数据字典 control_level_map 构建 {现有风险等级: 默认管控层级}。
 
@@ -1021,7 +1020,7 @@ async def control_list(
     await _get_ent(enterprise_id, current_user.id, db)
     resolved_floor_id = await _resolve_zone_floor(db, enterprise_id, floor_id)
     zones = (await db.execute(
-        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*_ZONE_TREE_OPTIONS)
+        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*ZONE_TREE_OPTIONS)
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = flatten_rows(zones, mapping)
@@ -1048,7 +1047,7 @@ async def control_list_export(
     await _get_ent(enterprise_id, current_user.id, db)
     resolved_floor_id = await _resolve_zone_floor(db, enterprise_id, floor_id)
     zones = (await db.execute(
-        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*_ZONE_TREE_OPTIONS)
+        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*ZONE_TREE_OPTIONS)
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = flatten_rows(zones, mapping)
@@ -1074,11 +1073,11 @@ async def get_risk_publicity(
         await db.commit()
     zones = (await db.execute(
         select(RiskZone).where(RiskZone.enterprise_id == enterprise_id)
-        .options(selectinload(RiskZone.floor), *_ZONE_TREE_OPTIONS)
+        .options(selectinload(RiskZone.floor), *ZONE_TREE_OPTIONS)
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = [r for r in flatten_rows(zones, mapping)
-            if r["current"] == "重大" or r["control_level"] == "企业"]
+            if is_major_publicity_row(r)]
     zones_data = []
     for z in zones:
         cur, cur_color, inh, inh_color = _zone_dual_levels(z)
