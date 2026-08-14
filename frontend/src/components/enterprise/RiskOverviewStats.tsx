@@ -3,6 +3,7 @@ import type { HierarchyZone } from "@/types/riskManagement";
 
 interface Props {
   zones: HierarchyZone[];
+  mode?: "current" | "inherent";
 }
 
 interface StatsData {
@@ -23,7 +24,7 @@ const PIE_COLORS: Record<string, string> = {
   "未知": "#d9d9d9",
 };
 
-function computeStats(zones: HierarchyZone[]): StatsData {
+function computeStats(zones: HierarchyZone[], mode: "current" | "inherent" = "current"): StatsData {
   let totalZones = 0;
   let totalObjects = 0;
   let totalEvents = 0;
@@ -31,6 +32,8 @@ function computeStats(zones: HierarchyZone[]): StatsData {
   let implementedMeasures = 0;
   const riskLevelCounts: Record<string, number> = {};
   const accidentTypeCounts: Record<string, number> = {};
+  const eventLevel = (ev: { risk_level?: string | null; inherent_risk_level?: string | null }) =>
+    (mode === "inherent" ? (ev.inherent_risk_level ?? ev.risk_level) : ev.risk_level) || "未知";
 
   for (const zone of zones) {
     totalZones++;
@@ -41,7 +44,7 @@ function computeStats(zones: HierarchyZone[]): StatsData {
         totalEvents++;
         totalMeasures += (ev.measures || []).length;
         implementedMeasures += (ev.measures || []).filter((m) => m.status === "implemented").length;
-        const rl = ev.risk_level || "未知";
+        const rl = eventLevel(ev);
         riskLevelCounts[rl] = (riskLevelCounts[rl] || 0) + 1;
         const at = ev.accident_type || "未知";
         accidentTypeCounts[at] = (accidentTypeCounts[at] || 0) + 1;
@@ -52,7 +55,7 @@ function computeStats(zones: HierarchyZone[]): StatsData {
           totalEvents++;
           totalMeasures += (ev.measures || []).length;
           implementedMeasures += (ev.measures || []).filter((m) => m.status === "implemented").length;
-          const rl = ev.risk_level || "未知";
+          const rl = eventLevel(ev);
           riskLevelCounts[rl] = (riskLevelCounts[rl] || 0) + 1;
           const at = ev.accident_type || "未知";
           accidentTypeCounts[at] = (accidentTypeCounts[at] || 0) + 1;
@@ -106,8 +109,8 @@ const HEADING_STYLE: React.CSSProperties = {
   flexShrink: 0,
 };
 
-export default function RiskOverviewStats({ zones }: Props) {
-  const stats = useMemo(() => computeStats(zones), [zones]);
+export default function RiskOverviewStats({ zones, mode = "current" }: Props) {
+  const stats = useMemo(() => computeStats(zones, mode), [zones, mode]);
 
   const implementedPercent =
     stats.totalMeasures > 0 ? Math.round((stats.implementedMeasures / stats.totalMeasures) * 100) : 0;

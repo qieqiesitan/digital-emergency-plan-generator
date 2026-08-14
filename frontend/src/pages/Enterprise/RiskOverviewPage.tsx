@@ -9,7 +9,7 @@ import RiskDistributionStage from "@/components/enterprise/riskMapping/RiskDistr
 import RiskOverviewMatrix from "@/components/enterprise/RiskOverviewMatrix";
 import RiskOverviewStats from "@/components/enterprise/RiskOverviewStats";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
-import type { HierarchyZone } from "@/types/riskManagement";
+import type { HierarchyEvent, HierarchyZone } from "@/types/riskManagement";
 
 type ViewMode = "quad" | "floorplan" | "data";
 type ColorMode = "current" | "inherent";
@@ -68,7 +68,10 @@ export default function RiskOverviewPage() {
   };
 
   // Build compact tree
-  const treeData = useMemo(() => zones.map(z => ({ title: <span>🏭 {z.name} {getMaxLevel(z) !== "低" && <Tag color={RISK_LEVEL_COLORS[getMaxLevel(z)]}>{getMaxLevel(z)}</Tag>}</span>, key: z.id, children: z.objects?.map(o => ({ title: <span>📦 {o.name}{o.is_risk_point ? " ◆" : ""}</span>, key: o.id, children: [...(o.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[e.risk_level||"低"]}>{e.risk_level||"?"}</Tag></span>, key: e.id, isLeaf: true })), ...(o.units||[]).map(u => ({ title: <span>⚙ {u.name}</span>, key: u.id, children: (u.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[e.risk_level||"低"]}>{e.risk_level||"?"}</Tag></span>, key: e.id, isLeaf: true })) }))] })) || [] })), [zones]);
+  const treeData = useMemo(() => {
+    const eventLevel = (e: HierarchyEvent) => (colorMode === "inherent" ? (e.inherent_risk_level ?? e.risk_level) : e.risk_level) || "低";
+    return zones.map(z => ({ title: <span>🏭 {z.name} {getMaxLevel(z, colorMode) !== "低" && <Tag color={RISK_LEVEL_COLORS[getMaxLevel(z, colorMode)]}>{getMaxLevel(z, colorMode)}</Tag>}</span>, key: z.id, children: z.objects?.map(o => ({ title: <span>📦 {o.name}{o.is_risk_point ? " ◆" : ""}</span>, key: o.id, children: [...(o.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[eventLevel(e)]}>{eventLevel(e)}</Tag></span>, key: e.id, isLeaf: true })), ...(o.units||[]).map(u => ({ title: <span>⚙ {u.name}</span>, key: u.id, children: (u.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[eventLevel(e)]}>{eventLevel(e)}</Tag></span>, key: e.id, isLeaf: true })) }))] })) || [] }));
+  }, [zones, colorMode]);
 
   if (isLoading) return <Spin size="large" style={{ display: "block", margin: "100px auto" }} />;
 
@@ -112,7 +115,7 @@ export default function RiskOverviewPage() {
           {/* Q2: Risk Matrix */}
           <Card size="small" title="② 风险矩阵热力图" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 2) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewMatrix zones={zones} onEventFilter={() => {}} mode={colorMode} /></Card>
           {/* Q3: Stats */}
-          {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 3) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewStats zones={zones} /></Card>}
+          {(viewMode === "quad" || viewMode === "data") && <Card size="small" title="③ 风险统计" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 3) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}><RiskOverviewStats zones={zones} mode={colorMode} /></Card>}
           {/* Q4: Tree/Topology */}
           <Card size="small" title={<Space><span>④</span><Segmented size="small" options={[{ label: "层级树", value: "tree" }, { label: "管控拓扑图", value: "topology" }]} value={rightView} onChange={v => { setRightView(v as "tree" | "topology"); localStorage.setItem("risk-overview-right", v as string); }} /></Space>} style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", ...cardArea(viewMode, 4) }} styles={{ body: { flex: 1, minHeight: 0, overflow: "auto" } }}>
             {rightView === "tree" ? (
@@ -131,7 +134,7 @@ export default function RiskOverviewPage() {
                 }}
               />
             ) : (
-              <TopologySVG zones={zones} highlightZone={highlightZone} />
+              <TopologySVG zones={zones} highlightZone={highlightZone} mode={colorMode} />
             )}
           </Card>
         </div>
@@ -162,16 +165,19 @@ function cardArea(mode: ViewMode, n: 1 | 2 | 3 | 4): React.CSSProperties {
 }
 
 // Helper: get max risk level in a zone
-function getMaxLevel(zone: HierarchyZone): string {
+function getMaxLevel(zone: HierarchyZone, mode: ColorMode = "current"): string {
   const levels: Record<string, number> = { "重大": 4, "较大": 3, "一般": 2, "低": 1 };
   let max = "低";
   const check = (l?: string | null) => { if (l && (levels[l] || 0) > (levels[max] || 0)) max = l; };
-  for (const o of zone.objects || []) { for (const e of o.events || []) check(e.risk_level); for (const u of o.units || []) for (const e of u.events || []) check(e.risk_level); }
+  for (const o of zone.objects || []) {
+    for (const e of o.events || []) check(mode === "inherent" ? (e.inherent_risk_level ?? e.risk_level) : e.risk_level);
+    for (const u of o.units || []) for (const e of u.events || []) check(mode === "inherent" ? (e.inherent_risk_level ?? e.risk_level) : e.risk_level);
+  }
   return max;
 }
 
 // Q4: Topology SVG
-function TopologySVG({ zones, highlightZone }: { zones: HierarchyZone[]; highlightZone: string | null }) {
+function TopologySVG({ zones, highlightZone, mode }: { zones: HierarchyZone[]; highlightZone: string | null; mode: ColorMode }) {
   const cols = Math.min(4, Math.max(1, zones.length));
   const rows = Math.max(1, Math.ceil(zones.length / 4));
   const W = Math.max(600, 60 + cols * 140);
@@ -182,7 +188,7 @@ function TopologySVG({ zones, highlightZone }: { zones: HierarchyZone[]; highlig
         <rect x={W/2-50} y={5} width={100} height={20} rx={4} fill="#f0f0f0" stroke="#d9d9d9" />;
         <text x={W/2} y={19} textAnchor="middle" fontSize={10} fontWeight={600}>企业风险总览</text>
         {zones.map((z, i) => {
-          const lvl = getMaxLevel(z); const clr = RISK_LEVEL_COLORS[lvl] || "#d9d9d9";
+          const lvl = getMaxLevel(z, mode); const clr = RISK_LEVEL_COLORS[lvl] || "#d9d9d9";
           const x = 30 + (i % 4) * 140; const y = 50 + Math.floor(i / 4) * 100;
           return (
             <g key={z.id}>
