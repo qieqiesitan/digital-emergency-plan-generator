@@ -23,6 +23,7 @@ import UserManagePage from "@/pages/Settings/UserManagePage";
 import RoleManagePage from "@/pages/Settings/RoleManagePage";
 import SystemConfigPage from "@/pages/Settings/SystemConfigPage";
 import RegulationManagePage from "@/pages/Settings/RegulationManagePage";
+import DataDictManagePage from "@/pages/Settings/DataDictManagePage";
 import RiskAssessmentPreview from "@/pages/Enterprise/RiskAssessmentPreview";
 import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigationPreview";
 import RiskOverviewPage from "@/pages/Enterprise/RiskOverviewPage";
@@ -33,11 +34,13 @@ import RiskNoticeCardPage from "@/pages/Enterprise/RiskNoticeCardPage";
 import RiskNoticeCardPreviewPage from "@/pages/Enterprise/RiskNoticeCardPreviewPage";
 import RiskControlListPage from "@/pages/Enterprise/RiskControlListPage";
 import RiskPublicityPage from "@/pages/Enterprise/RiskPublicityPage";
+import EnterpriseDictConfigPage from "@/pages/Enterprise/EnterpriseDictConfigPage";
 import PublicRiskNoticePage from "@/pages/PublicRiskNoticePage";
 import PublicRiskPage from "@/pages/PublicRiskPage";
 import ChatPage from "@/pages/Chat";
 import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
 
+// eslint-disable-next-line react-refresh/only-export-components -- 本文件同时导出 createRouter 工厂，属既有结构
 function MobileRedirect() {
   window.location.replace(window.location.pathname + window.location.search);
   return null;
@@ -75,6 +78,8 @@ const contentRoutes = [
   { path: "/settings/system", element: <SystemConfigPage /> },
   { path: "/settings/prompts", element: <PromptManagePage /> },
   { path: "/settings/regulations", element: <RegulationManagePage /> },
+  { path: "/settings/data-dicts", element: <DataDictManagePage /> },
+  { path: "/enterprises/:id/data-dicts", element: <EnterpriseDictConfigPage /> },
 ];
 
 export function createRouter() {

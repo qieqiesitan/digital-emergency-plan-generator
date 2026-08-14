@@ -356,6 +356,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
            <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-notice-cards`)}>风险告知卡</Button>
            <Button icon={<ApartmentOutlined />} onClick={() => setFloorDrawerOpen(true)}>楼层管理</Button>
            <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
+           <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/data-dicts`)}>风险与隐患配置</Button>
          </Space>
          {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}
        </div>
