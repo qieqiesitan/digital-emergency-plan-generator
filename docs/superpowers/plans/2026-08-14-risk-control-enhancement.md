@@ -10,6 +10,8 @@
 
 **规格文档：** `docs/superpowers/specs/2026-08-14-risk-control-enhancement-design.md`（commit `e130075`）
 
+**测试约定（重要，已核实项目现状）：** `backend/tests/conftest.py` 只有 sys.path bootstrap，**无 `db_session` fixture**；模型/常量测试用纯单元断言（SQLAlchemy 元数据，不连库）；服务/API 测试用 `unittest.mock`（`AsyncMock` / `MagicMock` / `dependency_overrides`）；async 测试必须加 `@pytest.mark.asyncio`（pytest-asyncio STRICT）。前端仅 service/store/utils 有 vitest（无 jsdom），组件行为靠 tsc/lint + 手工冒烟。
+
 ---
 
 ## 文件结构
@@ -72,18 +74,21 @@
 
 ```python
 # backend/tests/test_data_dict.py
-from sqlalchemy import select
 from app.models.data_dict import DataDict
 
-async def test_data_dict_columns(db_session):
+def test_data_dict_table_metadata():
+    assert DataDict.__tablename__ == "data_dicts"
+    cols = DataDict.__table__.columns
+    assert "id" in cols and "dict_type" in cols and "code" in cols and "value" in cols
+    assert cols["enterprise_id"].nullable
+    assert any(getattr(c, "name", None) == "uq_data_dicts_type_ent_code"
+               for c in DataDict.__table__.constraints)
+
+def test_data_dict_model_construct():
     row = DataDict(dict_type="measure_factors", code="engineering", label="工程技术",
-                   value={"factor": 0.5}, scope="system", enterprise_id=None, is_system=True)
-    db_session.add(row)
-    await db_session.flush()
-    got = (await db_session.execute(
-        select(DataDict).where(DataDict.code == "engineering"))).scalar_one()
-    assert got.dict_type == "measure_factors"
-    assert got.value["factor"] == 0.5
+                   value={"factor": 0.5}, scope="system", is_system=True)
+    assert row.value["factor"] == 0.5
+    assert row.enabled is True
 ```
 
 - [ ] **步骤 2：运行测试验证失败**
@@ -186,26 +191,38 @@ git commit -m "feat(data-dict): add data_dicts table with system seed migration"
 
 ```python
 # backend/tests/test_data_dict.py（追加）
+import pytest
+from unittest.mock import AsyncMock, MagicMock
 from app.services.data_dict_service import get_dict_map
+from app.models.data_dict import DataDict
 
-async def test_enterprise_overrides_system(db_session):
-    from app.models.data_dict import DataDict
-    db_session.add_all([
+@pytest.mark.asyncio
+async def test_enterprise_overrides_system():
+    db = MagicMock()
+    db.execute = AsyncMock()
+    rows = [
         DataDict(dict_type="measure_factors", code="engineering", label="工程技术",
                  value={"factor": 0.5}, scope="system", is_system=True),
         DataDict(dict_type="measure_factors", code="engineering", label="工程技术",
                  value={"factor": 0.3}, scope="enterprise", enterprise_id="ent-1"),
-    ])
-    await db_session.flush()
-    merged = await get_dict_map(db_session, "ent-1", "measure_factors")
-    assert merged["engineering"]["factor"] == 0.3
+    ]
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = rows
+    db.execute.return_value = result
+    merged = await get_dict_map(db, "ent-1", "measure_factors")
+    assert merged["engineering"]["value"]["factor"] == 0.3
 
-async def test_disabled_entry_excluded(db_session):
-    from app.models.data_dict import DataDict
-    db_session.add(DataDict(dict_type="measure_factors", code="ppe", label="个体防护",
-                            value={"factor": 0.85}, scope="system", enabled=False, is_system=True))
-    await db_session.flush()
-    merged = await get_dict_map(db_session, "ent-1", "measure_factors")
+@pytest.mark.asyncio
+async def test_disabled_entry_excluded():
+    db = MagicMock()
+    db.execute = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [
+        DataDict(dict_type="measure_factors", code="ppe", label="个体防护",
+                 value={"factor": 0.85}, scope="system", enabled=False, is_system=True),
+    ]
+    db.execute.return_value = result
+    merged = await get_dict_map(db, "ent-1", "measure_factors")
     assert "ppe" not in merged
 ```
 
@@ -653,7 +670,7 @@ git commit -m "feat(risk): dual-parameter inherent/current form with conversion 
 - [ ] **步骤 1：编写失败测试**
 
 ```python
-async def test_max_risk_level_by_mode():
+def test_max_risk_level_by_mode():
     from app.models.risk_management import RiskZone, RiskObject, RiskEvent
     zone = RiskZone(id="z1", enterprise_id="e1", floor_id="f1", name="储罐区")
     obj = RiskObject(id="o1", enterprise_id="e1", zone_id="z1", name="1#储罐")
@@ -1017,10 +1034,12 @@ git commit -m "feat(risk): dual level on notice card and data dict management pa
 
 ```python
 import json
+import pytest
 from unittest.mock import AsyncMock, patch
 from app.services.risk_dual_ai_service import suggest_dual_level
 
-async def test_suggest_dual_level_ok(db_session):
+@pytest.mark.asyncio
+async def test_suggest_dual_level_ok():
     fake = {"inherent": {"risk_level": "重大", "risk_score": "D=270"},
             "current": {"risk_level": "一般", "risk_score": "D=21"}, "note": "报警器+联锁降低L"}
     with patch("app.services.risk_dual_ai_service.llm_text_completion",
@@ -1028,7 +1047,8 @@ async def test_suggest_dual_level_ok(db_session):
         out = await suggest_dual_level("储罐区可燃气体泄漏，已配报警器与联锁", {}, None)
     assert out["current"]["risk_level"] == "一般"
 
-async def test_suggest_dual_level_fallback(db_session):
+@pytest.mark.asyncio
+async def test_suggest_dual_level_fallback():
     with patch("app.services.risk_dual_ai_service.llm_text_completion",
                AsyncMock(side_effect=Exception("timeout"))):
         out = await suggest_dual_level("描述", {}, None)
