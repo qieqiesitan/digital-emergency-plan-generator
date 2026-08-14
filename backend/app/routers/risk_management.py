@@ -277,6 +277,7 @@ async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, 
         r = RiskZoneResponse.model_validate(z)
         # 导入的分区暂无风险对象：max_risk_level 保持 None，颜色取手动色板
         r.effective_color = effective_color(r.floor_plan_polygon, None)
+        r.inherent_effective_color = effective_color(r.floor_plan_polygon, None)
         zone_responses.append(r)
     return ApiResponse(data=FourColorCommitResponse(
         floor=await _floor_response(db, floor),
@@ -379,9 +380,11 @@ def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
     resp = RiskZoneResponse.model_validate(z)
     resp.floor_name = floor.name
     resp.max_risk_level = max_risk_level(z)
+    resp.inherent_max_level = max_risk_level(z, "inherent")
     normalized = normalize_polygon(z.floor_plan_polygon, z.name)
     resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
     resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
+    resp.inherent_effective_color = effective_color(resp.floor_plan_polygon, resp.inherent_max_level)
     resp.object_count = len(z.objects or [])
     return WorkbenchZone(
         id=resp.id,
@@ -394,6 +397,8 @@ def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
         floor_plan_polygon=resp.floor_plan_polygon,
         max_risk_level=resp.max_risk_level,
         effective_color=resp.effective_color,
+        inherent_max_level=resp.inherent_max_level,
+        inherent_effective_color=resp.inherent_effective_color,
         object_count=resp.object_count,
         created_at=resp.created_at,
         updated_at=resp.updated_at,
@@ -596,11 +601,23 @@ async def get_overview(enterprise_id: str, floor_id: str | None = Query(None), c
 @router.get("/zones", response_model=ApiResponse[list[RiskZoneResponse]])
 async def list_zones(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    zones = (await db.execute(select(RiskZone).where(RiskZone.enterprise_id==enterprise_id).order_by(RiskZone.sort_order))).scalars().all()
-    out = []; 
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id)
+        .options(
+            selectinload(RiskZone.objects).selectinload(RiskObject.events),
+            selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events),
+        ).order_by(RiskZone.sort_order)
+    )).scalars().all()
+    out = []
     for z in zones:
         cnt = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.zone_id==z.id))).scalar() or 0
-        r = RiskZoneResponse.model_validate(z); r.object_count = cnt; out.append(r)
+        r = RiskZoneResponse.model_validate(z)
+        r.object_count = cnt
+        r.max_risk_level = max_risk_level(z)
+        r.effective_color = effective_color(z.floor_plan_polygon, r.max_risk_level)
+        r.inherent_max_level = max_risk_level(z, "inherent")
+        r.inherent_effective_color = effective_color(z.floor_plan_polygon, r.inherent_max_level)
+        out.append(r)
     return ApiResponse(data=out)
 
 @router.post("/zones", response_model=ApiResponse[RiskZoneResponse], status_code=201)
@@ -955,7 +972,9 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
         normalized = normalize_polygon(z.floor_plan_polygon, z.name)
         resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
         resp.max_risk_level = max_risk_level(z)
+        resp.inherent_max_level = max_risk_level(z, "inherent")
         resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
+        resp.inherent_effective_color = effective_color(resp.floor_plan_polygon, resp.inherent_max_level)
         out.append(resp)
     return ApiResponse(data=out)
 

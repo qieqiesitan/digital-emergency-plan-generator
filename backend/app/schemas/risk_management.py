@@ -78,7 +78,7 @@ class RiskCanvasText(BaseModel): id: str; content: str; x: float; y: float; font
 
 class RiskZoneCreate(BaseModel): floor_id: str | None = None; name: str; description: str | None = None; sort_order: int = 0; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None
 class RiskZoneUpdate(BaseModel): floor_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None
-class RiskZoneResponse(BaseModel): id: str; enterprise_id: str; floor_id: str | None; floor_name: str | None = None; name: str; description: str | None; sort_order: int; floor_plan_polygon: RiskZoneFloorPlanPolygon | None; max_risk_level: str | None = None; effective_color: str | None = None; object_count: int = 0; created_at: DatetimeStr; updated_at: DatetimeStr; model_config = {"from_attributes": True}
+class RiskZoneResponse(BaseModel): id: str; enterprise_id: str; floor_id: str | None; floor_name: str | None = None; name: str; description: str | None; sort_order: int; floor_plan_polygon: RiskZoneFloorPlanPolygon | None; max_risk_level: str | None = None; effective_color: str | None = None; inherent_max_level: str | None = None; inherent_effective_color: str | None = None; object_count: int = 0; created_at: DatetimeStr; updated_at: DatetimeStr; model_config = {"from_attributes": True}
 
 class RiskObjectCreate(BaseModel):
     zone_id: str | None = None
@@ -233,7 +233,7 @@ class HierarchyEventResponse(BaseModel):
     model_config = {"from_attributes": True}
 class HierarchyUnitResponse(BaseModel): id: str; name: str; unit_type: str | None; description: str | None; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
 class HierarchyObjectResponse(BaseModel): id: str; name: str; category: str | None; is_risk_point: bool; floor_id: str | None = None; location_x: float | None = None; location_y: float | None = None; units: list[HierarchyUnitResponse] = []; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
-class HierarchyZoneResponse(BaseModel): id: str; floor_id: str | None = None; floor_name: str | None = None; name: str; description: str | None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None; max_risk_level: str | None = None; effective_color: str | None = None; objects: list[HierarchyObjectResponse] = []; model_config = {"from_attributes": True}
+class HierarchyZoneResponse(BaseModel): id: str; floor_id: str | None = None; floor_name: str | None = None; name: str; description: str | None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None; max_risk_level: str | None = None; effective_color: str | None = None; inherent_max_level: str | None = None; inherent_effective_color: str | None = None; objects: list[HierarchyObjectResponse] = []; model_config = {"from_attributes": True}
 
 class MigrationPreviewItem(BaseModel):
     source_id: str

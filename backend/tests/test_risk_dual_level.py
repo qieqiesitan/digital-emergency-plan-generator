@@ -14,6 +14,7 @@ from app.models.enterprise import Enterprise
 from app.models.risk_management import RiskEvent, RiskUnit
 from app.routers import risk_management
 from app.services.risk_method_engine import validate_dual_level
+from app.services.risk_mapping_service import max_risk_level
 from app.schemas.risk_management import RiskEventCreate, RiskEventResponse, RiskEventUpdate
 
 
@@ -77,6 +78,16 @@ def test_risk_event_schemas_allow_valid_or_empty_level_enum():
     assert update.inherent_risk_level == "较大"
     assert update.control_level == "部门"
     assert RiskEventUpdate(accident_type="火灾").risk_level is None
+
+
+def test_max_risk_level_by_mode():
+    from app.models.risk_management import RiskZone, RiskObject, RiskEvent
+    zone = RiskZone(id="z1", enterprise_id="e1", floor_id="f1", name="储罐区")
+    obj = RiskObject(id="o1", enterprise_id="e1", zone_id="z1", name="1#储罐")
+    obj.events = [RiskEvent(accident_type="火灾", risk_level="一般", inherent_risk_level="重大")]
+    zone.objects = [obj]
+    assert max_risk_level(zone, "current") == "一般"
+    assert max_risk_level(zone, "inherent") == "重大"
 
 
 def _event(**overrides):
