@@ -1,6 +1,8 @@
-import json, math, os, logging
+import json, math, os, secrets, logging
+from io import BytesIO
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete, or_
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +22,8 @@ from app.services.risk_source_migration_service import (
     execute_migration as execute_risk_source_migration,
 )
 from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS
+from app.services.risk_control_list_service import build_ledger_workbook, flatten_rows
+from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
 from app.config import settings
@@ -975,6 +979,123 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
         resp.max_risk_level, resp.effective_color, resp.inherent_max_level, resp.inherent_effective_color = _zone_dual_levels(z)
         out.append(resp)
     return ApiResponse(data=out)
+
+# ── Control list & publicity ──
+_ZONE_TREE_OPTIONS = (
+    selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
+    selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures),
+)
+
+
+async def _control_level_mapping(db: AsyncSession, enterprise_id: str) -> dict[str, str]:
+    """从数据字典 control_level_map 构建 {现有风险等级: 默认管控层级}。
+
+    字典条目 value 形如 {"level": "重大", "control_level": "企业"}，按 level 为键。
+    """
+    entries = await get_dict_map(db, enterprise_id, "control_level_map")
+    return {
+        entry["value"].get("level"): entry["value"].get("control_level")
+        for entry in entries.values()
+        if isinstance(entry.get("value"), dict)
+    }
+
+
+def _strip_internal_keys(rows: list[dict]) -> list[dict]:
+    """去掉 zone_id/object_id 等内部筛选键，仅返回展示字段。"""
+    return [{k: v for k, v in r.items() if k not in ("zone_id", "object_id")} for r in rows]
+
+
+@router.get("/control-list", response_model=ApiResponse[dict])
+async def control_list(
+    enterprise_id: str,
+    floor_id: str | None = Query(None),
+    zone_id: str | None = Query(None),
+    level: str | None = Query(None),
+    control_level: str | None = Query(None),
+    keyword: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=200),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    await _get_ent(enterprise_id, current_user.id, db)
+    resolved_floor_id = await _resolve_zone_floor(db, enterprise_id, floor_id)
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*_ZONE_TREE_OPTIONS)
+    )).scalars().all()
+    mapping = await _control_level_mapping(db, enterprise_id)
+    rows = flatten_rows(zones, mapping)
+    if zone_id:
+        rows = [r for r in rows if r["zone_id"] == zone_id]
+    if level:
+        rows = [r for r in rows if r["current"] == level or r["inherent"] == level]
+    if control_level:
+        rows = [r for r in rows if r["control_level"] == control_level]
+    if keyword:
+        rows = [r for r in rows if keyword in r["object"] or keyword in r["zone"]]
+    total = len(rows)
+    start = (page - 1) * size
+    return ApiResponse(data={"items": _strip_internal_keys(rows[start:start + size]), "total": total})
+
+
+@router.get("/control-list/export")
+async def control_list_export(
+    enterprise_id: str,
+    floor_id: str | None = Query(None),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    await _get_ent(enterprise_id, current_user.id, db)
+    resolved_floor_id = await _resolve_zone_floor(db, enterprise_id, floor_id)
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*_ZONE_TREE_OPTIONS)
+    )).scalars().all()
+    mapping = await _control_level_mapping(db, enterprise_id)
+    rows = flatten_rows(zones, mapping)
+    buf = BytesIO()
+    build_ledger_workbook(rows).save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=risk_control_list.xlsx"},
+    )
+
+
+@router.get("/risk-publicity", response_model=ApiResponse[dict])
+async def get_risk_publicity(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    if not ent.public_risk_token:
+        ent.public_risk_token = secrets.token_hex(32)
+        await db.commit()
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id).options(*_ZONE_TREE_OPTIONS)
+    )).scalars().all()
+    mapping = await _control_level_mapping(db, enterprise_id)
+    rows = [r for r in flatten_rows(zones, mapping)
+            if r["current"] == "重大" or r["control_level"] == "企业"]
+    return ApiResponse(data={
+        "token": ent.public_risk_token,
+        "enterprise_name": ent.name,
+        "items": _strip_internal_keys(rows),
+    })
+
+
+@router.post("/risk-publicity/token", response_model=ApiResponse[dict])
+async def reset_risk_publicity_token(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    ent.public_risk_token = secrets.token_hex(32)
+    await db.commit()
+    return ApiResponse(data={"token": ent.public_risk_token})
+
 
 # ── AI endpoints ──
 @router.post("/ai/suggest-objects")
