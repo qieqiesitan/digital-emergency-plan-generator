@@ -90,6 +90,18 @@ def test_max_risk_level_by_mode():
     assert max_risk_level(zone, "inherent") == "重大"
 
 
+def test_max_risk_level_by_mode_unit_branch():
+    from app.models.risk_management import RiskZone, RiskObject, RiskUnit, RiskEvent
+    zone = RiskZone(id="z2", enterprise_id="e1", floor_id="f1", name="储罐区")
+    obj = RiskObject(id="o2", enterprise_id="e1", zone_id="z2", name="1#储罐")
+    unit = RiskUnit(id="u1", object_id="o2", name="阀门组")
+    unit.events = [RiskEvent(accident_type="泄漏", risk_level="较大", inherent_risk_level="重大")]
+    obj.units = [unit]
+    zone.objects = [obj]
+    assert max_risk_level(zone, "current") == "较大"
+    assert max_risk_level(zone, "inherent") == "重大"
+
+
 def _event(**overrides):
     ev = RiskEvent(
         id="ev1",
