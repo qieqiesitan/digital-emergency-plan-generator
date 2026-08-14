@@ -11,6 +11,18 @@ from app.models.risk_management import RiskAssessmentMethod
 
 RISK_LEVEL_ORDER = ["低", "一般", "较大", "重大"]
 
+# 煤矿 LS 默认阈值（当配置未提供时使用；compute_risk 与折算参考端点共用）
+COAL_LS_DEFAULT_THRESHOLDS = [
+    {"min": 20, "max": 25, "level": "重大",
+     "action": "立即停产整改", "deadline": "立即"},
+    {"min": 15, "max": 19, "level": "较大",
+     "action": "限期停产整改", "deadline": "1个月"},
+    {"min": 10, "max": 14, "level": "一般",
+     "action": "限期整改", "deadline": "3个月"},
+    {"min": 1,  "max": 9,  "level": "低",
+     "action": "加强日常管理", "deadline": "持续"},
+]
+
 
 def validate_dual_level(current_level: str | None, inherent_level: str | None) -> None:
     """现有风险等级不应高于固有风险等级，否则抛 ValueError。"""
@@ -88,18 +100,8 @@ def compute_risk(
         s_val = float(params.get("s", 3))
         r = int(l_val * s_val)
         score_str = f"R={r}"
-        # 煤矿 LS 默认阈值（当配置未提供时使用）
         if not thresholds:
-            thresholds = [
-                {"min": 20, "max": 25, "level": "重大",
-                 "action": "立即停产整改", "deadline": "立即"},
-                {"min": 15, "max": 19, "level": "较大",
-                 "action": "限期停产整改", "deadline": "1个月"},
-                {"min": 10, "max": 14, "level": "一般",
-                 "action": "限期整改", "deadline": "3个月"},
-                {"min": 1,  "max": 9,  "level": "低",
-                 "action": "加强日常管理", "deadline": "持续"},
-            ]
+            thresholds = COAL_LS_DEFAULT_THRESHOLDS
     else:
         return RiskResult(
             risk_level="一般",

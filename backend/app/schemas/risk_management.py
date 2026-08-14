@@ -144,8 +144,8 @@ class RiskUnitCreate(BaseModel): object_id: str | None = None; name: str; unit_t
 class RiskUnitUpdate(BaseModel): name: str | None = None; unit_type: str | None = None; description: str | None = None; location: str | None = None; sort_order: int | None = None
 class RiskUnitResponse(BaseModel): id: str; object_id: str; name: str; unit_type: str | None; description: str | None; location: str | None; sort_order: int; created_at: DatetimeStr; event_count: int = 0; model_config = {"from_attributes": True}
 
-class RiskEventCreate(BaseModel): unit_id: str | None = None; object_id: str | None = None; accident_type: str; description: str | None = None; trigger_conditions: str | None = None; consequences: str | None = None; method_type: str = "LS"; method_params: dict = {}; chemical_id: str | None = None; inherent_risk_level: str | None = None; inherent_risk_score: str | None = None; control_level: str | None = None
-class RiskEventUpdate(BaseModel): accident_type: str | None = None; description: str | None = None; trigger_conditions: str | None = None; consequences: str | None = None; method_type: str | None = None; method_params: dict | None = None; chemical_id: str | None = None; inherent_risk_level: str | None = None; inherent_risk_score: str | None = None; control_level: str | None = None
+class RiskEventCreate(BaseModel): unit_id: str | None = None; object_id: str | None = None; accident_type: str; description: str | None = None; trigger_conditions: str | None = None; consequences: str | None = None; method_type: str = "LS"; method_params: dict = {}; chemical_id: str | None = None; risk_level: str | None = None; risk_score: str | None = None; inherent_risk_level: str | None = None; inherent_risk_score: str | None = None; control_level: str | None = None
+class RiskEventUpdate(BaseModel): accident_type: str | None = None; description: str | None = None; trigger_conditions: str | None = None; consequences: str | None = None; method_type: str | None = None; method_params: dict | None = None; chemical_id: str | None = None; risk_level: str | None = None; risk_score: str | None = None; inherent_risk_level: str | None = None; inherent_risk_score: str | None = None; control_level: str | None = None
 class RiskEventResponse(BaseModel): id: str; unit_id: str | None; object_id: str | None; chemical_id: str | None = None; accident_type: str; description: str | None; trigger_conditions: str | None; consequences: str | None; method_type: str; method_params: dict; risk_level: str | None; risk_score: str | None; inherent_risk_level: str | None = None; inherent_risk_score: str | None = None; control_level: str | None = None; sort_order: int; created_at: DatetimeStr; measure_count: int = 0; model_config = {"from_attributes": True}
 
 class RiskMeasureCreate(BaseModel): event_id: str | None = None; measure_category: str; measure_type: str | None = None; description: str; responsible_person: str | None = None; deadline: date | None = None; check_items: list[dict] = []; sort_order: int = 0
@@ -162,6 +162,9 @@ class HierarchyEventResponse(BaseModel):
     method_type: str
     method_params: dict
     chemical_id: str | None = None
+    inherent_risk_level: str | None = None
+    inherent_risk_score: str | None = None
+    control_level: str | None = None
     measures: list[HierarchyMeasureResponse] = []
     model_config = {"from_attributes": True}
 class HierarchyUnitResponse(BaseModel): id: str; name: str; unit_type: str | None; description: str | None; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}

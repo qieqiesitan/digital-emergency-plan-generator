@@ -13,7 +13,7 @@ from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObjec
 from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewResponse, MigrationExecuteRequest, MigrationExecuteResponse, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse, FourColorAnalyzeResponse, FourColorCommitRequest, FourColorCommitResponse)
 from app.schemas.common import ApiResponse
-from app.services.risk_method_engine import compute_risk, get_active_method_config, validate_dual_level
+from app.services.risk_method_engine import compute_risk, get_active_method_config, validate_dual_level, COAL_LS_DEFAULT_THRESHOLDS
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
 from app.services.risk_source_migration_service import (
     build_migration_preview,
@@ -741,12 +741,18 @@ async def create_event(unit_id: str, body: RiskEventCreate, enterprise_id: str, 
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
-    rating = compute_risk(body.method_type, body.method_params, config)
+    if body.risk_level is None:
+        rating = compute_risk(body.method_type, body.method_params, config)
+        current_level, current_score = rating.risk_level, rating.risk_score
+    else:
+        # 显式指定现有等级（如「采用折算参考」）：不按 method_params 重算，仍执行双等级校验
+        current_level = body.risk_level
+        current_score = body.risk_score if body.risk_score is not None else "-"
     try:
-        validate_dual_level(rating.risk_level, body.inherent_risk_level)
+        validate_dual_level(current_level, body.inherent_risk_level)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
+    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=current_level, risk_score=current_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -765,12 +771,18 @@ async def create_object_event(object_id: str, body: RiskEventCreate, enterprise_
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
-    rating = compute_risk(body.method_type, body.method_params, config)
+    if body.risk_level is None:
+        rating = compute_risk(body.method_type, body.method_params, config)
+        current_level, current_score = rating.risk_level, rating.risk_score
+    else:
+        # 显式指定现有等级（如「采用折算参考」）：不按 method_params 重算，仍执行双等级校验
+        current_level = body.risk_level
+        current_score = body.risk_score if body.risk_score is not None else "-"
     try:
-        validate_dual_level(rating.risk_level, body.inherent_risk_level)
+        validate_dual_level(current_level, body.inherent_risk_level)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
+    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=current_level, risk_score=current_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -789,7 +801,7 @@ async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str,
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     for k, v in body.model_dump(exclude_unset=True).items(): setattr(ev, k, v)
-    if body.method_type or body.method_params:
+    if body.risk_level is None and (body.method_type or body.method_params):
         config = await get_active_method_config(db, enterprise_id, ev.method_type)
         rating = compute_risk(ev.method_type, ev.method_params, config)
         ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score
@@ -833,6 +845,16 @@ async def event_conversion_reference(enterprise_id: str, event_id: str,
     event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
     if not event:
         raise HTTPException(404, "风险事件不存在")
+    # 归属校验：事件必须属于当前企业（事件经 object_id 或 unit_id 链归属对象，与创建路径一致）
+    owned_object = None
+    if event.object_id:
+        owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == event.object_id))).scalar_one_or_none()
+    elif event.unit_id:
+        unit = (await db.execute(select(RiskUnit).where(RiskUnit.id == event.unit_id))).scalar_one_or_none()
+        if unit:
+            owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == unit.object_id))).scalar_one_or_none()
+    if not owned_object or owned_object.enterprise_id != enterprise_id:
+        raise HTTPException(404, "风险事件不存在")
     from app.services.data_dict_service import get_dict_map
     from app.services.risk_conversion_service import conversion_reference
     factors = await get_dict_map(db, enterprise_id, "measure_factors")
@@ -841,6 +863,8 @@ async def event_conversion_reference(enterprise_id: str, event_id: str,
                   for code, entry in factors.items() if code != "mode" and entry.get("value", {}).get("factor") is not None}
     config = await get_active_method_config(db, enterprise_id, event.method_type)
     thresholds = (config or {}).get("risk_thresholds", [])
+    if event.method_type == "COAL_LS" and not thresholds:
+        thresholds = COAL_LS_DEFAULT_THRESHOLDS
     result = conversion_reference(event.inherent_risk_score or "", factor_map, mode, thresholds, event.method_type)
     return ApiResponse(data=result)
 

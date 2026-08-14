@@ -25,7 +25,7 @@ def _method(config: dict):
     return m
 
 
-def _app(event, method=None):
+def _app(event, method=None, object_ent_id="e1"):
     app = FastAPI()
     app.include_router(risk_management.router, prefix="/api/v1")
 
@@ -37,6 +37,16 @@ def _app(event, method=None):
             text = str(stmt)
             if "risk_events" in text and "id =" in text:
                 res.scalar_one_or_none.return_value = event
+            elif "risk_objects" in text:
+                obj = MagicMock()
+                obj.id = "o1"
+                obj.enterprise_id = object_ent_id
+                res.scalar_one_or_none.return_value = obj
+            elif "risk_units" in text:
+                unit = MagicMock()
+                unit.id = "u1"
+                unit.object_id = "o1"
+                res.scalar_one_or_none.return_value = unit
             elif "enterprises" in text:
                 ent = MagicMock()
                 ent.id = "e1"
@@ -60,6 +70,7 @@ def _app(event, method=None):
 def test_conversion_reference_endpoint(monkeypatch):
     event = RiskEvent(
         id="ev1",
+        object_id="o1",
         accident_type="火灾",
         method_type="LS",
         method_params={"l": 4, "s": 5},
@@ -74,6 +85,57 @@ def test_conversion_reference_endpoint(monkeypatch):
     }
     monkeypatch.setattr(data_dict_service, "get_dict_map", AsyncMock(return_value=factors))
     client = _app(event, method=_method({"risk_thresholds": THRESHOLDS}))
+
+    resp = client.get("/api/v1/enterprises/e1/risk-management/events/ev1/conversion-reference")
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["factor"] == 0.5
+    assert data["reference_score"] == 10.0
+    assert data["reference_level"] == "一般"
+
+
+def test_conversion_reference_cross_enterprise_returns_404(monkeypatch):
+    """事件属于其他企业时，conversion-reference 返回 404 而非泄露参考结果。"""
+    event = RiskEvent(
+        id="ev1",
+        object_id="o1",
+        accident_type="火灾",
+        method_type="LS",
+        method_params={"l": 4, "s": 5},
+        risk_level="重大",
+        risk_score="R=20",
+        inherent_risk_level="重大",
+        inherent_risk_score="R=20",
+    )
+    monkeypatch.setattr(data_dict_service, "get_dict_map", AsyncMock(return_value={}))
+    client = _app(event, method=_method({"risk_thresholds": THRESHOLDS}), object_ent_id="e2")
+
+    resp = client.get("/api/v1/enterprises/e1/risk-management/events/ev1/conversion-reference")
+
+    assert resp.status_code == 404
+    assert "事件不存在" in resp.json()["detail"]
+
+
+def test_conversion_reference_coal_ls_uses_default_thresholds(monkeypatch):
+    """COAL_LS 无配置时折算参考使用内置默认阈值：固有 R=20 × 0.5 → 10 → 一般，而非恒「低」。"""
+    event = RiskEvent(
+        id="ev1",
+        object_id="o1",
+        accident_type="顶板事故",
+        method_type="COAL_LS",
+        method_params={"l": 4, "s": 5},
+        risk_level="重大",
+        risk_score="R=20",
+        inherent_risk_level="重大",
+        inherent_risk_score="R=20",
+    )
+    factors = {
+        "engineering": {"value": {"factor": 0.5}},
+        "mode": {"value": {"mode": "min"}},
+    }
+    monkeypatch.setattr(data_dict_service, "get_dict_map", AsyncMock(return_value=factors))
+    client = _app(event, method=None)
 
     resp = client.get("/api/v1/enterprises/e1/risk-management/events/ev1/conversion-reference")
 
