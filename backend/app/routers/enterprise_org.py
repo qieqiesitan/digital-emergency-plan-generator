@@ -77,7 +77,14 @@ async def update_org_nodes(
     nodes = [n.model_dump() for n in body.nodes]
     errors = validate_org_tree(nodes)
     if errors:
-        raise HTTPException(422, detail={"code": "ORG_TREE_INVALID", "message": "；".join(errors)})
+        raise HTTPException(
+            422,
+            detail={
+                "code": "ORG_TREE_INVALID",
+                "errors": errors,
+                "message": "；".join(errors),
+            },
+        )
     sync_org_structure(ent, nodes)
     await db.commit()
     return ApiResponse(data=ent.org_structure)
@@ -135,6 +142,8 @@ async def delete_member(
 ):
     await _get_owned_ent(enterprise_id, current_user.id, db)
     member = await _get_member(enterprise_id, member_id, db)
+    # 成员绑定解除采用硬删，避免历史成员残留（成员列表按 enterprise_id 查询，
+    # 软删 enabled=false 会使列表/状态逻辑复杂化）；如需审计留痕再改软删。
     await db.delete(member)
     await db.commit()
     return {"code": 0, "message": "已删除"}

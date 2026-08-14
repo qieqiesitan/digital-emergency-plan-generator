@@ -225,6 +225,7 @@ def test_org_nodes_put_invalid_tree_422(client):
     assert resp.status_code == 422
     detail = resp.json()["detail"]
     assert detail["code"] == "ORG_TREE_INVALID"
+    assert any("重复" in e for e in detail["errors"])
     assert "重复" in detail["message"]
     db.commit.assert_not_awaited()
 
