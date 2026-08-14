@@ -105,15 +105,32 @@ export default function RiskEventForm({
 }: Props) {
   const [form] = Form.useForm<RiskEventFormValues>();
   // 组件按 key 重挂载，直接用 initialValues 初始化即可回显编辑数据
+  const isEdit = !!initialValues;
   const initialInherentParams = (initialValues?.inherent_params ?? {}) as Record<string, number>;
+  // 编辑模式：现有风险参数基线（兼容大小写键；DIRECT 兼容数值/文案键），用于「未改动不覆盖」
+  const initialParams = useMemo(() => {
+    if (!initialValues) return null;
+    const p = (initialValues.method_params ?? {}) as Record<string, unknown>;
+    const num = (k: string, upper: string): number | undefined =>
+      typeof p[k] === "number" ? (p[k] as number)
+        : typeof p[upper] === "number" ? (p[upper] as number)
+          : undefined;
+    const levelRaw = p.level ?? p.risk_level;
+    const directLevel = typeof levelRaw === "number"
+      ? (levelRaw as number)
+      : typeof levelRaw === "string"
+        ? DIRECT_LEVELS.find((d) => d.label === levelRaw)?.value
+        : undefined;
+    return { l: num("l", "L"), s: num("s", "S"), e: num("e", "E"), c: num("c", "C"), directLevel };
+  }, [initialValues]);
   const [methodType, setMethodType] = useState<MethodTypeKey>(
     (initialValues?.method_type as MethodTypeKey) ?? (defaultMethodType as MethodTypeKey) ?? "LS",
   );
-  const [lValue, setLValue] = useState<number>(1);
-  const [sValue, setSValue] = useState<number>(1);
-  const [lecL, setLecL] = useState<number>(1);
-  const [lecE, setLecE] = useState<number>(3);
-  const [lecC, setLecC] = useState<number>(7);
+  const [lValue, setLValue] = useState<number>(initialParams?.l ?? 1);
+  const [sValue, setSValue] = useState<number>(initialParams?.s ?? 1);
+  const [lecL, setLecL] = useState<number>(initialParams?.l ?? 1);
+  const [lecE, setLecE] = useState<number>(initialParams?.e ?? 3);
+  const [lecC, setLecC] = useState<number>(initialParams?.c ?? 7);
   const [inherentL, setInherentL] = useState<number>(initialInherentParams.L ?? 1);
   const [inherentS, setInherentS] = useState<number>(initialInherentParams.S ?? 1);
   const [inherentLecL, setInherentLecL] = useState<number>(initialInherentParams.L ?? 1);
@@ -251,53 +268,100 @@ export default function RiskEventForm({
       return;
     }
     const { reference_level, reference_score } = conversionResult;
+    const score = reference_score != null
+      ? (methodType === "LEC" ? `D=${reference_score}` : `R=${reference_score}`)
+      : "-";
     if (methodType === "DIRECT") {
       const matched = DIRECT_LEVELS.find((d) => d.label === reference_level);
       if (matched) {
         form.setFieldsValue({ method_params: { level: matched.value } });
-        message.success("已将折算参考等级填入现有风险");
-        return;
       }
     }
-    const score = reference_score != null
-      ? (methodType === "LEC" ? `D=${reference_score}` : `R=${reference_score}`)
-      : "";
     setAdoptedRef({ level: reference_level, score });
-    message.success("已将折算参考填入现有风险预览，可继续调整参数覆盖");
+    message.success("已将折算参考填入现有风险，保存后生效；可继续调整参数覆盖");
   };
 
   const handleFinish = (values: RiskEventFormValues) => {
-    let params: Record<string, number> = {};
-    let inherentParams: Record<string, number> = {};
-    let inherentLevel: string | null = null;
-    let inherentScore: string | null = null;
-    if (methodType === "LS" || methodType === "COAL_LS") {
-      params = { L: lValue, S: sValue };
-      inherentParams = { L: inherentL, S: inherentS };
-      const ir = computeRiskLS(inherentL, inherentS);
-      inherentLevel = ir.riskLevel;
-      inherentScore = ir.riskScore;
-    } else if (methodType === "LEC") {
-      params = { L: lecL, E: lecE, C: lecC };
-      inherentParams = { L: inherentLecL, E: inherentLecE, C: inherentLecC };
-      const ir = computeRiskLEC(inherentLecL, inherentLecE, inherentLecC);
-      inherentLevel = ir.riskLevel;
-      inherentScore = ir.riskScore;
-    } else if (methodType === "DIRECT") {
-      const lv = values.method_params?.level ?? 1;
-      params = { level: lv };
-      inherentLevel = values.inherent_risk_level ?? null;
-    }
-    onSubmit({
+    const payload: RiskEventFormValues = {
       ...values,
       accident_type: Array.isArray(values.accident_type) ? values.accident_type.join("、") : values.accident_type,
       method_type: methodType,
-      method_params: params,
-      inherent_params: inherentParams,
-      inherent_risk_level: inherentLevel,
-      inherent_risk_score: inherentScore,
       control_level: values.control_level ?? null,
-    });
+    };
+    const methodUnchanged = isEdit && methodType === (initialValues?.method_type as MethodTypeKey | undefined);
+
+    // ── 固有风险：编辑模式未改动对应参数则保持已存等级，不重算不覆盖 ──
+    if (methodType === "DIRECT") {
+      const inherentLevel = values.inherent_risk_level ?? null;
+      const inherentUnchanged = isEdit && inherentLevel === (initialValues?.inherent_risk_level ?? null);
+      if (!inherentUnchanged) {
+        payload.inherent_risk_level = inherentLevel;
+      }
+    } else if (methodType === "LS" || methodType === "COAL_LS") {
+      payload.inherent_params = { L: inherentL, S: inherentS };
+      const inherentUnchanged = isEdit
+        && (initialInherentParams.L ?? 1) === inherentL
+        && (initialInherentParams.S ?? 1) === inherentS;
+      if (!inherentUnchanged) {
+        const ir = computeRiskLS(inherentL, inherentS);
+        payload.inherent_risk_level = ir.riskLevel;
+        payload.inherent_risk_score = ir.riskScore;
+      }
+    } else {
+      payload.inherent_params = { L: inherentLecL, E: inherentLecE, C: inherentLecC };
+      const inherentUnchanged = isEdit
+        && (initialInherentParams.L ?? 1) === inherentLecL
+        && (initialInherentParams.E ?? 3) === inherentLecE
+        && (initialInherentParams.C ?? 7) === inherentLecC;
+      if (!inherentUnchanged) {
+        const ir = computeRiskLEC(inherentLecL, inherentLecE, inherentLecC);
+        payload.inherent_risk_level = ir.riskLevel;
+        payload.inherent_risk_score = ir.riskScore;
+      }
+    }
+
+    // ── 现有风险：编辑模式未改动则不提交，保持后端已存等级；改动/新建才重算提交 ──
+    if (methodType === "LS" || methodType === "COAL_LS") {
+      const params = { l: lValue, s: sValue };
+      const paramsUnchanged = methodUnchanged
+        && (initialParams?.l ?? 1) === lValue
+        && (initialParams?.s ?? 1) === sValue;
+      if (adoptedRef && paramsUnchanged) {
+        // 采用折算参考：显式提交等级/分值，后端不按参数重算
+        payload.method_params = params;
+        payload.risk_level = adoptedRef.level;
+        payload.risk_score = adoptedRef.score;
+      } else if (!paramsUnchanged) {
+        // 提交小写键与后端 compute_risk 一致，由后端按企业配置阈值重算
+        payload.method_params = params;
+      }
+    } else if (methodType === "LEC") {
+      const params = { l: lecL, e: lecE, c: lecC };
+      const paramsUnchanged = methodUnchanged
+        && (initialParams?.l ?? 1) === lecL
+        && (initialParams?.e ?? 3) === lecE
+        && (initialParams?.c ?? 7) === lecC;
+      if (adoptedRef && paramsUnchanged) {
+        payload.method_params = params;
+        payload.risk_level = adoptedRef.level;
+        payload.risk_score = adoptedRef.score;
+      } else if (!paramsUnchanged) {
+        payload.method_params = params;
+      }
+    } else if (methodType === "DIRECT") {
+      const lv = values.method_params?.level ?? 1;
+      const label = DIRECT_LEVELS.find((d) => d.value === lv)?.label ?? "一般";
+      const directUnchanged = methodUnchanged && (initialParams?.directLevel ?? 1) === lv;
+      if (adoptedRef && label === adoptedRef.level) {
+        payload.method_params = { risk_level: label } as unknown as Record<string, number>;
+        payload.risk_level = adoptedRef.level;
+        payload.risk_score = adoptedRef.score;
+      } else if (!directUnchanged) {
+        // 与后端 compute_risk DIRECT 一致：等级文案存于 method_params.risk_level
+        payload.method_params = { risk_level: label } as unknown as Record<string, number>;
+      }
+    }
+    onSubmit(payload);
   };
 
   return (<>
@@ -413,6 +477,14 @@ export default function RiskEventForm({
 
         {/* ─── Inherent risk (without controls) ──────────────── */}
         <Divider plain style={{ fontSize: 13 }}>固有风险（不考虑管控措施）</Divider>
+
+        {isEdit && initialValues?.inherent_risk_level && (
+          <div style={{ marginBottom: 12, fontSize: 12, color: "#8c8c8c" }}>
+            已保存固有等级：<strong>{initialValues.inherent_risk_level}</strong>
+            {initialValues.inherent_risk_score ? `（${initialValues.inherent_risk_score}）` : ""}
+            —— 原始参数未持久化，未修改参数时保存不会覆盖；修改下方参数将重新计算
+          </div>
+        )}
 
         {(methodType === "LS" || methodType === "COAL_LS") && (
           <>

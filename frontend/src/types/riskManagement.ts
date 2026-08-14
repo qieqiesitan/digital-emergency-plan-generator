@@ -119,6 +119,8 @@ export interface RiskEventCreate {
   consequences?: string;
   method_type?: MethodType;
   method_params?: Record<string, number>;
+  risk_level?: string | null;
+  risk_score?: string | null;
   inherent_risk_level?: string | null;
   inherent_risk_score?: string | null;
   control_level?: string | null;
@@ -131,6 +133,8 @@ export interface RiskEventFormValues {
   consequences?: string;
   method_type?: MethodType;
   method_params?: Record<string, number>;
+  risk_level?: string | null;
+  risk_score?: string | null;
   inherent_params?: Record<string, number>;
   inherent_risk_level?: string | null;
   inherent_risk_score?: string | null;
@@ -148,6 +152,9 @@ export interface HierarchyEvent
     'id'|'accident_type'|'description'|'risk_level'|'risk_score'|'method_type'|'chemical_id'
   > {
   method_params: Record<string, number>;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
   measures: HierarchyMeasure[];
 }
 export interface HierarchyUnit extends Pick<RiskUnit, 'id'|'name'|'unit_type'> { events: HierarchyEvent[]; }

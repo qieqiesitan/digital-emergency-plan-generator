@@ -49,6 +49,8 @@ interface ZoneFormValues {
   chemical_id?: string | null;
   method_type?: string;
   method_params?: Record<string, number>;
+  risk_level?: string | null;
+  risk_score?: string | null;
   inherent_risk_level?: string | null;
   inherent_risk_score?: string | null;
   control_level?: string | null;
@@ -57,7 +59,29 @@ interface ZoneFormValues {
 }
 
 function eventInitialValues(meta: TreeNodeMeta): Record<string, unknown> {
-  return { accident_type: meta.name, chemical_id: meta.chemical_id ?? undefined };
+  const rawParams = (meta.method_params ?? {}) as Record<string, unknown>;
+  // DIRECT 旧数据可能存等级文案（risk_level），归一化为表单 Select 的数值键
+  let methodParams: Record<string, unknown> = rawParams;
+  if (meta.method_type === "DIRECT") {
+    const levelRaw = rawParams.level ?? rawParams.risk_level;
+    const levelNum = typeof levelRaw === "number"
+      ? levelRaw
+      : typeof levelRaw === "string"
+        ? ({ "低": 1, "一般": 2, "较大": 3, "重大": 4 } as Record<string, number>)[levelRaw] ?? 1
+        : undefined;
+    methodParams = levelNum != null ? { level: levelNum } : rawParams;
+  }
+  return {
+    accident_type: meta.name,
+    chemical_id: meta.chemical_id ?? undefined,
+    method_type: meta.method_type,
+    method_params: methodParams,
+    risk_level: meta.risk_level,
+    risk_score: meta.risk_score,
+    inherent_risk_level: meta.inherent_risk_level,
+    inherent_risk_score: meta.inherent_risk_score,
+    control_level: meta.control_level,
+  };
 }
  
 export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props) {
@@ -271,6 +295,8 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
             description: values.description || "",
             method_type: (values.method_type || "LS") as MethodType,
             method_params: values.method_params || {},
+            risk_level: values.risk_level ?? undefined,
+            risk_score: values.risk_score ?? undefined,
             inherent_risk_level: values.inherent_risk_level ?? null,
             inherent_risk_score: values.inherent_risk_score ?? null,
             control_level: values.control_level ?? null,
