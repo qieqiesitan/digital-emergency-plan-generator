@@ -22,3 +22,22 @@ def test_conversion_reference_level():
     ref = conversion_reference("R=20", {"engineering": 0.5}, "min", thresholds)
     assert ref["reference_score"] == 10
     assert ref["reference_level"] == "一般"
+
+
+def test_parse_score_unparseable_returns_none():
+    assert parse_score("无法解析") is None
+    assert conversion_reference("无法解析", {"engineering": 0.5}, "min", [])["reference_level"] is None
+
+
+def test_combine_factor_empty_returns_one():
+    assert combine_factor({}, "min") == 1.0
+
+
+def test_conversion_reference_no_threshold_falls_back_low():
+    ref = conversion_reference("R=100", {"engineering": 0.5}, "min", [{"min": 1, "max": 10, "level": "低"}])
+    assert ref["reference_level"] == "低"
+
+
+def test_combine_factor_excludes_mode_key():
+    factors = {"engineering": 0.5, "mode": "min"}
+    assert combine_factor(factors, "min") == 0.5

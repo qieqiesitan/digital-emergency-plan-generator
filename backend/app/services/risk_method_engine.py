@@ -108,19 +108,22 @@ def compute_risk(
             deadline="N/A",
         )
 
-    # 按阈值区间匹配风险等级
-    for t in thresholds:
-        if t["min"] <= r <= t["max"]:
-            return RiskResult(
-                risk_level=t["level"],
-                risk_score=score_str,
-                action=t.get("action", ""),
-                deadline=t.get("deadline", ""),
-            )
+    # 复用 level_from_score 得到风险等级，再按阈值项取 action/deadline
+    level = level_from_score(method_type, r, thresholds)
+    matched = next(
+        (t for t in thresholds or [] if t["min"] <= r <= t["max"]), None
+    )
+    if matched:
+        return RiskResult(
+            risk_level=level,
+            risk_score=score_str,
+            action=matched.get("action", ""),
+            deadline=matched.get("deadline", ""),
+        )
 
-    # 未命中任何阈值区间时的兜底
+    # 未命中任何阈值区间时的兜底：等级“低” + 日常管理
     return RiskResult(
-        risk_level="低",
+        risk_level=level,
         risk_score=score_str,
         action="日常管理",
         deadline="持续",
