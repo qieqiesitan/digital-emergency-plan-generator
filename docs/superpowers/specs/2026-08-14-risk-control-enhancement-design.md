@@ -250,4 +250,5 @@ UPDATE risk_events SET inherent_risk_score = risk_score WHERE inherent_risk_scor
 ## 15. 二期（本次不做）
 
 - 未闭环重大隐患写入预案生成章节/附件；
-- 与监管平台真实系统对接上报。
+- 与监管平台真实系统对接上报；
+- 岗位/班组风险告知卡（按岗位/班组汇总风险点出卡，与「企业组织与成员管理」联动）。

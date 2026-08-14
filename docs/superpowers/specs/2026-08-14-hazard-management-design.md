@@ -27,7 +27,11 @@
 | 7 | 联动 | 状态回写：闭环后风险点「未闭环隐患」标记消失、管控措施视为「已恢复」；未闭环期间持续显示「管控失效」 |
 | 8 | 报表 | C 完整驾驶舱：指标卡 + 类型分布 + 趋势 + 重大专表 + 企业对比 + 监管台账导出 |
 | 9 | 完整性补充 | 检查表模板（日常/综合/专项/节假日）、隐患来源分类、重大隐患治理方案、整改证据照片、隐患整改公示、超期升级、判定依据 |
-| 10 | 二期 | 未闭环重大隐患写入预案生成、监管平台真实对接（本次不做） |
+| 10 | 前置能力（补审） | 新增「企业组织与成员管理」：部门→班组→岗位树 + 账号绑定 + 企业角色（企业管理员/班组长/员工）——隐患模块选人前提 |
+| 11 | 补充字段（补审） | 隐患类型字典（设备设施/消防/作业行为/管理缺陷/环境/其他）、原因分析（四不放过）、整改期限默认规则（重大 15 天/一般 7 天，企业可配）、复查期限（整改完成后 N 天内复查） |
+| 12 | 通知（补审） | 新增轻量站内通知 `hazard_notifications`：超期 / 到期前 2h / 审批待办，隐患 Tab 与驾驶舱角标（移动端同步） |
+| 13 | 其他（补审） | 成员 Excel 导入、隐患单详情打印、风险点 badge 穿透到隐患列表、四色图叠加未闭环隐患数（B 联动阶段） |
+| 14 | 二期 | 未闭环重大隐患写入预案生成、监管平台真实对接、岗位/班组风险告知卡（本次不做） |
 
 ---
 
@@ -42,7 +46,18 @@
 | 导出 | `openpyxl`（xlsx）与 docx 管线已有 |
 | 移动端 | 8082 应用存在（企业状态独立），可加页面复用同一后端 API |
 | 定时任务 | **无现有机制** → 需新增（见 §13） |
-| 组织 | `enterprises.org_structure` JSONB（部门/岗位信息，责任人选择可参考） |
+| 组织 | `enterprises.org_structure` JSONB（仅部门 + 成员姓名，供预案签署/组织图；**无部门→班组→岗位结构、无账号绑定、无企业内角色**）→ 需新增前置能力（§3.5） |
+
+### 3.5 前置能力：企业组织与成员管理（本次新增）
+
+隐患模块的排查责任人、整改人、复查人、审批人必须从真实账号中选取，因此先补齐组织与成员能力：
+
+- **组织树**：`org_structure` 结构升级为 部门(dept) → 班组(team) → 岗位(position) 三级节点树；新结构向后兼容——每个节点保留 `name`、成员数组仍含 `name`，现有预案签署/组织图/报告章节等消费者不受影响（新结构示例：`{id, type, name, parent_id, members:[{name, user_id, position}]}`）；
+- **新表 `enterprise_members`**：id、enterprise_id FK、user_id FK users、org_node_id（岗位/班组节点）、position、role（`enterprise_admin` / `team_leader` / `member`）、enabled、created_at；
+- **企业角色语义**：企业管理员=审批挂牌/销号/配置；班组长=派发/复查/本组任务；员工=执行排查/整改/上报；
+- **成员管理**：添加成员（创建账号：邮箱 + 初始密码；或绑定已有账号：按邮箱搜索）、编辑岗位/角色、停用；Excel 导入成员（姓名/邮箱/部门/班组/岗位/角色，openpyxl 模板）；
+- **写入策略**：组织/成员编辑走新接口，写后同步镜像更新 `org_structure`，保证旧消费者继续可用；
+- **接口**：`/enterprises/{id}/org/nodes` CRUD、`/enterprises/{id}/members` CRUD、`/members/import`、`/members/available`（责任人选择器）。
 
 ---
 
@@ -51,7 +66,9 @@
 ```
 backend/
   app/models/hazard_management.py        9 张表（§5）+ enterprises.hazard_closure_mode
+  app/models/enterprise_org.py           企业成员/组织树（§3.5，含 org_structure 镜像同步）
   app/schemas/hazard_management.py       请求/响应模型
+  app/services/enterprise_org_service.py 组织树/成员/导入/镜像同步
   app/routers/hazard_management.py       鉴权端点（计划/任务/隐患单/审批/驾驶舱/导出/模板）
   app/routers/public_hazard.py           公开端点（扫码上报 /h/report/:token、公示 /h/:token）
   app/services/hazard_ai_service.py      AI 清单生成、排程建议、分级建议（复用 llm_text_completion）
@@ -60,6 +77,7 @@ backend/
   db_migration_hazard_management.sql     表/配置/系统模板数据迁移
 
 frontend/
+  src/pages/Enterprise/EnterpriseOrgPage.tsx         组织树 + 成员管理（部门/班组/岗位 + 账号绑定 + Excel 导入）
   src/pages/Enterprise/HazardInspectionTab.tsx       企业详情页新 Tab（台账/驾驶舱/计划/公示/模板入口）
   src/pages/Enterprise/HazardPlanPage.tsx            排查计划配置（含 AI 排程建议）
   src/pages/Enterprise/HazardTaskPage.tsx            任务执行（清单核对）
@@ -137,6 +155,8 @@ mobile/（8082） 新增：今日任务 / 任务执行 / 上报隐患 / 我的�
 | description | Text NOT NULL | |
 | photo_urls | JSONB NULL | 现场照片 |
 | location | String(500) NULL | 位置描述（未关联对象时） |
+| hazard_type | String(20) NULL | 隐患类型字典：equipment / fire / behavior / management / environment / other（驾驶舱类型分布数据源） |
+| cause_analysis | Text NULL | 原因分析（四不放过-原因；重大建议填写） |
 | level | String(10) NULL | 一般 / 重大；分级前为 NULL |
 | level_source | String(10) NULL | ai / manual |
 | grading_basis | Text NULL | 判定依据（重大必填，引用标准条款/要点） |
@@ -212,9 +232,36 @@ mobile/（8082） 新增：今日任务 / 任务执行 / 上报隐患 / 我的�
 
 - `enterprises.hazard_closure_mode` String(20) 默认 `standard`（standard / strict）；
 - `enterprises.hazard_public_token` String(64) UNIQUE NULL（隐患公示公开页 token，生成/重置）；
+- `enterprises.hazard_config` JSONB 默认 `{}`：默认整改期限（重大 15 天 / 一般 7 天）、复查期限天数（整改完成后 N 天内复查）、公示口径（进行中/已闭环/全部）、默认措施折算口径；
 - 扫码上报 token：**复用 `risk_objects.public_token`**（风险点二维码）与新增企业级 `enterprises.hazard_report_token`（无风险点场景/通用二维码）。
 
-### 5.11 状态机
+### 5.11 `enterprise_members` 企业成员（§3.5）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| enterprise_id | UUID FK CASCADE | |
+| user_id | UUID FK users CASCADE | 绑定账号 |
+| org_node_id | UUID/字符串 NULL | 组织树节点 id（部门/班组/岗位） |
+| position | String(100) NULL | 岗位名称 |
+| role | String(20) NOT NULL | enterprise_admin / team_leader / member |
+| enabled | Boolean 默认 true | 停用后不可被选为责任人 |
+| created_at / updated_at | DateTime | |
+
+### 5.12 `hazard_notifications` 站内通知
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| enterprise_id | UUID FK CASCADE | |
+| user_id | UUID FK users | 接收人 |
+| record_id | UUID FK NULL | 关联隐患单/任务 |
+| type | String(20) | overdue / upcoming / approval / escalation |
+| message | String(500) | 文案 |
+| read_at | DateTime NULL | 已读时间 |
+| created_at | DateTime | |
+
+### 5.13 状态机
 
 ```
 registered → grading（AI 建议后人工确认）
@@ -237,7 +284,9 @@ registered → grading（AI 建议后人工确认）
 - **任务生成**：调度器按计划到期生成任务（默认当日 18:00 截止）；生成时按 `zone_ids` 查当前风险点 + 管控措施组装清单项（动态快照，含 object/measure 关联）；
 - **AI 清单补全**：`POST /ai/checklist`，输入任务上下文，返回建议新增项（LLM），页面勾选后合并去重；AI 失败时任务仍可执行（默认项即可）；
 - **任务执行**：逐项核对 normal / abnormal / na；abnormal 可一键转隐患登记（预填对象/措施/描述/照片）；
-- **超期**：扫描标记 + 上级通知（驾驶舱角标 + 列表标红 + audit log）。
+- **超期**：扫描标记 + 上级通知（`hazard_notifications` + 驾驶舱角标 + 列表标红 + audit log）；
+- **提前提醒**：due_at 前 2 小时生成 `upcoming` 通知（防重：以已通知标记为准）；
+- 责任人/复查人/审批人全部从 `enterprise_members` 选择（按部门/班组/岗位/角色过滤）。
 
 ---
 
@@ -271,7 +320,7 @@ registered → grading（AI 建议后人工确认）
 ## 10. 整改 / 复查 / 销号
 
 - **整改**：责任人提交整改内容 + 证据照片（hazard_rectifications）；
-- **复查**：复查人由管理员指定且 ≠ 整改人（422 拦截）；pass/fail + 证据；fail → 退回整改并留痕；
+- **复查**：复查人由管理员指定且 ≠ 整改人（422 拦截）；整改完成后按 `hazard_config.review_deadline_days` 生成复查期限，超期提醒；pass/fail + 证据；fail → 退回整改并留痕；
 - **销号**：标准模式管理员 close；严格模式且重大 → second_review（安全总监级，即管理员角色）通过后 close；
 - 全程 `hazard_audit_logs` 留痕（两种模式都记录，严格模式额外多一道复核节点）。
 
@@ -298,7 +347,9 @@ registered → grading（AI 建议后人工确认）
 
 **指标卡**：未闭环隐患风险点数、整改及时率（按期闭环/应闭环）、重大挂牌数、超期数、月度隐患数（环比）、扫码待确认数。
 
-**图表**：隐患类型分布（饼图）、月度趋势（折线）、重大隐患专表（表）、企业间对比（横向条形，同账号多企业）。
+**图表**：隐患类型分布（饼图，按 `hazard_type`）、月度趋势（折线）、重大隐患专表（表）、企业间对比（横向条形，同账号多企业）。
+
+**消息角标**：超期 / 到期前提醒 / 待审批挂牌 计数（隐患 Tab、驾驶舱、移动端同步，来自 `hazard_notifications` 未读数）。
 
 **导出（openpyxl）**：
 
@@ -333,6 +384,12 @@ registered → grading（AI 建议后人工确认）
 | GET | `/enterprises/{id}/hazard-inspection/export/ledger.xlsx` | 台账导出 |
 | GET | `/enterprises/{id}/hazard-inspection/export/report.xlsx` | 监管上报台账 |
 | CRUD | `/enterprises/{id}/hazard-inspection/templates` | 检查表模板 |
+| CRUD | `/enterprises/{id}/org/nodes` | 组织树节点（§3.5） |
+| CRUD | `/enterprises/{id}/members` | 企业成员（§3.5） |
+| POST | `/enterprises/{id}/members/import` | Excel 导入成员 |
+| GET | `/enterprises/{id}/members/available` | 责任人/复查人选择器 |
+| GET | `/enterprises/{id}/hazard-inspection/notifications` | 站内通知列表 + 未读数 |
+| GET/PUT | `/enterprises/{id}/hazard-inspection/config` | 企业隐患配置（hazard_config） |
 | POST | `/enterprises/{id}/hazard-inspection/ai/schedule-suggestion` | AI 排程建议 |
 | POST | `/enterprises/{id}/hazard-inspection/ai/checklist` | AI 清单补全 |
 | POST | `/enterprises/{id}/hazard-inspection/ai/grade` | AI 分级建议 |
@@ -347,6 +404,7 @@ registered → grading（AI 建议后人工确认）
 
 | 页面 | 说明 |
 |------|------|
+| `EnterpriseOrgPage` | 组织树 + 成员管理（前置能力）：部门→班组→岗位、添加/绑定账号、角色、Excel 导入 |
 | `HazardInspectionTab` | 企业详情页新 Tab：台账列表（统计条/筛选/新建/导出台账/驾驶舱入口） |
 | `HazardPlanPage` | 计划配置（含 AI 排程建议卡） |
 | `HazardTaskPage` | 任务执行（清单核对 + 一键转隐患） |
@@ -374,11 +432,12 @@ registered → grading（AI 建议后人工确认）
 ## 17. 测试策略
 
 - **pytest**：
+  - 组织成员：组织树 CRUD 与 org_structure 镜像同步、成员添加/绑定/导入、企业角色权限；
   - 状态机全路径：一般/重大 × 标准/严格（含退回、二次复核、销号）；
   - 权限矩阵：登记/整改/复查/审批/销号各角色；
-  - 超期扫描与防重通知；任务到期生成；
+  - 超期扫描与防重通知；到期前 2h 提醒；任务到期生成；
   - AI 降级（mock LLM 失败）；分级校验；幂等 nonce；
-  - 回写派生计数；驾驶舱统计口径；导出内容；
+  - 回写派生计数；驾驶舱统计口径（含 hazard_type 分布）；导出内容；
   - 公开端点脱敏与 404；
 - **前端 vitest**：清单核对交互、表单校验、筛选、驾驶舱数据映射、公开页渲染；
 - **移动端**：任务/上报页冒烟；
@@ -397,14 +456,15 @@ registered → grading（AI 建议后人工确认）
 
 ## 19. 验收标准
 
-1. 按计划自动生成任务，清单含默认 + 模板 + AI 项，可执行核对；
-2. 三渠道均可登记隐患，排查异常项一键转隐患；
-3. 一般/重大流程 × 标准/严格模式行为正确（含退回、二次复核）；
-4. 超期预警与上级通知生效且不重复；
-5. 隐患闭环后风险点「未闭环隐患」标记消失，告知卡/清单实时反映；
-6. 驾驶舱数据正确，台账与监管上报台账可导出；
-7. 公示页/公开页无敏感信息；
-8. 全部门禁通过。
+1. 企业可配置部门→班组→岗位树，成员账号绑定与企业角色可用，责任人/复查人/审批人可从成员中选择；
+2. 按计划自动生成任务，清单含默认 + 模板 + AI 项，可执行核对；
+3. 三渠道均可登记隐患，排查异常项一键转隐患；
+4. 一般/重大流程 × 标准/严格模式行为正确（含退回、二次复核）；
+5. 超期预警与到期前提醒、审批待办通知生效且不重复（角标正确）；
+6. 隐患闭环后风险点「未闭环隐患」标记消失，告知卡/清单实时反映；
+7. 驾驶舱数据正确（含类型分布），台账与监管上报台账可导出；
+8. 公示页/公开页无敏感信息；
+9. 全部门禁通过。
 
 ---
 
