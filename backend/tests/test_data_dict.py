@@ -39,16 +39,22 @@ async def test_enterprise_overrides_system():
 
 @pytest.mark.asyncio
 async def test_disabled_entry_excluded():
+    invalidate_dict_cache("ent-1", "measure_factors")
     db = MagicMock()
     db.execute = AsyncMock()
     result = MagicMock()
+    # 真实数据库按 enabled.is_(True) 过滤禁用行，mock 仅模拟过滤后的启用行
     result.scalars.return_value.all.return_value = [
-        DataDict(dict_type="measure_factors", code="ppe", label="个体防护",
-                 value={"factor": 0.85}, scope="system", enabled=False, is_system=True),
+        DataDict(dict_type="measure_factors", code="engineering", label="工程技术",
+                 value={"factor": 0.5}, scope="system", enabled=True, is_system=True),
     ]
     db.execute.return_value = result
     merged = await get_dict_map(db, "ent-1", "measure_factors")
+    # 真实验证：缓存已清理，查询确实执行（非命中缓存），且语句携带 enabled 过滤条件
+    db.execute.assert_awaited_once()
+    assert "enabled" in str(db.execute.await_args.args[0])
     assert "ppe" not in merged
+    assert merged["engineering"]["value"]["factor"] == 0.5
 
 
 @pytest.mark.asyncio
