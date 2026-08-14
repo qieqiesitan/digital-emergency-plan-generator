@@ -15,6 +15,7 @@ from app.models.user import User
 from app.routers import enterprise_org
 from app.services.enterprise_org_service import (
     ROLE_LABEL_MAP,
+    _summarize_org_structure,
     build_member_import_template,
     normalize_org_nodes,
     parse_member_rows,
@@ -751,6 +752,32 @@ def test_members_available_non_owner_read_404(client):
 
 
 # ── AI 建树建议（任务 5，文本通道，mock LLM） ──
+
+def test_summarize_org_structure_paths():
+    nodes = [
+        {"id": "d1", "type": "dept", "name": "生产部", "parent_id": None, "members": []},
+        {"id": "t1", "type": "team", "name": "甲班", "parent_id": "d1", "members": []},
+        {"id": "t2", "type": "team", "name": "乙班", "parent_id": "d1", "members": []},
+    ]
+    summary = _summarize_org_structure(nodes)
+    assert "生产部" in summary
+    assert "生产部/甲班" in summary
+    assert "生产部/乙班" in summary
+
+
+def test_summarize_org_structure_cycle_safe():
+    nodes = [
+        {"id": "a", "type": "dept", "name": "A", "parent_id": "b", "members": []},
+        {"id": "b", "type": "dept", "name": "B", "parent_id": "a", "members": []},
+    ]
+    summary = _summarize_org_structure(nodes)
+    assert isinstance(summary, str)
+    assert summary != ""
+
+
+def test_summarize_org_structure_empty():
+    assert _summarize_org_structure([]) == "（暂无）"
+
 
 @pytest.mark.asyncio
 async def test_ai_suggest_org_tree_ok():
