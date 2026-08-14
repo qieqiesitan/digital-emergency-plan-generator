@@ -347,7 +347,7 @@ async def preview_method(body: MethodPreviewRequest, enterprise_id: str, current
     m = (await db.execute(select(RiskAssessmentMethod).where(RiskAssessmentMethod.id==body.method_id))).scalar_one_or_none()
     if not m: raise HTTPException(404, "方法不存在")
     r = compute_risk(m.method_type, body.params, m.config)
-    return ApiResponse(data=MethodPreviewResponse(risk_level=r.risk_level, risk_score=r.risk_score, action=r.action, deadline=r.deadline))
+    return ApiResponse(data=MethodPreviewResponse(risk_level=r.risk_level, risk_score=r.risk_score, action=r.action, deadline=r.deadline, scenario=body.scenario))
 
 # ── Workbench ──
 def _same_ts(a, b) -> bool:
@@ -824,6 +824,25 @@ async def recalc_event(event_id: str, enterprise_id: str, current_user=Depends(g
     ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score
     await db.commit(); await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))
+
+@router.get("/events/{event_id}/conversion-reference", response_model=ApiResponse[dict])
+async def event_conversion_reference(enterprise_id: str, event_id: str,
+                                     current_user=Depends(get_current_user), db=Depends(get_db)):
+    """按固有分值 × 管控措施综合系数给出现有风险参考等级/分值（自动折算参考）。"""
+    await _get_ent(enterprise_id, current_user.id, db)
+    event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
+    if not event:
+        raise HTTPException(404, "风险事件不存在")
+    from app.services.data_dict_service import get_dict_map
+    from app.services.risk_conversion_service import conversion_reference
+    factors = await get_dict_map(db, enterprise_id, "measure_factors")
+    mode = (factors.get("mode") or {}).get("value", {}).get("mode", "min")
+    factor_map = {code: entry["value"]["factor"]
+                  for code, entry in factors.items() if code != "mode" and entry.get("value", {}).get("factor") is not None}
+    config = await get_active_method_config(db, enterprise_id, event.method_type)
+    thresholds = (config or {}).get("risk_thresholds", [])
+    result = conversion_reference(event.inherent_risk_score or "", factor_map, mode, thresholds, event.method_type)
+    return ApiResponse(data=result)
 
 # ── Measures ──
 @router.get("/events/{event_id}/measures", response_model=ApiResponse[list[RiskMeasureResponse]])
