@@ -234,7 +234,7 @@ async def delete_member(
     # 软删 enabled=false 会使列表/状态逻辑复杂化）；如需审计留痕再改软删。
     await db.delete(member)
     await db.commit()
-    return {"code": 0, "message": "已删除"}
+    return ApiResponse(data=None, message="已删除")
 
 
 @router.get("/members", response_model=ApiResponse[list[MemberResponse]])

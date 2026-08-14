@@ -403,7 +403,10 @@ def test_members_delete_success(client):
     client.app.dependency_overrides[get_db] = lambda: db
     resp = client.delete("/enterprises/e1/org/members/m1")
     assert resp.status_code == 200
-    assert resp.json()["code"] == 0
+    body = resp.json()
+    assert body["code"] == 0
+    assert body["data"] is None
+    assert body["message"] == "已删除"
     db.delete.assert_awaited_with(member)
     db.commit.assert_awaited()
 

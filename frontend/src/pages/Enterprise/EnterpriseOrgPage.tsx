@@ -135,7 +135,7 @@ function collectSubtreeIds(nodes: OrgNode[], rootId: string): Set<string> {
   return ids;
 }
 
-/** 前端基础校验：name 非空、type 合法、parent 存在、id 唯一。 */
+/** 前端基础校验：name 非空、type 合法、parent 存在、id 唯一、成员 name 非空。 */
 function validateNodes(nodes: OrgNode[]): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();
@@ -152,6 +152,15 @@ function validateNodes(nodes: OrgNode[]): string[] {
     ids.add(n.id);
     if (n.parent_id != null && !nodes.some(x => x.id === n.parent_id)) {
       errors.push(`节点 ${n.id} parent 不存在: ${n.parent_id}`);
+    }
+    if (!Array.isArray(n.members)) {
+      errors.push(`节点 ${n.id} members 必须为数组`);
+    } else {
+      for (const m of n.members) {
+        if (typeof m !== "object" || m === null || !m.name?.trim()) {
+          errors.push(`节点 ${n.id} 存在非法或无姓名成员`);
+        }
+      }
     }
   }
   return errors;
@@ -525,21 +534,31 @@ export default function EnterpriseOrgPage() {
     </Space>
   );
 
-  function buildChildren(parentId: string): DataNode[] {
+  // seen 防环：环形 parent_id 数据不无限递归，已访问节点跳过（保存仍由前后端校验拦截）
+  function buildChildren(parentId: string, seen: Set<string> = new Set()): DataNode[] {
     return nodes
-      .filter(n => n.parent_id === parentId)
-      .map(n => ({
-        key: n.id,
-        title: treeTitle(n),
-        children: buildChildren(n.id),
-      }));
+      .filter(n => n.parent_id === parentId && !seen.has(n.id))
+      .map(n => {
+        const nextSeen = new Set(seen);
+        nextSeen.add(n.id);
+        return {
+          key: n.id,
+          title: treeTitle(n),
+          children: buildChildren(n.id, nextSeen),
+        };
+      });
   }
 
-  const treeData: DataNode[] = nodes.map(n => ({
-    key: n.id,
-    title: treeTitle(n),
-    children: buildChildren(n.id),
-  }));
+  // 只映射根节点（parent_id 为空），子节点由 buildChildren 按 parent_id 嵌套；
+  // 孤儿节点（parent_id 指向缺失节点）挂到根层，避免节点在树中不可见、无法删除/改名
+  // （前后端校验仍会拦截此类数据保存）。
+  const treeData: DataNode[] = nodes
+    .filter(n => !n.parent_id || !nodes.some(x => x.id === n.parent_id))
+    .map(n => ({
+      key: n.id,
+      title: treeTitle(n),
+      children: buildChildren(n.id, new Set([n.id])),
+    }));
 
   const isLoading = nodesLoading || membersLoading;
 
