@@ -8,6 +8,10 @@
 - `/ai/checklist-template`：AI 生成检查表模板（失败降级 available:false）
 - `/records`：隐患登记（Web/移动端三渠道共用，任务 5 §8；写=企业主/启用成员，
   非归属 404——登记面向全员，权限分层对齐任务 3 读路径而非写路径）
+- `GET /records` / `GET /records/{rid}`：台账列表（status/level/source_type/
+  scope=overdue/q 筛选 + 统计 total/open/major/overdue + 中文标签）与隐患单
+  详情（全部业务字段 + object/measure 名称 + 整改/复查/审批/审计时间线），
+  任务 13 补丁——供前端台账 Tab 与详情页消费
 - `/ai/record-assist`：登记 AI 摘要/分类（仅文本，失败降级 available:false，§16）
 - `/records/{rid}/grade|approve|reject`：分级确认/重大挂牌审批（任务 6 §9，
   写=企业主/启用 enterprise_admin 403，记录非本企业 404）
@@ -61,6 +65,7 @@ from app.models.enterprise import Enterprise
 from app.models.enterprise_org import EnterpriseMember
 from app.models.hazard_management import (
     HazardApproval,
+    HazardAuditLog,
     HazardChecklistTemplate,
     HazardInspectionItem,
     HazardInspectionPlan,
@@ -68,6 +73,7 @@ from app.models.hazard_management import (
     HazardNotification,
     HazardRecord,
     HazardRectification,
+    HazardReview,
 )
 from app.models.risk_management import RiskEvent, RiskMeasure, RiskObject, RiskUnit, RiskZone
 from app.models.user import User
@@ -1180,6 +1186,234 @@ async def create_record(
     await db.commit()
     await db.refresh(record)
     return ApiResponse(data=_record_dict(record))
+
+
+# ── 台账列表 / 详情（任务 13 补丁：前端台账 Tab 消费；§14 records 列表/详情） ──
+
+LEVEL_LABELS = {"major": "重大", "general": "一般"}
+
+
+async def _level_labels(db: AsyncSession, enterprise_id: str) -> dict[str, str]:
+    """等级中文标签：优先数据字典 `level`（企业覆盖 > 系统默认），缺省回退内置映射。
+
+    当前系统种子无 `level` 字典类型（db_migration_data_dicts.sql 仅有 hazard_type/
+    record_status_label/source_type/deadline_rules/publicity_scope），故内置
+    major→重大/general→一般 兜底；未来补种字典后企业覆盖自动生效（get_dict_map
+    语义一致）。
+    """
+    dict_map = await get_dict_map(db, enterprise_id, "level")
+    labels = {code: (entry.get("label") or code) for code, entry in dict_map.items()}
+    for code, fallback in LEVEL_LABELS.items():
+        labels.setdefault(code, fallback)
+    return labels
+
+
+def _record_list_row(record, status_labels: dict[str, str],
+                     source_labels: dict[str, str],
+                     level_labels: dict[str, str]) -> dict:
+    """台账行：记录全部业务字段 + 状态/来源/等级中文标签（前端表格直接展示）。"""
+    row = _record_dict(record)
+    row["status_label"] = status_labels.get(record.status, record.status)
+    row["source_type_label"] = source_labels.get(record.source_type, record.source_type)
+    row["level_label"] = level_labels.get(record.level or "", record.level or "")
+    return row
+
+
+def _rectification_dict(r) -> dict:
+    return {
+        "id": r.id,
+        "record_id": r.record_id,
+        "user_id": r.user_id,
+        "content": r.content,
+        "evidence": r.evidence or [],
+        "submitted_at": _dt(r.submitted_at),
+        "created_at": _dt(r.created_at),
+        "updated_at": _dt(r.updated_at),
+    }
+
+
+def _review_dict(r) -> dict:
+    return {
+        "id": r.id,
+        "record_id": r.record_id,
+        "review_type": r.review_type,
+        "user_id": r.user_id,
+        "result": r.result,
+        "comment": r.comment,
+        "evidence": r.evidence or [],
+        "created_at": _dt(r.created_at),
+        "updated_at": _dt(r.updated_at),
+    }
+
+
+def _approval_dict(r) -> dict:
+    return {
+        "id": r.id,
+        "record_id": r.record_id,
+        "user_id": r.user_id,
+        "action": r.action,
+        "comment": r.comment,
+        "created_at": _dt(r.created_at),
+        "updated_at": _dt(r.updated_at),
+    }
+
+
+def _audit_log_dict(r) -> dict:
+    return {
+        "id": r.id,
+        "enterprise_id": r.enterprise_id,
+        "record_id": r.record_id,
+        "user_id": r.user_id,
+        "action": r.action,
+        "detail": r.detail or {},
+        "created_at": _dt(r.created_at),
+        "updated_at": _dt(r.updated_at),
+    }
+
+
+@router.get("/records", response_model=ApiResponse[dict])
+async def list_records(
+    enterprise_id: str,
+    status: Optional[str] = Query(None),
+    level: Optional[str] = Query(None),
+    source_type: Optional[str] = Query(None),
+    scope: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, max_length=200),
+    stats: Optional[bool] = Query(True),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """隐患台账列表（任务 13 补丁，§14 records CRUD 列表侧 / §15 HazardInspectionTab）。
+
+    筛选：status/level/source_type 精确匹配（source_type 非法 → 422）；
+    scope=overdue = 整改中且 deadline < 今天（非法 scope → 422）；
+    q 关键词对 title/description/code 做 ilike 模糊匹配（参数绑定无注入，
+    与 enterprise_org search 既有惯例一致）。排序：created_at 倒序。
+    返回：items（台账行，含 status/source_type/level 中文标签）+ stats
+    （total/open/major/overdue，均按企业全量记录口径，与驾驶舱一致——
+    open=未闭环 status != closed、major=level == major、overdue=整改中超期；
+    stats=false 时 stats 为 null，跳过全量统计查询）。
+    权限：读 = 企业主/启用成员（非归属 404，`_get_ent`）。
+    全量返回不分页（与 publicity/tasks 既有列表惯例一致，台账规模可控；
+    分页留待列表增长时追加）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    if source_type:
+        _validate_record_source_type(source_type)
+    if scope and scope != "overdue":
+        raise HTTPException(422, f"scope 非法: {scope}，可选 overdue")
+    today = _today()
+    stmt = select(HazardRecord).where(HazardRecord.enterprise_id == enterprise_id)
+    if status:
+        stmt = stmt.where(HazardRecord.status == status)
+    if level:
+        stmt = stmt.where(HazardRecord.level == level)
+    if source_type:
+        stmt = stmt.where(HazardRecord.source_type == source_type)
+    if scope == "overdue":
+        stmt = stmt.where(
+            HazardRecord.status == "rectifying",
+            HazardRecord.deadline.is_not(None),
+            HazardRecord.deadline < today,
+        )
+    keyword = (q or "").strip()
+    if keyword:
+        like = f"%{keyword}%"
+        stmt = stmt.where(or_(
+            HazardRecord.title.ilike(like),
+            HazardRecord.description.ilike(like),
+            HazardRecord.code.ilike(like),
+        ))
+    rows = list((await db.execute(
+        stmt.order_by(HazardRecord.created_at.desc())
+    )).scalars().all())
+    status_labels = await _dict_labels(db, enterprise_id, "record_status_label")
+    source_labels = await _dict_labels(db, enterprise_id, "source_type")
+    level_labels = await _level_labels(db, enterprise_id)
+    items = [_record_list_row(r, status_labels, source_labels, level_labels) for r in rows]
+    if not stats:
+        return ApiResponse(data={"items": items, "stats": None})
+    all_records = list((await db.execute(
+        select(HazardRecord).where(HazardRecord.enterprise_id == enterprise_id)
+    )).scalars().all())
+    return ApiResponse(data={
+        "items": items,
+        "stats": {
+            "total": len(all_records),
+            "open": sum(1 for r in all_records if r.status != "closed"),
+            "major": sum(1 for r in all_records if r.level == "major"),
+            "overdue": sum(
+                1 for r in all_records
+                if r.status == "rectifying" and r.deadline and r.deadline < today
+            ),
+        },
+    })
+
+
+@router.get("/records/{rid}", response_model=ApiResponse[dict])
+async def get_record_detail(
+    enterprise_id: str,
+    rid: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """隐患单详情（任务 13 补丁，§14 records 详情侧 / §15 HazardRecordDetailPage）。
+
+    返回：记录全部业务字段（`_record_dict`）+ object/measure 名称 +
+    rectifications（全部整改记录）/reviews/approvals/audit_logs（时间线数据，
+    均 created_at 升序——详情页时间线按发生顺序渲染；公示摘要的「最近一条」
+    口径由 `_latest_rectifications` 另行承担）+ 状态/来源/等级中文标签。
+    权限：读 = 企业主/启用成员（非归属 404，`_get_ent`）；记录非本企业 404
+    （`_get_record`，不泄露归属信息）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    record = await _get_record(enterprise_id, rid, db)
+    object_name = None
+    if record.object_id:
+        object_name = (await db.execute(
+            select(RiskObject.name).where(RiskObject.id == record.object_id)
+        )).scalar_one_or_none()
+    measure_name = None
+    if record.measure_id:
+        measure_name = (await db.execute(
+            select(RiskMeasure.description).where(RiskMeasure.id == record.measure_id)
+        )).scalar_one_or_none()
+    rectifications = list((await db.execute(
+        select(HazardRectification)
+        .where(HazardRectification.record_id == record.id)
+        .order_by(HazardRectification.created_at.asc())
+    )).scalars().all())
+    reviews = list((await db.execute(
+        select(HazardReview)
+        .where(HazardReview.record_id == record.id)
+        .order_by(HazardReview.created_at.asc())
+    )).scalars().all())
+    approvals = list((await db.execute(
+        select(HazardApproval)
+        .where(HazardApproval.record_id == record.id)
+        .order_by(HazardApproval.created_at.asc())
+    )).scalars().all())
+    audit_logs = list((await db.execute(
+        select(HazardAuditLog)
+        .where(HazardAuditLog.record_id == record.id)
+        .order_by(HazardAuditLog.created_at.asc())
+    )).scalars().all())
+    status_labels = await _dict_labels(db, enterprise_id, "record_status_label")
+    source_labels = await _dict_labels(db, enterprise_id, "source_type")
+    level_labels = await _level_labels(db, enterprise_id)
+    data = _record_dict(record)
+    data.update({
+        "status_label": status_labels.get(record.status, record.status),
+        "source_type_label": source_labels.get(record.source_type, record.source_type),
+        "level_label": level_labels.get(record.level or "", record.level or ""),
+        "object_name": object_name,
+        "measure_name": measure_name,
+        "rectifications": [_rectification_dict(r) for r in rectifications],
+        "reviews": [_review_dict(r) for r in reviews],
+        "approvals": [_approval_dict(r) for r in approvals],
+        "audit_logs": [_audit_log_dict(r) for r in audit_logs],
+    })
+    return ApiResponse(data=data)
 
 
 @router.post("/ai/record-assist", response_model=ApiResponse[dict])

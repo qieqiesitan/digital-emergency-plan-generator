@@ -17,6 +17,7 @@ mock；async 服务函数用 @pytest.mark.asyncio。
 """
 
 import json
+from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -28,7 +29,13 @@ from app.dependencies import get_current_user
 from app.models.data_dict import DataDict
 from app.models.enterprise import Enterprise
 from app.models.enterprise_org import EnterpriseMember
-from app.models.hazard_management import HazardRecord
+from app.models.hazard_management import (
+    HazardApproval,
+    HazardAuditLog,
+    HazardRecord,
+    HazardRectification,
+    HazardReview,
+)
 from app.models.user import User
 from app.routers import hazard_management
 from app.services.data_dict_service import invalidate_dict_cache
@@ -129,6 +136,13 @@ def client():
     app.dependency_overrides[get_db] = lambda: _record_db(_ent())
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture(autouse=True)
+def _clear_dict_cache():
+    """每个测试结束后清空数据字典进程内缓存，避免同进程多测试/多字典类型污染。"""
+    yield
+    invalidate_dict_cache()
 
 
 _RECORD_BODY = {
@@ -487,3 +501,321 @@ async def test_record_assist_no_config_skips_llm():
     assert out["available"] is False
     assert out["title"] == ""
     mock_llm.assert_not_awaited()
+
+
+# ── 台账列表 / 详情（任务 13 补丁：GET /records + GET /records/{rid}） ──
+
+def _label_row(dict_type, code, label):
+    return DataDict(dict_type=dict_type, code=code, label=label,
+                    value={}, scope="system", sort_order=1, enabled=True,
+                    is_system=True)
+
+
+def _label_rows():
+    """多字典类型 union 行（status/source_type；level 无种子，由内置映射兜底）。"""
+    return [
+        _label_row("record_status_label", "registered", "已登记"),
+        _label_row("record_status_label", "rectifying", "整改中"),
+        _label_row("record_status_label", "closed", "已销号"),
+        _label_row("source_type", "inspection", "排查"),
+        _label_row("source_type", "report", "上报"),
+        _label_row("source_type", "regulatory", "监管检查"),
+        _label_row("source_type", "manual", "手工"),
+    ]
+
+
+def _rec(**kw):
+    r = HazardRecord(
+        id=kw.pop("id", "r1"),
+        enterprise_id=kw.pop("enterprise_id", "e1"),
+        code=kw.pop("code", "HD-001"),
+        source_type=kw.pop("source_type", "report"),
+        title=kw.pop("title", "配电箱门破损"),
+        description=kw.pop("description", "配电箱门变形无法闭合"),
+        status=kw.pop("status", "registered"),
+    )
+    for k, v in kw.items():
+        setattr(r, k, v)
+    return r
+
+
+def _record_list_db(ent, *, member=None, dict_rows=None, list_rows=None,
+                    stats_records=None, record_count=0):
+    """列表端点 mock：hazard_records 按 count / ORDER BY 列表 / 全量统计分发。"""
+    db = AsyncMock()
+
+    def fake_execute(stmt, *params):
+        text = str(stmt)
+        if "FROM enterprises" in text:
+            return _scalar(ent)
+        if "FROM enterprise_members" in text:
+            return _first(member if member and getattr(member, "enabled", True) else None)
+        if "FROM data_dicts" in text:
+            return _scalars(dict_rows or [])
+        if "FROM hazard_records" in text:
+            if "count(hazard_records.id)" in text:
+                return _count(record_count)
+            if "ORDER BY hazard_records.created_at" in text:
+                return _scalars(list_rows or [])
+            return _scalars(stats_records or [])
+        return _scalar(None)
+
+    db.execute.side_effect = fake_execute
+    return db
+
+
+def test_record_list_returns_rows_labels_and_stats(client):
+    rows = [
+        _rec(id="r1", code="HD-002", source_type="regulatory", status="rectifying",
+             level="major", deadline=date(2020, 1, 1), title="油罐区可燃气体报警失效"),
+        _rec(id="r2", code="HD-001", source_type="report", status="closed",
+             level="general", deadline=date(2020, 1, 5), title="配电箱门破损"),
+    ]
+    stats = [
+        _rec(id="r1", code="HD-002", source_type="regulatory", status="rectifying",
+             level="major", deadline=date(2020, 1, 1)),
+        _rec(id="r2", code="HD-001", source_type="report", status="closed",
+             level="general", deadline=date(2020, 1, 5)),
+        _rec(id="r3", code="HD-003", source_type="manual", status="registered",
+             level=None),
+    ]
+    db = _record_list_db(_ent(), dict_rows=_label_rows(), list_rows=rows,
+                         stats_records=stats)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert resp.json()["code"] == 0
+    assert [i["id"] for i in data["items"]] == ["r1", "r2"]  # created_at 倒序由端点排序，mock 保序
+    row = data["items"][0]
+    assert row["status"] == "rectifying"
+    assert row["status_label"] == "整改中"
+    assert row["source_type"] == "regulatory"
+    assert row["source_type_label"] == "监管检查"
+    assert row["level"] == "major"
+    assert row["level_label"] == "重大"
+    assert row["deadline"] == "2020-01-01"
+    # stats 按企业全量记录口径
+    assert data["stats"] == {"total": 3, "open": 2, "major": 1, "overdue": 1}
+
+
+def test_record_list_applies_filters_and_keyword(client):
+    db = _record_list_db(_ent(), dict_rows=_label_rows(),
+                         list_rows=[_rec(status="rectifying")])
+    client.app.dependency_overrides[get_db] = lambda: db
+    statements = []
+    orig = db.execute.side_effect
+
+    def spy(stmt, *params):
+        statements.append(str(stmt))
+        return orig(stmt, *params)
+
+    db.execute.side_effect = spy
+    resp = client.get("/enterprises/e1/hazard-inspection/records", params={
+        "status": "rectifying", "level": "major", "source_type": "inspection",
+        "q": "配电箱",
+    })
+    assert resp.status_code == 200
+    assert any("hazard_records.status = :status_1" in s for s in statements)
+    assert any("hazard_records.level = :level_1" in s for s in statements)
+    assert any("hazard_records.source_type = :source_type_1" in s for s in statements)
+    # ilike 在 PostgreSQL 方言渲染为 lower(col) LIKE lower(:param)
+    assert any("LIKE lower(" in s for s in statements)
+
+
+def test_record_list_scope_overdue_filters_deadline(client):
+    db = _record_list_db(_ent(), dict_rows=_label_rows(),
+                         list_rows=[_rec(status="rectifying")])
+    client.app.dependency_overrides[get_db] = lambda: db
+    statements = []
+    orig = db.execute.side_effect
+
+    def spy(stmt, *params):
+        statements.append(str(stmt))
+        return orig(stmt, *params)
+
+    db.execute.side_effect = spy
+    resp = client.get("/enterprises/e1/hazard-inspection/records",
+                      params={"scope": "overdue"})
+    assert resp.status_code == 200
+    assert any("hazard_records.deadline <" in s for s in statements)
+
+
+def test_record_list_stats_false_returns_null_stats(client):
+    db = _record_list_db(_ent(), dict_rows=_label_rows(),
+                         list_rows=[_rec(id="r1")])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records",
+                      params={"stats": "false"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["stats"] is None
+    assert len(data["items"]) == 1
+
+
+def test_record_list_invalid_scope_422(client):
+    db = _record_list_db(_ent(), dict_rows=_label_rows())
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records",
+                      params={"scope": "all"})
+    assert resp.status_code == 422
+    assert "scope 非法" in resp.json()["detail"]
+
+
+def test_record_list_invalid_source_type_422(client):
+    db = _record_list_db(_ent(), dict_rows=_label_rows())
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records",
+                      params={"source_type": "wechat"})
+    assert resp.status_code == 422
+    assert "source_type 非法" in resp.json()["detail"]
+
+
+def test_record_list_non_member_404(client):
+    db = _record_list_db(_ent(user_id="u2"), member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records")
+    assert resp.status_code == 404
+
+
+def _rect(**kw):
+    r = HazardRectification(id=kw.pop("id", "rec1"), record_id=kw.pop("record_id", "r1"),
+                            user_id=kw.pop("user_id", "u1"),
+                            content=kw.pop("content", "已更换安全阀"))
+    for k, v in kw.items():
+        setattr(r, k, v)
+    return r
+
+
+def _review(**kw):
+    r = HazardReview(id=kw.pop("id", "rev1"), record_id=kw.pop("record_id", "r1"),
+                     review_type=kw.pop("review_type", "first"),
+                     user_id=kw.pop("user_id", "u2"), result=kw.pop("result", "pass"))
+    for k, v in kw.items():
+        setattr(r, k, v)
+    return r
+
+
+def _approval(**kw):
+    r = HazardApproval(id=kw.pop("id", "ap1"), record_id=kw.pop("record_id", "r1"),
+                       user_id=kw.pop("user_id", "u1"), action=kw.pop("action", "approve"))
+    for k, v in kw.items():
+        setattr(r, k, v)
+    return r
+
+
+def _audit(**kw):
+    r = HazardAuditLog(id=kw.pop("id", "al1"), enterprise_id=kw.pop("enterprise_id", "e1"),
+                       record_id=kw.pop("record_id", "r1"), user_id=kw.pop("user_id", "u1"),
+                       action=kw.pop("action", "grade"))
+    for k, v in kw.items():
+        setattr(r, k, v)
+    return r
+
+
+def _record_detail_db(ent, *, member=None, record=None, dict_rows=None,
+                      object_name=None, measure_name=None, rectifications=None,
+                      reviews=None, approvals=None, audit_logs=None):
+    """详情端点 mock：覆盖 records/object/measure/四张时间线子表/data_dicts。"""
+    db = AsyncMock()
+
+    def fake_execute(stmt, *params):
+        text = str(stmt)
+        if "FROM enterprises" in text:
+            return _scalar(ent)
+        if "FROM enterprise_members" in text:
+            return _first(member if member and getattr(member, "enabled", True) else None)
+        if "FROM data_dicts" in text:
+            return _scalars(dict_rows or [])
+        if "FROM risk_objects" in text:
+            return _scalar(object_name)
+        if "FROM risk_measures" in text:
+            return _scalar(measure_name)
+        if "FROM hazard_rectifications" in text:
+            return _scalars(rectifications or [])
+        if "FROM hazard_reviews" in text:
+            return _scalars(reviews or [])
+        if "FROM hazard_approvals" in text:
+            return _scalars(approvals or [])
+        if "FROM hazard_audit_logs" in text:
+            return _scalars(audit_logs or [])
+        if "FROM hazard_records" in text:
+            return _scalar(record)
+        return _scalar(None)
+
+    db.execute.side_effect = fake_execute
+    return db
+
+
+def test_record_detail_returns_business_fields_timeline_and_labels(client):
+    record = _rec(
+        id="r1", code="HD-001", source_type="inspection", status="rectifying",
+        level="major", deadline=date(2026, 8, 30),
+        hazard_type="equipment", level_source="manual",
+        grading_basis="符合危化品判定要点",
+        rectification_plan={"goal": "更换报警器并联网"},
+        rectification_user_id="u2", reviewer_user_id="u3", created_by="u1",
+        object_id="o1", measure_id="m1", location="油罐区",
+        created_at=datetime(2026, 8, 1, 9, 0), updated_at=datetime(2026, 8, 2, 10, 0),
+    )
+    db = _record_detail_db(
+        _ent(),
+        record=record,
+        dict_rows=_label_rows(),
+        object_name="油罐区可燃气体报警器",
+        measure_name="每日巡检并记录",
+        rectifications=[_rect(id="rec1", content="已更换安全阀",
+                              submitted_at=datetime(2026, 8, 5, 9, 0),
+                              created_at=datetime(2026, 8, 5, 9, 0))],
+        reviews=[_review(id="rev1", result="pass", comment="整改合格",
+                         created_at=datetime(2026, 8, 6, 9, 0))],
+        approvals=[_approval(id="ap1", action="approve", comment="同意挂牌",
+                             created_at=datetime(2026, 8, 3, 9, 0))],
+        audit_logs=[_audit(id="al1", action="grade", detail={"level": "major"},
+                           created_at=datetime(2026, 8, 2, 9, 0))],
+    )
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records/r1")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["id"] == "r1"
+    assert data["code"] == "HD-001"
+    assert data["title"] == "配电箱门破损"
+    assert data["deadline"] == "2026-08-30"
+    assert data["hazard_type"] == "equipment"
+    assert data["grading_basis"] == "符合危化品判定要点"
+    assert data["rectification_plan"] == {"goal": "更换报警器并联网"}
+    assert data["rectification_user_id"] == "u2"
+    assert data["reviewer_user_id"] == "u3"
+    assert data["created_by"] == "u1"
+    assert data["status_label"] == "整改中"
+    assert data["source_type_label"] == "排查"
+    assert data["level_label"] == "重大"
+    assert data["object_name"] == "油罐区可燃气体报警器"
+    assert data["measure_name"] == "每日巡检并记录"
+    assert len(data["rectifications"]) == 1
+    assert data["rectifications"][0]["content"] == "已更换安全阀"
+    assert data["rectifications"][0]["submitted_at"] == "2026-08-05T09:00:00"
+    assert len(data["reviews"]) == 1
+    assert data["reviews"][0]["result"] == "pass"
+    assert data["reviews"][0]["comment"] == "整改合格"
+    assert len(data["approvals"]) == 1
+    assert data["approvals"][0]["action"] == "approve"
+    assert len(data["audit_logs"]) == 1
+    assert data["audit_logs"][0]["action"] == "grade"
+    assert data["audit_logs"][0]["detail"] == {"level": "major"}
+
+
+def test_record_detail_other_enterprise_record_404(client):
+    db = _record_detail_db(_ent(), record=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records/r9")
+    assert resp.status_code == 404
+    assert "隐患记录不存在" in resp.json()["detail"]
+
+
+def test_record_detail_non_member_404(client):
+    db = _record_detail_db(_ent(user_id="u2"), member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/hazard-inspection/records/r1")
+    assert resp.status_code == 404
