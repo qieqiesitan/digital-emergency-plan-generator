@@ -17,6 +17,10 @@
   后按字典 deadline_rules.review 生成复查期限提醒通知）
 - `/ai/grade`：AI 分级建议（major/general 码值，失败降级 available:false，§16）
 - `/ai/governance-plan`：AI 治理方案草稿（五键，人工确认后随 grade 落库，§9）
+- `/publicity`：隐患公示企业内列表（任务 10 §11.2；scope 口径来自数据字典
+  publicity_scope，默认 all；读=企业主/启用成员 404）
+- `/publicity-token`：生成/重置公示公开 token（仅企业主/启用 enterprise_admin
+  403；返回 token + 公开链接 /h/{token}）
 
 权限与归属：
 - 读路径企业归属校验（不属于 → 404）；写路径企业主或 `enterprise_members`
@@ -29,6 +33,7 @@
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 import json
+import secrets
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -48,6 +53,7 @@ from app.models.hazard_management import (
     HazardInspectionTask,
     HazardNotification,
     HazardRecord,
+    HazardRectification,
 )
 from app.models.risk_management import RiskEvent, RiskMeasure, RiskObject, RiskUnit, RiskZone
 from app.schemas.common import ApiResponse
@@ -1478,3 +1484,148 @@ async def ai_governance_plan_draft(
         measures_text=body.measures_text,
     )
     return ApiResponse(data=result)
+
+
+# ── 隐患公示（任务 10，§11.2）：企业内公示列表 + 公开 token 生成/重置 ──
+
+PUBLICITY_SCOPE_FALLBACK = {"ongoing", "closed", "all"}
+
+
+async def _dict_labels(db: AsyncSession, enterprise_id: str, dict_type: str) -> dict[str, str]:
+    """数据字典 label 映射 {code: label}（企业覆盖 > 系统默认，get_dict_map 语义）。"""
+    dict_map = await get_dict_map(db, enterprise_id, dict_type)
+    return {code: (entry.get("label") or code) for code, entry in dict_map.items()}
+
+
+async def _resolve_publicity_scopes(db: AsyncSession, enterprise_id: str) -> set[str]:
+    """公示口径码值集合：来自数据字典 `publicity_scope`（企业覆盖 > 系统默认）。
+
+    系统种子为 ongoing/closed/all（§3.6/§5.10），企业覆盖同 code 时以企业条目
+    为准（get_dict_map 合并语义）。字典为空（未种子/全部禁用）时回退内置三档，
+    保证端点不因配置缺失而不可用——取舍：字典驱动 + 内置兜底双保险。
+    """
+    dict_map = await get_dict_map(db, enterprise_id, "publicity_scope")
+    scopes = set(dict_map)
+    return scopes or set(PUBLICITY_SCOPE_FALLBACK)
+
+
+async def _latest_rectifications(
+    db: AsyncSession, record_ids: list[str]
+) -> dict[str, HazardRectification]:
+    """批量取每个记录最近整改记录（created_at 倒序取首条），供公示整改情况摘要。"""
+    if not record_ids:
+        return {}
+    rows = list((await db.execute(
+        select(HazardRectification)
+        .where(HazardRectification.record_id.in_(record_ids))
+        .order_by(HazardRectification.created_at.desc())
+    )).scalars().all())
+    latest: dict[str, HazardRectification] = {}
+    for row in rows:
+        latest.setdefault(row.record_id, row)
+    return latest
+
+
+def _rectification_summary(record, latest: Optional[HazardRectification]) -> str:
+    """整改情况摘要：最近整改记录 content > 治理方案 goal > 「未提交整改」。
+
+    §11.2 公示口径：已整改展示最近一次整改内容；未提交整改但已有治理方案时
+    展示目标摘要（goal），便于公众了解整改方向；两者皆无显示「未提交整改」。
+    """
+    if latest and (latest.content or "").strip():
+        return latest.content
+    plan = record.rectification_plan or {}
+    goal = (plan.get("goal") or "").strip()
+    if goal:
+        return goal
+    return "未提交整改"
+
+
+def _publicity_row(record, status_labels: dict[str, str],
+                   source_labels: dict[str, str], rectification: str) -> dict:
+    """公示行（企业内/公开共用）：编号/标题/等级/状态标签/整改情况/排查来源标签。
+
+    字段均为展示口径——不含责任人/联系方式/照片/位置/内部备注（§11.2 脱敏），
+    故公开页可直接复用同一行构造（public_hazard.py），仅额外脱敏企业名称。
+    """
+    return {
+        "code": record.code,
+        "title": record.title,
+        "level": record.level or "",
+        "status": status_labels.get(record.status, record.status),
+        "rectification": rectification,
+        "source_type": source_labels.get(record.source_type, record.source_type),
+    }
+
+
+def _mask_enterprise_name(name: str) -> str:
+    """企业名称脱敏（公开公示）：仅保留首字符，其余以 ** 代替。
+
+    §11.2 公开页不暴露企业全称；规则「首字符 + **」（如「甲公司」→「甲**」），
+    空名称兜底返回「**」。
+    """
+    name = (name or "").strip()
+    return (name[0] if name else "") + "**"
+
+
+@router.get("/publicity", response_model=ApiResponse[list])
+async def list_publicity(
+    enterprise_id: str,
+    scope: str = Query("all"),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """企业内隐患公示列表（§11.2）：编号/标题/等级/状态/整改情况/排查来源。
+
+    口径：scope 来自数据字典 `publicity_scope` 码值（ongoing/closed/all，企业
+    覆盖 > 系统默认），默认 all；ongoing=status != closed、closed=status ==
+    closed，非法 scope → 422。
+    排序：created_at 倒序；全量返回（与 plans/tasks 等既有列表惯例一致，公示
+    列表规模可控，暂不分页——取舍：列表体量小，先满足展示，分页留待前端需要
+    时追加）。
+    权限：读 = 企业主或启用成员（非归属 404，`_get_ent`）。
+    整改情况摘要：最近整改记录 content > 治理方案 goal > 「未提交整改」。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    scopes = await _resolve_publicity_scopes(db, enterprise_id)
+    if scope not in scopes:
+        raise HTTPException(422, f"scope 非法: {scope}，可选 {sorted(scopes)}")
+    q = select(HazardRecord).where(HazardRecord.enterprise_id == enterprise_id)
+    if scope == "ongoing":
+        q = q.where(HazardRecord.status != "closed")
+    elif scope == "closed":
+        q = q.where(HazardRecord.status == "closed")
+    records = list((await db.execute(
+        q.order_by(HazardRecord.created_at.desc())
+    )).scalars().all())
+    status_labels = await _dict_labels(db, enterprise_id, "record_status_label")
+    source_labels = await _dict_labels(db, enterprise_id, "source_type")
+    latest = await _latest_rectifications(db, [r.id for r in records])
+    return ApiResponse(data=[
+        _publicity_row(r, status_labels, source_labels,
+                       _rectification_summary(r, latest.get(r.id)))
+        for r in records
+    ])
+
+
+@router.post("/publicity-token", response_model=ApiResponse[dict])
+async def generate_publicity_token(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """生成/重置隐患公示公开 token（§5.10/§11.2/§14）。
+
+    首次生成与重置统一端点：每次调用生成新 64 位 token
+    （secrets.token_hex(32)，与风险公示/告知卡 token 先例一致），旧链接即刻失效。
+    权限：仅企业主/启用 enterprise_admin（其余 403，`_get_admin_ent`）。
+    返回 token 与完整公开链接 `/h/{token}`（SPA 路由，公开页前端路由 §15；
+    后端 API 路径为 /public/hazard/{token}）。
+    """
+    ent = await _get_admin_ent(enterprise_id, current_user.id, db)
+    ent.hazard_public_token = secrets.token_hex(32)
+    await db.commit()
+    return ApiResponse(data={
+        "token": ent.hazard_public_token,
+        "link": f"/h/{ent.hazard_public_token}",
+    })

@@ -1,6 +1,6 @@
-"""隐患扫码公开上报（免登录，token 校验 + nonce 防重，任务 5 §8）。
+"""隐患公开端点（免登录，任务 5 §8 + 任务 10 §11.2）。
 
-`POST /public/hazard/report/{token}`：
+`POST /public/hazard/report/{token}` 扫码上报：
 - token 匹配优先级：先查 `risk_objects.public_token`（风险点二维码，自动带
   object_id，enterprise 由风险点归属推导，location 可选）；再查
   `enterprises.hazard_report_token`（企业通用二维码，object_id 空、location
@@ -11,12 +11,20 @@
   假设一致）。
 - 落库 source_type=report、created_by=NULL、status=registered、code=HD-{三位序号}；
   响应不暴露内部信息（§8「已提交，待企业管理员确认」风格）。
+
+`GET /public/hazard/{token}` 隐患公示公开页（任务 10）：
+- token = `enterprises.hazard_public_token`，无效 → 404「链接已失效」（§16）；
+- 只读、脱敏：企业名称（首字符 + **）、公示列表（编号/标题/等级/状态/整改
+  情况摘要，复用 hazard_management 公示行构造，不含责任人/联系方式/照片/
+  位置/内部备注）；响应含 generated_at 与 masked 标记；
+- scope 口径（ongoing/closed/all，默认 all）与企业内公示一致，非法 422。
 """
 
+from datetime import datetime, timezone
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +35,16 @@ from app.models.hazard_management import HazardRecord
 from app.models.risk_management import RiskObject
 from app.schemas.common import ApiResponse
 from app.services.hazard_service import next_hazard_code
+# 公示行/口径/整改摘要/名称脱敏等共享逻辑放在主隐患路由（hazard_management），
+# 公开端点复用保证企业内与公开口径一致（§11.2「口径与企业内公示一致」）
+from app.routers.hazard_management import (
+    _dict_labels,
+    _latest_rectifications,
+    _mask_enterprise_name,
+    _publicity_row,
+    _rectification_summary,
+    _resolve_publicity_scopes,
+)
 
 
 router = APIRouter(prefix="/public/hazard", tags=["Public Hazard"])
@@ -121,3 +139,51 @@ async def public_hazard_report(token: str, body: PublicHazardReport, db: AsyncSe
     # 成功落库后再标记 nonce，避免失败提交误占防重窗口
     _mark_nonce(body.nonce)
     return ApiResponse(data={"message": "已提交，待企业管理员确认"}, message="已提交，待企业管理员确认")
+
+
+@router.get("/{token}", response_model=ApiResponse[dict])
+async def public_hazard_publicity(
+    token: str,
+    scope: str = Query("all"),
+    db: AsyncSession = Depends(get_db),
+):
+    """隐患公示公开页（免登录，§11.2）：token 校验 + 脱敏只读。
+
+    token = `enterprises.hazard_public_token`；无效 → 404「链接已失效」（§16）。
+    响应：企业名称（脱敏：首字符 + **）、公示列表（编号/标题/等级/状态/整改
+    情况摘要，不含责任人/联系方式/照片/位置/内部备注）。
+    口径：scope=ongoing/closed/all（字典 publicity_scope 码值，企业覆盖优先），
+    默认 all，与企业内公示一致；非法 scope → 422。
+    generated_at = 请求时刻（企业 token 无生成时间列——取舍：页面「生成于」
+    展示当前时间即可满足；如需精确生成时刻后续可加列）；masked=True 标记数据
+    已脱敏。
+    """
+    ent = (await db.execute(
+        select(Enterprise).where(Enterprise.hazard_public_token == token)
+    )).scalar_one_or_none()
+    if not ent:
+        raise HTTPException(404, "链接已失效")
+    scopes = await _resolve_publicity_scopes(db, ent.id)
+    if scope not in scopes:
+        raise HTTPException(422, f"scope 非法: {scope}，可选 {sorted(scopes)}")
+    q = select(HazardRecord).where(HazardRecord.enterprise_id == ent.id)
+    if scope == "ongoing":
+        q = q.where(HazardRecord.status != "closed")
+    elif scope == "closed":
+        q = q.where(HazardRecord.status == "closed")
+    records = list((await db.execute(
+        q.order_by(HazardRecord.created_at.desc())
+    )).scalars().all())
+    status_labels = await _dict_labels(db, ent.id, "record_status_label")
+    source_labels = await _dict_labels(db, ent.id, "source_type")
+    latest = await _latest_rectifications(db, [r.id for r in records])
+    return ApiResponse(data={
+        "enterprise_name": _mask_enterprise_name(ent.name),
+        "items": [
+            _publicity_row(r, status_labels, source_labels,
+                           _rectification_summary(r, latest.get(r.id)))
+            for r in records
+        ],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "masked": True,
+    })
