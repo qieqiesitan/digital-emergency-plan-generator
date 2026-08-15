@@ -17,6 +17,14 @@
   后按字典 deadline_rules.review 生成复查期限提醒通知）
 - `/ai/grade`：AI 分级建议（major/general 码值，失败降级 available:false，§16）
 - `/ai/governance-plan`：AI 治理方案草稿（五键，人工确认后随 grade 落库，§9）
+- `/ai/plan-builder`：AI 一键生成排查计划（2-6 套，责任人/分区为姓名与名称
+  文本，确认后映射 id 落库；失败降级 available:false，§3.7 #2/§6/§16）
+- `/ai/schedule-suggestion`：AI 排程建议（频次码值 + 责任人 id 建议，不校验
+  存在性、确认后落库前校验；失败降级 available:false，§6/§16）
+- `/ai/checklist`：AI 清单补全（≤8 项建议新增项，勾选后合并去重；失败降级
+  available:false，§6/§16）
+- `/ai/setup-wizard`：智能引导（复用组织建树/plan-builder/checklist-template
+  三函数预填三块，分步确认落库；失败降级 available:false，§3.8/§16）
 - `/publicity`：隐患公示企业内列表（任务 10 §11.2；scope 口径来自数据字典
   publicity_scope，默认 all；读=企业主/启用成员 404）
 - `/publicity-token`：生成/重置公示公开 token（仅企业主/启用 enterprise_admin
@@ -73,8 +81,12 @@ from app.services.hazard_export_service import (
 from app.services.hazard_ai_service import (
     ai_grade,
     ai_governance_plan,
+    build_inspection_plans,
     generate_checklist_template,
     record_assist,
+    run_setup_wizard,
+    suggest_checklist_items,
+    suggest_schedule,
 )
 from app.services.hazard_service import generate_tasks_for_plan, next_hazard_code
 from app.services.hazard_state_machine import apply_transition
@@ -238,6 +250,36 @@ class AIGovernancePlanRequest(BaseModel):
     description: str = Field(..., min_length=1)
     judgment_points: Optional[str] = None
     measures_text: Optional[str] = None
+
+
+class PlanBuilderRequest(BaseModel):
+    """AI 一键生成排查计划请求（§3.7 #2/§6）：区域清单/频次偏好均必填非空。"""
+
+    areas: str = Field(..., max_length=4000)
+    frequency_preference: str = Field(..., max_length=1000)
+
+
+class ScheduleSuggestionRequest(BaseModel):
+    """AI 排程建议请求（§6）：plan_draft 必填非空；分区风险/历史隐患提示可选。"""
+
+    plan_draft: str = Field(..., max_length=4000)
+    zone_risk_hints: Optional[str] = None
+    history_hints: Optional[str] = None
+
+
+class ChecklistSuggestionRequest(BaseModel):
+    """AI 清单补全请求（§6）：task_context 必填非空。"""
+
+    task_context: str = Field(..., max_length=4000)
+
+
+class SetupWizardRequest(BaseModel):
+    """智能引导向导请求（§3.8）：industry/areas 必填非空；人数/频次偏好可空。"""
+
+    industry: str = Field(..., max_length=1000)
+    areas: str = Field(..., max_length=4000)
+    employee_count: Optional[str] = Field(None, max_length=100)
+    frequency_preference: Optional[str] = Field(None, max_length=1000)
 
 
 # ── 响应序列化 ──
@@ -1494,6 +1536,124 @@ async def ai_governance_plan_draft(
         description, ai_config,
         judgment_points=body.judgment_points,
         measures_text=body.measures_text,
+    )
+    return ApiResponse(data=result)
+
+
+# ── AI 排查计划一键生成/排程建议/清单补全/智能引导（任务 12，§3.7/§3.8/§6/§16） ──
+
+@router.post("/ai/plan-builder", response_model=ApiResponse[dict])
+async def ai_plan_builder(
+    enterprise_id: str,
+    body: PlanBuilderRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 一键生成排查计划（§3.7 #2/§6）：区域清单 + 频次偏好 → 2-6 套计划建议。
+
+    plans 元素中 responsible_user_name / zone_names 为责任人建议姓名与分区名称
+    （文本），页面整批确认或逐条调整后映射为企业成员 id 与分区 id，再经
+    POST /plans 落库——本端点不落库。未配置/异常/超时/返回不合法由服务兜底
+    available:false（200，§16），不阻塞手动创建。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    areas = (body.areas or "").strip()
+    frequency_preference = (body.frequency_preference or "").strip()
+    if not areas or not frequency_preference:
+        raise HTTPException(422, "areas 与 frequency_preference 不能为空")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        # 系统未配置 AI 模型 → 由服务兜底 available:false（与既有 AI 端点惯例一致）
+        ai_config = None
+    result = await build_inspection_plans(areas, frequency_preference, ai_config)
+    return ApiResponse(data=result)
+
+
+@router.post("/ai/schedule-suggestion", response_model=ApiResponse[dict])
+async def ai_schedule_suggestion(
+    enterprise_id: str,
+    body: ScheduleSuggestionRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 排程建议（§6）：计划草稿 + 可选分区风险/历史隐患提示 → 频次/责任人建议。
+
+    suggested_frequency 为 daily/weekly/monthly/custom 码值；suggested_
+    responsible_user_id 为建议用户 id——服务不校验存在性，页面确认后落库前再
+    校验；AI 无法给出时 null + reason 说明。未配置/异常/超时/返回不合法由服务
+    兜底 available:false（200，§16）；本端点不落库。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    plan_draft = (body.plan_draft or "").strip()
+    if not plan_draft:
+        raise HTTPException(422, "plan_draft 不能为空")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        ai_config = None
+    result = await suggest_schedule(
+        plan_draft, ai_config,
+        zone_risk_hints=body.zone_risk_hints,
+        history_hints=body.history_hints,
+    )
+    return ApiResponse(data=result)
+
+
+@router.post("/ai/checklist", response_model=ApiResponse[dict])
+async def ai_checklist_suggestion(
+    enterprise_id: str,
+    body: ChecklistSuggestionRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 清单补全（§6）：任务上下文 → 8 项以内建议新增项（content/expected_note）。
+
+    页面勾选后与既有清单项合并去重再落库，本端点不落库。未配置/异常/超时/
+    返回不合法由服务兜底 available:false（200，§16），任务仍可执行。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    task_context = (body.task_context or "").strip()
+    if not task_context:
+        raise HTTPException(422, "task_context 不能为空")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        ai_config = None
+    result = await suggest_checklist_items(task_context, ai_config)
+    return ApiResponse(data=result)
+
+
+@router.post("/ai/setup-wizard", response_model=ApiResponse[dict])
+async def ai_setup_wizard(
+    enterprise_id: str,
+    body: SetupWizardRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """智能引导向导（§3.8/#7）：行业 + 主要区域 → 预填 组织树/排查计划/检查表。
+
+    三块复用既有服务：org_suggestion=suggest_org_tree（enterprise_org_service，
+    同型建树）、plans_suggestion=plan-builder、checklist_suggestion=
+    checklist-template——报告方式为直接调用既有服务函数，避免重复实现。分步
+    确认后由组织/计划/模板落库端点写库，本端点不落库。industry/areas 必填
+    非空（422）；未配置/异常/三块全失败由服务兜底 available:false（200，§16）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    industry = (body.industry or "").strip()
+    areas = (body.areas or "").strip()
+    if not industry or not areas:
+        raise HTTPException(422, "industry 与 areas 不能为空")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        ai_config = None
+    result = await run_setup_wizard(
+        industry,
+        areas,
+        (body.employee_count or "").strip() or None,
+        (body.frequency_preference or "").strip() or None,
+        ai_config,
     )
     return ApiResponse(data=result)
 
