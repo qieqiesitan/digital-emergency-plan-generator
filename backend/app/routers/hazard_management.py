@@ -11,6 +11,10 @@
 - `/ai/record-assist`：登记 AI 摘要/分类（仅文本，失败降级 available:false，§16）
 - `/records/{rid}/grade|approve|reject`：分级确认/重大挂牌审批（任务 6 §9，
   写=企业主/启用 enterprise_admin 403，记录非本企业 404）
+- `/records/{rid}/rectify|review|close`：整改/复查/销号（任务 7 §10，状态机
+  接线；rectify/review 执行=本人或企业主/启用 enterprise_admin，其余由状态机
+  按本人校验分层 422；close 仅企业主/启用 enterprise_admin 403；rectify 成功
+  后按字典 deadline_rules.review 生成复查期限提醒通知）
 - `/ai/grade`：AI 分级建议（major/general 码值，失败降级 available:false，§16）
 - `/ai/governance-plan`：AI 治理方案草稿（五键，人工确认后随 grade 落库，§9）
 
@@ -23,7 +27,8 @@
 """
 
 from copy import deepcopy
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -41,6 +46,7 @@ from app.models.hazard_management import (
     HazardInspectionItem,
     HazardInspectionPlan,
     HazardInspectionTask,
+    HazardNotification,
     HazardRecord,
 )
 from app.models.risk_management import RiskEvent, RiskMeasure, RiskObject, RiskUnit, RiskZone
@@ -173,6 +179,29 @@ class ApproveRequest(BaseModel):
 
 class RejectRequest(BaseModel):
     """挂牌驳回请求：comment 可选（退回 grading 重新定级）。"""
+
+    comment: Optional[str] = None
+
+
+class RectifyRequest(BaseModel):
+    """整改提交请求（任务 7，§10）：content 必填非空；evidence 可选照片数组；
+    reviewer_user_id 必填——指定复查人（启用成员，且 ≠ 整改人）。"""
+
+    content: str = Field(..., min_length=1)
+    evidence: Optional[list[str]] = None
+    reviewer_user_id: str
+
+
+class ReviewRequest(BaseModel):
+    """复查/二次复核请求（任务 7，§10）：result 必填 pass/fail；comment/evidence 可选。"""
+
+    result: str
+    comment: Optional[str] = None
+    evidence: Optional[list[str]] = None
+
+
+class CloseRequest(BaseModel):
+    """销号请求（任务 7，§10）：comment 可选（仅企业主/启用 enterprise_admin）。"""
 
     comment: Optional[str] = None
 
@@ -1211,6 +1240,176 @@ async def reject_record(
     record = await _get_record(enterprise_id, rid, db)
     await apply_transition(
         db, record, "reject", current_user, "enterprise_admin",
+        {"comment": body.comment},
+        ent,
+    )
+    await db.commit()
+    await db.refresh(record)
+    return ApiResponse(data=_record_dict(record))
+
+
+# ── 整改 / 复查 / 销号（任务 7，§10）：rectify → review → close，状态机接线 ──
+
+def _dict_rule_days(rules: dict, key: str) -> Optional[int]:
+    """从归一化 deadline_rules 取天数（与状态机 `_rule_days` 兼容：
+    {"days": N} / 直接 N / JSON 字符串，取不到返回 None）。"""
+    entry = (rules or {}).get(key)
+    if isinstance(entry, dict):
+        days = entry.get("days")
+        return int(days) if isinstance(days, (int, float)) else None
+    if isinstance(entry, (int, float)):
+        return int(entry)
+    if isinstance(entry, str):
+        try:
+            parsed = json.loads(entry)
+            if isinstance(parsed, dict) and isinstance(parsed.get("days"), (int, float)):
+                return int(parsed["days"])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+async def _map_actor_role(
+    db: AsyncSession,
+    ent: Enterprise,
+    record: HazardRecord,
+    user_id: str,
+    *,
+    self_attr: str,
+    self_role: str,
+) -> str:
+    """把执行者映射为状态机 ROLE_GATE 角色（任务 7 §10，与任务 6 企业主先例一致）。
+
+    - 本人（record.rectification_user_id / reviewer_user_id）→ self_role
+      （rectifier / reviewer）；
+    - 企业主或启用 enterprise_admin 成员 → enterprise_admin（代整改/代复查例外）；
+    - 其余启用成员 → 仍以 self_role 传入状态机，由状态机按本人校验抛 422
+      （非企业人员已由 `_get_ent` 404 拦截，此处不预设 403，错误码由状态机分层）。
+    """
+    if getattr(record, self_attr) == user_id:
+        return self_role
+    if ent.user_id == user_id or await _is_enabled_member(
+        db, ent.id, user_id, role="enterprise_admin"
+    ):
+        return "enterprise_admin"
+    return self_role
+
+
+@router.post("/records/{rid}/rectify", response_model=ApiResponse[dict])
+async def rectify_record(
+    enterprise_id: str,
+    rid: str,
+    body: RectifyRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """整改提交（§10）：rectifying → reviewing，写 hazard_rectifications + 复查期限提醒。
+
+    权限：记录须属于该企业（404）；执行=整改人本人（record.rectification_user_id）
+    或企业主/启用 enterprise_admin（enterprise_admin 例外由状态机放行）；其余用户
+    由状态机按整改人身份校验抛 422（非企业人员经 `_get_ent` 404 拦截）。
+    校验：content 必填非空（422）；reviewer_user_id 必填、须为该企业启用成员
+    （422）、且 ≠ 整改人（422）。
+    actor_role 映射：本人 → rectifier、企业主/启用 enterprise_admin →
+    enterprise_admin（与 ROLE_GATE 一致，复用任务 6 企业主判定后按动作传角色）。
+    复查期限：rectify 成功后按数据字典 `deadline_rules.review` 天数计算复查期限
+    （date.today() + days），创建 type=review_due 的 HazardNotification 给复查人
+    （message 含「请于 YYYY-MM-DD 前完成复查」），供任务 8 超期扫描使用；字典缺
+    review 天数时不创建通知（无期限依据，避免无意义打扰）——取舍见 docstring。
+    返回 data 为记录字典 + review_deadline（复查期限 ISO 或 null）。
+    """
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    record = await _get_record(enterprise_id, rid, db)
+    content = (body.content or "").strip()
+    if not content:
+        raise HTTPException(422, "content 不能为空")
+    if body.reviewer_user_id == record.rectification_user_id:
+        raise HTTPException(422, "复查人不能为整改人")
+    await _validate_responsible(db, enterprise_id, body.reviewer_user_id)
+    actor_role = await _map_actor_role(
+        db, ent, record, current_user.id, self_attr="rectification_user_id", self_role="rectifier"
+    )
+    await apply_transition(
+        db, record, "rectify", current_user, actor_role,
+        {
+            "content": content,
+            "evidence": list(body.evidence or []),
+            "reviewer_user_id": body.reviewer_user_id,
+        },
+        ent,
+    )
+    review_deadline = None
+    rules = await _deadline_rules(db, enterprise_id)
+    review_days = _dict_rule_days(rules, "review")
+    if review_days:
+        review_deadline = date.today() + timedelta(days=review_days)
+        db.add(HazardNotification(
+            enterprise_id=enterprise_id,
+            user_id=body.reviewer_user_id,
+            record_id=record.id,
+            type="review_due",
+            message=f"请于 {review_deadline.isoformat()} 前完成复查",
+        ))
+    await db.commit()
+    await db.refresh(record)
+    data = _record_dict(record)
+    data["review_deadline"] = review_deadline.isoformat() if review_deadline else None
+    return ApiResponse(data=data)
+
+
+@router.post("/records/{rid}/review", response_model=ApiResponse[dict])
+async def review_record(
+    enterprise_id: str,
+    rid: str,
+    body: ReviewRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """复查/二次复核（§10）：review pass/fail 全路径由状态机决定，路由透传。
+
+    权限：记录须属于该企业（404）；执行=指定复查人（record.reviewer_user_id）
+    或企业主/启用 enterprise_admin；其余用户由状态机按复查人身份校验抛 422。
+    actor_role 映射：本人 → reviewer、企业主/启用 enterprise_admin →
+    enterprise_admin（与 ROLE_GATE 一致）。
+    状态机语义（路由透传）：pass 后 standard/一般停留 reviewing、strict+重大 →
+    second_review、second_review pass 停留；fail → 退回 rectifying。
+    """
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    record = await _get_record(enterprise_id, rid, db)
+    result = (body.result or "").strip()
+    if result not in ("pass", "fail"):
+        raise HTTPException(422, "复查结果 result 必须为 pass 或 fail")
+    actor_role = await _map_actor_role(
+        db, ent, record, current_user.id, self_attr="reviewer_user_id", self_role="reviewer"
+    )
+    await apply_transition(
+        db, record, "review", current_user, actor_role,
+        {"result": result, "comment": body.comment, "evidence": list(body.evidence or [])},
+        ent,
+    )
+    await db.commit()
+    await db.refresh(record)
+    return ApiResponse(data=_record_dict(record))
+
+
+@router.post("/records/{rid}/close", response_model=ApiResponse[dict])
+async def close_record(
+    enterprise_id: str,
+    rid: str,
+    body: CloseRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """销号（§10）：reviewing/second_review → closed，写 review_type=close + closed_at。
+
+    权限：仅企业主/启用 enterprise_admin（其余 403，对齐 `_get_admin_ent` 惯例）；
+    记录须属于该企业（404）。状态非 reviewing/second_review → 409；
+    严格模式+重大未 second_review → 409（均由状态机校验，路由透传）。
+    """
+    ent = await _get_admin_ent(enterprise_id, current_user.id, db)
+    record = await _get_record(enterprise_id, rid, db)
+    await apply_transition(
+        db, record, "close", current_user, "enterprise_admin",
         {"comment": body.comment},
         ent,
     )
