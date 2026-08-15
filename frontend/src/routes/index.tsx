@@ -38,6 +38,8 @@ import EnterpriseDictConfigPage from "@/pages/Enterprise/EnterpriseDictConfigPag
 import EnterpriseOrgPage from "@/pages/Enterprise/EnterpriseOrgPage";
 import PublicRiskNoticePage from "@/pages/PublicRiskNoticePage";
 import PublicRiskPage from "@/pages/PublicRiskPage";
+import HazardPlanPage from "@/pages/Hazard/HazardPlanPage";
+import HazardTaskPage from "@/pages/Hazard/HazardTaskPage";
 import HazardPlaceholderPage from "@/pages/Hazard/HazardPlaceholderPage";
 import ChatPage from "@/pages/Chat";
 import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
@@ -68,9 +70,9 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-control-list", element: <RiskControlListPage /> },
   { path: "/enterprises/:id/risk-publicity", element: <RiskPublicityPage /> },
   { path: "/enterprises/:id/org", element: <EnterpriseOrgPage /> },
-  // 隐患模块路由组（任务 13 先注册占位，任务 14-16 逐个替换为真实页面）
-  { path: "/enterprises/:id/hazard/plans", element: <HazardPlaceholderPage title="排查计划" /> },
-  { path: "/enterprises/:id/hazard/tasks", element: <HazardPlaceholderPage title="排查任务" /> },
+  // 隐患模块路由组（任务 14 已替换 plans/tasks 为真实页面，其余占位待任务 15-16）
+  { path: "/enterprises/:id/hazard/plans", element: <HazardPlanPage /> },
+  { path: "/enterprises/:id/hazard/tasks", element: <HazardTaskPage /> },
   { path: "/enterprises/:id/hazard/records/:rid", element: <HazardPlaceholderPage title="隐患详情" /> },
   { path: "/enterprises/:id/hazard/templates", element: <HazardPlaceholderPage title="检查表模板" /> },
   { path: "/enterprises/:id/hazard/dashboard", element: <HazardPlaceholderPage title="隐患驾驶舱" /> },
