@@ -17,6 +17,7 @@ import RiskAssessmentTab from "@/pages/Enterprise/RiskAssessmentTab";
 import ResourceInvestigationTab from "@/pages/Enterprise/ResourceInvestigationTab";
 import HazardousChemicalsTab from "@/pages/Enterprise/HazardousChemicalsTab";
 import RiskManagementTab from "./RiskManagementTab";
+import HazardInspectionTab from "@/pages/Hazard/HazardInspectionTab";
 import type { OrgGroup, OrgMember, SurroundingInfo } from "@/types/enterprise";
 
 const ROLE_LABELS: Record<string, string> = { chief: "总指挥", deputy: "副总指挥", leader: "组长", member: "成员" };
@@ -224,6 +225,11 @@ export default function EnterpriseDetailPage() {
       key: "risk-management",
       label: "风险分级管控",
       children: <RiskManagementTab enterpriseId={id!} floorPlanUrl={floorPlanUrl} />,
+    },
+    {
+      key: "hazard-inspection",
+      label: "隐患排查治理",
+      children: <HazardInspectionTab enterpriseId={id!} />,
     },
     groupItem("报告生成"),
     {

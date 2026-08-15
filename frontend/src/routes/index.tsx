@@ -38,6 +38,7 @@ import EnterpriseDictConfigPage from "@/pages/Enterprise/EnterpriseDictConfigPag
 import EnterpriseOrgPage from "@/pages/Enterprise/EnterpriseOrgPage";
 import PublicRiskNoticePage from "@/pages/PublicRiskNoticePage";
 import PublicRiskPage from "@/pages/PublicRiskPage";
+import HazardPlaceholderPage from "@/pages/Hazard/HazardPlaceholderPage";
 import ChatPage from "@/pages/Chat";
 import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
 
@@ -67,6 +68,13 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-control-list", element: <RiskControlListPage /> },
   { path: "/enterprises/:id/risk-publicity", element: <RiskPublicityPage /> },
   { path: "/enterprises/:id/org", element: <EnterpriseOrgPage /> },
+  // 隐患模块路由组（任务 13 先注册占位，任务 14-16 逐个替换为真实页面）
+  { path: "/enterprises/:id/hazard/plans", element: <HazardPlaceholderPage title="排查计划" /> },
+  { path: "/enterprises/:id/hazard/tasks", element: <HazardPlaceholderPage title="排查任务" /> },
+  { path: "/enterprises/:id/hazard/records/:rid", element: <HazardPlaceholderPage title="隐患详情" /> },
+  { path: "/enterprises/:id/hazard/templates", element: <HazardPlaceholderPage title="检查表模板" /> },
+  { path: "/enterprises/:id/hazard/dashboard", element: <HazardPlaceholderPage title="隐患驾驶舱" /> },
+  { path: "/enterprises/:id/hazard/publicity", element: <HazardPlaceholderPage title="隐患公示" /> },
   { path: "/plans", element: <PlanCardsPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
   { path: "/plans/new", element: <PlanCreatePage /> },
@@ -104,6 +112,9 @@ export function createRouter() {
     // 公开只读页：无登录守卫（token 无效由后端返回 404）
     { path: "/r/:token", element: <PublicRiskNoticePage /> },
     { path: "/p/risk/:token", element: <PublicRiskPage /> },
+    // 隐患公开页路由占位（§15：公开公示 /h/:token、扫码上报 /h/report/:token）
+    { path: "/h/:token", element: <HazardPlaceholderPage title="隐患公示公开页" backTo="/" /> },
+    { path: "/h/report/:token", element: <HazardPlaceholderPage title="扫码上报" backTo="/" /> },
     { path: "/m/*", element: <MobileRedirect /> },
     { path: "*", element: <Navigate to="/dashboard" replace /> },
   ], { basename: APP_BASE || undefined });
