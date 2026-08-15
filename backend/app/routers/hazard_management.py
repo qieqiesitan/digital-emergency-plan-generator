@@ -1,4 +1,5 @@
-"""隐患排查治理路由（任务 3/4/5）：排查计划 CRUD + 任务/清单项端点 + 检查表模板 + 隐患登记。
+"""隐患排查治理路由（任务 3/4/5/6）：排查计划 CRUD + 任务/清单项端点 + 检查表模板 +
+隐患登记 + 分级确认/挂牌审批 + AI 分级建议/治理方案草稿。
 
 前缀 `/enterprises/{enterprise_id}/hazard-inspection`：
 - `/plans`：计划 CRUD（写=企业主/企业管理员成员，读=企业主/启用成员）
@@ -8,6 +9,10 @@
 - `/records`：隐患登记（Web/移动端三渠道共用，任务 5 §8；写=企业主/启用成员，
   非归属 404——登记面向全员，权限分层对齐任务 3 读路径而非写路径）
 - `/ai/record-assist`：登记 AI 摘要/分类（仅文本，失败降级 available:false，§16）
+- `/records/{rid}/grade|approve|reject`：分级确认/重大挂牌审批（任务 6 §9，
+  写=企业主/启用 enterprise_admin 403，记录非本企业 404）
+- `/ai/grade`：AI 分级建议（major/general 码值，失败降级 available:false，§16）
+- `/ai/governance-plan`：AI 治理方案草稿（五键，人工确认后随 grade 落库，§9）
 
 权限与归属：
 - 读路径企业归属校验（不属于 → 404）；写路径企业主或 `enterprise_members`
@@ -18,7 +23,7 @@
 """
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -41,8 +46,14 @@ from app.models.hazard_management import (
 from app.models.risk_management import RiskEvent, RiskMeasure, RiskObject, RiskUnit, RiskZone
 from app.schemas.common import ApiResponse
 from app.services.data_dict_service import get_dict_map
-from app.services.hazard_ai_service import generate_checklist_template, record_assist
+from app.services.hazard_ai_service import (
+    ai_grade,
+    ai_governance_plan,
+    generate_checklist_template,
+    record_assist,
+)
 from app.services.hazard_service import generate_tasks_for_plan, next_hazard_code
+from app.services.hazard_state_machine import apply_transition
 from app.services.risk_ai_service import _get_ai_config
 
 
@@ -142,10 +153,54 @@ class RecordAssistRequest(BaseModel):
     measure_id: Optional[str] = None
 
 
+class GradeRequest(BaseModel):
+    """分级确认请求（任务 6，§9）：level 必填；重大须提供 grading_basis 与完整治理方案。"""
+
+    level: str
+    grading_basis: Optional[str] = None
+    hazard_type: Optional[str] = None
+    rectification_plan: Optional[dict] = None
+    rectification_user_id: Optional[str] = None
+    level_source: Optional[str] = None  # ai / manual，默认 manual
+
+
+class ApproveRequest(BaseModel):
+    """挂牌审批请求：comment 可选；rectification_user_id 可选（approve 时设置整改责任人）。"""
+
+    comment: Optional[str] = None
+    rectification_user_id: Optional[str] = None
+
+
+class RejectRequest(BaseModel):
+    """挂牌驳回请求：comment 可选（退回 grading 重新定级）。"""
+
+    comment: Optional[str] = None
+
+
+class AIGradeRequest(BaseModel):
+    """AI 分级建议请求（§9）：description 必填非空；judgment_points/measures_text 可选。"""
+
+    description: str = Field(..., min_length=1)
+    judgment_points: Optional[str] = None
+    measures_text: Optional[str] = None
+
+
+class AIGovernancePlanRequest(BaseModel):
+    """AI 治理方案草稿请求（§9）：description 必填非空；judgment_points/measures_text 可选。"""
+
+    description: str = Field(..., min_length=1)
+    judgment_points: Optional[str] = None
+    measures_text: Optional[str] = None
+
+
 # ── 响应序列化 ──
 
 def _dt(value):
     return value.isoformat() if isinstance(value, datetime) else value
+
+
+def _d(value):
+    return value.isoformat() if isinstance(value, date) else value
 
 
 def _plan_dict(plan) -> dict:
@@ -213,6 +268,14 @@ def _record_dict(record) -> dict:
         "photo_urls": record.photo_urls,
         "location": getattr(record, "location", None),
         "hazard_type": getattr(record, "hazard_type", None),
+        "level": getattr(record, "level", None),
+        "level_source": getattr(record, "level_source", None),
+        "grading_basis": getattr(record, "grading_basis", None),
+        "rectification_plan": getattr(record, "rectification_plan", None),
+        "deadline": _d(getattr(record, "deadline", None)),
+        "rectification_user_id": getattr(record, "rectification_user_id", None),
+        "reviewer_user_id": getattr(record, "reviewer_user_id", None),
+        "closed_at": _dt(getattr(record, "closed_at", None)),
         "status": record.status,
         "created_by": record.created_by,
         "created_at": _dt(record.created_at),
@@ -372,6 +435,19 @@ async def _get_task(enterprise_id: str, task_id: str, db: AsyncSession) -> Hazar
     if not task:
         raise HTTPException(404, "排查任务不存在")
     return task
+
+
+async def _get_record(enterprise_id: str, record_id: str, db: AsyncSession) -> HazardRecord:
+    """取本企业隐患记录：非本企业记录按不存在处理（404，避免泄露归属信息）。"""
+    record = (await db.execute(
+        select(HazardRecord).where(
+            HazardRecord.id == record_id,
+            HazardRecord.enterprise_id == enterprise_id,
+        )
+    )).scalar_one_or_none()
+    if not record:
+        raise HTTPException(404, "隐患记录不存在")
+    return record
 
 
 async def _get_template(template_id: str, db: AsyncSession) -> HazardChecklistTemplate:
@@ -884,6 +960,17 @@ async def _validate_hazard_type(db: AsyncSession, enterprise_id: str, hazard_typ
         raise HTTPException(422, f"hazard_type 非法: {hazard_type}，须来自数据字典 hazard_type 码值")
 
 
+async def _deadline_rules(db: AsyncSession, enterprise_id: str) -> dict:
+    """读取数据字典 `deadline_rules`（企业覆盖 > 系统默认）并归一化为状态机契约形态。
+
+    字典条目结构为 {code: {label, value, description}}，其中 value 形如
+    {"days": 15}；状态机 `_rule_days` 期望 {level: {"days": N}}（兼容
+    {"key": N} 与 JSON 字符串），故此处把每个条目的 value 直接作为天数配置。
+    """
+    dict_map = await get_dict_map(db, enterprise_id, "deadline_rules")
+    return {code: entry.get("value") or {} for code, entry in dict_map.items()}
+
+
 async def _validate_object_ref(db: AsyncSession, enterprise_id: str, object_id: str) -> None:
     """object_id 可选：若提供必须属于该企业（风险点归属校验）。"""
     obj = (await db.execute(
@@ -1028,4 +1115,167 @@ async def ai_record_assist(
         # 系统未配置 AI 模型 → 由服务兜底 available:false（与既有 AI 端点惯例一致）
         ai_config = None
     result = await record_assist(description, ai_config, object_id=body.object_id, measure_id=body.measure_id)
+    return ApiResponse(data=result)
+
+
+# ── 分级确认 / 挂牌审批（任务 6，§9）：grade → approve/reject → rectifying ──
+
+@router.post("/records/{rid}/grade", response_model=ApiResponse[dict])
+async def grade_record(
+    enterprise_id: str,
+    rid: str,
+    body: GradeRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """分级确认（§9）：一般 → rectifying；重大 → pending_approval（须 basis + 治理方案）。
+
+    权限：企业主或启用 enterprise_admin 成员（其余 403，对齐 `_get_admin_ent`
+    既有惯例）；记录须属于该企业（404）。
+    actor_role 映射：状态机 ROLE_GATE 只认 enterprise_admin/reviewer/rectifier，
+    企业主可能无 enterprise_members 行——本端点执行者恒为管理员层级，统一映射为
+    enterprise_admin 角色传入。
+    期限：服务端从数据字典 `deadline_rules` 读取天数（企业覆盖 > 系统默认）随
+    payload 传入，由状态机内部按 major/general 天数计算 deadline。
+    校验：hazard_type 字典码值（422）；rectification_user_id 须为该企业启用成员
+    （422）；level_source 仅 ai/manual（422，默认 manual）；重大缺判定依据或
+    治理方案五键由状态机抛 422。
+    """
+    ent = await _get_admin_ent(enterprise_id, current_user.id, db)
+    record = await _get_record(enterprise_id, rid, db)
+    if body.hazard_type:
+        await _validate_hazard_type(db, enterprise_id, body.hazard_type)
+    if body.rectification_user_id:
+        await _validate_responsible(db, enterprise_id, body.rectification_user_id)
+    level_source = (body.level_source or "manual").strip()
+    if level_source not in ("ai", "manual"):
+        raise HTTPException(422, "level_source 必须为 ai 或 manual")
+    payload = {
+        "level": body.level,
+        "hazard_type": body.hazard_type,
+        "grading_basis": (body.grading_basis or "").strip() or None,
+        "rectification_user_id": body.rectification_user_id,
+        "level_source": level_source,
+        "deadline_rules": await _deadline_rules(db, enterprise_id),
+        "rectification_plan": body.rectification_plan,
+    }
+    await apply_transition(db, record, "grade", current_user, "enterprise_admin", payload, ent)
+    await db.commit()
+    await db.refresh(record)
+    return ApiResponse(data=_record_dict(record))
+
+
+@router.post("/records/{rid}/approve", response_model=ApiResponse[dict])
+async def approve_record(
+    enterprise_id: str,
+    rid: str,
+    body: ApproveRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """重大挂牌审批（§9）：pending_approval → approve → rectifying。
+
+    仅 pending_approval（409，状态机校验）；仅企业主/启用 enterprise_admin（403）；
+    rectification_user_id 可选——approve 时设置整改责任人，若 grade 已设可省略。
+    写 HazardApproval(action=approve) + audit log（状态机完成）。
+    """
+    ent = await _get_admin_ent(enterprise_id, current_user.id, db)
+    record = await _get_record(enterprise_id, rid, db)
+    if body.rectification_user_id:
+        await _validate_responsible(db, enterprise_id, body.rectification_user_id)
+    await apply_transition(
+        db, record, "approve", current_user, "enterprise_admin",
+        {"comment": body.comment, "rectification_user_id": body.rectification_user_id},
+        ent,
+    )
+    await db.commit()
+    await db.refresh(record)
+    return ApiResponse(data=_record_dict(record))
+
+
+@router.post("/records/{rid}/reject", response_model=ApiResponse[dict])
+async def reject_record(
+    enterprise_id: str,
+    rid: str,
+    body: RejectRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """挂牌驳回（任务 6 可选实现，契约说明 reject 语义）：pending_approval → grading。
+
+    状态机语义：退回 grading 重新定级（材料不足可修改后重新 grade）。
+    权限与状态校验同 approve（仅企业主/启用 enterprise_admin 403、仅
+    pending_approval 409）；写 HazardApproval(action=reject) + audit log。
+    """
+    ent = await _get_admin_ent(enterprise_id, current_user.id, db)
+    record = await _get_record(enterprise_id, rid, db)
+    await apply_transition(
+        db, record, "reject", current_user, "enterprise_admin",
+        {"comment": body.comment},
+        ent,
+    )
+    await db.commit()
+    await db.refresh(record)
+    return ApiResponse(data=_record_dict(record))
+
+
+# ── AI 分级建议 / 治理方案草稿（任务 6，§9）：失败降级 available:false（§16） ──
+
+@router.post("/ai/grade", response_model=ApiResponse[dict])
+async def ai_grade_suggestion(
+    enterprise_id: str,
+    body: AIGradeRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 分级建议（§9）：输入描述 + 判定要点 + 措施文本，返回等级建议/依据/置信度。
+
+    suggested_level 统一用 major/general 码值（与 records.level 值域一致，规格
+    §5.4；任务 5 record-assist 用中文「一般/重大」是另一个端点，语义不同）。
+    未配置/异常/超时/返回不合法由服务兜底 available:false（200，§16）；
+    本端点不落库——人工确认或修改后由 POST /records/{rid}/grade 落库（level_source）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    description = (body.description or "").strip()
+    if not description:
+        raise HTTPException(422, "description 不能为空")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        # 系统未配置 AI 模型 → 由服务兜底 available:false（与既有 AI 端点惯例一致）
+        ai_config = None
+    result = await ai_grade(
+        description, ai_config,
+        judgment_points=body.judgment_points,
+        measures_text=body.measures_text,
+    )
+    return ApiResponse(data=result)
+
+
+@router.post("/ai/governance-plan", response_model=ApiResponse[dict])
+async def ai_governance_plan_draft(
+    enterprise_id: str,
+    body: AIGovernancePlanRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 治理方案草稿（§9）：输入描述 + 判定要点 + 措施文本，返回五键中文草稿。
+
+    未配置/异常/超时/五键不全由服务兜底 available:false（200，§16）；
+    本端点不落库——人工修改确认后随 POST /records/{rid}/grade 的
+    rectification_plan 落库。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    description = (body.description or "").strip()
+    if not description:
+        raise HTTPException(422, "description 不能为空")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        ai_config = None
+    result = await ai_governance_plan(
+        description, ai_config,
+        judgment_points=body.judgment_points,
+        measures_text=body.measures_text,
+    )
     return ApiResponse(data=result)
