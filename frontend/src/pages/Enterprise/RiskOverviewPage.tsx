@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Segmented, Button, Tree, Tag, Spin, Space, Empty, Select } from "antd";
+import { Badge, Card, Segmented, Button, Tree, Tag, Spin, Space, Empty, Select } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy } from "@/services/riskManagementService";
@@ -70,7 +70,7 @@ export default function RiskOverviewPage() {
   // Build compact tree
   const treeData = useMemo(() => {
     const eventLevel = (e: HierarchyEvent) => (colorMode === "inherent" ? (e.inherent_risk_level ?? e.risk_level) : e.risk_level) || "低";
-    return zones.map(z => ({ title: <span>🏭 {z.name} {getMaxLevel(z, colorMode) !== "低" && <Tag color={RISK_LEVEL_COLORS[getMaxLevel(z, colorMode)]}>{getMaxLevel(z, colorMode)}</Tag>}</span>, key: z.id, children: z.objects?.map(o => ({ title: <span>📦 {o.name}{o.is_risk_point ? " ◆" : ""}</span>, key: o.id, children: [...(o.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[eventLevel(e)]}>{eventLevel(e)}</Tag></span>, key: e.id, isLeaf: true })), ...(o.units||[]).map(u => ({ title: <span>⚙ {u.name}</span>, key: u.id, children: (u.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[eventLevel(e)]}>{eventLevel(e)}</Tag></span>, key: e.id, isLeaf: true })) }))] })) || [] }));
+    return zones.map(z => ({ title: <span>🏭 {z.name} {getMaxLevel(z, colorMode) !== "低" && <Tag color={RISK_LEVEL_COLORS[getMaxLevel(z, colorMode)]}>{getMaxLevel(z, colorMode)}</Tag>}<OpenHazardBadge count={z.open_hazard_count} /></span>, key: z.id, children: z.objects?.map(o => ({ title: <span>📦 {o.name}{o.is_risk_point ? " ◆" : ""}<OpenHazardBadge count={o.open_hazard_count} /></span>, key: o.id, children: [...(o.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[eventLevel(e)]}>{eventLevel(e)}</Tag></span>, key: e.id, isLeaf: true })), ...(o.units||[]).map(u => ({ title: <span>⚙ {u.name}</span>, key: u.id, children: (u.events||[]).map(e => ({ title: <span>⚠ {e.accident_type} <Tag color={RISK_LEVEL_COLORS[eventLevel(e)]}>{eventLevel(e)}</Tag></span>, key: e.id, isLeaf: true })) }))] })) || [] }));
   }, [zones, colorMode]);
 
   if (isLoading) return <Spin size="large" style={{ display: "block", margin: "100px auto" }} />;
@@ -174,6 +174,12 @@ function getMaxLevel(zone: HierarchyZone, mode: ColorMode = "current"): string {
     for (const u of o.units || []) for (const e of u.events || []) check(mode === "inherent" ? (e.inherent_risk_level ?? e.risk_level) : e.risk_level);
   }
   return max;
+}
+
+// Helper: 未闭环隐患 badge（规格 §11.1 派生计数展示，仅 >0 渲染）
+function OpenHazardBadge({ count }: { count?: number }) {
+  if (!count || count <= 0) return null;
+  return <Badge color="red" text={`未闭环 ${count}`} style={{ marginLeft: 6 }} />;
 }
 
 // Q4: Topology SVG

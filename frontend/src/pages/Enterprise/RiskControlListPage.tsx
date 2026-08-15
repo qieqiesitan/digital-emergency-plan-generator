@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { App as AntApp, Button, Input, Select, Space, Table, Tag, Tooltip } from "antd";
+import { App as AntApp, Badge, Button, Input, Select, Space, Table, Tag, Tooltip } from "antd";
 import type { TableColumnsType } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getControlList, exportControlList, listZones } from "@/services/riskManagementService";
@@ -101,6 +101,13 @@ export default function RiskControlListPage() {
     { title: "固有等级", dataIndex: "inherent", width: 80, render: (level?: string) => <LevelTag level={level} /> },
     { title: "现有等级", dataIndex: "current", width: 80, render: (level?: string) => <LevelTag level={level} /> },
     { title: "管控层级", dataIndex: "control_level", width: 85 },
+    {
+      title: "未闭环隐患",
+      dataIndex: "open_hazard_count",
+      width: 110,
+      render: (count?: number) =>
+        count && count > 0 ? <Badge color="red" text={`未闭环 ${count}`} /> : <span>—</span>,
+    },
     {
       title: "管控措施",
       dataIndex: "measures",
