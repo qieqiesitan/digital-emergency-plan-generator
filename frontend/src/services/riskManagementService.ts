@@ -128,6 +128,8 @@ export interface ControlListRow {
   unit_name: string;
   person: string;
   phone: string;
+  /** 该风险点（对象）未闭环隐患派生计数（闭环后归零） */
+  open_hazard_count?: number;
   /** 仅公示 items 返回（供告知卡入口链接），清单 items 已脱敏移除 */
   object_id?: string;
 }

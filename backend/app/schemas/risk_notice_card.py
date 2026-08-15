@@ -27,6 +27,7 @@ class CardData(RightColumn):
     responsible_person: str
     contact_phone: str
     fallback_used: bool = False
+    has_open_hazard: bool = False
     signs: list[SignItem] = []
     snapshot: dict | None = None
     stale: bool = False
@@ -43,6 +44,7 @@ class CardSummary(BaseModel):
     accident_types: list[str] = []
     signs: list[SignItem] = []
     responsible_unit: str = ""
+    has_open_hazard: bool = False
     snapshot: dict | None = None
     stale: bool = False
     public_url: str

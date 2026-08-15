@@ -66,6 +66,12 @@ def _scalar_result(value):
     return res
 
 
+def _count_result(value):
+    res = MagicMock()
+    res.scalar.return_value = value
+    return res
+
+
 def _public_db(ent, obj, objects=None):
     """按 SQL 文本特征分发：
     FROM enterprises → 企业（scalar_one_or_none）；
@@ -80,6 +86,8 @@ def _public_db(ent, obj, objects=None):
         text = str(stmt)
         if "FROM enterprises" in text:
             return _scalar_result(ent)
+        if "FROM hazard_records" in text:
+            return _count_result(0)
         if "risk_notice_cards" in text:
             res = MagicMock()
             res.scalars.return_value.first.return_value = None

@@ -52,6 +52,7 @@ export interface WorkbenchZone {
   inherent_max_level?: RiskLevel | null;
   inherent_effective_color?: string | null;
   object_count: number;
+  open_hazard_count?: number;
   created_at: string;
   updated_at: string;
   objects?: RiskObject[];

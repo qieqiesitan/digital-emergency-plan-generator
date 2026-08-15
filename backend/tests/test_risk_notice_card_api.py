@@ -67,6 +67,12 @@ def _scalar_result(value):
     return res
 
 
+def _count_result(value):
+    res = MagicMock()
+    res.scalar.return_value = value
+    return res
+
+
 def _risk_card_db(ent, objs, detail_obj=None, events_obj=None, snapshots=None):
     """按 SQL 文本特征分发：
     FROM enterprises → 企业（scalar_one_or_none）；
@@ -82,6 +88,9 @@ def _risk_card_db(ent, objs, detail_obj=None, events_obj=None, snapshots=None):
         text = str(stmt)
         if "FROM enterprises" in text:
             return _scalar_result(ent)
+        if "FROM hazard_records" in text:
+            # 未闭环隐患派生计数（详情/导出走 build_card_data 内查询）
+            return _count_result(0)
         if "risk_notice_cards" in text:
             res = MagicMock()
             if "WHERE risk_notice_cards.enterprise_id" in text:

@@ -69,6 +69,8 @@ export interface RiskObject {
   created_at: string;
   updated_at: string;
   unit_count: number;
+  /** 该风险点未闭环隐患派生计数（闭环后归零；非风险源表字段） */
+  open_hazard_count?: number;
 }
 export interface RiskObjectCreate {
   zone_id?: string;
@@ -168,6 +170,7 @@ export interface HierarchyObject {
   location_y?: number | null;
   units: HierarchyUnit[];
   events: HierarchyEvent[];
+  open_hazard_count?: number;
 }
 export interface HierarchyZone {
   id: string;
@@ -180,6 +183,7 @@ export interface HierarchyZone {
   effective_color?: string | null;
   inherent_max_level?: string | null;
   inherent_effective_color?: string | null;
+  open_hazard_count?: number;
   objects: HierarchyObject[];
 }
 

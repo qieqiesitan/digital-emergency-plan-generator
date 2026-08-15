@@ -34,6 +34,7 @@ from app.schemas.risk_notice_card import (
     TokenResetResponse,
 )
 from app.services.risk_notice_card_data import LEVEL_COLORS, LEVEL_ORDER
+from app.services.hazard_service import open_hazard_count_by_objects
 from app.services.risk_notice_card_ai import optimize_right_column
 from app.services.risk_notice_card_docx import render_cards_docx, svg_to_png
 from app.services.risk_notice_card_service import (
@@ -107,6 +108,11 @@ async def list_cards(
         )
     ).scalars().all()
     snapshot_by_object = {s.object_id: s for s in snap_rows}
+    hazard_counts = await open_hazard_count_by_objects(
+        db,
+        enterprise_id,
+        [o.id for o in objs],
+    )
 
     summaries: list[CardSummary] = []
     for obj in objs:
@@ -148,6 +154,7 @@ async def list_cards(
                 signs=match_signs(accident_types),
                 responsible_unit=unit,
                 public_url=f"/r/{obj.public_token}",
+                has_open_hazard=hazard_counts.get(obj.id, 0) > 0,
                 snapshot=(
                     {"version": snap.version, "source": snap.source}
                     if snap

@@ -1,10 +1,15 @@
-"""隐患排查治理服务层（任务 3：排查计划/任务/清单项）。
+"""隐患排查治理服务层（任务 3：排查计划/任务/清单项；任务 9：未闭环派生计数）。
 
 `generate_tasks_for_plan`：按计划频次生成排查任务并组装动态清单项
 （风险点 + 管控措施快照 + 模板项），供任务 8 调度器复用；本模块不调用 LLM，
 AI 清单补全入口在生成函数内以 TODO 注释占位（任务 12 `ai/checklist` 接入）。
 
 `next_hazard_code`：生成企业内唯一的隐患展示编号 `HD-{三位序号}`。
+
+`open_hazard_count` / `open_hazard_count_by_objects`：实时派生「未闭环隐患」
+计数（规格 §11.1）——统计 `hazard_records` 中 status != "closed" 且关联到
+指定风险点（object_id）/管控措施（measure_id）的记录数；不修改风险源表
+字段，隐患闭环后派生计数自动归零。
 
 weekdays 约定：周一=0 .. 周日=6（与 Python `date.weekday()` 一致），
 weekly/custom 计划仅在命中的星期生成任务。
@@ -14,7 +19,7 @@ monthly 约定：每月 1 日生成（`MONTHLY_DEFAULT_DAY`）。
 from datetime import date, datetime, time
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.hazard_management import (
@@ -221,3 +226,70 @@ async def next_hazard_code(db: AsyncSession, enterprise_id: str) -> str:
         select(func.count(HazardRecord.id)).where(HazardRecord.enterprise_id == enterprise_id)
     )).scalar() or 0
     return f"HD-{count + 1:03d}"
+
+
+async def open_hazard_count(
+    db: AsyncSession,
+    object_id: str | None = None,
+    measure_id: str | None = None,
+) -> int:
+    """统计指定风险点/管控措施关联的未闭环隐患数（status != "closed"）。
+
+    输入：
+      db          AsyncSession
+      object_id   风险点 id（hazard_records.object_id 直接关联）
+      measure_id  管控措施 id（hazard_records.measure_id 直接关联）
+    输出：
+      int         未闭环隐患记录数；object_id 与 measure_id 均为空时返回 0。
+
+    语义：同时传 object_id 与 measure_id 时按 or 计数——只要记录关联到
+    其中任意一个即计入（规格 §11.1「该 object/measure 关联且未 closed」）。
+    派生实现不修改风险源表字段，闭环后计数自动归零。
+    """
+    if not object_id and not measure_id:
+        return 0
+    conds = []
+    if object_id:
+        conds.append(HazardRecord.object_id == object_id)
+    if measure_id:
+        conds.append(HazardRecord.measure_id == measure_id)
+    count = (await db.execute(
+        select(func.count(HazardRecord.id)).where(
+            HazardRecord.status != "closed",
+            or_(*conds),
+        )
+    )).scalar() or 0
+    return int(count)
+
+
+async def open_hazard_count_by_objects(
+    db: AsyncSession,
+    enterprise_id: str,
+    object_ids: list[str],
+) -> dict[str, int]:
+    """批量统计多个风险点的未闭环隐患数，返回 {object_id: count}。
+
+    供 workbench/overview/管控清单等多分区场景一次查询，避免 N+1。
+    未闭环 = status != "closed"；计数口径与 `open_hazard_count` 一致——
+    记录满足「object_id 命中该风险点 或 measure_id 命中该风险点事件下的
+    管控措施」即计入。同一记录同时命中两个风险点时按对象各计一次
+    （object 维度口径），单对象视角与 `open_hazard_count` 结果一致。
+    """
+    if not object_ids:
+        return {}
+    measure_ids = select(RiskMeasure.id).where(
+        RiskMeasure.event_id.in_(select(RiskEvent.id).where(RiskEvent.object_id.in_(object_ids)))
+    )
+    rows = (await db.execute(
+        select(HazardRecord.object_id, func.count(HazardRecord.id))
+        .where(
+            HazardRecord.enterprise_id == enterprise_id,
+            HazardRecord.status != "closed",
+            or_(
+                HazardRecord.object_id.in_(object_ids),
+                HazardRecord.measure_id.in_(measure_ids),
+            ),
+        )
+        .group_by(HazardRecord.object_id)
+    )).all()
+    return {row[0]: int(row[1]) for row in rows if row[0] is not None}

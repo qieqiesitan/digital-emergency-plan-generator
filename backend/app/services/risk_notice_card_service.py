@@ -13,6 +13,7 @@ from app.services.risk_notice_card_data import (
     LEVEL_ORDER, LEVEL_COLORS, SIGN_CATEGORY_ORDER,
     DEFAULT_EMERGENCY_TEMPLATE, SOURCE_AI,
 )
+from app.services.hazard_service import open_hazard_count
 from app.schemas.risk_notice_card import CardData, RightColumn
 
 
@@ -220,6 +221,7 @@ async def build_card_data(
         if t is not None
     ]
     source_updated = max(timestamps) if timestamps else None
+    hazard_count = await open_hazard_count(db, object_id=obj.id)
     return CardData(
         object_id=obj.id,
         enterprise_name=ent.name,
@@ -232,6 +234,7 @@ async def build_card_data(
         responsible_person=person,
         contact_phone=phone,
         fallback_used=fallback,
+        has_open_hazard=hazard_count > 0,
         signs=match_signs(col.accident_types),
         hazard_description=col.hazard_description,
         accident_types=col.accident_types,

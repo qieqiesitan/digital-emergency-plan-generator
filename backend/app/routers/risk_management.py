@@ -29,6 +29,7 @@ from app.services.risk_control_list_service import (
     flatten_rows,
     is_major_publicity_row,
 )
+from app.services.hazard_service import open_hazard_count_by_objects
 from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
@@ -421,6 +422,22 @@ def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
     )
 
 
+def _apply_open_hazard_counts(
+    resp: WorkbenchZone | HierarchyZoneResponse,
+    counts: dict[str, int],
+) -> None:
+    """把批量派生的未闭环隐患计数回填到分区/风险点响应对象。
+
+    counts 来自 `open_hazard_count_by_objects`（{object_id: count}）；
+    分区级取本分区风险点计数之和（风险点即对象），未命中保持 0。
+    """
+    zone_total = 0
+    for obj_resp in resp.objects:
+        obj_resp.open_hazard_count = counts.get(obj_resp.id, 0)
+        zone_total += obj_resp.open_hazard_count
+    resp.open_hazard_count = zone_total
+
+
 @router.get("/workbench", response_model=ApiResponse[WorkbenchResponse])
 async def load_workbench(enterprise_id: str, floor_id: str | None = Query(None), current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
@@ -448,11 +465,22 @@ async def load_workbench(enterprise_id: str, floor_id: str | None = Query(None),
             or_(RiskObject.floor_id == floor_id, RiskObject.zone_id.in_(zone_ids)),
         )
     )).scalars().all()
+    counts = await open_hazard_count_by_objects(
+        db,
+        enterprise_id,
+        [o.id for o in risk_points],
+    )
+    zone_responses = [_to_workbench_zone(z, current) for z in zones]
+    for zr in zone_responses:
+        _apply_open_hazard_counts(zr, counts)
+    risk_point_responses = [RiskObjectResponse.model_validate(o) for o in risk_points]
+    for obj_resp in risk_point_responses:
+        obj_resp.open_hazard_count = counts.get(obj_resp.id, 0)
     return ApiResponse(data=WorkbenchResponse(
         floors=[await _floor_response(db, f) for f in floors],
         current_floor_id=current.id,
-        zones=[_to_workbench_zone(z, current) for z in zones],
-        risk_points=[RiskObjectResponse.model_validate(o) for o in risk_points],
+        zones=zone_responses,
+        risk_points=risk_point_responses,
         texts=current.canvas_texts or [],
     ))
 
@@ -606,10 +634,21 @@ async def get_overview(enterprise_id: str, floor_id: str | None = Query(None), c
         RiskObject.is_risk_point.is_(True),
         or_(RiskObject.floor_id == current.id, RiskObject.zone_id.in_(zone_ids)),
     ))).scalars().all()
+    counts = await open_hazard_count_by_objects(
+        db,
+        enterprise_id,
+        [o.id for o in points],
+    )
+    zone_responses = [_to_workbench_zone(z, current) for z in zones]
+    for zr in zone_responses:
+        _apply_open_hazard_counts(zr, counts)
+    risk_point_responses = [RiskObjectResponse.model_validate(o) for o in points]
+    for obj_resp in risk_point_responses:
+        obj_resp.open_hazard_count = counts.get(obj_resp.id, 0)
     return ApiResponse(data=OverviewResponse(
         floor=await _floor_response(db, current),
-        zones=[_to_workbench_zone(z, current) for z in zones],
-        risk_points=[RiskObjectResponse.model_validate(o) for o in points],
+        zones=zone_responses,
+        risk_points=risk_point_responses,
     ))
 
 # ── Zones ──
@@ -1001,6 +1040,12 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
         )).scalars().all()
         zones = sort_zones_by_floor(zones, floor_order)
     floors_by_id = {f.id: f for f in floors}
+    object_ids = [
+        obj.id
+        for z in zones
+        for obj in (z.objects or [])
+    ]
+    counts = await open_hazard_count_by_objects(db, enterprise_id, object_ids)
     out = []
     for z in zones:
         resp = HierarchyZoneResponse.model_validate(z)
@@ -1009,6 +1054,7 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
         normalized = normalize_polygon(z.floor_plan_polygon, z.name)
         resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
         resp.max_risk_level, resp.effective_color, resp.inherent_max_level, resp.inherent_effective_color = _zone_dual_levels(z)
+        _apply_open_hazard_counts(resp, counts)
         out.append(resp)
     return ApiResponse(data=out)
 
@@ -1067,6 +1113,13 @@ async def control_list(
     )).scalars().all()
     mapping = await _control_level_mapping(db, enterprise_id)
     rows = flatten_rows(zones, mapping)
+    counts = await open_hazard_count_by_objects(
+        db,
+        enterprise_id,
+        list({r["object_id"] for r in rows}),
+    )
+    for r in rows:
+        r["open_hazard_count"] = counts.get(r["object_id"], 0)
     rows = _apply_control_list_filters(rows, zone_id, level, control_level, keyword)
     total = len(rows)
     start = (page - 1) * size

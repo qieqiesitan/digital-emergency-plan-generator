@@ -39,6 +39,8 @@ export interface CardData extends RightColumn {
   responsible_person: string;
   contact_phone: string;
   fallback_used: boolean;
+  /** 存在未闭环隐患（规格 §11.1，告知卡 badge） */
+  has_open_hazard: boolean;
   signs: SignItem[];
   snapshot: SnapshotInfo | null;
   stale: boolean;
@@ -56,6 +58,7 @@ export interface CardSummary {
   accident_types: string[];
   signs: SignItem[];
   responsible_unit: string;
+  has_open_hazard: boolean;
   snapshot: SnapshotInfo | null;
   stale: boolean;
   public_url: string;
