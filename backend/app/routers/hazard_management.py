@@ -1,8 +1,10 @@
-"""隐患排查治理路由（任务 3）：排查计划 CRUD + 任务/清单项端点。
+"""隐患排查治理路由（任务 3+4）：排查计划 CRUD + 任务/清单项端点 + 检查表模板。
 
 前缀 `/enterprises/{enterprise_id}/hazard-inspection`：
 - `/plans`：计划 CRUD（写=企业主/企业管理员成员，读=企业主/启用成员）
 - `/tasks`：任务列表/详情/核对提交/一键转隐患
+- `/templates`：检查表模板（系统默认 + 企业 CRUD + 系统模板复制）
+- `/ai/checklist-template`：AI 生成检查表模板（失败降级 available:false）
 
 权限与归属：
 - 读路径企业归属校验（不属于 → 404）；写路径企业主或 `enterprise_members`
@@ -12,6 +14,7 @@
 - 全部响应走 `ApiResponse` 信封（code==0 + data）。
 """
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -33,7 +36,9 @@ from app.models.hazard_management import (
 )
 from app.models.risk_management import RiskZone
 from app.schemas.common import ApiResponse
+from app.services.hazard_ai_service import generate_checklist_template
 from app.services.hazard_service import generate_tasks_for_plan, next_hazard_code
+from app.services.risk_ai_service import _get_ai_config
 
 
 router = APIRouter(prefix="/enterprises/{enterprise_id}/hazard-inspection", tags=["Hazard Management"])
@@ -84,6 +89,28 @@ class ToRecordBody(BaseModel):
     item_id: str
     title: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
+
+
+class TemplateItem(BaseModel):
+    content: str = Field(..., min_length=1, max_length=1000)
+    expected_note: Optional[str] = Field(None, max_length=1000)
+
+
+class TemplateCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    category: str
+    items: list[TemplateItem]
+
+
+class TemplateUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    category: Optional[str] = None
+    items: Optional[list[TemplateItem]] = None
+
+
+class TemplateAIRequest(BaseModel):
+    industry: str = Field("", max_length=2000)
+    risk_points: str = Field("", max_length=4000)
 
 
 # ── 响应序列化 ──
@@ -159,6 +186,21 @@ def _record_dict(record) -> dict:
         "created_by": record.created_by,
         "created_at": _dt(record.created_at),
         "updated_at": _dt(record.updated_at),
+    }
+
+
+def _template_dict(template) -> dict:
+    return {
+        "id": template.id,
+        "enterprise_id": template.enterprise_id,
+        "name": template.name,
+        "category": template.category,
+        "items": template.items or [],
+        "is_system": template.is_system,
+        # 列表按（名称,类别）合并展示时，前端可据此说明模板来源
+        "source": "system" if template.is_system else "enterprise",
+        "created_at": _dt(template.created_at),
+        "updated_at": _dt(template.updated_at),
     }
 
 
@@ -301,6 +343,60 @@ async def _get_task(enterprise_id: str, task_id: str, db: AsyncSession) -> Hazar
     return task
 
 
+async def _get_template(template_id: str, db: AsyncSession) -> HazardChecklistTemplate:
+    template = (await db.execute(
+        select(HazardChecklistTemplate).where(HazardChecklistTemplate.id == template_id)
+    )).scalar_one_or_none()
+    if not template:
+        raise HTTPException(404, "检查表模板不存在")
+    return template
+
+
+async def _get_owned_template(enterprise_id: str, template_id: str, db: AsyncSession) -> HazardChecklistTemplate:
+    """取本企业可编辑模板：系统模板不可直接编辑（422）；非本企业模板 404。"""
+    template = await _get_template(template_id, db)
+    if template.is_system:
+        raise HTTPException(422, "系统模板请复制后编辑")
+    if template.enterprise_id != enterprise_id:
+        raise HTTPException(404, "检查表模板不存在")
+    return template
+
+
+async def _template_name_conflict(
+    db: AsyncSession,
+    enterprise_id: str,
+    name: str,
+    category: str,
+    exclude_id: Optional[str] = None,
+) -> bool:
+    """企业内同名同类模板冲突检测（企业模板可覆盖系统模板，但企业内唯一）。"""
+    q = select(HazardChecklistTemplate.id).where(
+        HazardChecklistTemplate.enterprise_id == enterprise_id,
+        HazardChecklistTemplate.name == name,
+        HazardChecklistTemplate.category == category,
+    )
+    if exclude_id:
+        q = q.where(HazardChecklistTemplate.id != exclude_id)
+    return (await db.execute(q)).first() is not None
+
+
+def _validate_items(items) -> list[dict]:
+    """检查表 items 校验并归一化：非空数组；content 必填非空；expected_note 可空。"""
+    if not items:
+        raise HTTPException(422, "items 不能为空")
+    normalized = []
+    for idx, item in enumerate(items):
+        # 创建走 pydantic 模型、更新经 model_dump 为 dict，两种形态都兼容
+        raw_content = item.get("content") if isinstance(item, dict) else item.content
+        raw_note = item.get("expected_note") if isinstance(item, dict) else item.expected_note
+        content = str(raw_content or "").strip()
+        if not content:
+            raise HTTPException(422, f"items[{idx}].content 不能为空")
+        expected_note = str(raw_note).strip() if raw_note is not None else None
+        normalized.append({"content": content, "expected_note": expected_note or None})
+    return normalized
+
+
 # ── 排查计划 CRUD ──
 
 @router.post("/plans", response_model=ApiResponse[dict], status_code=201)
@@ -413,6 +509,152 @@ async def delete_plan(
     await _get_admin_ent(enterprise_id, current_user.id, db)
     plan = await _get_plan(enterprise_id, plan_id, db)
     plan.enabled = False
+    await db.commit()
+    return ApiResponse(data=None, message="已删除")
+
+
+# ── 检查表模板（任务 4，§5.9/§7） ──
+
+@router.get("/templates", response_model=ApiResponse[list])
+async def list_templates(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """模板列表：系统模板（enterprise_id NULL）与当前企业模板按（名称,类别）合并。
+
+    企业条目优先覆盖同名同类的系统模板（前端可用 source/is_system 说明来源），
+    其余系统模板保留展示；排序按（类别,名称）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    system = list((await db.execute(
+        select(HazardChecklistTemplate).where(HazardChecklistTemplate.enterprise_id.is_(None))
+        .order_by(HazardChecklistTemplate.created_at)
+    )).scalars().all())
+    ent_rows = list((await db.execute(
+        select(HazardChecklistTemplate).where(HazardChecklistTemplate.enterprise_id == enterprise_id)
+        .order_by(HazardChecklistTemplate.created_at)
+    )).scalars().all())
+    merged: dict = {}
+    for t in system + ent_rows:  # 后写覆盖先写 → 企业条目优先
+        merged[(t.name, t.category)] = t
+    rows = sorted(merged.values(), key=lambda t: (t.category, t.name))
+    return ApiResponse(data=[_template_dict(t) for t in rows])
+
+
+@router.post("/templates", response_model=ApiResponse[dict], status_code=201)
+async def create_template(
+    enterprise_id: str,
+    body: TemplateCreate,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """创建企业自定义模板。
+
+    写权限=企业主/启用管理员（403）；items 非空且 content 必填（422）。
+    企业内同名同类别冲突 → 409（取舍说明：属已存在资源的冲突而非输入
+    格式问题，且与 §16「重复提交 409」语义一致；422 保留给字段校验）。
+    """
+    await _get_admin_ent(enterprise_id, current_user.id, db)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "name 不能为空")
+    _validate_category(body.category)
+    items = _validate_items(body.items)
+    if await _template_name_conflict(db, enterprise_id, name, body.category):
+        raise HTTPException(409, f"该企业已存在同名同类别的检查表模板：{name}（{body.category}）")
+    template = HazardChecklistTemplate(
+        enterprise_id=enterprise_id,
+        name=name,
+        category=body.category,
+        items=items,
+        is_system=False,
+    )
+    db.add(template)
+    await db.commit()
+    await db.refresh(template)
+    return ApiResponse(data=_template_dict(template))
+
+
+@router.put("/templates/{template_id}", response_model=ApiResponse[dict])
+async def update_template(
+    enterprise_id: str,
+    template_id: str,
+    body: TemplateUpdate,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """更新企业模板（name/category/items；模型无 enabled 字段）。
+
+    系统模板不可直接编辑 → 422「系统模板请复制后编辑」；非本企业模板 → 404。
+    """
+    await _get_admin_ent(enterprise_id, current_user.id, db)
+    template = await _get_owned_template(enterprise_id, template_id, db)
+    values = body.model_dump(exclude_unset=True)
+    if "name" in values:
+        name = (values["name"] or "").strip()
+        if not name:
+            raise HTTPException(422, "name 不能为空")
+        values["name"] = name
+    if "category" in values:
+        _validate_category(values["category"])
+    if "items" in values:
+        values["items"] = _validate_items(values["items"])
+    name = values.get("name", template.name)
+    category = values.get("category", template.category)
+    if "name" in values or "category" in values:
+        if await _template_name_conflict(db, enterprise_id, name, category, exclude_id=template.id):
+            raise HTTPException(409, f"该企业已存在同名同类别的检查表模板：{name}（{category}）")
+    for key, value in values.items():
+        setattr(template, key, value)
+    await db.commit()
+    await db.refresh(template)
+    return ApiResponse(data=_template_dict(template))
+
+
+@router.post("/templates/{template_id}/copy", response_model=ApiResponse[dict], status_code=201)
+async def copy_template(
+    enterprise_id: str,
+    template_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """复制模板为企业模板（深拷贝 items），供「系统模板复制后编辑」。
+
+    源模板可为系统模板或本企业模板（非本企业 → 404）；复制后保留原名/类别，
+    形成企业覆盖条目，可继续编辑/删除；企业内已有同名同类模板 → 409
+    （提示直接编辑既有副本，避免同名堆积）。
+    """
+    await _get_admin_ent(enterprise_id, current_user.id, db)
+    template = await _get_template(template_id, db)
+    if template.enterprise_id is not None and template.enterprise_id != enterprise_id:
+        raise HTTPException(404, "检查表模板不存在")
+    if await _template_name_conflict(db, enterprise_id, template.name, template.category):
+        raise HTTPException(409, f"该企业已存在同名同类别的检查表模板：{template.name}（{template.category}）")
+    copied = HazardChecklistTemplate(
+        enterprise_id=enterprise_id,
+        name=template.name,
+        category=template.category,
+        items=deepcopy(template.items or []),
+        is_system=False,
+    )
+    db.add(copied)
+    await db.commit()
+    await db.refresh(copied)
+    return ApiResponse(data=_template_dict(copied))
+
+
+@router.delete("/templates/{template_id}")
+async def delete_template(
+    enterprise_id: str,
+    template_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """删除企业模板：系统模板不可删（422，需复制后编辑）；非本企业 404。"""
+    await _get_admin_ent(enterprise_id, current_user.id, db)
+    template = await _get_owned_template(enterprise_id, template_id, db)
+    await db.delete(template)
     await db.commit()
     return ApiResponse(data=None, message="已删除")
 
@@ -567,3 +809,31 @@ async def task_to_record(
     await db.commit()
     await db.refresh(record)
     return ApiResponse(data=_record_dict(record))
+
+
+# ── AI 检查表生成（任务 4，§7/§16） ──
+
+@router.post("/ai/checklist-template", response_model=ApiResponse[dict])
+async def ai_checklist_template(
+    enterprise_id: str,
+    body: TemplateAIRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 生成检查表模板：industry 与 risk_points 至少一项（均空 422）。
+
+    未配置/异常/超时由服务兜底 available:false + 空 items（200，§16）；
+    本端点不自动落库——页面确认后由 POST /templates 落库。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    industry = (body.industry or "").strip()
+    risk_points = (body.risk_points or "").strip()
+    if not industry and not risk_points:
+        raise HTTPException(422, "industry 与 risk_points 至少填写一项")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        # 系统未配置 AI 模型 → 由服务兜底 available:false（与 risk_management 惯例一致）
+        ai_config = None
+    result = await generate_checklist_template(industry, risk_points, ai_config)
+    return ApiResponse(data=result)
