@@ -21,6 +21,9 @@
   publicity_scope，默认 all；读=企业主/启用成员 404）
 - `/publicity-token`：生成/重置公示公开 token（仅企业主/启用 enterprise_admin
   403；返回 token + 公开链接 /h/{token}）
+- `/dashboard`：驾驶舱指标/图表/未读角标（任务 11 §12，读=企业主/启用成员）
+- `/export/ledger.xlsx`：企业内台账导出（3 sheet openpyxl，含敏感字段）
+- `/export/report.xlsx`：监管上报台账导出（脱敏 8 列白名单）
 
 权限与归属：
 - 读路径企业归属校验（不属于 → 404）；写路径企业主或 `enterprise_members`
@@ -32,11 +35,13 @@
 
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
 import json
 import secrets
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +52,7 @@ from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise
 from app.models.enterprise_org import EnterpriseMember
 from app.models.hazard_management import (
+    HazardApproval,
     HazardChecklistTemplate,
     HazardInspectionItem,
     HazardInspectionPlan,
@@ -56,8 +62,14 @@ from app.models.hazard_management import (
     HazardRectification,
 )
 from app.models.risk_management import RiskEvent, RiskMeasure, RiskObject, RiskUnit, RiskZone
+from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services.data_dict_service import get_dict_map
+from app.services.hazard_export_service import (
+    build_ledger_workbook,
+    build_report_workbook,
+    resolve_department_name,
+)
 from app.services.hazard_ai_service import (
     ai_grade,
     ai_governance_plan,
@@ -1629,3 +1641,394 @@ async def generate_publicity_token(
         "token": ent.hazard_public_token,
         "link": f"/h/{ent.hazard_public_token}",
     })
+
+
+# ── 驾驶舱 / 台账 / 监管上报导出（任务 11，§12/§14） ──
+
+
+def _field(row, name: str, idx: int):
+    """行值归一化：ORM Row / 元组 / dict 均可用（dashboard 聚合输入）。"""
+    if isinstance(row, dict):
+        return row.get(name)
+    return getattr(row, name, row[idx] if len(row) > idx else None)
+
+
+def _month_bounds(today: date) -> tuple[date, date]:
+    """当前自然月 [月初, 下月初) 边界（跨年安全）。"""
+    month_start = today.replace(day=1)
+    if today.month == 12:
+        return month_start, date(today.year + 1, 1, 1)
+    return month_start, date(today.year, today.month + 1, 1)
+
+
+def _shift_month_start(month_start: date, delta: int) -> date:
+    """月份平移（月初）：delta 可为负（环比/趋势窗口）。"""
+    total = month_start.year * 12 + (month_start.month - 1) + delta
+    return date(total // 12, total % 12 + 1, 1)
+
+
+def _today() -> date:
+    """当前自然日（可注入：测试 patch 本函数而非 immutable 的 date.today）。"""
+    return date.today()
+
+
+def _dashboard_payload(
+    records,
+    tasks,
+    approved_ids,
+    unread_rows,
+    owned_rows,
+    all_status_rows,
+    user_id: str,
+    today: Optional[date] = None,
+) -> dict:
+    """驾驶舱统计纯函数（任务 11 §12）：输入为查询结果，输出指标/图表/未读。
+
+    统计口径（自然月滚动，以传入 today 为准）：
+    - 未闭环：status != "closed" 记录数 + 去重 object_id 风险点数；
+    - 整改及时率：本月应闭环 = deadline 在本月内 且（已 closed 或已超期
+      rectifying 且 deadline < today）；按期闭环 = closed 且 closed_at.date()
+      <= deadline；rate = 按期/应闭环 * 100（应闭环为 0 → None，前端显示「—」）；
+    - 平均整改周期：本月闭环记录 (closed_at - created_at) 平均天数，1 位小数；
+    - 重大挂牌：major_count = 当前 major 未闭环数（专表同口径），major_approved =
+      有 approve 审批记录或当前 pending_approval 的记录数（进入过挂牌流程）；
+    - 超期：overdue_records = rectifying 且 deadline < today；overdue_tasks =
+      HazardInspectionTask.status == "overdue"；overdue_count 为两者之和；
+    - 月度隐患：当月 created_at 新增数；环比 = (本月-上月)/上月*100（上月为
+      0 → None）；
+    - 扫码待确认：source_type == "report" 且 status == "registered"。
+    图表：
+    - type_distribution：hazard_type 分组计数（None → "未分类"，按数量降序）；
+    - monthly_trend：近 12 个自然月（含当月）新增折线数据，["YYYY-MM"] 升序；
+    - major_records：major 记录 code/title/deadline/status，deadline 升序
+      （None 最后）；
+    - enterprise_comparison：当前用户账号名下各企业未闭环数（含 0），按未闭环
+      降序（口径：enterprises.user_id == 当前用户，同账号多企业）。
+    未读数：hazard_notifications 该企业 read_at IS NULL 计数——total=全企业、
+    mine=当前用户、by_type=按通知类型分组（消息角标口径）。
+    """
+    today = today or _today()
+    month_start, next_month = _month_bounds(today)
+
+    open_records = [r for r in records if r.status != "closed"]
+    open_risk_points = len({r.object_id for r in open_records if r.object_id})
+
+    due_records = [
+        r for r in records
+        if r.deadline and month_start <= r.deadline < next_month
+        and (r.status == "closed"
+             or (r.status == "rectifying" and r.deadline < today))
+    ]
+    on_time_closed = [
+        r for r in due_records
+        if r.status == "closed" and r.closed_at and r.closed_at.date() <= r.deadline
+    ]
+    rectification_rate = (
+        round(len(on_time_closed) / len(due_records) * 100, 1) if due_records else None
+    )
+    closed_this_month = [
+        r for r in records
+        if r.status == "closed" and r.closed_at
+        and month_start <= r.closed_at.date() < next_month
+    ]
+    cycle_days = [
+        (r.closed_at - r.created_at).total_seconds() / 86400
+        for r in closed_this_month if r.created_at
+    ]
+    avg_rectification_days = (
+        round(sum(cycle_days) / len(cycle_days), 1) if cycle_days else None
+    )
+
+    major_unclosed = [r for r in records if r.level == "major" and r.status != "closed"]
+    major_approved = len({
+        r.id for r in records
+        if r.id in approved_ids or r.status == "pending_approval"
+    })
+
+    overdue_records = [
+        r for r in records
+        if r.status == "rectifying" and r.deadline and r.deadline < today
+    ]
+    overdue_tasks = [t for t in tasks if t.status == "overdue"]
+
+    monthly_new = [
+        r for r in records
+        if r.created_at and month_start <= r.created_at.date() < next_month
+    ]
+    last_month_start = _shift_month_start(month_start, -1)
+    last_month_count = sum(
+        1 for r in records
+        if r.created_at and last_month_start <= r.created_at.date() < month_start
+    )
+    monthly_new_mom = (
+        round((len(monthly_new) - last_month_count) / last_month_count * 100, 1)
+        if last_month_count else None
+    )
+    scan_pending = [
+        r for r in records if r.source_type == "report" and r.status == "registered"
+    ]
+
+    type_counts: dict[str, int] = {}
+    for r in records:
+        key = r.hazard_type or "未分类"
+        type_counts[key] = type_counts.get(key, 0) + 1
+    type_distribution = sorted(
+        [{"hazard_type": k, "count": v} for k, v in type_counts.items()],
+        key=lambda x: (-x["count"], x["hazard_type"]),
+    )
+    monthly_trend = []
+    for i in range(11, -1, -1):
+        start = _shift_month_start(month_start, -i)
+        end = _shift_month_start(start, 1)
+        monthly_trend.append({
+            "month": start.strftime("%Y-%m"),
+            "count": sum(
+                1 for r in records
+                if r.created_at and start <= r.created_at.date() < end
+            ),
+        })
+    major_rows = sorted(
+        [r for r in records if r.level == "major"],
+        key=lambda r: (r.deadline is None, r.deadline or date.max,
+                       r.created_at or datetime.min),
+    )
+    major_records = [
+        {
+            "code": r.code,
+            "title": r.title,
+            "deadline": r.deadline.isoformat() if r.deadline else None,
+            "status": r.status,
+        }
+        for r in major_rows
+    ]
+    open_by_ent: dict[str, int] = {}
+    for row in all_status_rows:
+        eid = _field(row, "enterprise_id", 0)
+        if eid is not None and _field(row, "status", 1) != "closed":
+            open_by_ent[eid] = open_by_ent.get(eid, 0) + 1
+    enterprise_comparison = sorted(
+        [
+            {
+                "enterprise_id": _field(r, "id", 0),
+                "name": _field(r, "name", 1),
+                "open_count": open_by_ent.get(_field(r, "id", 0), 0),
+            }
+            for r in owned_rows
+        ],
+        key=lambda x: (-x["open_count"], x["name"]),
+    )
+
+    unread_list = [
+        (_field(row, "user_id", 0), _field(row, "type", 1)) for row in unread_rows
+    ]
+    unread_by_type: dict[str, int] = {}
+    for uid, ntype in unread_list:
+        if ntype:
+            unread_by_type[ntype] = unread_by_type.get(ntype, 0) + 1
+    return {
+        "metrics": {
+            "open_hazards": len(open_records),
+            "open_risk_points": open_risk_points,
+            "rectification_rate": rectification_rate,
+            "on_time_closed": len(on_time_closed),
+            "due_this_month": len(due_records),
+            "avg_rectification_days": avg_rectification_days,
+            "major_count": len(major_unclosed),
+            "major_approved": major_approved,
+            "overdue_count": len(overdue_records) + len(overdue_tasks),
+            "overdue_records": len(overdue_records),
+            "overdue_tasks": len(overdue_tasks),
+            "monthly_new": len(monthly_new),
+            "monthly_new_mom": monthly_new_mom,
+            "scan_pending": len(scan_pending),
+        },
+        "charts": {
+            "type_distribution": type_distribution,
+            "monthly_trend": monthly_trend,
+            "major_records": major_records,
+            "enterprise_comparison": enterprise_comparison,
+        },
+        "unread": {
+            "total": len(unread_list),
+            "mine": sum(1 for uid, _ in unread_list if uid == user_id),
+            "by_type": dict(
+                sorted(unread_by_type.items(), key=lambda x: (-x[1], x[0]))
+            ),
+        },
+    }
+
+
+@router.get("/dashboard", response_model=ApiResponse[dict])
+async def hazard_dashboard(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """隐患驾驶舱（任务 11 §12）：指标卡 + 图表 + 未读角标。
+
+    权限：读 = 企业主/启用成员（非归属 404，`_get_ent`）。口径全部集中在
+    `_dashboard_payload`（docstring 逐项说明，测试直接覆盖公式）。
+    企业对比口径：当前用户账号名下企业（enterprises.user_id == 当前用户）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    records = list((await db.execute(
+        select(HazardRecord).where(HazardRecord.enterprise_id == enterprise_id)
+    )).scalars().all())
+    tasks = list((await db.execute(
+        select(HazardInspectionTask).where(
+            HazardInspectionTask.enterprise_id == enterprise_id,
+        )
+    )).scalars().all())
+    approved_ids = set((await db.execute(
+        select(HazardApproval.record_id)
+        .join(HazardRecord, HazardRecord.id == HazardApproval.record_id)
+        .where(
+            HazardRecord.enterprise_id == enterprise_id,
+            HazardApproval.action == "approve",
+        )
+    )).scalars().all())
+    unread_rows = list((await db.execute(
+        select(HazardNotification.user_id, HazardNotification.type)
+        .where(
+            HazardNotification.enterprise_id == enterprise_id,
+            HazardNotification.read_at.is_(None),
+        )
+    )).all())
+    owned_rows = list((await db.execute(
+        select(Enterprise.id, Enterprise.name).where(
+            Enterprise.user_id == current_user.id,
+        )
+    )).all())
+    all_status_rows = []
+    if owned_rows:
+        owned_ids = [_field(r, "id", 0) for r in owned_rows]
+        all_status_rows = list((await db.execute(
+            select(HazardRecord.enterprise_id, HazardRecord.status).where(
+                HazardRecord.enterprise_id.in_(owned_ids),
+            )
+        )).all())
+    return ApiResponse(data=_dashboard_payload(
+        records, tasks, approved_ids, unread_rows, owned_rows, all_status_rows,
+        current_user.id,
+    ))
+
+
+async def _id_names(db: AsyncSession, model, ids, name_attr: str = "name") -> dict:
+    """批量取模型 id→展示名映射（导出名称解析；空集合跳过查询）。"""
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        select(model.id, getattr(model, name_attr)).where(model.id.in_(ids))
+    )).all()
+    return {row[0]: row[1] for row in rows}
+
+
+@router.get("/export/ledger.xlsx")
+async def export_hazard_ledger(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """台账导出（企业内，含敏感字段）：3 sheet openpyxl + StreamingResponse。
+
+    文件流方式：BytesIO 内存流 + StreamingResponse（media_type
+    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet），
+    filename=hazard_ledger.xlsx（与 risk_management control-list/export 惯例一致）。
+    字段选取与名称解析见 `hazard_export_service.build_ledger_workbook` docstring。
+    权限：读 = 企业主/启用成员（非归属 404，`_get_ent`）。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    records = list((await db.execute(
+        select(HazardRecord).where(HazardRecord.enterprise_id == enterprise_id)
+    )).scalars().all())
+    user_ids = {
+        uid for r in records
+        for uid in (r.rectification_user_id, r.reviewer_user_id, r.created_by)
+        if uid
+    }
+    user_names = await _id_names(db, User, user_ids)
+    object_names = await _id_names(
+        db, RiskObject, {r.object_id for r in records if r.object_id},
+    )
+    measure_names = await _id_names(
+        db, RiskMeasure, {r.measure_id for r in records if r.measure_id},
+        name_attr="description",
+    )
+    status_labels = await _dict_labels(db, enterprise_id, "record_status_label")
+    source_labels = await _dict_labels(db, enterprise_id, "source_type")
+    hazard_type_labels = await _dict_labels(db, enterprise_id, "hazard_type")
+    buf = BytesIO()
+    build_ledger_workbook(
+        records,
+        object_names=object_names,
+        measure_names=measure_names,
+        user_names=user_names,
+        status_labels=status_labels,
+        source_labels=source_labels,
+        hazard_type_labels=hazard_type_labels,
+    ).save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=hazard_ledger.xlsx"},
+    )
+
+
+@router.get("/export/report.xlsx")
+async def export_hazard_report(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """监管上报台账导出（脱敏）：8 列白名单 openpyxl + StreamingResponse。
+
+    脱敏口径（§12）：不含责任人姓名/联系方式/照片等敏感字段，白名单见
+    `hazard_export_service.build_report_workbook`。
+    责任单位 = 整改责任人（rectification_user_id）经 enterprise_members
+    org_node_id → 组织节点 → 部门节点名推导（`resolve_department_name`），
+    无组织归属/无部门祖先缺省「—」。
+    整改进度 = 最近整改记录 content；无整改记录取状态标签（数据字典
+    record_status_label，未命中回退原始码值）。
+    文件流方式与 filename：同台账（hazard_report.xlsx）。
+    权限：读 = 企业主/启用成员（非归属 404，`_get_ent`）。
+    """
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    records = list((await db.execute(
+        select(HazardRecord).where(HazardRecord.enterprise_id == enterprise_id)
+    )).scalars().all())
+    latest = await _latest_rectifications(db, [r.id for r in records])
+    status_labels = await _dict_labels(db, enterprise_id, "record_status_label")
+    members = list((await db.execute(
+        select(EnterpriseMember).where(
+            EnterpriseMember.enterprise_id == enterprise_id,
+            EnterpriseMember.enabled.is_(True),
+        )
+    )).scalars().all())
+    node_map = {
+        n.get("id"): n for n in (ent.org_structure or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+    org_dept_map = {
+        m.user_id: resolve_department_name(m.org_node_id, node_map)
+        for m in members if m.user_id
+    }
+    progress_map = {}
+    for r in records:
+        rect = latest.get(r.id)
+        if rect and (rect.content or "").strip():
+            progress_map[r.id] = rect.content
+        else:
+            progress_map[r.id] = status_labels.get(r.status, r.status)
+    buf = BytesIO()
+    build_report_workbook(
+        records,
+        org_dept_map=org_dept_map,
+        progress_map=progress_map,
+    ).save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=hazard_report.xlsx"},
+    )
