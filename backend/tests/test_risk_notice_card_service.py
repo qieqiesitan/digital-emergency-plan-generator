@@ -4,7 +4,7 @@ from app.models.risk_notice_card import RiskNoticeCard
 from app.models.risk_management import RiskObject, RiskUnit, RiskEvent, RiskMeasure
 from app.models.enterprise import Enterprise
 from app.services.risk_notice_card_service import (
-    compute_level, resolve_responsible, build_right_column, match_signs, compute_code,
+    compute_level, compute_inherent_level, resolve_responsible, build_right_column, match_signs, compute_code,
     is_stale, merge_object_events, collect_measures, save_snapshot,
 )
 
@@ -44,6 +44,34 @@ def test_compute_level_takes_highest():
     events = [_event("火灾", "一般", "", ""), _event("爆炸", "重大", "", "")]
     assert compute_level(events) == "重大"
     assert compute_level([]) == "未评估"
+
+
+def test_compute_inherent_level_takes_highest():
+    def ev(level: str | None) -> RiskEvent:
+        e = _event("火灾", "一般", "", "")
+        e.inherent_risk_level = level
+        return e
+
+    assert compute_inherent_level([ev("一般"), ev("重大")]) == "重大"
+    assert compute_inherent_level([ev("较大"), ev("低")]) == "较大"
+    assert compute_inherent_level([ev(None), ev("一般")]) == "一般"
+    assert compute_inherent_level([ev(None)]) is None
+    assert compute_inherent_level([]) is None
+
+
+def test_compute_level_tolerates_unknown_levels():
+    """域外等级值（如「未评估」）静默忽略：不抛异常，按已知等级取最严重或回退默认。"""
+    events = [_event("火灾", "未评估", "", ""), _event("爆炸", "一般", "", "")]
+    assert compute_level(events) == "一般"
+    assert compute_level([_event("火灾", "未评估", "", "")]) == "未评估"
+
+    def ev(level: str | None) -> RiskEvent:
+        e = _event("火灾", "一般", "", "")
+        e.inherent_risk_level = level
+        return e
+
+    assert compute_inherent_level([ev("未评估"), ev("较大")]) == "较大"
+    assert compute_inherent_level([ev("未评估")]) is None
 
 
 def test_resolve_responsible_fallback():

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { App as AntApp, Button, Input, Select, Space, Table, Tag, Tooltip } from "antd";
+import { App as AntApp, Badge, Button, Input, Select, Space, Table, Tag, Tooltip } from "antd";
 import type { TableColumnsType } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getDownloadUrl } from "@/services/exportService";
@@ -102,6 +102,13 @@ export default function RiskNoticeCardPage() {
       dataIndex: "level",
       width: 90,
       render: (level: string, record) => <Tag color={record.level_color}>{level}</Tag>,
+    },
+    {
+      title: "隐患状态",
+      dataIndex: "has_open_hazard",
+      width: 130,
+      render: (hasOpen: boolean) =>
+        hasOpen ? <Badge color="red" text="存在未闭环隐患" /> : <span>—</span>,
     },
     {
       title: "主要事故类型",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Spin, Space, Button, Modal, message } from "antd";
+import { Spin, Space, Button, Modal, message, Segmented } from "antd";
 import { ArrowLeftOutlined, SaveOutlined, UndoOutlined, RedoOutlined, UploadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,6 +17,8 @@ import WorkbenchLegend from "@/components/enterprise/riskMapping/WorkbenchLegend
 import EnterpriseFloorManager from "@/components/enterprise/EnterpriseFloorManager";
 import FourColorImportModal from "@/components/enterprise/riskMapping/FourColorImportModal";
 
+type ColorMode = "current" | "inherent";
+
 export default function RiskMappingWorkbenchPage() {
   const { id: enterpriseId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -24,12 +26,21 @@ export default function RiskMappingWorkbenchPage() {
   const setSnapshot = useRiskMappingWorkbenchStore(s => s.setSnapshot);
   const dirty = useRiskMappingWorkbenchStore(s => s.dirty);
   const [importOpen, setImportOpen] = useState(false);
+  const [colorMode, setColorMode] = useState<ColorMode>(() => {
+    const saved = localStorage.getItem("risk-workbench-color-mode");
+    return saved === "inherent" ? "inherent" : "current";
+  });
   const floors = useRiskMappingWorkbenchStore(s => s.floors);
   const zones = useRiskMappingWorkbenchStore(s => s.zones);
   const riskPoints = useRiskMappingWorkbenchStore(s => s.riskPoints);
   const texts = useRiskMappingWorkbenchStore(s => s.texts);
   const currentFloor = floors.find(f => f.id === currentFloorId);
   const queryClient = useQueryClient();
+
+  const handleColorModeChange = (mode: ColorMode) => {
+    setColorMode(mode);
+    localStorage.setItem("risk-workbench-color-mode", mode);
+  };
 
   // 切换企业时重置工作台全局状态，避免上一个企业的楼层/分区串台
   useEffect(() => {
@@ -192,6 +203,12 @@ export default function RiskMappingWorkbenchPage() {
       <Space wrap>
         <Button aria-label="返回" icon={<ArrowLeftOutlined />} onClick={goBack} />
         <EnterpriseFloorManager enterpriseId={enterpriseId!} />
+        <Segmented
+          aria-label="四色图模式"
+          options={[{ label: "现有风险图", value: "current" }, { label: "固有风险图", value: "inherent" }]}
+          value={colorMode}
+          onChange={v => handleColorModeChange(v as ColorMode)}
+        />
         <Button
           aria-label="导入四色图"
           icon={<UploadOutlined />}
@@ -216,8 +233,8 @@ export default function RiskMappingWorkbenchPage() {
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "260px 1fr 300px", gap: 8, minHeight: 0 }}>
         <WorkbenchZonePanel />
         <div style={{ position: "relative", background: "#f5f5f5", borderRadius: 8, overflow: "hidden" }}>
-          <WorkbenchCanvas />
-          <WorkbenchLegend />
+          <WorkbenchCanvas colorMode={colorMode} />
+          <WorkbenchLegend colorMode={colorMode} />
         </div>
         <WorkbenchPropertiesPanel />
       </div>

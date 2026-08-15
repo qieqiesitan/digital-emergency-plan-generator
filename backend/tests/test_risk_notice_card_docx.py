@@ -258,6 +258,12 @@ def _scalar_result(value):
     return res
 
 
+def _count_result(value):
+    res = MagicMock()
+    res.scalar.return_value = value
+    return res
+
+
 def _risk_card_db(ent, objs, detail_obj=None, events_obj=None):
     """按 SQL 文本特征分发查询（同 test_risk_notice_card_api.py 模式）。"""
     db = AsyncMock()
@@ -267,6 +273,8 @@ def _risk_card_db(ent, objs, detail_obj=None, events_obj=None):
         text = str(stmt)
         if "FROM enterprises" in text:
             return _scalar_result(ent)
+        if "FROM hazard_records" in text:
+            return _count_result(0)
         if "risk_notice_cards" in text:
             res = MagicMock()
             res.scalars.return_value.first.return_value = None
@@ -292,6 +300,8 @@ def _export_db(ent, obj, valid_ids):
         text = str(stmt)
         if "FROM enterprises" in text:
             return _scalar_result(ent)
+        if "FROM hazard_records" in text:
+            return _count_result(0)
         if "risk_notice_cards" in text:
             res = MagicMock()
             res.scalars.return_value.first.return_value = None

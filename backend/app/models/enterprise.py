@@ -10,6 +10,14 @@ from app.database import Base
 
 class Enterprise(Base):
     __tablename__ = "enterprises"
+    __table_args__ = (
+        Index("uq_enterprises_public_risk_token", "public_risk_token",
+              unique=True, postgresql_where=text("public_risk_token IS NOT NULL")),
+        Index("uq_enterprises_hazard_public_token", "hazard_public_token",
+              unique=True, postgresql_where=text("hazard_public_token IS NOT NULL")),
+        Index("uq_enterprises_hazard_report_token", "hazard_report_token",
+              unique=True, postgresql_where=text("hazard_report_token IS NOT NULL")),
+    )
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     user_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -59,6 +67,13 @@ class Enterprise(Base):
     floor_plan_url: Mapped[Optional[str]] = mapped_column(String(500))
     gis_lat: Mapped[Optional[float]] = mapped_column(Float)
     gis_lng: Mapped[Optional[float]] = mapped_column(Float)
+    # 风险分级管控：公开风险页面 token
+    public_risk_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # 隐患排查治理（B 规格 §5.11）：闭环模式（standard/strict）、公开公示/扫码上报 token、扩展配置
+    hazard_closure_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="standard")
+    hazard_public_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    hazard_report_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    hazard_config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

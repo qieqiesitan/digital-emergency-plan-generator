@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { App as AntApp, Alert, Button, Spin, Empty, Space, Tag } from "antd";
-import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined } from "@ant-design/icons";
+import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined, UnorderedListOutlined, NotificationOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure, getMigrationPreview } from "@/services/riskManagementService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
@@ -49,12 +49,39 @@ interface ZoneFormValues {
   chemical_id?: string | null;
   method_type?: string;
   method_params?: Record<string, number>;
+  risk_level?: string | null;
+  risk_score?: string | null;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
   measure_category?: string;
   check_items?: CheckItem[];
 }
 
 function eventInitialValues(meta: TreeNodeMeta): Record<string, unknown> {
-  return { accident_type: meta.name, chemical_id: meta.chemical_id ?? undefined };
+  const rawParams = (meta.method_params ?? {}) as Record<string, unknown>;
+  // DIRECT 旧数据可能存等级文案（risk_level），归一化为表单 Select 的数值键
+  let methodParams: Record<string, unknown> = rawParams;
+  if (meta.method_type === "DIRECT") {
+    const levelRaw = rawParams.level ?? rawParams.risk_level;
+    const levelNum = typeof levelRaw === "number"
+      ? levelRaw
+      : typeof levelRaw === "string"
+        ? ({ "低": 1, "一般": 2, "较大": 3, "重大": 4 } as Record<string, number>)[levelRaw] ?? 1
+        : undefined;
+    methodParams = levelNum != null ? { level: levelNum } : rawParams;
+  }
+  return {
+    accident_type: meta.name,
+    chemical_id: meta.chemical_id ?? undefined,
+    method_type: meta.method_type,
+    method_params: methodParams,
+    risk_level: meta.risk_level,
+    risk_score: meta.risk_score,
+    inherent_risk_level: meta.inherent_risk_level,
+    inherent_risk_score: meta.inherent_risk_score,
+    control_level: meta.control_level,
+  };
 }
  
 export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props) {
@@ -261,13 +288,21 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
           }
           break;
         case "event": {
+          // 表单负责判定「未改动」并省略对应字段；提交层仅携带表单显式提供的字段，
+          // 未改动保存时不发送 method_type/method_params/risk_*/inherent_*，避免覆盖已存等级
           const eventPayload = {
             accident_type: Array.isArray(values.accident_type)
               ? values.accident_type.join("、")
               : (values.accident_type || ""),
             description: values.description || "",
-            method_type: (values.method_type || "LS") as MethodType,
-            method_params: values.method_params || {},
+            ...(values.method_type ? { method_type: values.method_type as MethodType } : {}),
+            ...(values.method_params ? { method_params: values.method_params } : {}),
+            // 显式透传：null 表示清空固有/现有等级（序列化保留），undefined 序列化时省略
+            risk_level: values.risk_level,
+            risk_score: values.risk_score,
+            inherent_risk_level: values.inherent_risk_level,
+            inherent_risk_score: values.inherent_risk_score,
+            control_level: values.control_level ?? null,
             chemical_id: values.chemical_id ?? null,
           };
           if (form.id) {
@@ -316,9 +351,13 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
            <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
            <Button icon={<BarChartOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-overview`)}>📊 可视化总览</Button>
            <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-mapping-workbench`)}>四色分布图工作台</Button>
+           <Button icon={<UnorderedListOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-control-list`)}>管控清单</Button>
+           <Button icon={<NotificationOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-publicity`)}>重大风险公示</Button>
            <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-notice-cards`)}>风险告知卡</Button>
            <Button icon={<ApartmentOutlined />} onClick={() => setFloorDrawerOpen(true)}>楼层管理</Button>
            <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
+           <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/data-dicts`)}>风险与隐患配置</Button>
+           <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/org`)}>组织与人员</Button>
          </Space>
          {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}
        </div>
@@ -364,7 +403,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
        {form.type === "unit" && <RiskUnitForm key={`unit-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} />}
        {form.type === "event" && (() => {
          const pInfo = hierarchyMap[form.parentId || ""] || {};
-         return <RiskEventForm key={`event-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} zoneName={pInfo.zone?.name} objectName={pInfo.object?.name} unitName={pInfo.unit?.name} />;
+        return <RiskEventForm key={`event-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} eventId={form.id} zoneName={pInfo.zone?.name} objectName={pInfo.object?.name} unitName={pInfo.unit?.name} />;
        })()}
        {form.type === "measure" && <RiskMeasureForm key={`measure-${form.id || form.parentId || "new"}`} open={form.open} onClose={() => setForm({ type: null, open: false })} onSubmit={handleFormSubmit} initialValues={form.initialValues} enterpriseId={enterpriseId} />}
  

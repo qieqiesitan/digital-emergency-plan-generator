@@ -1,6 +1,8 @@
-import json, math, os, logging
+import json, math, os, secrets, logging
+from io import BytesIO
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete, or_
 from sqlalchemy.exc import IntegrityError
@@ -13,13 +15,22 @@ from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObjec
 from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewResponse, MigrationExecuteRequest, MigrationExecuteResponse, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse, FourColorAnalyzeResponse, FourColorCommitRequest, FourColorCommitResponse)
 from app.schemas.common import ApiResponse
-from app.services.risk_method_engine import compute_risk, get_active_method_config
+from app.services.risk_method_engine import compute_risk, get_active_method_config, validate_dual_level, COAL_LS_DEFAULT_THRESHOLDS
 from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
+from app.services.risk_dual_ai_service import suggest_dual_level
 from app.services.risk_source_migration_service import (
     build_migration_preview,
     execute_migration as execute_risk_source_migration,
 )
 from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS
+from app.services.risk_control_list_service import (
+    ZONE_TREE_OPTIONS,
+    build_ledger_workbook,
+    flatten_rows,
+    is_major_publicity_row,
+)
+from app.services.hazard_service import open_hazard_count_by_objects
+from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
 from app.config import settings
@@ -41,6 +52,13 @@ def _validate_zone_polygon(polygon) -> None:
     errors = validate_polygon_v2(data)
     if errors:
         raise HTTPException(status_code=422, detail={"code": "POLYGON_INVALID", "message": "；".join(errors)})
+
+def _resolve_current_level(body, config) -> tuple[str, str]:
+    """显式 risk_level 优先；否则按 method_params 计算。返回 (level, score)。"""
+    if body.risk_level:
+        return body.risk_level, body.risk_score or "-"
+    rating = compute_risk(body.method_type, body.method_params, config)
+    return rating.risk_level, rating.risk_score
 
 # ── Floors ──
 async def _default_floor(db: AsyncSession, enterprise_id: str) -> EnterpriseFloor:
@@ -270,6 +288,7 @@ async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, 
         r = RiskZoneResponse.model_validate(z)
         # 导入的分区暂无风险对象：max_risk_level 保持 None，颜色取手动色板
         r.effective_color = effective_color(r.floor_plan_polygon, None)
+        r.inherent_effective_color = effective_color(r.floor_plan_polygon, None)
         zone_responses.append(r)
     return ApiResponse(data=FourColorCommitResponse(
         floor=await _floor_response(db, floor),
@@ -347,7 +366,7 @@ async def preview_method(body: MethodPreviewRequest, enterprise_id: str, current
     m = (await db.execute(select(RiskAssessmentMethod).where(RiskAssessmentMethod.id==body.method_id))).scalar_one_or_none()
     if not m: raise HTTPException(404, "方法不存在")
     r = compute_risk(m.method_type, body.params, m.config)
-    return ApiResponse(data=MethodPreviewResponse(risk_level=r.risk_level, risk_score=r.risk_score, action=r.action, deadline=r.deadline))
+    return ApiResponse(data=MethodPreviewResponse(risk_level=r.risk_level, risk_score=r.risk_score, action=r.action, deadline=r.deadline, scenario=body.scenario))
 
 # ── Workbench ──
 def _same_ts(a, b) -> bool:
@@ -367,14 +386,21 @@ def _validate_point_range(x, y) -> None:
             raise HTTPException(422, detail={"code": "POINT_OUT_OF_RANGE", "message": "风险点坐标必须是 0-100 范围内的有限数值"})
 
 
+def _zone_dual_levels(zone):
+    """返回 (max_level, effective_color, inherent_max_level, inherent_effective_color)。"""
+    current = max_risk_level(zone)
+    inherent = max_risk_level(zone, "inherent")
+    return (current, effective_color(zone.floor_plan_polygon, current),
+            inherent, effective_color(zone.floor_plan_polygon, inherent))
+
+
 def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
     """将分区 ORM 对象规范化为工作台/总览响应，补齐楼层名、多边形 v2、风险等级与有效色。"""
     resp = RiskZoneResponse.model_validate(z)
     resp.floor_name = floor.name
-    resp.max_risk_level = max_risk_level(z)
+    resp.max_risk_level, resp.effective_color, resp.inherent_max_level, resp.inherent_effective_color = _zone_dual_levels(z)
     normalized = normalize_polygon(z.floor_plan_polygon, z.name)
     resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
-    resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
     resp.object_count = len(z.objects or [])
     return WorkbenchZone(
         id=resp.id,
@@ -387,11 +413,29 @@ def _to_workbench_zone(z: RiskZone, floor: EnterpriseFloor) -> WorkbenchZone:
         floor_plan_polygon=resp.floor_plan_polygon,
         max_risk_level=resp.max_risk_level,
         effective_color=resp.effective_color,
+        inherent_max_level=resp.inherent_max_level,
+        inherent_effective_color=resp.inherent_effective_color,
         object_count=resp.object_count,
         created_at=resp.created_at,
         updated_at=resp.updated_at,
         objects=[RiskObjectResponse.model_validate(o) for o in (z.objects or [])],
     )
+
+
+def _apply_open_hazard_counts(
+    resp: WorkbenchZone | HierarchyZoneResponse,
+    counts: dict[str, int],
+) -> None:
+    """把批量派生的未闭环隐患计数回填到分区/风险点响应对象。
+
+    counts 来自 `open_hazard_count_by_objects`（{object_id: count}）；
+    分区级取本分区风险点计数之和（风险点即对象），未命中保持 0。
+    """
+    zone_total = 0
+    for obj_resp in resp.objects:
+        obj_resp.open_hazard_count = counts.get(obj_resp.id, 0)
+        zone_total += obj_resp.open_hazard_count
+    resp.open_hazard_count = zone_total
 
 
 @router.get("/workbench", response_model=ApiResponse[WorkbenchResponse])
@@ -421,11 +465,22 @@ async def load_workbench(enterprise_id: str, floor_id: str | None = Query(None),
             or_(RiskObject.floor_id == floor_id, RiskObject.zone_id.in_(zone_ids)),
         )
     )).scalars().all()
+    counts = await open_hazard_count_by_objects(
+        db,
+        enterprise_id,
+        [o.id for o in risk_points],
+    )
+    zone_responses = [_to_workbench_zone(z, current) for z in zones]
+    for zr in zone_responses:
+        _apply_open_hazard_counts(zr, counts)
+    risk_point_responses = [RiskObjectResponse.model_validate(o) for o in risk_points]
+    for obj_resp in risk_point_responses:
+        obj_resp.open_hazard_count = counts.get(obj_resp.id, 0)
     return ApiResponse(data=WorkbenchResponse(
         floors=[await _floor_response(db, f) for f in floors],
         current_floor_id=current.id,
-        zones=[_to_workbench_zone(z, current) for z in zones],
-        risk_points=[RiskObjectResponse.model_validate(o) for o in risk_points],
+        zones=zone_responses,
+        risk_points=risk_point_responses,
         texts=current.canvas_texts or [],
     ))
 
@@ -579,21 +634,40 @@ async def get_overview(enterprise_id: str, floor_id: str | None = Query(None), c
         RiskObject.is_risk_point.is_(True),
         or_(RiskObject.floor_id == current.id, RiskObject.zone_id.in_(zone_ids)),
     ))).scalars().all()
+    counts = await open_hazard_count_by_objects(
+        db,
+        enterprise_id,
+        [o.id for o in points],
+    )
+    zone_responses = [_to_workbench_zone(z, current) for z in zones]
+    for zr in zone_responses:
+        _apply_open_hazard_counts(zr, counts)
+    risk_point_responses = [RiskObjectResponse.model_validate(o) for o in points]
+    for obj_resp in risk_point_responses:
+        obj_resp.open_hazard_count = counts.get(obj_resp.id, 0)
     return ApiResponse(data=OverviewResponse(
         floor=await _floor_response(db, current),
-        zones=[_to_workbench_zone(z, current) for z in zones],
-        risk_points=[RiskObjectResponse.model_validate(o) for o in points],
+        zones=zone_responses,
+        risk_points=risk_point_responses,
     ))
 
 # ── Zones ──
 @router.get("/zones", response_model=ApiResponse[list[RiskZoneResponse]])
 async def list_zones(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
-    zones = (await db.execute(select(RiskZone).where(RiskZone.enterprise_id==enterprise_id).order_by(RiskZone.sort_order))).scalars().all()
-    out = []; 
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id)
+        .options(
+            selectinload(RiskZone.objects).selectinload(RiskObject.events),
+            selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events),
+        ).order_by(RiskZone.sort_order)
+    )).scalars().all()
+    out = []
     for z in zones:
-        cnt = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.zone_id==z.id))).scalar() or 0
-        r = RiskZoneResponse.model_validate(z); r.object_count = cnt; out.append(r)
+        r = RiskZoneResponse.model_validate(z)
+        r.object_count = len(z.objects or [])
+        r.max_risk_level, r.effective_color, r.inherent_max_level, r.inherent_effective_color = _zone_dual_levels(z)
+        out.append(r)
     return ApiResponse(data=out)
 
 @router.post("/zones", response_model=ApiResponse[RiskZoneResponse], status_code=201)
@@ -741,8 +815,12 @@ async def create_event(unit_id: str, body: RiskEventCreate, enterprise_id: str, 
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
-    rating = compute_risk(body.method_type, body.method_params, config)
-    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
+    current_level, current_score = _resolve_current_level(body, config)
+    try:
+        validate_dual_level(current_level, body.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    ev = RiskEvent(unit_id=unit_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=current_level, risk_score=current_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -761,8 +839,12 @@ async def create_object_event(object_id: str, body: RiskEventCreate, enterprise_
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     config = await get_active_method_config(db, enterprise_id, body.method_type)
-    rating = compute_risk(body.method_type, body.method_params, config)
-    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=rating.risk_level, risk_score=rating.risk_score)
+    current_level, current_score = _resolve_current_level(body, config)
+    try:
+        validate_dual_level(current_level, body.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    ev = RiskEvent(object_id=object_id, accident_type=body.accident_type, description=body.description or "", trigger_conditions=body.trigger_conditions or "", consequences=body.consequences or "", method_type=body.method_type, method_params=body.method_params, chemical_id=body.chemical_id, risk_level=current_level, risk_score=current_score, inherent_risk_level=body.inherent_risk_level, inherent_risk_score=body.inherent_risk_score, control_level=body.control_level)
     db.add(ev)
     await db.commit()
     await db.refresh(ev)
@@ -781,10 +863,17 @@ async def update_event(event_id: str, body: RiskEventUpdate, enterprise_id: str,
         if not chem:
             raise HTTPException(404, "关联的危化品不存在或不属于该企业")
     for k, v in body.model_dump(exclude_unset=True).items(): setattr(ev, k, v)
-    if body.method_type or body.method_params:
+    # 重算守卫：仅当显式提供了 method_type/method_params（参数变更）才重算；
+    # 两者都未提供（未改动保存）时不重算，避免空参数覆盖已存等级
+    if body.risk_level is None and (body.method_type is not None or body.method_params is not None):
         config = await get_active_method_config(db, enterprise_id, ev.method_type)
         rating = compute_risk(ev.method_type, ev.method_params, config)
         ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score
+    # 无条件校验双等级约束：仅改固有等级（不重算）时也要拦截
+    try:
+        validate_dual_level(ev.risk_level, ev.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     await db.commit(); await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))
 
@@ -804,9 +893,78 @@ async def recalc_event(event_id: str, enterprise_id: str, current_user=Depends(g
     if not ev: raise HTTPException(404, "事件不存在")
     config = await get_active_method_config(db, enterprise_id, ev.method_type)
     rating = compute_risk(ev.method_type, ev.method_params, config)
+    try:
+        validate_dual_level(rating.risk_level, ev.inherent_risk_level)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     ev.risk_level = rating.risk_level; ev.risk_score = rating.risk_score
     await db.commit(); await db.refresh(ev)
     return ApiResponse(data=RiskEventResponse.model_validate(ev))
+
+async def _event_owned_by_enterprise(db: AsyncSession, event, enterprise_id: str) -> bool:
+    """事件归属校验：事件经 object_id 或 unit_id 链归属对象，须属于当前企业。"""
+    owned_object = None
+    if event.object_id:
+        owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == event.object_id))).scalar_one_or_none()
+    elif event.unit_id:
+        unit = (await db.execute(select(RiskUnit).where(RiskUnit.id == event.unit_id))).scalar_one_or_none()
+        if unit:
+            owned_object = (await db.execute(select(RiskObject).where(RiskObject.id == unit.object_id))).scalar_one_or_none()
+    return bool(owned_object and owned_object.enterprise_id == enterprise_id)
+
+@router.get("/events/{event_id}/conversion-reference", response_model=ApiResponse[dict])
+async def event_conversion_reference(enterprise_id: str, event_id: str,
+                                     current_user=Depends(get_current_user), db=Depends(get_db)):
+    """按固有分值 × 管控措施综合系数给出现有风险参考等级/分值（自动折算参考）。"""
+    await _get_ent(enterprise_id, current_user.id, db)
+    event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
+    if not event:
+        raise HTTPException(404, "风险事件不存在")
+    if not await _event_owned_by_enterprise(db, event, enterprise_id):
+        raise HTTPException(404, "风险事件不存在")
+    from app.services.data_dict_service import get_dict_map
+    from app.services.risk_conversion_service import conversion_reference
+    factors = await get_dict_map(db, enterprise_id, "measure_factors")
+    factor_map: dict[str, float] = {}
+    for code, entry in factors.items():
+        if code == "mode":
+            continue
+        value = entry.get("value") if isinstance(entry, dict) else None
+        factor = value.get("factor") if isinstance(value, dict) else None
+        if isinstance(factor, (int, float)):
+            factor_map[code] = float(factor)
+    mode_entry = factors.get("mode")
+    mode_value = mode_entry.get("value") if isinstance(mode_entry, dict) else None
+    mode = mode_value.get("mode", "min") if isinstance(mode_value, dict) else "min"
+    config = await get_active_method_config(db, enterprise_id, event.method_type)
+    thresholds = (config or {}).get("risk_thresholds", [])
+    if event.method_type == "COAL_LS" and not thresholds:
+        thresholds = COAL_LS_DEFAULT_THRESHOLDS
+    result = conversion_reference(event.inherent_risk_score or "", factor_map, mode, thresholds, event.method_type)
+    return ApiResponse(data=result)
+
+
+@router.post("/events/{event_id}/ai-dual-level-suggestion", response_model=ApiResponse[dict])
+async def ai_dual_level_suggestion(enterprise_id: str, event_id: str,
+                                   current_user=Depends(get_current_user), db=Depends(get_db)):
+    """AI 双等级参数建议（文本通道）：按事件描述+管控措施文本给固有/现有参数与等级。
+
+    AI 失败/超时/未配置由服务兜底为 available:false，不阻塞表单操作。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    event = (await db.execute(select(RiskEvent).where(RiskEvent.id == event_id))).scalar_one_or_none()
+    if not event:
+        raise HTTPException(404, "风险事件不存在")
+    if not await _event_owned_by_enterprise(db, event, enterprise_id):
+        raise HTTPException(404, "风险事件不存在")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        # 系统未配置 AI 模型 → 由服务兜底返回 available:false
+        ai_config = None
+    measures_text = "；".join(f"{m.measure_category}:{m.description}" for m in (event.measures or []))
+    result = await suggest_dual_level(event.description or event.accident_type, measures_text, ai_config)
+    return ApiResponse(data=result)
 
 # ── Measures ──
 @router.get("/events/{event_id}/measures", response_model=ApiResponse[list[RiskMeasureResponse]])
@@ -882,6 +1040,12 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
         )).scalars().all()
         zones = sort_zones_by_floor(zones, floor_order)
     floors_by_id = {f.id: f for f in floors}
+    object_ids = [
+        obj.id
+        for z in zones
+        for obj in (z.objects or [])
+    ]
+    counts = await open_hazard_count_by_objects(db, enterprise_id, object_ids)
     out = []
     for z in zones:
         resp = HierarchyZoneResponse.model_validate(z)
@@ -889,10 +1053,159 @@ async def get_hierarchy(enterprise_id: str, floor_id: str | None = Query(None), 
         resp.floor_name = f.name if f else None
         normalized = normalize_polygon(z.floor_plan_polygon, z.name)
         resp.floor_plan_polygon = RiskZoneFloorPlanPolygon.model_validate(normalized) if normalized else None
-        resp.max_risk_level = max_risk_level(z)
-        resp.effective_color = effective_color(resp.floor_plan_polygon, resp.max_risk_level)
+        resp.max_risk_level, resp.effective_color, resp.inherent_max_level, resp.inherent_effective_color = _zone_dual_levels(z)
+        _apply_open_hazard_counts(resp, counts)
         out.append(resp)
     return ApiResponse(data=out)
+
+# ── Control list & publicity ──
+async def _control_level_mapping(db: AsyncSession, enterprise_id: str) -> dict[str, str]:
+    """从数据字典 control_level_map 构建 {现有风险等级: 默认管控层级}。
+
+    字典条目 value 形如 {"level": "重大", "control_level": "企业"}，按 level 为键。
+    """
+    entries = await get_dict_map(db, enterprise_id, "control_level_map")
+    return {
+        entry["value"].get("level"): entry["value"].get("control_level")
+        for entry in entries.values()
+        if isinstance(entry.get("value"), dict)
+    }
+
+
+def _strip_internal_keys(rows: list[dict], keep: tuple[str, ...] = ()) -> list[dict]:
+    """去掉 zone_id/object_id 等内部筛选键，仅返回展示字段；keep 可保留内部键
+    （如公示 items 需要 object_id 组装告知卡入口链接）。"""
+    drop = {"zone_id", "object_id"} - set(keep)
+    return [{k: v for k, v in r.items() if k not in drop} for r in rows]
+
+
+def _apply_control_list_filters(rows: list[dict], zone_id: str | None, level: str | None,
+                                control_level: str | None, keyword: str | None) -> list[dict]:
+    """按分区/等级/管控层级/关键词过滤清单行；control-list 与 export 共用，行为一致。"""
+    if zone_id:
+        rows = [r for r in rows if r["zone_id"] == zone_id]
+    if level:
+        rows = [r for r in rows if r["current"] == level or r["inherent"] == level]
+    if control_level:
+        rows = [r for r in rows if r["control_level"] == control_level]
+    if keyword:
+        rows = [r for r in rows if keyword in r["object"] or keyword in r["zone"]]
+    return rows
+
+
+@router.get("/control-list", response_model=ApiResponse[dict])
+async def control_list(
+    enterprise_id: str,
+    floor_id: str | None = Query(None),
+    zone_id: str | None = Query(None),
+    level: str | None = Query(None),
+    control_level: str | None = Query(None),
+    keyword: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=200),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    await _get_ent(enterprise_id, current_user.id, db)
+    resolved_floor_id = await _resolve_zone_floor(db, enterprise_id, floor_id)
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*ZONE_TREE_OPTIONS)
+    )).scalars().all()
+    mapping = await _control_level_mapping(db, enterprise_id)
+    rows = flatten_rows(zones, mapping)
+    counts = await open_hazard_count_by_objects(
+        db,
+        enterprise_id,
+        list({r["object_id"] for r in rows}),
+    )
+    for r in rows:
+        r["open_hazard_count"] = counts.get(r["object_id"], 0)
+    rows = _apply_control_list_filters(rows, zone_id, level, control_level, keyword)
+    total = len(rows)
+    start = (page - 1) * size
+    return ApiResponse(data={"items": _strip_internal_keys(rows[start:start + size]), "total": total})
+
+
+@router.get("/control-list/export")
+async def control_list_export(
+    enterprise_id: str,
+    floor_id: str | None = Query(None),
+    zone_id: str | None = Query(None),
+    level: str | None = Query(None),
+    control_level: str | None = Query(None),
+    keyword: str | None = Query(None),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    await _get_ent(enterprise_id, current_user.id, db)
+    resolved_floor_id = await _resolve_zone_floor(db, enterprise_id, floor_id)
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.floor_id == resolved_floor_id).options(*ZONE_TREE_OPTIONS)
+    )).scalars().all()
+    mapping = await _control_level_mapping(db, enterprise_id)
+    rows = flatten_rows(zones, mapping)
+    rows = _apply_control_list_filters(rows, zone_id, level, control_level, keyword)
+    buf = BytesIO()
+    build_ledger_workbook(rows).save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=risk_control_list.xlsx"},
+    )
+
+
+@router.get("/risk-publicity", response_model=ApiResponse[dict])
+async def get_risk_publicity(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    if not ent.public_risk_token:
+        ent.public_risk_token = secrets.token_hex(32)
+        await db.commit()
+    zones = (await db.execute(
+        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id)
+        .options(selectinload(RiskZone.floor), *ZONE_TREE_OPTIONS)
+    )).scalars().all()
+    mapping = await _control_level_mapping(db, enterprise_id)
+    rows = [r for r in flatten_rows(zones, mapping)
+            if is_major_publicity_row(r)]
+    zones_data = []
+    for z in zones:
+        cur, cur_color, inh, inh_color = _zone_dual_levels(z)
+        zones_data.append({
+            "id": z.id,
+            "floor_id": z.floor_id,
+            "floor_name": z.floor.name if z.floor else None,
+            "name": z.name,
+            "floor_plan_polygon": z.floor_plan_polygon,
+            "max_level": cur,
+            "effective_color": cur_color,
+            "inherent_max_level": inh,
+            "inherent_effective_color": inh_color,
+        })
+    return ApiResponse(data={
+        "token": ent.public_risk_token,
+        "enterprise_name": ent.name,
+        "items": _strip_internal_keys(rows, keep=("object_id",)),
+        "zones": zones_data,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+@router.post("/risk-publicity/token", response_model=ApiResponse[dict])
+async def reset_risk_publicity_token(
+    enterprise_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    ent.public_risk_token = secrets.token_hex(32)
+    await db.commit()
+    return ApiResponse(data={"token": ent.public_risk_token})
+
 
 # ── AI endpoints ──
 @router.post("/ai/suggest-objects")

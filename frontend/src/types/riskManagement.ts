@@ -69,6 +69,8 @@ export interface RiskObject {
   created_at: string;
   updated_at: string;
   unit_count: number;
+  /** 该风险点未闭环隐患派生计数（闭环后归零；非风险源表字段） */
+  open_hazard_count?: number;
 }
 export interface RiskObjectCreate {
   zone_id?: string;
@@ -102,6 +104,9 @@ export interface RiskEvent {
   method_params: Record<string, number>;
   risk_level: string | null;
   risk_score: string | null;
+  inherent_risk_level: string | null;
+  inherent_risk_score: string | null;
+  control_level: string | null;
   sort_order: number;
   created_at: string;
   measure_count: number;
@@ -116,6 +121,27 @@ export interface RiskEventCreate {
   consequences?: string;
   method_type?: MethodType;
   method_params?: Record<string, number>;
+  risk_level?: string | null;
+  risk_score?: string | null;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
+}
+
+export interface RiskEventFormValues {
+  accident_type: string | string[];
+  description?: string;
+  trigger_conditions?: string;
+  consequences?: string;
+  method_type?: MethodType;
+  method_params?: Record<string, number>;
+  risk_level?: string | null;
+  risk_score?: string | null;
+  inherent_params?: Record<string, number>;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
+  chemical_id?: string | null;
 }
 
 export interface RiskMeasure { id: string; event_id: string; measure_category: MeasureCategory; measure_type: string | null; description: string; responsible_person: string | null; deadline: string | null; check_items: CheckItem[]; status: MeasureStatus; sort_order: number; created_at: string; }
@@ -128,6 +154,9 @@ export interface HierarchyEvent
     'id'|'accident_type'|'description'|'risk_level'|'risk_score'|'method_type'|'chemical_id'
   > {
   method_params: Record<string, number>;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
   measures: HierarchyMeasure[];
 }
 export interface HierarchyUnit extends Pick<RiskUnit, 'id'|'name'|'unit_type'> { events: HierarchyEvent[]; }
@@ -141,6 +170,7 @@ export interface HierarchyObject {
   location_y?: number | null;
   units: HierarchyUnit[];
   events: HierarchyEvent[];
+  open_hazard_count?: number;
 }
 export interface HierarchyZone {
   id: string;
@@ -151,6 +181,9 @@ export interface HierarchyZone {
   floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
   max_risk_level?: string | null;
   effective_color?: string | null;
+  inherent_max_level?: string | null;
+  inherent_effective_color?: string | null;
+  open_hazard_count?: number;
   objects: HierarchyObject[];
 }
 

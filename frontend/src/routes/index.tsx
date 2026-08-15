@@ -23,6 +23,7 @@ import UserManagePage from "@/pages/Settings/UserManagePage";
 import RoleManagePage from "@/pages/Settings/RoleManagePage";
 import SystemConfigPage from "@/pages/Settings/SystemConfigPage";
 import RegulationManagePage from "@/pages/Settings/RegulationManagePage";
+import DataDictManagePage from "@/pages/Settings/DataDictManagePage";
 import RiskAssessmentPreview from "@/pages/Enterprise/RiskAssessmentPreview";
 import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigationPreview";
 import RiskOverviewPage from "@/pages/Enterprise/RiskOverviewPage";
@@ -31,10 +32,24 @@ import RiskMethodEditorPage from "@/pages/Enterprise/RiskMethodEditorPage";
 import RiskMappingWorkbenchPage from "@/pages/Enterprise/RiskMappingWorkbenchPage";
 import RiskNoticeCardPage from "@/pages/Enterprise/RiskNoticeCardPage";
 import RiskNoticeCardPreviewPage from "@/pages/Enterprise/RiskNoticeCardPreviewPage";
+import RiskControlListPage from "@/pages/Enterprise/RiskControlListPage";
+import RiskPublicityPage from "@/pages/Enterprise/RiskPublicityPage";
+import EnterpriseDictConfigPage from "@/pages/Enterprise/EnterpriseDictConfigPage";
+import EnterpriseOrgPage from "@/pages/Enterprise/EnterpriseOrgPage";
 import PublicRiskNoticePage from "@/pages/PublicRiskNoticePage";
+import PublicRiskPage from "@/pages/PublicRiskPage";
+import HazardPlanPage from "@/pages/Hazard/HazardPlanPage";
+import HazardTaskPage from "@/pages/Hazard/HazardTaskPage";
+import HazardRecordDetailPage from "@/pages/Hazard/HazardRecordDetailPage";
+import HazardDashboardPage from "@/pages/Hazard/HazardDashboardPage";
+import HazardTemplatePage from "@/pages/Hazard/HazardTemplatePage";
+import HazardPublicityPage from "@/pages/Hazard/HazardPublicityPage";
+import PublicHazardReportPage from "@/pages/Hazard/PublicHazardReportPage";
+import PublicHazardPage from "@/pages/Hazard/PublicHazardPage";
 import ChatPage from "@/pages/Chat";
 import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
 
+// eslint-disable-next-line react-refresh/only-export-components -- 本文件同时导出 createRouter 工厂，属既有结构
 function MobileRedirect() {
   window.location.replace(window.location.pathname + window.location.search);
   return null;
@@ -57,6 +72,16 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-mapping-workbench", element: <RiskMappingWorkbenchPage /> },
   { path: "/enterprises/:id/risk-notice-cards", element: <RiskNoticeCardPage /> },
   { path: "/enterprises/:id/risk-notice-cards/:objectId", element: <RiskNoticeCardPreviewPage /> },
+  { path: "/enterprises/:id/risk-control-list", element: <RiskControlListPage /> },
+  { path: "/enterprises/:id/risk-publicity", element: <RiskPublicityPage /> },
+  { path: "/enterprises/:id/org", element: <EnterpriseOrgPage /> },
+  // 隐患模块路由组（任务 14-16 已全部替换为真实页面）
+  { path: "/enterprises/:id/hazard/plans", element: <HazardPlanPage /> },
+  { path: "/enterprises/:id/hazard/tasks", element: <HazardTaskPage /> },
+  { path: "/enterprises/:id/hazard/records/:rid", element: <HazardRecordDetailPage /> },
+  { path: "/enterprises/:id/hazard/templates", element: <HazardTemplatePage /> },
+  { path: "/enterprises/:id/hazard/dashboard", element: <HazardDashboardPage /> },
+  { path: "/enterprises/:id/hazard/publicity", element: <HazardPublicityPage /> },
   { path: "/plans", element: <PlanCardsPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
   { path: "/plans/new", element: <PlanCreatePage /> },
@@ -70,6 +95,8 @@ const contentRoutes = [
   { path: "/settings/system", element: <SystemConfigPage /> },
   { path: "/settings/prompts", element: <PromptManagePage /> },
   { path: "/settings/regulations", element: <RegulationManagePage /> },
+  { path: "/settings/data-dicts", element: <DataDictManagePage /> },
+  { path: "/enterprises/:id/data-dicts", element: <EnterpriseDictConfigPage /> },
 ];
 
 export function createRouter() {
@@ -91,6 +118,10 @@ export function createRouter() {
     },
     // 公开只读页：无登录守卫（token 无效由后端返回 404）
     { path: "/r/:token", element: <PublicRiskNoticePage /> },
+    { path: "/p/risk/:token", element: <PublicRiskPage /> },
+    // 隐患公开页（§15：公开公示 /h/:token、扫码上报 /h/report/:token，均免登录）
+    { path: "/h/report/:token", element: <PublicHazardReportPage /> },
+    { path: "/h/:token", element: <PublicHazardPage /> },
     { path: "/m/*", element: <MobileRedirect /> },
     { path: "*", element: <Navigate to="/dashboard" replace /> },
   ], { basename: APP_BASE || undefined });

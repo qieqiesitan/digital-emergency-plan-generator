@@ -6,6 +6,7 @@ import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 interface Props {
   zones: HierarchyZone[];
   onEventFilter: (ids: string[]) => void;
+  mode?: "current" | "inherent";
 }
 
 interface CellData {
@@ -27,7 +28,7 @@ function isCellActive(activeCell: CellData | null, cell: CellData): boolean {
   return activeCell.l === cell.l && activeCell.s === cell.s;
 }
 
-export default function RiskOverviewMatrix({ zones, onEventFilter }: Props) {
+export default function RiskOverviewMatrix({ zones, onEventFilter, mode = "current" }: Props) {
   const grid = useMemo(() => {
     const cellMap = new Map<string, CellData>();
 
@@ -44,7 +45,9 @@ export default function RiskOverviewMatrix({ zones, onEventFilter }: Props) {
         cellMap.get(key)!.events.push({
           id: ev.id,
           name: ev.accident_type,
-          riskLevel: ev.risk_level || resolveRiskLevel(l * s),
+          riskLevel:
+            (mode === "inherent" ? (ev.inherent_risk_level ?? ev.risk_level) : ev.risk_level) ||
+            resolveRiskLevel(l * s),
         });
       }
     }
@@ -75,7 +78,7 @@ export default function RiskOverviewMatrix({ zones, onEventFilter }: Props) {
       rows.push(row);
     }
     return rows;
-  }, [zones]);
+  }, [zones, mode]);
 
   const [activeCell, setActiveCell] = useState<CellData | null>(null);
 

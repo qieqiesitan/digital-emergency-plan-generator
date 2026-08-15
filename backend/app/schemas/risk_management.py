@@ -4,6 +4,21 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.common import DatetimeStr
 
+RISK_LEVEL_SET = {"重大", "较大", "一般", "低"}
+CONTROL_LEVEL_SET = {"企业", "部门", "班组", "岗位"}
+
+
+def _validate_risk_level(value: str | None) -> str | None:
+    if value is not None and value not in RISK_LEVEL_SET:
+        raise ValueError("风险等级必须是 重大/较大/一般/低")
+    return value
+
+
+def _validate_control_level(value: str | None) -> str | None:
+    if value is not None and value not in CONTROL_LEVEL_SET:
+        raise ValueError("管控层级必须是 企业/部门/班组/岗位")
+    return value
+
 class MethodCreate(BaseModel): method_type: str; name: str; description: str = ""; config: dict = {}
 class MethodUpdate(BaseModel): name: str | None = None; description: str | None = None; config: dict | None = None; is_active: bool | None = None
 class MethodResponse(BaseModel): id: str; enterprise_id: str | None; method_type: str; name: str; description: str = ""; config: dict; is_active: bool; is_system: bool; created_at: DatetimeStr; model_config = {"from_attributes": True}
@@ -63,7 +78,7 @@ class RiskCanvasText(BaseModel): id: str; content: str; x: float; y: float; font
 
 class RiskZoneCreate(BaseModel): floor_id: str | None = None; name: str; description: str | None = None; sort_order: int = 0; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None
 class RiskZoneUpdate(BaseModel): floor_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None
-class RiskZoneResponse(BaseModel): id: str; enterprise_id: str; floor_id: str | None; floor_name: str | None = None; name: str; description: str | None; sort_order: int; floor_plan_polygon: RiskZoneFloorPlanPolygon | None; max_risk_level: str | None = None; effective_color: str | None = None; object_count: int = 0; created_at: DatetimeStr; updated_at: DatetimeStr; model_config = {"from_attributes": True}
+class RiskZoneResponse(BaseModel): id: str; enterprise_id: str; floor_id: str | None; floor_name: str | None = None; name: str; description: str | None; sort_order: int; floor_plan_polygon: RiskZoneFloorPlanPolygon | None; max_risk_level: str | None = None; effective_color: str | None = None; inherent_max_level: str | None = None; inherent_effective_color: str | None = None; object_count: int = 0; created_at: DatetimeStr; updated_at: DatetimeStr; model_config = {"from_attributes": True}
 
 class RiskObjectCreate(BaseModel):
     zone_id: str | None = None
@@ -108,7 +123,7 @@ class RiskObjectUpdate(BaseModel):
         if self.is_risk_point is True and (not self.zone_id or self.location_x is None or self.location_y is None):
             raise ValueError("风险点必须绑定分区和坐标")
         return self
-class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; floor_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; responsible_unit: str | None; responsible_person: str | None; contact_phone: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; updated_at: DatetimeStr; unit_count: int = 0; model_config = {"from_attributes": True}
+class RiskObjectResponse(BaseModel): id: str; enterprise_id: str; zone_id: str | None; floor_id: str | None; name: str; category: str | None; location: str | None; location_x: float | None; location_y: float | None; description: str | None; image_url: str | None; responsible_unit: str | None; responsible_person: str | None; contact_phone: str | None; is_risk_point: bool; sort_order: int; created_at: DatetimeStr; updated_at: DatetimeStr; unit_count: int = 0; open_hazard_count: int = 0; model_config = {"from_attributes": True}
 
 class BatchSaveZoneItem(BaseModel): client_id: str | None = None; zone_id: str | None = None; name: str | None = None; description: str | None = None; sort_order: int = 0; updated_at: DatetimeStr | None = None; floor_plan_polygon: RiskZoneFloorPlanPolygon
 class BatchSaveRiskPointItem(BaseModel):
@@ -136,7 +151,9 @@ class BatchSaveRiskPointItem(BaseModel):
 class BatchSaveRequest(BaseModel): floor_id: str; floor_updated_at: DatetimeStr; zones: list[BatchSaveZoneItem]; risk_points: list[BatchSaveRiskPointItem] = []; deleted_risk_point_ids: list[str] = []; deleted_zone_ids: list[str] = []; confirm_cascade_zone_ids: list[str] = []; texts: list[RiskCanvasText] = []
 class BatchSaveResponse(BaseModel): floor: FloorResponse; zones: list[RiskZoneResponse]; risk_points: list[RiskObjectResponse]; texts: list[RiskCanvasText]; created_zone_map: dict[str, str] = {}; created_risk_point_map: dict[str, str] = {}
 
-class WorkbenchZone(RiskZoneResponse): objects: list[RiskObjectResponse] = []
+class WorkbenchZone(RiskZoneResponse):
+    objects: list[RiskObjectResponse] = []
+    open_hazard_count: int = 0
 class WorkbenchResponse(BaseModel): floors: list[FloorResponse]; current_floor_id: str; zones: list[WorkbenchZone]; risk_points: list[RiskObjectResponse]; texts: list[RiskCanvasText]
 class OverviewResponse(BaseModel): floor: FloorResponse; zones: list[WorkbenchZone]; risk_points: list[RiskObjectResponse]
 
@@ -144,9 +161,58 @@ class RiskUnitCreate(BaseModel): object_id: str | None = None; name: str; unit_t
 class RiskUnitUpdate(BaseModel): name: str | None = None; unit_type: str | None = None; description: str | None = None; location: str | None = None; sort_order: int | None = None
 class RiskUnitResponse(BaseModel): id: str; object_id: str; name: str; unit_type: str | None; description: str | None; location: str | None; sort_order: int; created_at: DatetimeStr; event_count: int = 0; model_config = {"from_attributes": True}
 
-class RiskEventCreate(BaseModel): unit_id: str | None = None; object_id: str | None = None; accident_type: str; description: str | None = None; trigger_conditions: str | None = None; consequences: str | None = None; method_type: str = "LS"; method_params: dict = {}; chemical_id: str | None = None
-class RiskEventUpdate(BaseModel): accident_type: str | None = None; description: str | None = None; trigger_conditions: str | None = None; consequences: str | None = None; method_type: str | None = None; method_params: dict | None = None; chemical_id: str | None = None
-class RiskEventResponse(BaseModel): id: str; unit_id: str | None; object_id: str | None; chemical_id: str | None = None; accident_type: str; description: str | None; trigger_conditions: str | None; consequences: str | None; method_type: str; method_params: dict; risk_level: str | None; risk_score: str | None; sort_order: int; created_at: DatetimeStr; measure_count: int = 0; model_config = {"from_attributes": True}
+class RiskEventCreate(BaseModel):
+    unit_id: str | None = None
+    object_id: str | None = None
+    accident_type: str
+    description: str | None = None
+    trigger_conditions: str | None = None
+    consequences: str | None = None
+    method_type: str = "LS"
+    method_params: dict = {}
+    chemical_id: str | None = None
+    risk_level: str | None = None
+    risk_score: str | None = None
+    inherent_risk_level: str | None = None
+    inherent_risk_score: str | None = None
+    control_level: str | None = None
+
+    @field_validator("risk_level", "inherent_risk_level")
+    @classmethod
+    def check_risk_level(cls, v: str | None) -> str | None:
+        return _validate_risk_level(v)
+
+    @field_validator("control_level")
+    @classmethod
+    def check_control_level(cls, v: str | None) -> str | None:
+        return _validate_control_level(v)
+
+
+class RiskEventUpdate(BaseModel):
+    accident_type: str | None = None
+    description: str | None = None
+    trigger_conditions: str | None = None
+    consequences: str | None = None
+    method_type: str | None = None
+    method_params: dict | None = None
+    chemical_id: str | None = None
+    risk_level: str | None = None
+    risk_score: str | None = None
+    inherent_risk_level: str | None = None
+    inherent_risk_score: str | None = None
+    control_level: str | None = None
+
+    @field_validator("risk_level", "inherent_risk_level")
+    @classmethod
+    def check_risk_level(cls, v: str | None) -> str | None:
+        return _validate_risk_level(v)
+
+    @field_validator("control_level")
+    @classmethod
+    def check_control_level(cls, v: str | None) -> str | None:
+        return _validate_control_level(v)
+
+class RiskEventResponse(BaseModel): id: str; unit_id: str | None; object_id: str | None; chemical_id: str | None = None; accident_type: str; description: str | None; trigger_conditions: str | None; consequences: str | None; method_type: str; method_params: dict; risk_level: str | None; risk_score: str | None; inherent_risk_level: str | None = None; inherent_risk_score: str | None = None; control_level: str | None = None; sort_order: int; created_at: DatetimeStr; measure_count: int = 0; model_config = {"from_attributes": True}
 
 class RiskMeasureCreate(BaseModel): event_id: str | None = None; measure_category: str; measure_type: str | None = None; description: str; responsible_person: str | None = None; deadline: date | None = None; check_items: list[dict] = []; sort_order: int = 0
 class RiskMeasureUpdate(BaseModel): measure_category: str | None = None; measure_type: str | None = None; description: str | None = None; responsible_person: str | None = None; deadline: date | None = None; check_items: list[dict] | None = None; status: str | None = None; sort_order: int | None = None
@@ -162,11 +228,14 @@ class HierarchyEventResponse(BaseModel):
     method_type: str
     method_params: dict
     chemical_id: str | None = None
+    inherent_risk_level: str | None = None
+    inherent_risk_score: str | None = None
+    control_level: str | None = None
     measures: list[HierarchyMeasureResponse] = []
     model_config = {"from_attributes": True}
 class HierarchyUnitResponse(BaseModel): id: str; name: str; unit_type: str | None; description: str | None; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
-class HierarchyObjectResponse(BaseModel): id: str; name: str; category: str | None; is_risk_point: bool; floor_id: str | None = None; location_x: float | None = None; location_y: float | None = None; units: list[HierarchyUnitResponse] = []; events: list[HierarchyEventResponse] = []; model_config = {"from_attributes": True}
-class HierarchyZoneResponse(BaseModel): id: str; floor_id: str | None = None; floor_name: str | None = None; name: str; description: str | None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None; max_risk_level: str | None = None; effective_color: str | None = None; objects: list[HierarchyObjectResponse] = []; model_config = {"from_attributes": True}
+class HierarchyObjectResponse(BaseModel): id: str; name: str; category: str | None; is_risk_point: bool; floor_id: str | None = None; location_x: float | None = None; location_y: float | None = None; units: list[HierarchyUnitResponse] = []; events: list[HierarchyEventResponse] = []; open_hazard_count: int = 0; model_config = {"from_attributes": True}
+class HierarchyZoneResponse(BaseModel): id: str; floor_id: str | None = None; floor_name: str | None = None; name: str; description: str | None; floor_plan_polygon: RiskZoneFloorPlanPolygon | None = None; max_risk_level: str | None = None; effective_color: str | None = None; inherent_max_level: str | None = None; inherent_effective_color: str | None = None; objects: list[HierarchyObjectResponse] = []; open_hazard_count: int = 0; model_config = {"from_attributes": True}
 
 class MigrationPreviewItem(BaseModel):
     source_id: str
@@ -259,8 +328,8 @@ class SmartGuideZone(BaseModel):
 
 class SmartGuideRequest(BaseModel): description: str
 class SmartGuideResponse(BaseModel): hierarchy: list[SmartGuideZone]; summary: dict = {}
-class MethodPreviewRequest(BaseModel): method_id: str; params: dict
-class MethodPreviewResponse(BaseModel): risk_level: str; risk_score: str; action: str; deadline: str
+class MethodPreviewRequest(BaseModel): method_id: str; params: dict; scenario: str = "current"
+class MethodPreviewResponse(BaseModel): risk_level: str; risk_score: str; action: str; deadline: str; scenario: str = "current"
 
 
 class FourColorDraftPolygon(BaseModel):

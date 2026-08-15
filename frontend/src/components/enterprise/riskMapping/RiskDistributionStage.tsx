@@ -5,6 +5,7 @@ import { Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getRiskMappingOverview } from "@/services/riskManagementService";
 import { pointsToKonva, toCanvasX, toCanvasY } from "@/utils/riskMappingGeometry";
+import type { WorkbenchZone } from "@/types/riskMappingWorkbench";
 
 const DEFAULT_WIDTH = 1200;
 const DEFAULT_HEIGHT = 900;
@@ -13,10 +14,12 @@ export default function RiskDistributionStage({
   floorId,
   highlightZone,
   onZoneClick,
+  mode = "current",
 }: {
   floorId?: string;
   highlightZone?: string | null;
   onZoneClick?: (zoneId: string) => void;
+  mode?: "current" | "inherent";
 }) {
   const { id: enterpriseId } = useParams<{ id: string }>();
   const { data, isLoading } = useQuery({
@@ -27,7 +30,6 @@ export default function RiskDistributionStage({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
-  const [contentBounds, setContentBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const floor = data?.floors[0];
   const floorPlanUrl = floor?.floor_plan_url ?? null;
 
@@ -58,8 +60,8 @@ export default function RiskDistributionStage({
   const width = floor?.canvas_width || imageSize?.width || DEFAULT_WIDTH;
   const height = floor?.canvas_height || imageSize?.height || DEFAULT_HEIGHT;
 
-  useEffect(() => {
-    if (!data) return;
+  const contentBounds = useMemo(() => {
+    if (!data) return null;
     const rawPoints: Array<[number, number]> = [];
     for (const zone of data.zones) {
       for (const polygon of zone.floor_plan_polygon?.polygons || []) {
@@ -71,8 +73,7 @@ export default function RiskDistributionStage({
     }
     for (const t of data.texts) rawPoints.push([t.x, t.y]);
     if (!rawPoints.length) {
-      setContentBounds({ x: 0, y: 0, width, height });
-      return;
+      return { x: 0, y: 0, width, height };
     }
     const xs = rawPoints.map(p => p[0]);
     const ys = rawPoints.map(p => p[1]);
@@ -80,13 +81,13 @@ export default function RiskDistributionStage({
     const minY = Math.max(0, Math.min(...ys));
     const maxX = Math.min(100, Math.max(...xs));
     const maxY = Math.min(100, Math.max(...ys));
-    setContentBounds({
+    return {
       x: toCanvasX(minX, width),
       y: toCanvasY(minY, height),
       width: Math.max(toCanvasX(maxX, width) - toCanvasX(minX, width), 1),
       height: Math.max(toCanvasY(maxY, height) - toCanvasY(minY, height), 1),
-    });
-  }, [data, width, height, imageSize]);
+    };
+  }, [data, width, height]);
 
   const viewTransform = useMemo(() => {
     if (!containerSize.width || !containerSize.height || !contentBounds) {
@@ -104,6 +105,8 @@ export default function RiskDistributionStage({
 
   if (isLoading) return <Spin style={{ display: "block", margin: "60px auto" }} />;
   if (!data) return null;
+  const zoneColor = (z: WorkbenchZone) =>
+    mode === "inherent" ? (z.inherent_effective_color ?? z.effective_color) : z.effective_color;
 
   return (
     <div
@@ -131,9 +134,9 @@ export default function RiskDistributionStage({
                   key={p.id}
                   points={pointsToKonva(p.points, width, height)}
                   closed
-                  fill={z.effective_color || "#d9d9d9"}
+                  fill={zoneColor(z) || "#d9d9d9"}
                   opacity={isHighlighted ? 0.6 : 0.35}
-                  stroke={z.effective_color || "#d9d9d9"}
+                  stroke={zoneColor(z) || "#d9d9d9"}
                   strokeWidth={isHighlighted ? 4 : 2}
                   onClick={() => onZoneClick?.(z.id)}
                 />

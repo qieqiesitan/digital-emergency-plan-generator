@@ -1,6 +1,6 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig, SmartGuideZone, MigrationPreviewResponse, MigrationExecutePayload, MigrationExecuteResponse } from "@/types/riskManagement";
+import type { RiskAssessmentMethod, RiskZone, RiskZoneCreate, RiskObject, RiskObjectCreate, RiskUnit, RiskUnitCreate, RiskEvent, RiskEventCreate, RiskMeasure, RiskMeasureCreate, HierarchyZone, MethodConfig, SmartGuideZone, MigrationPreviewResponse, MigrationExecutePayload, MigrationExecuteResponse, RiskZoneFloorPlanPolygon } from "@/types/riskManagement";
 
 const BASE = (eid: string) => `/enterprises/${eid}/risk-management`;
 
@@ -10,7 +10,49 @@ export const createMethod = (eid: string, data: { method_type: string; name: str
 export const updateMethod = (eid: string, mid: string, data: Partial<{ name: string; config: MethodConfig; is_active: boolean }>) => api.put<ApiResponse<RiskAssessmentMethod>>(`${BASE(eid)}/methods/${mid}`, data).then(r => r.data.data);
 export const deleteMethod = (eid: string, mid: string) => api.delete(`${BASE(eid)}/methods/${mid}`);
 export const duplicateMethod = (eid: string, mid: string) => api.post<ApiResponse<RiskAssessmentMethod>>(`${BASE(eid)}/methods/${mid}/duplicate`).then(r => r.data.data);
-export const previewMethod = (eid: string, method_id: string, params: Record<string, number>) => api.post<ApiResponse<{risk_level:string;risk_score:string;action:string}>>(`${BASE(eid)}/methods/preview`, { method_id, params }).then(r => r.data.data);
+export interface RiskMethodPreviewPayload {
+  method_id: string;
+  params: Record<string, number>;
+  scenario?: "inherent" | "current";
+}
+export interface RiskMethodPreviewResult {
+  risk_level: string;
+  risk_score: string;
+  action: string;
+  scenario?: string;
+}
+export interface RiskConversionReference {
+  factor: number;
+  reference_score: number | null;
+  reference_level: string | null;
+  note?: string;
+}
+/** AI 双等级参数建议（文本通道）：固有/现有等级与分值，available=false 时仅含降级 note。
+ *  params 为原始评价参数（LS/COAL_LS: l/s；LEC: l/e/c；DIRECT: risk_level 文案），
+ *  供采用时回填对应参数输入。 */
+export interface AiDualLevelSuggestion {
+  available: boolean;
+  inherent?: {
+    risk_level?: string | null;
+    risk_score?: string | null;
+    params?: Record<string, number | string>;
+  };
+  current?: {
+    risk_level?: string | null;
+    risk_score?: string | null;
+    params?: Record<string, number | string>;
+  };
+  note?: string;
+}
+export const previewRiskMethod = (eid: string, payload: RiskMethodPreviewPayload) =>
+  api.post<ApiResponse<RiskMethodPreviewResult>>(`${BASE(eid)}/methods/preview`, payload).then(r => r.data.data);
+/** 兼容旧签名：previewMethod(eid, method_id, params) */
+export const previewMethod = (eid: string, method_id: string, params: Record<string, number>) =>
+  previewRiskMethod(eid, { method_id, params });
+export const previewRiskConversion = (eid: string, eventId: string) =>
+  api.get<ApiResponse<RiskConversionReference>>(`${BASE(eid)}/events/${eventId}/conversion-reference`).then(r => r.data.data);
+export const getAiDualLevelSuggestion = (eid: string, eventId: string) =>
+  api.post<ApiResponse<AiDualLevelSuggestion>>(`${BASE(eid)}/events/${eventId}/ai-dual-level-suggestion`).then(r => r.data.data);
 
 export const listZones = (eid: string) => api.get<ApiResponse<RiskZone[]>>(`${BASE(eid)}/zones`).then(r => r.data.data);
 export const createZone = (eid: string, data: RiskZoneCreate) => api.post<ApiResponse<RiskZone>>(`${BASE(eid)}/zones`, data).then(r => r.data.data);
@@ -70,3 +112,82 @@ export const getRiskMappingOverview = (eid: string, floorId?: string) =>
       pendingRegions: [],
     };
   });
+
+// ── 风险分级管控清单 & 重大风险公示 ──
+
+export interface ControlListRow {
+  zone: string;
+  object: string;
+  unit: string;
+  location: string;
+  accident: string;
+  inherent: string;
+  current: string;
+  control_level: string;
+  measures: string;
+  unit_name: string;
+  person: string;
+  phone: string;
+  /** 该风险点（对象）未闭环隐患派生计数（闭环后归零） */
+  open_hazard_count?: number;
+  /** 仅公示 items 返回（供告知卡入口链接），清单 items 已脱敏移除 */
+  object_id?: string;
+}
+export interface ControlListResponse {
+  items: ControlListRow[];
+  total: number;
+}
+
+/** 公示页四色图分区数据（后端 risk-publicity zones 字段，含双模式等级与有效色）。 */
+export interface PublicityZone {
+  id: string;
+  floor_id: string | null;
+  floor_name: string | null;
+  name: string;
+  floor_plan_polygon: RiskZoneFloorPlanPolygon | null;
+  max_level: string | null;
+  effective_color: string | null;
+  inherent_max_level: string | null;
+  inherent_effective_color: string | null;
+}
+export interface RiskPublicityResponse {
+  token: string;
+  enterprise_name: string;
+  items: ControlListRow[];
+  zones: PublicityZone[];
+  generated_at: string;
+}
+
+/** 公开脱敏清单行（不含责任人/电话等敏感字段）。 */
+export interface PublicRiskRow {
+  zone: string;
+  object: string;
+  unit: string;
+  location: string;
+  accident: string;
+  inherent: string;
+  current: string;
+  control_level: string;
+  measures: string;
+  unit_name: string;
+}
+export interface PublicRiskResponse {
+  enterprise_name: string;
+  items: PublicRiskRow[];
+  generated_at: string;
+}
+
+export const getControlList = (enterpriseId: string, params: Record<string, unknown>) =>
+  api.get<ApiResponse<ControlListResponse>>(`${BASE(enterpriseId)}/control-list`, { params }).then(r => r.data.data);
+/** 导出需保留响应体供页面构造 blob 下载，与其他服务下载惯例一致保持 AxiosResponse。 */
+export const exportControlList = (enterpriseId: string, params?: Record<string, unknown>) =>
+  api.get<Blob>(`${BASE(enterpriseId)}/control-list/export`, {
+    params,
+    responseType: "blob",
+  });
+export const getRiskPublicity = (enterpriseId: string) =>
+  api.get<ApiResponse<RiskPublicityResponse>>(`${BASE(enterpriseId)}/risk-publicity`).then(r => r.data.data);
+export const resetRiskPublicityToken = (enterpriseId: string) =>
+  api.post<ApiResponse<{ token: string }>>(`${BASE(enterpriseId)}/risk-publicity/token`).then(r => r.data.data);
+export const fetchPublicRisk = (token: string) =>
+  api.get<ApiResponse<PublicRiskResponse>>(`/public/risk/${token}`).then(r => r.data.data);

@@ -85,16 +85,18 @@ def effective_color(polygon: dict | Any | None, max_level: str | None) -> str:
     return LEVEL_COLORS.get(max_level or "未评估", "#d9d9d9")
 
 
-def max_risk_level(zone: RiskZone) -> str:
+def max_risk_level(zone: RiskZone, mode: str = "current") -> str:
     level = "未评估"
     for obj in zone.objects:
         for ev in obj.events:
-            if ev.risk_level and LEVEL_ORDER.get(ev.risk_level, 0) > LEVEL_ORDER.get(level, 0):
-                level = ev.risk_level
+            value = ev.inherent_risk_level if mode == "inherent" else ev.risk_level
+            if value and LEVEL_ORDER.get(value, 0) > LEVEL_ORDER.get(level, 0):
+                level = value
         for unit in obj.units:
             for ev in unit.events:
-                if ev.risk_level and LEVEL_ORDER.get(ev.risk_level, 0) > LEVEL_ORDER.get(level, 0):
-                    level = ev.risk_level
+                value = ev.inherent_risk_level if mode == "inherent" else ev.risk_level
+                if value and LEVEL_ORDER.get(value, 0) > LEVEL_ORDER.get(level, 0):
+                    level = value
     return level
 
 

@@ -9,6 +9,37 @@ from sqlalchemy import select
 from app.models.risk_management import RiskAssessmentMethod
 
 
+RISK_LEVEL_ORDER = ["低", "一般", "较大", "重大"]
+
+# 煤矿 LS 默认阈值（当配置未提供时使用；compute_risk 与折算参考端点共用）
+COAL_LS_DEFAULT_THRESHOLDS = [
+    {"min": 20, "max": 25, "level": "重大",
+     "action": "立即停产整改", "deadline": "立即"},
+    {"min": 15, "max": 19, "level": "较大",
+     "action": "限期停产整改", "deadline": "1个月"},
+    {"min": 10, "max": 14, "level": "一般",
+     "action": "限期整改", "deadline": "3个月"},
+    {"min": 1,  "max": 9,  "level": "低",
+     "action": "加强日常管理", "deadline": "持续"},
+]
+
+
+def validate_dual_level(current_level: str | None, inherent_level: str | None) -> None:
+    """现有风险等级不应高于固有风险等级，否则抛 ValueError。"""
+    if (current_level and inherent_level
+            and current_level in RISK_LEVEL_ORDER and inherent_level in RISK_LEVEL_ORDER
+            and RISK_LEVEL_ORDER.index(current_level) > RISK_LEVEL_ORDER.index(inherent_level)):
+        raise ValueError("现有风险等级不应高于固有风险等级")
+
+
+def level_from_score(method_type: str, score: float, thresholds: list[dict]) -> str:
+    """按阈值区间将分值映射为风险等级，未命中时兜底为“低”。"""
+    for t in thresholds or []:
+        if t["min"] <= score <= t["max"]:
+            return t["level"]
+    return "低"
+
+
 @dataclass
 class RiskResult:
     """风险评估计算结果。
@@ -69,18 +100,8 @@ def compute_risk(
         s_val = float(params.get("s", 3))
         r = int(l_val * s_val)
         score_str = f"R={r}"
-        # 煤矿 LS 默认阈值（当配置未提供时使用）
         if not thresholds:
-            thresholds = [
-                {"min": 20, "max": 25, "level": "重大",
-                 "action": "立即停产整改", "deadline": "立即"},
-                {"min": 15, "max": 19, "level": "较大",
-                 "action": "限期停产整改", "deadline": "1个月"},
-                {"min": 10, "max": 14, "level": "一般",
-                 "action": "限期整改", "deadline": "3个月"},
-                {"min": 1,  "max": 9,  "level": "低",
-                 "action": "加强日常管理", "deadline": "持续"},
-            ]
+            thresholds = COAL_LS_DEFAULT_THRESHOLDS
     else:
         return RiskResult(
             risk_level="一般",
@@ -89,19 +110,22 @@ def compute_risk(
             deadline="N/A",
         )
 
-    # 按阈值区间匹配风险等级
-    for t in thresholds:
-        if t["min"] <= r <= t["max"]:
-            return RiskResult(
-                risk_level=t["level"],
-                risk_score=score_str,
-                action=t.get("action", ""),
-                deadline=t.get("deadline", ""),
-            )
+    # 复用 level_from_score 得到风险等级，再按阈值项取 action/deadline
+    level = level_from_score(method_type, r, thresholds)
+    matched = next(
+        (t for t in thresholds or [] if t["min"] <= r <= t["max"]), None
+    )
+    if matched:
+        return RiskResult(
+            risk_level=level,
+            risk_score=score_str,
+            action=matched.get("action", ""),
+            deadline=matched.get("deadline", ""),
+        )
 
-    # 未命中任何阈值区间时的兜底
+    # 未命中任何阈值区间时的兜底：等级“低” + 日常管理
     return RiskResult(
-        risk_level="低",
+        risk_level=level,
         risk_score=score_str,
         action="日常管理",
         deadline="持续",

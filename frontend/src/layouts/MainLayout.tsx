@@ -14,6 +14,7 @@ import {
   TeamOutlined,
   SafetyCertificateOutlined,
   EditOutlined,
+  DatabaseOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import FloatingChat from "@/components/common/FloatingChat";
@@ -32,6 +33,7 @@ const MENU_MAP: Record<string, string> = {
   "/settings/profile": "menu:profile",
   "/settings/ai-config": "menu:ai_config",
   "/settings/regulations": "menu:regulations",
+  "/settings/data-dicts": "menu:data_dicts",
 };
 
 const getStoredProMode = () => {
@@ -65,7 +67,11 @@ export function MainLayout() {
 
   const hasMenu = (path: string) => menuPermissions.includes(MENU_MAP[path] ?? "");
 
-  const showSystemGroup = hasMenu("/settings/users") || hasMenu("/settings/roles") || hasMenu("/settings/system");
+  const showSystemGroup =
+    hasMenu("/settings/users") ||
+    hasMenu("/settings/roles") ||
+    hasMenu("/settings/system") ||
+    hasMenu("/settings/data-dicts");
   const showAIGroup = hasMenu("/settings/prompts");
 
   const settingsChildren = [
@@ -87,6 +93,7 @@ export function MainLayout() {
             ...(hasMenu("/settings/users") ? [{ key: "/settings/users", icon: <TeamOutlined />, label: "用户管理" }] : []),
             ...(hasMenu("/settings/roles") ? [{ key: "/settings/roles", icon: <SafetyCertificateOutlined />, label: "角色管理" }] : []),
             ...(hasMenu("/settings/system") ? [{ key: "/settings/system", icon: <SettingOutlined />, label: "系统配置" }] : []),
+            ...(hasMenu("/settings/data-dicts") ? [{ key: "/settings/data-dicts", icon: <DatabaseOutlined />, label: "数据字典管理" }] : []),
           ],
         }]
       : []),

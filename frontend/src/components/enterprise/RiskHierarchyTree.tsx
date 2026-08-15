@@ -26,6 +26,13 @@ export interface TreeNodeMeta {
   type: "floor" | "zone" | "object" | "unit" | "event" | "measure";
   name: string;
   chemical_id?: string | null;
+  method_type?: string;
+  method_params?: Record<string, number>;
+  risk_level?: string | null;
+  risk_score?: string | null;
+  inherent_risk_level?: string | null;
+  inherent_risk_score?: string | null;
+  control_level?: string | null;
   floor_plan_polygon?: RiskZoneFloorPlanPolygon | null;
   parentId?: string;
   parentType?: "zone" | "object" | "unit" | "event";
@@ -275,6 +282,13 @@ function buildTreeData(zones: HierarchyZone[], floors: EnterpriseFloor[]): DataN
           type: "event" as const,
           name: ev.accident_type,
           chemical_id: ev.chemical_id ?? null,
+          method_type: ev.method_type,
+          method_params: ev.method_params,
+          risk_level: ev.risk_level,
+          risk_score: ev.risk_score,
+          inherent_risk_level: ev.inherent_risk_level,
+          inherent_risk_score: ev.inherent_risk_score,
+          control_level: ev.control_level,
           parentId,
           parentType,
         },

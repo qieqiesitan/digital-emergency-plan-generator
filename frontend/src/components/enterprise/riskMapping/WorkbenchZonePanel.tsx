@@ -1,4 +1,4 @@
-import { Button, Divider, Empty, Space } from "antd";
+import { Badge, Button, Divider, Empty, Space } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import type { WorkbenchZone } from "@/types/riskMappingWorkbench";
@@ -56,8 +56,13 @@ export default function WorkbenchZonePanel() {
               background: z.effective_color ? z.effective_color + "18" : "#fff",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>{z.name}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Space size={4}>
+                <span>{z.name}</span>
+                {typeof z.open_hazard_count === "number" && z.open_hazard_count > 0 && (
+                  <Badge color="red" text={`未闭环 ${z.open_hazard_count}`} />
+                )}
+              </Space>
               <Button
                 size="small"
                 type="text"

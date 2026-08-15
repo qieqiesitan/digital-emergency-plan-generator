@@ -326,7 +326,8 @@ export default function RiskNoticeCard({ card }: RiskNoticeCardProps) {
       <div className="rnc-body">
         <div className="rnc-left">
           <div className="rnc-level-band" style={{ background: card.level_color }}>
-            {card.level}风险
+            现有风险：{card.level}
+            {card.inherent_risk_level ? `（固有 ${card.inherent_risk_level}）` : ""}
           </div>
           <table className="rnc-table">
             <tbody>

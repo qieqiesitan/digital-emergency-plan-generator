@@ -13,15 +13,23 @@ from app.services.risk_notice_card_data import (
     LEVEL_ORDER, LEVEL_COLORS, SIGN_CATEGORY_ORDER,
     DEFAULT_EMERGENCY_TEMPLATE, SOURCE_AI,
 )
+from app.services.hazard_service import open_hazard_count
 from app.schemas.risk_notice_card import CardData, RightColumn
 
 
+def _max_level(events: list, attr: str, default: str | None) -> str | None:
+    values = {getattr(ev, attr) for ev in events if getattr(ev, attr, None)}
+    known = [v for v in values if v in LEVEL_ORDER]
+    return max(known, key=lambda v: -LEVEL_ORDER.index(v)) if known else default
+
+
 def compute_level(events: list[RiskEvent]) -> str:
-    levels = {e.risk_level for e in events if e.risk_level}
-    for level in LEVEL_ORDER:
-        if level in levels:
-            return level
-    return "未评估"
+    return _max_level(events, "risk_level", "未评估")
+
+
+def compute_inherent_level(events: list[RiskEvent]) -> str | None:
+    """取事件固有等级最大值（按 LEVEL_ORDER 严重度排序），无固有等级返回 None。"""
+    return _max_level(events, "inherent_risk_level", None)
 
 
 def resolve_responsible(obj: RiskObject, ent: Enterprise) -> tuple[str, str, str, bool]:
@@ -213,17 +221,20 @@ async def build_card_data(
         if t is not None
     ]
     source_updated = max(timestamps) if timestamps else None
+    hazard_count = await open_hazard_count(db, object_id=obj.id)
     return CardData(
         object_id=obj.id,
         enterprise_name=ent.name,
         name=obj.name,
         code=compute_code(objects, obj),
         level=level,
+        inherent_risk_level=compute_inherent_level(events),
         level_color=LEVEL_COLORS.get(level, "#bfbfbf"),
         responsible_unit=unit,
         responsible_person=person,
         contact_phone=phone,
         fallback_used=fallback,
+        has_open_hazard=hazard_count > 0,
         signs=match_signs(col.accident_types),
         hazard_description=col.hazard_description,
         accident_types=col.accident_types,
