@@ -132,6 +132,9 @@ def _hazard_db(ent, *, member=None, admin_member=None, zones=None, plans=None, p
     """按 SQL 文本特征分发（参照 tests/test_enterprise_org.py 的 _org_db）。"""
     db = AsyncMock()
     db.added = []
+    # flush 桩：generate_tasks_for_plan 依赖 flush 生成 task.id（UUID default
+    # 在 flush 时生效），显式 stub 贴近 AsyncSession 语义。
+    db.flush = AsyncMock()
 
     def fake_add(obj):
         if isinstance(obj, HazardInspectionPlan) and not getattr(obj, "id", None):
@@ -739,6 +742,37 @@ async def test_generate_daily_builds_items():
     assert measure_item.object_id == "o1"
     assert measure_item.expected_note == "动作灵敏；外观完好"
     assert len([x for x in db.added if isinstance(x, HazardInspectionItem)]) == 4
+
+
+@pytest.mark.asyncio
+async def test_generate_items_task_id_matches_task_after_flush():
+    """清单项必须在 task.id 生成后组装：items.task_id == task.id 且非 None。
+
+    回归防护：HazardInspectionTask.id 的 UUID default 在 flush 时才生成，
+    若在 db.add(task)/flush 之前用 task.id 构建清单项，生产库会因
+    hazard_inspection_items.task_id NOT NULL 写入失败（mock 的 fake_add 在
+    add 时即赋 id 会掩盖该缺陷，故此处显式断言 task.id 非 None）。
+    """
+    plan = _plan(frequency="daily", zone_ids=["z1"], template_id=None)
+    obj = RiskObject(id="o1", enterprise_id="e1", zone_id="z1", name="配电室",
+                     category="电气", is_risk_point=True)
+    db = _hazard_db(_ent(), objects=[obj], template=None)
+    task = await generate_tasks_for_plan(db, plan, on_date=date(2026, 8, 15))
+    assert task is not None
+    assert task.id is not None
+    assert len(task.items) >= 1
+    assert all(i.task_id == task.id for i in task.items)
+
+
+@pytest.mark.asyncio
+async def test_generate_disabled_plan_returns_none():
+    """停用（软删）计划不再生成任务：enabled=False → None（防止调度器继续出任务）。"""
+    plan = _plan(frequency="daily", enabled=False, zone_ids=["z1"], template_id=None)
+    db = _hazard_db(_ent(), objects=[])
+    task = await generate_tasks_for_plan(db, plan, on_date=date(2026, 8, 15))
+    assert task is None
+    db.add.assert_not_called()
+    db.flush.assert_not_awaited()
 
 
 @pytest.mark.asyncio

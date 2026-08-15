@@ -156,13 +156,24 @@ async def generate_tasks_for_plan(
       plan     HazardInspectionPlan
       on_date  生成日期，缺省今天
     输出：
-      None        当天未到期（weekly/custom 星期不匹配、monthly 非 1 日）
+      None        计划已停用（enabled=False，软删后不再出任务）、
+                  当天未到期（weekly/custom 星期不匹配、monthly 非 1 日）
                   或该计划当天已有任务（防重，跳过）
       HazardInspectionTask  新生成任务（items 挂载在 task.items 供读取，
                   已加入 db 待提交；title=「{计划名} · MM-DD」，status=pending，
                   responsible_user_id 取计划责任人，due_at 默认当日 18:00）
+
+    时区约定：due_at 取 naive 本地时间当日 18:00（Asia/Shanghai 业务自然日），
+    不携带 tzinfo，由应用层统一按本地时区解释——若改用 UTC 偏移会让截止
+    时刻在 8 小时边界漂移、与业务「当日 18:00」的直观约定不符；调度器按
+    同一 naive 约定比较 due_at，避免跨时区误判。
+
+    主键顺序：先 db.add(task) 再 await db.flush() 生成 task.id（UUID default
+    在 flush 时生效），随后以该 id 组装清单项，保证 items.task_id 非空。
     """
     on_date = on_date or date.today()
+    if plan.enabled is False:
+        return None  # 软删/停用计划不再生成任务（与防重返回 None 同语义）
     if not _is_due(plan, on_date):
         return None
 
@@ -187,9 +198,10 @@ async def generate_tasks_for_plan(
         responsible_user_id=getattr(plan, "responsible_user_id", None),
         due_at=datetime.combine(on_date, DEFAULT_DUE_TIME),
     )
+    db.add(task)
+    await db.flush()  # 生成 task.id（default=lambda: str(uuid4()) 在 flush 时生效）
     items = await _build_inspection_items(db, plan, task.id)
     task.items = items  # 便捷读取（非 ORM 关系字段，供调用方直接取清单项）
-    db.add(task)
     for item in items:
         db.add(item)
     return task
@@ -200,6 +212,10 @@ async def next_hazard_code(db: AsyncSession, enterprise_id: str) -> str:
 
     说明：隐患单无删除端点（状态机闭环），count+1 不会产生复用冲突；
     若未来引入删除，需改为取最大序号+1 并做唯一约束冲突兜底。
+
+    并发兜底：count+1 存在并发窗口（两个请求同时读到相同 count 会算出
+    相同 code），由 `uq_hazard_records_ent_code` 唯一约束兜底——冲突提交时
+    抛 IntegrityError，由上层捕获重试或按失败处理，避免重复编号入库。
     """
     count = (await db.execute(
         select(func.count(HazardRecord.id)).where(HazardRecord.enterprise_id == enterprise_id)
