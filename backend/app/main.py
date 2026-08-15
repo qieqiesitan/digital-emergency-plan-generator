@@ -1,16 +1,19 @@
 import os
 import uuid as uuid_lib
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path as _Path
 from fastapi import FastAPI, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
-from app.database import engine, Base
+from app.database import engine, Base, async_session
 from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, hazard_management, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, data_dicts
 from app.dependencies import get_current_user
 from app.services.mermaid_renderer import _close_browser
 from app.middleware.hmac_auth import HmacAuthMiddleware
+
+logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -24,7 +27,27 @@ if DEPLOY_DIST:
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # 任务 8：APScheduler 隐患定时扫描（每 5 分钟）。依赖缺失/启动异常仅告警降级，
+    # 不阻塞服务启动（规格 §16）；外部 cron 可退化为调用 run_hazard_scans 的内部端点。
+    scheduler = None
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from app.services.hazard_scheduler import run_hazard_scans
+
+        async def _run_hazard_scans_job() -> None:
+            async with async_session() as session:
+                await run_hazard_scans(session)
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(_run_hazard_scans_job, "interval", minutes=5,
+                          id="hazard_scans", replace_existing=True)
+        scheduler.start()
+    except Exception:
+        logger.warning("APScheduler 启动失败，隐患定时扫描已降级跳过（不影响服务启动）", exc_info=True)
+        scheduler = None
     yield
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
     await _close_browser()
 
 app = FastAPI(title="Digital Emergency Plan Generator", version="1.0.0", lifespan=lifespan)

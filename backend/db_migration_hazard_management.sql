@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS hazard_inspection_tasks (
 CREATE INDEX IF NOT EXISTS idx_hazard_inspection_tasks_plan ON hazard_inspection_tasks(plan_id);
 CREATE INDEX IF NOT EXISTS idx_hazard_inspection_tasks_enterprise ON hazard_inspection_tasks(enterprise_id);
 
+-- 任务 8 调度器：提前提醒防重标记（due_at 前 2h 的 upcoming 通知已发时间，幂等升级既有库）
+ALTER TABLE hazard_inspection_tasks ADD COLUMN IF NOT EXISTS reminder_notified_at TIMESTAMPTZ NULL;
+
 -- 3) 排查项
 CREATE TABLE IF NOT EXISTS hazard_inspection_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
