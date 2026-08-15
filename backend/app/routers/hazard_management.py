@@ -1,10 +1,13 @@
-"""隐患排查治理路由（任务 3+4）：排查计划 CRUD + 任务/清单项端点 + 检查表模板。
+"""隐患排查治理路由（任务 3/4/5）：排查计划 CRUD + 任务/清单项端点 + 检查表模板 + 隐患登记。
 
 前缀 `/enterprises/{enterprise_id}/hazard-inspection`：
 - `/plans`：计划 CRUD（写=企业主/企业管理员成员，读=企业主/启用成员）
 - `/tasks`：任务列表/详情/核对提交/一键转隐患
 - `/templates`：检查表模板（系统默认 + 企业 CRUD + 系统模板复制）
 - `/ai/checklist-template`：AI 生成检查表模板（失败降级 available:false）
+- `/records`：隐患登记（Web/移动端三渠道共用，任务 5 §8；写=企业主/启用成员，
+  非归属 404——登记面向全员，权限分层对齐任务 3 读路径而非写路径）
+- `/ai/record-assist`：登记 AI 摘要/分类（仅文本，失败降级 available:false，§16）
 
 权限与归属：
 - 读路径企业归属校验（不属于 → 404）；写路径企业主或 `enterprise_members`
@@ -20,8 +23,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -34,9 +38,10 @@ from app.models.hazard_management import (
     HazardInspectionTask,
     HazardRecord,
 )
-from app.models.risk_management import RiskZone
+from app.models.risk_management import RiskEvent, RiskMeasure, RiskObject, RiskUnit, RiskZone
 from app.schemas.common import ApiResponse
-from app.services.hazard_ai_service import generate_checklist_template
+from app.services.data_dict_service import get_dict_map
+from app.services.hazard_ai_service import generate_checklist_template, record_assist
 from app.services.hazard_service import generate_tasks_for_plan, next_hazard_code
 from app.services.risk_ai_service import _get_ai_config
 
@@ -46,6 +51,7 @@ router = APIRouter(prefix="/enterprises/{enterprise_id}/hazard-inspection", tags
 PLAN_CATEGORIES = {"daily", "comprehensive", "special", "holiday"}
 PLAN_FREQUENCIES = {"daily", "weekly", "monthly", "custom"}
 ITEM_RESULTS = {"pending", "normal", "abnormal", "na"}
+RECORD_SOURCE_TYPES = {"inspection", "report", "regulatory", "accident", "manual"}
 
 
 # ── 请求模型（B 规格 §5.1-5.3） ──
@@ -111,6 +117,29 @@ class TemplateUpdate(BaseModel):
 class TemplateAIRequest(BaseModel):
     industry: str = Field("", max_length=2000)
     risk_points: str = Field("", max_length=4000)
+
+
+class RecordCreate(BaseModel):
+    """隐患登记请求（Web/移动端，任务 5 §8）：source_type 必填枚举，title/description 必填。"""
+
+    source_type: str
+    hazard_type: Optional[str] = None
+    object_id: Optional[str] = None
+    measure_id: Optional[str] = None
+    title: str = Field(..., max_length=255)
+    description: str = Field(..., min_length=1)
+    photo_urls: Optional[list[str]] = None
+    location: Optional[str] = Field(None, max_length=500)
+    source_task_id: Optional[str] = None
+    source_item_id: Optional[str] = None
+
+
+class RecordAssistRequest(BaseModel):
+    """登记 AI 摘要/分类请求：description 必填非空，object_id/measure_id 为可选上下文。"""
+
+    description: str = Field(..., min_length=1)
+    object_id: Optional[str] = None
+    measure_id: Optional[str] = None
 
 
 # ── 响应序列化 ──
@@ -182,6 +211,8 @@ def _record_dict(record) -> dict:
         "title": record.title,
         "description": record.description,
         "photo_urls": record.photo_urls,
+        "location": getattr(record, "location", None),
+        "hazard_type": getattr(record, "hazard_type", None),
         "status": record.status,
         "created_by": record.created_by,
         "created_at": _dt(record.created_at),
@@ -836,4 +867,165 @@ async def ai_checklist_template(
         # 系统未配置 AI 模型 → 由服务兜底 available:false（与 risk_management 惯例一致）
         ai_config = None
     result = await generate_checklist_template(industry, risk_points, ai_config)
+    return ApiResponse(data=result)
+
+
+# ── 隐患登记（任务 5，§8）：Web/移动端共用 POST /records + AI 摘要分类 ──
+
+def _validate_record_source_type(source_type: str) -> None:
+    if source_type not in RECORD_SOURCE_TYPES:
+        raise HTTPException(422, f"source_type 非法: {source_type}，可选 {sorted(RECORD_SOURCE_TYPES)}")
+
+
+async def _validate_hazard_type(db: AsyncSession, enterprise_id: str, hazard_type: str) -> None:
+    """hazard_type 必须来自数据字典 `hazard_type` 码值（企业覆盖 > 系统默认）。"""
+    dict_map = await get_dict_map(db, enterprise_id, "hazard_type")
+    if hazard_type not in dict_map:
+        raise HTTPException(422, f"hazard_type 非法: {hazard_type}，须来自数据字典 hazard_type 码值")
+
+
+async def _validate_object_ref(db: AsyncSession, enterprise_id: str, object_id: str) -> None:
+    """object_id 可选：若提供必须属于该企业（风险点归属校验）。"""
+    obj = (await db.execute(
+        select(RiskObject.id).where(
+            RiskObject.id == object_id,
+            RiskObject.enterprise_id == enterprise_id,
+        )
+    )).first()
+    if not obj:
+        raise HTTPException(422, "风险点不属于该企业")
+
+
+async def _validate_measure_ref(db: AsyncSession, enterprise_id: str, measure_id: str) -> None:
+    """measure_id 可选：若提供必须属于该企业。
+
+    管控措施经 risk_events 归属到对象（event.object_id）或单元
+    （event.unit_id → risk_units.object_id），两路之一命中该企业即通过。
+    """
+    unit_object = aliased(RiskObject)
+    row = (await db.execute(
+        select(RiskMeasure.id)
+        .join(RiskEvent, RiskEvent.id == RiskMeasure.event_id)
+        .outerjoin(RiskObject, RiskObject.id == RiskEvent.object_id)
+        .outerjoin(RiskUnit, RiskUnit.id == RiskEvent.unit_id)
+        .outerjoin(unit_object, unit_object.id == RiskUnit.object_id)
+        .where(
+            RiskMeasure.id == measure_id,
+            or_(
+                RiskObject.enterprise_id == enterprise_id,
+                unit_object.enterprise_id == enterprise_id,
+            ),
+        )
+    )).first()
+    if not row:
+        raise HTTPException(422, "管控措施不属于该企业")
+
+
+async def _validate_source_task(db: AsyncSession, enterprise_id: str, task_id: str) -> None:
+    """source_task_id 可选：回填校验属于该企业的排查任务。"""
+    task = (await db.execute(
+        select(HazardInspectionTask.id).where(
+            HazardInspectionTask.id == task_id,
+            HazardInspectionTask.enterprise_id == enterprise_id,
+        )
+    )).first()
+    if not task:
+        raise HTTPException(422, "排查任务不属于该企业")
+
+
+async def _validate_source_item(db: AsyncSession, enterprise_id: str, item_id: str) -> None:
+    """source_item_id 可选：回填校验排查项所属任务属于该企业。"""
+    item = (await db.execute(
+        select(HazardInspectionItem.id)
+        .join(HazardInspectionTask, HazardInspectionTask.id == HazardInspectionItem.task_id)
+        .where(
+            HazardInspectionItem.id == item_id,
+            HazardInspectionTask.enterprise_id == enterprise_id,
+        )
+    )).first()
+    if not item:
+        raise HTTPException(422, "排查项不属于该企业")
+
+
+@router.post("/records", response_model=ApiResponse[dict], status_code=201)
+async def create_record(
+    enterprise_id: str,
+    body: RecordCreate,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """隐患登记（Web/移动端，任务 5 §8）：source_type 五渠道 + 可选关联/回填。
+
+    权限取舍：登记面向全员（企业主或启用成员，含 enterprise_admin/team_leader/
+    member），故写路径沿用任务 3 读归属 `_get_ent`——非企业主且非启用成员 → 404，
+    不设 403 分层（与任务 3 计划/任务的写权限 403 不同：登记不涉及资源变更，
+    任何发现隐患的成员都应能登记）。
+
+    校验：source_type 枚举（422）；title/description 必填非空（422）；
+    hazard_type 须来自数据字典 hazard_type 码值（422）；object_id/measure_id 须
+    属于该企业（422）；source_task_id/source_item_id 须属于该企业任务（422）。
+    落库 status=registered、created_by=当前用户、code=HD-{三位序号}。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    _validate_record_source_type(body.source_type)
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(422, "title 不能为空")
+    description = (body.description or "").strip()
+    if not description:
+        raise HTTPException(422, "description 不能为空")
+    if body.hazard_type:
+        await _validate_hazard_type(db, enterprise_id, body.hazard_type)
+    if body.object_id:
+        await _validate_object_ref(db, enterprise_id, body.object_id)
+    if body.measure_id:
+        await _validate_measure_ref(db, enterprise_id, body.measure_id)
+    if body.source_task_id:
+        await _validate_source_task(db, enterprise_id, body.source_task_id)
+    if body.source_item_id:
+        await _validate_source_item(db, enterprise_id, body.source_item_id)
+    location = (body.location or "").strip()
+    record = HazardRecord(
+        enterprise_id=enterprise_id,
+        code=await next_hazard_code(db, enterprise_id),
+        source_type=body.source_type,
+        source_task_id=body.source_task_id,
+        source_item_id=body.source_item_id,
+        object_id=body.object_id,
+        measure_id=body.measure_id,
+        title=title[:255],
+        description=description,
+        photo_urls=list(body.photo_urls or []),
+        location=location[:500] or None,
+        hazard_type=body.hazard_type,
+        created_by=current_user.id,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return ApiResponse(data=_record_dict(record))
+
+
+@router.post("/ai/record-assist", response_model=ApiResponse[dict])
+async def ai_record_assist(
+    enterprise_id: str,
+    body: RecordAssistRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """登记 AI 摘要/分类（§8 #6）：输入描述文字，返回 title/hazard_type/分级建议。
+
+    仅文本处理、不读照片（§8）；未配置/异常/超时由服务兜底 available:false
+    （200，§16），不阻塞登记；本端点不落库——人工确认后随 POST /records 提交。
+    """
+    await _get_ent(enterprise_id, current_user.id, db)
+    description = (body.description or "").strip()
+    if not description:
+        raise HTTPException(422, "description 不能为空")
+    try:
+        ai_config = await _get_ai_config(current_user.id, db)
+    except HTTPException:
+        # 系统未配置 AI 模型 → 由服务兜底 available:false（与既有 AI 端点惯例一致）
+        ai_config = None
+    result = await record_assist(description, ai_config, object_id=body.object_id, measure_id=body.measure_id)
     return ApiResponse(data=result)
