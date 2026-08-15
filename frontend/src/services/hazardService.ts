@@ -24,6 +24,9 @@ import type {
   HazardScheduleSuggestionResult,
   HazardSetupWizardResult,
   HazardTaskSubmitPayload,
+  PublicHazardPublicityPayload,
+  PublicHazardReportPayload,
+  PublicHazardReportResult,
 } from "@/types/hazard";
 
 const BASE = (eid: string) => `/enterprises/${eid}/hazard-inspection`;
@@ -123,6 +126,13 @@ export const resetHazardPublicityToken = (eid: string) =>
   api.post<ApiResponse<HazardPublicityTokenResult>>(`${BASE(eid)}/publicity-token`).then(r => r.data.data);
 export const getHazardDashboard = (eid: string) =>
   api.get<ApiResponse<HazardDashboardPayload>>(`${BASE(eid)}/dashboard`).then(r => r.data.data);
+
+// ── 公开端点（免登录，§8 扫码上报 / §11.2 公示公开页） ──
+
+export const submitPublicHazardReport = (token: string, data: PublicHazardReportPayload) =>
+  api.post<ApiResponse<PublicHazardReportResult>>(`/public/hazard/report/${token}`, data).then(r => r.data.data);
+export const fetchPublicHazard = (token: string, scope?: string) =>
+  api.get<ApiResponse<PublicHazardPublicityPayload>>(`/public/hazard/${token}`, { params: scope ? { scope } : {} }).then(r => r.data.data);
 
 // ── AI 辅助（失败均降级 available:false，§16） ──
 

@@ -306,6 +306,27 @@ export interface HazardPublicityTokenResult {
   link: string;
 }
 
+// ── 公开页（免登录，§8 扫码上报 / §11.2 公示公开页） ──
+
+export interface PublicHazardReportPayload {
+  title?: string;
+  description: string;
+  photo_urls?: string[];
+  location?: string;
+  nonce: string;
+}
+
+export interface PublicHazardReportResult {
+  message: string;
+}
+
+export interface PublicHazardPublicityPayload {
+  enterprise_name: string;
+  items: HazardPublicityItem[];
+  generated_at: string;
+  masked: boolean;
+}
+
 // ── AI 辅助（§16 失败降级 available:false） ──
 
 export interface HazardRecordAssistResult {

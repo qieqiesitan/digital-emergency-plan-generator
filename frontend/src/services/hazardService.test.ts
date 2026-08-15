@@ -9,6 +9,7 @@ import {
   createRecord,
   deleteHazardPlan,
   exportHazardLedger,
+  fetchPublicHazard,
   getHazardDashboard,
   getHazardPublicity,
   getRecord,
@@ -19,6 +20,7 @@ import {
   rectifyRecord,
   resetHazardPublicityToken,
   reviewRecord,
+  submitPublicHazardReport,
   submitHazardTask,
   taskToRecord,
   updateHazardPlan,
@@ -249,5 +251,48 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
       "/enterprises/e1/hazard-inspection/export/ledger.xlsx",
       { responseType: "blob" },
     );
+  });
+
+  it("submitPublicHazardReport 请求免登录上报 URL 并携带 nonce", async () => {
+    apiMock.post.mockResolvedValue(envelope({ message: "已提交，待企业管理员确认" }));
+
+    const result = await submitPublicHazardReport("tok1", {
+      description: "配电箱门破损",
+      location: "3 号车间",
+      photo_urls: ["data:image/png;base64,xxx"],
+      nonce: "n-1",
+    });
+
+    expect(apiMock.post).toHaveBeenCalledWith(
+      "/public/hazard/report/tok1",
+      {
+        description: "配电箱门破损",
+        location: "3 号车间",
+        photo_urls: ["data:image/png;base64,xxx"],
+        nonce: "n-1",
+      },
+    );
+    expect(result.message).toBe("已提交，待企业管理员确认");
+  });
+
+  it("fetchPublicHazard 请求公开公示 URL 并透传 scope、解包 data", async () => {
+    apiMock.get.mockResolvedValue(envelope({
+      enterprise_name: "甲**",
+      items: [{ code: "HD-001", title: "配电箱", level: "major", status: "整改中", rectification: "整改中", source_type: "排查" }],
+      generated_at: "2026-08-15T00:00:00Z",
+      masked: true,
+    }));
+
+    const result = await fetchPublicHazard("tok1", "ongoing");
+
+    expect(apiMock.get).toHaveBeenCalledWith(
+      "/public/hazard/tok1",
+      { params: { scope: "ongoing" } },
+    );
+    expect(result.enterprise_name).toBe("甲**");
+    expect(result.masked).toBe(true);
+
+    await fetchPublicHazard("tok1");
+    expect(apiMock.get).toHaveBeenCalledWith("/public/hazard/tok1", { params: {} });
   });
 });

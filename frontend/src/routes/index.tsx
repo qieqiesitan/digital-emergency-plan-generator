@@ -41,7 +41,11 @@ import PublicRiskPage from "@/pages/PublicRiskPage";
 import HazardPlanPage from "@/pages/Hazard/HazardPlanPage";
 import HazardTaskPage from "@/pages/Hazard/HazardTaskPage";
 import HazardRecordDetailPage from "@/pages/Hazard/HazardRecordDetailPage";
-import HazardPlaceholderPage from "@/pages/Hazard/HazardPlaceholderPage";
+import HazardDashboardPage from "@/pages/Hazard/HazardDashboardPage";
+import HazardTemplatePage from "@/pages/Hazard/HazardTemplatePage";
+import HazardPublicityPage from "@/pages/Hazard/HazardPublicityPage";
+import PublicHazardReportPage from "@/pages/Hazard/PublicHazardReportPage";
+import PublicHazardPage from "@/pages/Hazard/PublicHazardPage";
 import ChatPage from "@/pages/Chat";
 import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
 
@@ -71,13 +75,13 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-control-list", element: <RiskControlListPage /> },
   { path: "/enterprises/:id/risk-publicity", element: <RiskPublicityPage /> },
   { path: "/enterprises/:id/org", element: <EnterpriseOrgPage /> },
-  // 隐患模块路由组（任务 14 已替换 plans/tasks，任务 15 已替换 records/:rid，其余占位待任务 16）
+  // 隐患模块路由组（任务 14-16 已全部替换为真实页面）
   { path: "/enterprises/:id/hazard/plans", element: <HazardPlanPage /> },
   { path: "/enterprises/:id/hazard/tasks", element: <HazardTaskPage /> },
   { path: "/enterprises/:id/hazard/records/:rid", element: <HazardRecordDetailPage /> },
-  { path: "/enterprises/:id/hazard/templates", element: <HazardPlaceholderPage title="检查表模板" /> },
-  { path: "/enterprises/:id/hazard/dashboard", element: <HazardPlaceholderPage title="隐患驾驶舱" /> },
-  { path: "/enterprises/:id/hazard/publicity", element: <HazardPlaceholderPage title="隐患公示" /> },
+  { path: "/enterprises/:id/hazard/templates", element: <HazardTemplatePage /> },
+  { path: "/enterprises/:id/hazard/dashboard", element: <HazardDashboardPage /> },
+  { path: "/enterprises/:id/hazard/publicity", element: <HazardPublicityPage /> },
   { path: "/plans", element: <PlanCardsPage /> },
   { path: "/enterprises/:enterprise_id/plans", element: <PlanListPage /> },
   { path: "/plans/new", element: <PlanCreatePage /> },
@@ -115,9 +119,9 @@ export function createRouter() {
     // 公开只读页：无登录守卫（token 无效由后端返回 404）
     { path: "/r/:token", element: <PublicRiskNoticePage /> },
     { path: "/p/risk/:token", element: <PublicRiskPage /> },
-    // 隐患公开页路由占位（§15：公开公示 /h/:token、扫码上报 /h/report/:token）
-    { path: "/h/:token", element: <HazardPlaceholderPage title="隐患公示公开页" backTo="/" /> },
-    { path: "/h/report/:token", element: <HazardPlaceholderPage title="扫码上报" backTo="/" /> },
+    // 隐患公开页（§15：公开公示 /h/:token、扫码上报 /h/report/:token，均免登录）
+    { path: "/h/report/:token", element: <PublicHazardReportPage /> },
+    { path: "/h/:token", element: <PublicHazardPage /> },
     { path: "/m/*", element: <MobileRedirect /> },
     { path: "*", element: <Navigate to="/dashboard" replace /> },
   ], { basename: APP_BASE || undefined });
