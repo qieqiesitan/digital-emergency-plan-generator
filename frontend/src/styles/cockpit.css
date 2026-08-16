@@ -178,7 +178,7 @@
 .cp-nav .it:hover svg { filter: drop-shadow(0 0 8px rgba(0,212,255,.8)); }
 .cp-nav .lb { font-size: 10.5px; color: var(--text); font-weight: 600; letter-spacing: .5px; }
 .cp-nav .sb { font-size: 8px; color: var(--muted); letter-spacing: 1px; }
-.cp-nav svg { width: 26px; height: 26px; stroke: url(#cp-grad); filter: drop-shadow(0 0 5px rgba(0,212,255,.45)); }
+.cp-nav svg { width: 26px; height: 26px; fill: url(#cp-grad); stroke: none; filter: drop-shadow(0 0 5px rgba(0,212,255,.45)); }
 .cp-nav .it.hot { border-color: rgba(255,77,79,.4); }
 .cp-nav .it.hot .badge { position: absolute; top: 6px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--red);
   box-shadow: 0 0 8px var(--red); animation: cp-blink 1.6s infinite; }
