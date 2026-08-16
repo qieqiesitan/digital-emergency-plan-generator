@@ -220,20 +220,29 @@ export default function EnterpriseOrgPage() {
   const nodes = localNodes ?? fetchedNodes;
   const dirty = localNodes !== null;
 
-  // 组织架构为空时预置应急预案所需六个应急小组（指挥部/抢险/疏散/医疗/通讯/后勤），
-  // 用户可直接在组下挂成员，避免生成预案时应急组织机构缺组
+  // 组织架构为空时预置应急预案组织结构：
+  // 「应急组织机构」→ 六个应急小组（指挥部/抢险/疏散/医疗/通讯/后勤）→ 各组岗位（指挥部：总指挥/副总指挥/成员；其余组：组长/副组长/组员）
   useEffect(() => {
     if (!nodesLoading && fetchedNodes.length === 0 && localNodes === null) {
+      const presetNodes: OrgNode[] = [
+        { id: "preset-org-root", type: "dept", name: "应急组织机构", members: [], parent_id: null },
+      ];
+      Object.entries(PRESET_EMERGENCY_GROUPS).forEach(([key, name]) => {
+        const teamId = `preset-${key}`;
+        presetNodes.push({ id: teamId, type: "team", name, members: [], parent_id: "preset-org-root" });
+        const positions = key === "headquarters" ? ["总指挥", "副总指挥", "成员"] : ["组长", "副组长", "组员"];
+        positions.forEach((pos, pi) => {
+          presetNodes.push({
+            id: `${teamId}-${pi}`,
+            type: "position",
+            name: pos,
+            members: [],
+            parent_id: teamId,
+          });
+        });
+      });
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 空组织架构首次加载时播种预置应急小组，属一次性初始化；react-hooks v7 新规则对同步 setState 误报（全仓同类基线）
-      setLocalNodes(
-        Object.entries(PRESET_EMERGENCY_GROUPS).map(([key, name]) => ({
-          id: `preset-${key}`,
-          type: "team" as const,
-          name,
-          members: [],
-          parent_id: null,
-        })),
-      );
+      setLocalNodes(presetNodes);
     }
   }, [fetchedNodes, nodesLoading, localNodes]);
 

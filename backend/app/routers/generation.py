@@ -18,6 +18,8 @@ from app.models.risk_assessment import RiskAssessmentReport
 from app.models.resource_investigation import ResourceInvestigationReport
 
 from app.models.hazardous_chemicals import HazardousChemical
+from app.models.enterprise_org import EnterpriseMember
+from app.models.user import User
 
 from app.dependencies import get_current_user
 
@@ -115,19 +117,49 @@ SECTION_ADDITIONAL_DIAGRAM_MAP: dict[tuple[str, str], str] = {
 def _normalize_org_groups(org_structure: list) -> list[dict]:
     """统一组织架构为预案可消费的分组格式。
 
-    兼容两种存储格式：
+    兼容三种形态：
     - 旧格式：{group_key, group_name, members: [{name, ...}]}
-    - 新格式（组织树）：{type, name, parent_id, members: [{name, ...}]}，含成员的节点视为一个组
+    - 新树格式：root(dept) → team → position，team 为应急小组，收集自身与子孙节点成员
+    - 扁平树格式：任意含成员的节点视为一个组
     """
-    groups: list[dict] = []
-    for g in org_structure or []:
-        if not isinstance(g, dict):
+    nodes = [n for n in (org_structure or []) if isinstance(n, dict)]
+    if not nodes:
+        return []
+
+    # 旧格式
+    if any(n.get("group_name") or n.get("group_key") for n in nodes):
+        groups: list[dict] = []
+        for g in nodes:
+            members = [m for m in (g.get("members") or []) if isinstance(m, dict) and m.get("name")]
+            if members:
+                groups.append({"group_name": g.get("group_name") or "应急小组", "members": members})
+        return groups
+
+    by_id = {n.get("id"): n for n in nodes if n.get("id")}
+    children: dict[str, list] = {nid: [] for nid in by_id}
+    for n in nodes:
+        pid = n.get("parent_id")
+        if pid and pid in by_id:
+            children[pid].append(n)
+
+    def collect_members(node: dict) -> list[dict]:
+        members = [m for m in (node.get("members") or []) if isinstance(m, dict) and m.get("name")]
+        for c in children.get(node.get("id"), []):
+            members.extend(collect_members(c))
+        return members
+
+    groups = []
+    for n in nodes:
+        if n.get("type") != "team":
             continue
-        members = [m for m in (g.get("members") or []) if isinstance(m, dict) and m.get("name")]
-        if not members:
-            continue
-        group_name = g.get("group_name") or g.get("name") or "应急小组"
-        groups.append({"group_name": group_name, "members": members})
+        members = collect_members(n)
+        if members:
+            groups.append({"group_name": n.get("name") or "应急小组", "members": members})
+    if not groups:
+        for n in nodes:
+            members = [m for m in (n.get("members") or []) if isinstance(m, dict) and m.get("name")]
+            if members:
+                groups.append({"group_name": n.get("name") or "应急小组", "members": members})
     return groups
 
 
@@ -377,6 +409,29 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
 
 
 async def _enrich_with_reports(enterprise_data: dict, enterprise_id: str, db: AsyncSession) -> dict:
+    """补充报告摘要与企业组织成员（成员按 org_node_id 挂到组织树节点，供预案组织章节/组织架构图使用）。"""
+    member_rows = (
+        await db.execute(
+            select(EnterpriseMember, User)
+            .join(User, User.id == EnterpriseMember.user_id)
+            .where(
+                EnterpriseMember.enterprise_id == enterprise_id,
+                EnterpriseMember.enabled.is_(True),
+            )
+        )
+    ).all()
+    member_map: dict[str, list[dict]] = {}
+    for em, user in member_rows:
+        if not em.org_node_id:
+            continue
+        member_map.setdefault(em.org_node_id, []).append({
+            "name": user.name or em.name or "",
+            "position": em.position,
+            "role": em.role,
+        })
+    for node in enterprise_data.get("org_structure") or []:
+        if isinstance(node, dict) and not node.get("members"):
+            node["members"] = member_map.get(node.get("id"), [])
 
     ra = (await db.execute(
 
