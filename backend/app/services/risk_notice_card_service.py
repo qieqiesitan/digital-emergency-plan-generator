@@ -122,11 +122,16 @@ def match_signs(accident_types: list[str]) -> list[dict]:
             if s["svg_name"] not in seen:
                 seen.add(s["svg_name"])
                 merged.append(s)
+    return _order_by_category(merged, 2)
+
+
+def _order_by_category(items: list[dict], max_per_category: int) -> list[dict]:
+    """按 SIGN_CATEGORY_ORDER 排序，每类最多 max_per_category 个（category 缺失/错配的项被跳过）。"""
     ordered: list[dict] = []
     counts: dict[str, int] = {}
     for category in SIGN_CATEGORY_ORDER:
-        for s in merged:
-            if s["category"] == category and counts.get(category, 0) < 2:
+        for s in items:
+            if s.get("category") == category and counts.get(category, 0) < max_per_category:
                 ordered.append(s)
                 counts[category] = counts.get(category, 0) + 1
     return ordered
@@ -137,7 +142,10 @@ def normalize_signs(
     max_per_category: int = 2,
     max_total: int = 8,
 ) -> list[dict]:
-    """规范化 AI/人工提交的标志：过滤非法 svg_name、去重、按类别排序、限量。"""
+    """规范化 AI/人工提交的标志：过滤非法 svg_name、去重、按类别排序、限量。
+
+    调用方须保证每个标志的 category 合法（缺失/错配会被静默丢弃）。
+    """
     seen: set[str] = set()
     merged: list[dict] = []
     for s in signs or []:
@@ -146,14 +154,7 @@ def normalize_signs(
             continue
         seen.add(svg)
         merged.append(s)
-    ordered: list[dict] = []
-    counts: dict[str, int] = {}
-    for category in SIGN_CATEGORY_ORDER:
-        for s in merged:
-            if s.get("category") == category and counts.get(category, 0) < max_per_category:
-                ordered.append(s)
-                counts[category] = counts.get(category, 0) + 1
-    return ordered[:max_total]
+    return _order_by_category(merged, max_per_category)[:max_total]
 
 
 def _as_utc(dt: datetime) -> datetime:
