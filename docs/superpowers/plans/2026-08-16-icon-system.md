@@ -116,6 +116,8 @@ MAPPING = {
 OUT_DIR = "frontend/src/assets/icons"
 FILL_RE = re.compile(r'\sfill="#[0-9a-fA-F]{3,8}"')
 FILL_RGB_RE = re.compile(r'\sfill="rgb\([^"]*\)"')
+MAX_PAGES = 5
+PAGE_SIZE = 60
 
 
 def clean_svg(svg: str) -> str:
@@ -127,11 +129,11 @@ def clean_svg(svg: str) -> str:
     return svg
 
 
-def search(q: str, limit: int = 20) -> list[dict]:
+def search(q: str, page: int = 1, limit: int = PAGE_SIZE) -> list[dict]:
     params = {
         "q": q,
         "sortType": "updated_at",
-        "page": "1",
+        "page": str(page),
         "pageSize": str(limit),
         "sType": "",
         "fromCollection": "1",
@@ -164,7 +166,23 @@ def fetch_all() -> dict[str, str]:
     assets: dict[str, str] = {}
     for name, (term, icon_id) in MAPPING.items():
         if term not in cache:
-            cache[term] = search(term)
+            needed = {i for n, (t, i) in MAPPING.items() if t == term}
+            hits: list[dict] = []
+            for attempt in range(3):
+                try:
+                    for page in range(1, MAX_PAGES + 1):
+                        page_hits = search(term, page)
+                        hits.extend(page_hits)
+                        found = {h.get("id") for h in hits}
+                        if needed.issubset(found):
+                            break
+                    break
+                except Exception:
+                    if attempt < 2:
+                        time.sleep(2)
+                    else:
+                        raise
+            cache[term] = hits
         hit = next((i for i in cache[term] if i.get("id") == icon_id), None)
         if not hit or not hit.get("show_svg"):
             raise RuntimeError(f"icon {name} (id={icon_id}) not found for term {term!r}")
