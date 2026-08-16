@@ -617,10 +617,10 @@ git commit -m "feat(icon-system): unify AI icons with AppIcon ai"
 
 ---
 
-### 任务 7：位置 / 通知 / 安全图标替换
+### 任务 7：位置 / 通知 / 安全图标替换（10 处）
 
 **文件（修改）：**
-- 位置（EnvironmentOutlined → `AppIcon name="location"`，保留原有 style/props）：
+- 位置（EnvironmentOutlined → `AppIcon name="location"`，8 处，保留原有 style/props）：
   - `frontend/src/pages/Enterprise/EnterpriseCreatePage.tsx:105`
   - `frontend/src/components/enterprise/RiskZoneForm.tsx:129`
   - `frontend/src/components/enterprise/FloorPlanPicker.tsx:99`
@@ -628,7 +628,7 @@ git commit -m "feat(icon-system): unify AI icons with AppIcon ai"
   - `frontend/src/components/enterprise/RiskObjectForm.tsx:180`
   - `frontend/src/components/enterprise/EnterpriseInfoWorkspace.tsx:245`
   - `frontend/src/components/enterprise/riskMapping/WorkbenchToolbar.tsx:30`
-- 通知：`frontend/src/pages/Enterprise/RiskManagementTab.tsx:367`（`<NotificationOutlined />` → `<AppIcon name="notice" />`）
+- 通知：`frontend/src/pages/Enterprise/RiskManagementTab.tsx:367`（`<NotificationOutlined />` → `<AppIcon name="notice" size={14} />`）
 - 安全：`frontend/src/layouts/AuthLayout.tsx:30`（`<SafetyOutlined style={{ fontSize: 64, marginBottom: 24 }} />` → `<AppIcon name="safety" size={64} style={{ marginBottom: 24 }} />`）
 
 - [ ] **步骤 1：逐文件替换**
