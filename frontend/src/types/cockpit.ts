@@ -58,3 +58,17 @@ export interface CockpitSummary {
   completion: CockpitCompletion;
   recent_activities: ActivityItem[];
 }
+
+export const RISK_LEVEL_COLORS: Record<string, string> = {
+  major: "#ff4d4f",
+  larger: "#ff9f43",
+  general: "#ffd666",
+  low: "#40a9ff",
+};
+
+export const RISK_LEVEL_LABELS: Record<string, string> = {
+  major: "重大",
+  larger: "较大",
+  general: "一般",
+  low: "低",
+};
