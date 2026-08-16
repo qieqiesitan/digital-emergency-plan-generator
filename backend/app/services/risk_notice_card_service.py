@@ -15,6 +15,10 @@ from app.services.risk_notice_card_data import (
 )
 from app.schemas.risk_notice_card import CardData, RightColumn
 
+# 库内合法标志全集：SIGN_GROUPS 各事故组 + 兜底组（EXTRA_SIGN_GROUPS 复用 SIGN_GROUPS 条目，无需重复收录）
+VALID_SVG_NAMES = {s["svg_name"] for group in SIGN_GROUPS.values() for s in group}
+VALID_SVG_NAMES |= {s["svg_name"] for s in DEFAULT_SIGN_GROUP}
+
 
 def compute_level(events: list[RiskEvent]) -> str:
     levels = {e.risk_level for e in events if e.risk_level}
@@ -126,6 +130,30 @@ def match_signs(accident_types: list[str]) -> list[dict]:
                 ordered.append(s)
                 counts[category] = counts.get(category, 0) + 1
     return ordered
+
+
+def normalize_signs(
+    signs: list[dict],
+    max_per_category: int = 2,
+    max_total: int = 8,
+) -> list[dict]:
+    """规范化 AI/人工提交的标志：过滤非法 svg_name、去重、按类别排序、限量。"""
+    seen: set[str] = set()
+    merged: list[dict] = []
+    for s in signs or []:
+        svg = s.get("svg_name")
+        if svg not in VALID_SVG_NAMES or svg in seen:
+            continue
+        seen.add(svg)
+        merged.append(s)
+    ordered: list[dict] = []
+    counts: dict[str, int] = {}
+    for category in SIGN_CATEGORY_ORDER:
+        for s in merged:
+            if s.get("category") == category and counts.get(category, 0) < max_per_category:
+                ordered.append(s)
+                counts[category] = counts.get(category, 0) + 1
+    return ordered[:max_total]
 
 
 def _as_utc(dt: datetime) -> datetime:

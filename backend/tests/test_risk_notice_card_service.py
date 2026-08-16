@@ -251,3 +251,28 @@ def test_build_card_data_prefers_snapshot_signs():
         assert card.signs[0].name == "注意通风"
 
     asyncio.run(run())
+
+
+def test_normalize_signs_filters_and_limits():
+    from app.services.risk_notice_card_service import normalize_signs
+
+    signs = [
+        {"category": "notice", "name": "紧急出口", "svg_name": "notice-exit"},
+        {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+        {"category": "warning", "name": "当心爆炸", "svg_name": "warning-explosion"},
+        {"category": "warning", "name": "当心触电", "svg_name": "warning-electric"},
+        {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+        {"category": "instruction", "name": "必须戴安全帽", "svg_name": "instruction-helmet"},
+        {"category": "instruction", "name": "必须戴防护手套", "svg_name": "instruction-gloves"},
+        {"category": "instruction", "name": "必须穿绝缘鞋", "svg_name": "instruction-insulating-shoes"},
+        {"category": "bogus", "name": "自造标志", "svg_name": "not-in-library"},
+    ]
+    out = normalize_signs(signs)
+    names = [s["name"] for s in out]
+    assert "自造标志" not in names
+    cats = [s["category"] for s in out]
+    order = ["warning", "prohibition", "instruction", "notice"]
+    assert cats == sorted(cats, key=order.index)
+    assert cats.count("instruction") <= 2
+    assert len(out) <= 8
+    assert len(out) == len({s["svg_name"] for s in out})  # 去重
