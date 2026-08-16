@@ -666,7 +666,7 @@ git commit -m "feat(icon-system): replace location notice and safety icons with 
 - [ ] **步骤 1：全量前端门禁**
 
 运行：`npx tsc -b`、`npx eslint src`、`npx vitest run`
-预期：均 exit 0（127 测试通过）
+预期：tsc exit 0；vitest 130 passed；eslint 为既有 lint 债（基线约 78 文件/280 项）**零新增**——若出现基线之外的新报错须上报，不要顺手清理
 
 - [ ] **步骤 2：驾驶舱 e2e**
 
