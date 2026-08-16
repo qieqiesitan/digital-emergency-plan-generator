@@ -38,6 +38,7 @@ import type { HazardRecordListItem, HazardSourceType } from "@/types/hazard";
 
 interface Props {
   enterpriseId: string;
+  embedded?: boolean;
 }
 
 const SOURCE_TYPE_LABELS: Record<HazardSourceType, string> = {
@@ -96,7 +97,7 @@ interface ListFilters {
   q?: string;
 }
 
-export default function HazardInspectionTab({ enterpriseId }: Props) {
+export default function HazardInspectionTab({ enterpriseId, embedded }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { message } = AntApp.useApp();
@@ -284,21 +285,25 @@ export default function HazardInspectionTab({ enterpriseId }: Props) {
         <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
           导出台账
         </Button>
-        <Button icon={<ScheduleOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/plans`)}>
-          排查计划
-        </Button>
-        <Button icon={<CheckSquareOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/tasks`)}>
-          排查任务
-        </Button>
-        <Button icon={<FileTextOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/templates`)}>
-          检查表模板
-        </Button>
-        <Button icon={<DashboardOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/dashboard`)}>
-          驾驶舱
-        </Button>
-        <Button icon={<EyeOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/publicity`)}>
-          隐患公示
-        </Button>
+        {!embedded && (
+          <>
+            <Button icon={<ScheduleOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/plans`)}>
+              排查计划
+            </Button>
+            <Button icon={<CheckSquareOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/tasks`)}>
+              排查任务
+            </Button>
+            <Button icon={<FileTextOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/templates`)}>
+              检查表模板
+            </Button>
+            <Button icon={<DashboardOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/dashboard`)}>
+              驾驶舱
+            </Button>
+            <Button icon={<EyeOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/hazard/publicity`)}>
+              隐患公示
+            </Button>
+          </>
+        )}
       </Space>
 
       <Space size={12} wrap style={{ marginBottom: 16 }}>

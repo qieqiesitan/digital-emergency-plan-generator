@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { App as AntApp, Alert, Button, Spin, Empty, Space, Tag } from "antd";
 import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined, UnorderedListOutlined, NotificationOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +18,11 @@ import RiskSmartGuideModal from "@/components/enterprise/RiskSmartGuideModal";
 import FloorManagementDrawer from "@/components/enterprise/FloorManagementDrawer";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 
-interface Props { enterpriseId: string; floorPlanUrl?: string | null; }
+interface Props {
+  enterpriseId: string;
+  floorPlanUrl?: string | null;
+  embedded?: boolean;
+}
  
  type FormType = "zone" | "object" | "unit" | "event" | "measure" | null;
  
@@ -84,7 +88,7 @@ function eventInitialValues(meta: TreeNodeMeta): Record<string, unknown> {
   };
 }
  
-export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props) {
+export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded }: Props) {
   const navigate = useNavigate();
   const { modal, message: antMessage } = AntApp.useApp();
  
@@ -99,6 +103,11 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
   const [smartGuideOpen, setSmartGuideOpen] = useState(false);
   const [floorDrawerOpen, setFloorDrawerOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 计划指定：侧栏「楼层平面图」跳转 ?floor=1 时打开楼层抽屉，属对外部路由参数变更的同步，项目已存在同类带说明禁用
+    if (searchParams.get("floor") === "1") setFloorDrawerOpen(true);
+  }, [searchParams]);
   const { data: migrationPreview, refetch: refetchMigrationPreview } = useQuery({
     queryKey: ["risk-migration-preview", enterpriseId],
     queryFn: () => getMigrationPreview(enterpriseId),
@@ -346,19 +355,23 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl }: Props)
              }
            />
          )}
-         <Space style={{ marginBottom: 12 }}>
-           <Button icon={<PlusOutlined />} onClick={() => setForm({ type: "zone", open: true })}>添加分区</Button>
-           <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
-           <Button icon={<BarChartOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-overview`)}>📊 可视化总览</Button>
-           <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-mapping-workbench`)}>四色分布图工作台</Button>
-           <Button icon={<UnorderedListOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-control-list`)}>管控清单</Button>
-           <Button icon={<NotificationOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-publicity`)}>重大风险公示</Button>
-           <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-notice-cards`)}>风险告知卡</Button>
-           <Button icon={<ApartmentOutlined />} onClick={() => setFloorDrawerOpen(true)}>楼层管理</Button>
-           <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
-           <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/data-dicts`)}>风险与隐患配置</Button>
-           <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/org`)}>组织与人员</Button>
-         </Space>
+        <Space style={{ marginBottom: 12 }}>
+          <Button icon={<PlusOutlined />} onClick={() => setForm({ type: "zone", open: true })}>添加分区</Button>
+          <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
+          <Button icon={<ApartmentOutlined />} onClick={() => setFloorDrawerOpen(true)}>楼层管理</Button>
+          {!embedded && (
+            <>
+              <Button icon={<BarChartOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-overview`)}>📊 可视化总览</Button>
+              <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-mapping-workbench`)}>四色分布图工作台</Button>
+              <Button icon={<UnorderedListOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-control-list`)}>管控清单</Button>
+              <Button icon={<NotificationOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-publicity`)}>重大风险公示</Button>
+              <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-notice-cards`)}>风险告知卡</Button>
+              <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
+              <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/data-dicts`)}>风险与隐患配置</Button>
+              <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/org`)}>组织与人员</Button>
+            </>
+          )}
+        </Space>
          {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}
        </div>
  
