@@ -296,3 +296,61 @@ def test_normalize_signs_max_total_truncates():
     out = normalize_signs(signs, max_total=4)
     assert len(out) == 4
     assert [s["name"] for s in out] == ["当心火灾", "当心爆炸", "禁止烟火", "必须戴安全帽"]
+
+
+def test_save_snapshot_normalizes_signs_and_signs_source():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def run():
+        db = AsyncMock()
+        res = MagicMock()
+        res.scalars.return_value.first.return_value = None
+        db.execute.return_value = res
+
+        saved = await save_snapshot(
+            db, "e1", "o1", "u1",
+            {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+                    {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+                    {"category": "warning", "name": "自造标志", "svg_name": "not-in-library"},
+                ],
+                "signs_source": "not-a-valid-source",
+            },
+        )
+        # 库外 svg_name 丢弃、按类别顺序重排；signs_source 非法回退 rule
+        assert saved.content["signs"] == [
+            {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+            {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+        ]
+        assert saved.content["signs_source"] == "rule"
+
+    asyncio.run(run())
+
+
+def test_save_snapshot_without_signs_keeps_content_unchanged():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def run():
+        db = AsyncMock()
+        res = MagicMock()
+        res.scalars.return_value.first.return_value = None
+        db.execute.return_value = res
+        content = {
+            "hazard_description": "x",
+            "accident_types": ["火灾"],
+            "control_measures": [],
+            "emergency_measures": [],
+        }
+
+        saved = await save_snapshot(db, "e1", "o1", "u1", content)
+        # 无 signs 时 content 原样保存，不新增 signs/signs_source 键
+        assert saved.content == content
+
+    asyncio.run(run())

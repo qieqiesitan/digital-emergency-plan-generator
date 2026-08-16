@@ -860,3 +860,37 @@ def test_review_signs_non_list_fields_fall_back(monkeypatch):
         assert result["reasons"] == []
 
     asyncio.run(run())
+
+
+def test_snapshot_save_with_signs(client):
+    """PUT /snapshot 的 content 含 signs 时，服务端按规则库规范化后持久化，
+    signs_source 原样保留；库外 svg_name 被丢弃、按类别顺序重排。
+    """
+    ent = _enterprise()
+    db = _risk_card_db(ent, [], detail_obj=_risk_object())
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+                    {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+                    {"category": "warning", "name": "自造标志", "svg_name": "not-in-library"},
+                ],
+                "signs_source": "manual",
+            }
+        },
+    )
+    assert resp.status_code == 200
+    saved = db.add.call_args.args[0]
+    assert saved.content["signs"] == [
+        {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+        {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+    ]
+    assert saved.content["signs_source"] == "manual"

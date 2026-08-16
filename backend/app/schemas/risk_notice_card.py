@@ -13,6 +13,8 @@ class RightColumn(BaseModel):
     accident_types: list[str] = []
     control_measures: list[str] = []
     emergency_measures: list[str] = []
+    signs: list[SignItem] = []
+    signs_source: str | None = None
 
 
 class CardData(RightColumn):

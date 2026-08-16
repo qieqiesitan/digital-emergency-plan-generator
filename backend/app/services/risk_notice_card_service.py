@@ -291,6 +291,14 @@ async def save_snapshot(
     user_id: str,
     content: dict,
 ) -> RiskNoticeCard | None:
+    content = dict(content)
+    signs = content.get("signs")
+    if isinstance(signs, list):
+        # 人工/AI 提交的标志按规则库过滤非法、去重、排序、限量；
+        # signs_source 非法值回退 rule（缺省 rule，前端据此显示来源 Tag）。
+        content["signs"] = normalize_signs(signs)
+        source = content.get("signs_source")
+        content["signs_source"] = source if source in ("rule", "ai", "manual") else "rule"
     existing = await get_snapshot(db, object_id)
     if existing:
         existing.version += 1
