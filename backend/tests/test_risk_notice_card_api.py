@@ -616,6 +616,32 @@ def test_review_signs_parses_suggestion(monkeypatch):
     asyncio.run(run())
 
 
+def test_ai_review_signs_endpoint_returns_suggestion(client, monkeypatch):
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def fake_review(*args, **kwargs):
+        return {
+            "remove": [],
+            "add": ["warning-fall"],
+            "reasons": [{"sign_name": "当心滑倒", "reason": "有滑倒风险"}],
+        }
+
+    monkeypatch.setattr(risk_notice_card_ai, "review_signs", fake_review)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["suggestion"]["add"] == ["warning-fall"]
+    assert data["original_signs"] is not None
+
+
 def test_review_signs_invalid_json_raises_502(monkeypatch):
     import asyncio
     from unittest.mock import AsyncMock

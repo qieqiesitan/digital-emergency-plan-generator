@@ -61,6 +61,17 @@ class AiOptimizeResponse(BaseModel):
     optimized: RightColumn
 
 
+class SignSuggestion(BaseModel):
+    remove: list[str] = []
+    add: list[str] = []
+    reasons: list[dict] = []
+
+
+class AiSignReviewResponse(BaseModel):
+    original_signs: list[SignItem] = []
+    suggestion: SignSuggestion
+
+
 class SnapshotSaveRequest(BaseModel):
     content: RightColumn
 
