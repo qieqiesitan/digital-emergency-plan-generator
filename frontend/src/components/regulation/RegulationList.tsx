@@ -24,10 +24,10 @@ interface Props {
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  law: { label: "法律", color: "#1677ff", icon: <AppIcon name="law" /> },
-  standard: { label: "标准", color: "#52c41a", icon: <AppIcon name="standard" /> },
-  policy: { label: "政策", color: "#faad14", icon: <AppIcon name="policy" /> },
-  topic: { label: "主题", color: "#eb2f96", icon: <AppIcon name="topic" /> },
+  law: { label: "法律", color: "#1677ff", icon: <AppIcon name="law" size={12} /> },
+  standard: { label: "标准", color: "#52c41a", icon: <AppIcon name="standard" size={12} /> },
+  policy: { label: "政策", color: "#faad14", icon: <AppIcon name="policy" size={12} /> },
+  topic: { label: "主题", color: "#eb2f96", icon: <AppIcon name="topic" size={12} /> },
 };
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
