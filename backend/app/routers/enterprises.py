@@ -7,9 +7,11 @@ from app.models.user import User
 from app.models.enterprise import Enterprise
 from app.schemas.enterprise import EnterpriseCreate, EnterpriseUpdate, EnterpriseResponse, AutofillRequest, AutofillResponse
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
+from app.schemas.enterprise_cockpit import CockpitSummary
 from app.dependencies import get_current_user
 from app.services.enterprise_cleanup_service import delete_enterprise_complete
 from app.services.floor_plan_storage_service import remove_enterprise_uploads
+from app.services.enterprise_cockpit_service import build_cockpit_summary
 from app.services.risk_stats_service import (
     count_enterprise_risk_events,
     count_enterprises_risk_events,
@@ -114,6 +116,24 @@ async def get_enterprise(enterprise_id: str, current_user: User = Depends(get_cu
     if not e: raise HTTPException(status_code=404, detail="企业不存在")
     risk_events_count = await count_enterprise_risk_events(db, enterprise_id)
     return ApiResponse(data=_build_response(e, risk_events_count))
+
+@router.get("/{enterprise_id}/cockpit-summary", response_model=ApiResponse[CockpitSummary])
+async def get_enterprise_cockpit_summary(
+    enterprise_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Enterprise).where(
+            Enterprise.id == enterprise_id,
+            Enterprise.user_id == current_user.id,
+        )
+    )
+    e = result.scalar_one_or_none()
+    if not e:
+        raise HTTPException(status_code=404, detail="企业不存在")
+    data = await build_cockpit_summary(db, enterprise_id, enterprise=e)
+    return ApiResponse(data=CockpitSummary(**data))
 
 @router.post("", response_model=ApiResponse[EnterpriseResponse], status_code=201)
 async def create_enterprise(data: EnterpriseCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.enterprise import Enterprise
 from app.models.hazard_management import HazardRecord
@@ -137,6 +138,10 @@ async def _fetch_events(db: AsyncSession, enterprise_id: str) -> list[RiskEvent]
         )
         .join(RiskZone, RiskObject.zone_id == RiskZone.id)
         .where(RiskZone.enterprise_id == enterprise_id)
+        .options(
+            selectinload(RiskEvent.object).selectinload(RiskObject.zone),
+            selectinload(RiskEvent.unit).selectinload(RiskUnit.object).selectinload(RiskObject.zone),
+        )
     )
     return list(dict.fromkeys(rows.scalars().all()))
 

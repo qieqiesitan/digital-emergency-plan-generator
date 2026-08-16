@@ -95,3 +95,79 @@ def test_derive_todos_empty():
         completion_modules=[],
     )
     assert todos == []
+
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.user import User
+from app.routers import enterprises
+
+
+def _make_client(db_session):
+    app = FastAPI()
+    app.include_router(enterprises.router)
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="u1", email="a@b.com", name="测试", password_hash="x"
+    )
+    app.dependency_overrides[get_db] = lambda: db_session
+    return TestClient(app)
+
+
+def test_cockpit_summary_returns_404_for_missing_enterprise():
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+    client = _make_client(session)
+    resp = client.get("/enterprises/nope/cockpit-summary")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "企业不存在"
+
+
+@patch("app.routers.enterprises.build_cockpit_summary", new_callable=AsyncMock)
+def test_cockpit_summary_returns_payload(mock_build):
+    mock_build.return_value = {
+        "risk_counts": {"major": 1, "larger": 1, "general": 1, "low": 1, "total": 4},
+        "zone_risks": [],
+        "top_risks": [],
+        "risk_index": 55,
+        "hazard_counts": {"open": 3, "due": 2, "overdue": 0},
+        "todos": [],
+        "completion": {"percent": 50, "modules": []},
+        "recent_activities": [],
+    }
+    enterprise = MagicMock(id="e1", user_id="u1")
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=enterprise)))
+    client = _make_client(session)
+    resp = client.get("/enterprises/e1/cockpit-summary")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["risk_index"] == 55
+    assert data["completion"]["percent"] == 50
+
+
+def test_aggregate_events_empty():
+    out = aggregate_events([])
+    assert out["risk_counts"] == {"major": 0, "larger": 0, "general": 0, "low": 0, "total": 0}
+    assert out["zone_risks"] == []
+    assert out["top_risks"] == []
+    assert out["risk_index"] == 0
+
+
+def test_aggregate_events_unit_level_fallback_and_bad_values():
+    events = [
+        FakeEvent(level=None, score="abc", zone="储罐区", obj="球罐区", unit="1#球罐", responsible="生产部"),
+        FakeEvent(level="低", score="10", zone="办公楼", obj="办公室"),
+    ]
+    out = aggregate_events(events)
+    assert out["risk_counts"]["general"] == 1
+    assert out["risk_counts"]["low"] == 1
+    ball = next(t for t in out["top_risks"] if t["name"] == "球罐区")
+    assert ball["score"] == 0.0
+    assert ball["responsible_unit"] == "生产部"
+    zone_names = [z["zone_name"] for z in out["zone_risks"]]
+    assert "储罐区" in zone_names and "办公楼" in zone_names
