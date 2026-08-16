@@ -20,10 +20,10 @@ import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
-  RobotOutlined,
 } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import AppIcon from "@/components/common/AppIcon";
 import {
   aiChecklistTemplate,
   copyHazardTemplate,
@@ -325,7 +325,7 @@ export default function HazardTemplatePage() {
               value={aiRiskPoints}
               onChange={e => setAiRiskPoints(e.target.value)}
             />
-            <Button icon={<RobotOutlined />} loading={aiLoading} onClick={() => void handleAiGenerate()}>
+            <Button icon={<AppIcon name="ai" size={14} />} loading={aiLoading} onClick={() => void handleAiGenerate()}>
               AI 生成核对项
             </Button>
           </Space.Compact>

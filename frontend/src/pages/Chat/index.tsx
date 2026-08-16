@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Input, Button, Typography, Spin, message, Popconfirm } from "antd";
-import { SendOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, MessageOutlined, CloseOutlined } from "@ant-design/icons";
+import { SendOutlined, PlusOutlined, DeleteOutlined, MessageOutlined, CloseOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import {
   sendChatMessage,
   fetchConversations,
@@ -289,7 +290,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
             <div style={{ textAlign: "center", paddingTop: 40 }}><Spin size="small" /></div>
           ) : messages.length === 0 ? (
             <div style={{ textAlign: "center", color: "#999", paddingTop: 40 }}>
-              <RobotOutlined style={{ fontSize: 36, marginBottom: 12 }} />
+              <AppIcon name="ai" size={36} style={{ marginBottom: 12 }} />
               <Paragraph type="secondary" style={{ fontSize: 12 }}>
                 你好！可以问我系统里的数据：
               </Paragraph>
@@ -435,7 +436,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "0 16px" }}>
         {!activeConvId ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", color: "#999" }}>
-            <RobotOutlined style={{ fontSize: 48, marginBottom: 16, color: "#d9d9d9" }} />
+            <AppIcon name="ai" size={48} style={{ marginBottom: 16, color: "#d9d9d9" }} />
             <Text type="secondary">选择左侧对话或新建一个</Text>
           </div>
         ) : convLoading ? (

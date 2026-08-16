@@ -3,8 +3,9 @@ import {
   Drawer, Form, Input, Select, Button, Segmented, Radio,
   Space, Tag, message, Divider, Modal, List, Alert,
 } from "antd";
-import { RobotOutlined, CalculatorOutlined } from "@ant-design/icons";
+import { CalculatorOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
+import AppIcon from "@/components/common/AppIcon";
 import { computeRiskLS, computeRiskLEC, getCellClass, ACCIDENT_TYPES, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { buildEventPayload, DIRECT_LEVELS } from "@/utils/eventPayload";
 import {
@@ -456,7 +457,7 @@ export default function RiskEventForm({
         </Form.Item>
 
         <Button
-          icon={<RobotOutlined />}
+          icon={<AppIcon name="ai" size={14} />}
           onClick={handleAISuggest}
           loading={aiLoading}
           style={{ marginBottom: 16 }}
@@ -770,7 +771,7 @@ export default function RiskEventForm({
             自动折算参考
           </Button>
           <Button
-            icon={<RobotOutlined />}
+            icon={<AppIcon name="ai" size={14} />}
             onClick={handleAiDualLevel}
             loading={dualLoading}
             disabled={!eventId}

@@ -2,7 +2,8 @@ import { useState } from "react";
 import {
   Drawer, Form, Input, Select, Button, DatePicker, Space, Divider, message,
 } from "antd";
-import { PlusOutlined, DeleteOutlined, RobotOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import { MEASURE_CATEGORY_LABELS } from "@/utils/riskMethodEngine";
 import { aiSuggestMeasures } from "@/services/riskManagementService";
 import type { MeasureCategory } from "@/types/riskManagement";
@@ -151,7 +152,7 @@ export default function RiskMeasureForm({
         </Form.Item>
 
         <Button
-          icon={<RobotOutlined />}
+          icon={<AppIcon name="ai" size={14} />}
           onClick={handleAISuggest}
           loading={aiLoading}
           style={{ marginBottom: 16 }}

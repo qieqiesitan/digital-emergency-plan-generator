@@ -1,7 +1,8 @@
 ﻿import { useState } from "react";
 import { Table, Button, Select, Input, Radio, Modal, Space, message, Tag } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, EnvironmentOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, EnvironmentOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import AppIcon from "@/components/common/AppIcon";
 import { listRiskSources, createRiskSource, updateRiskSource, deleteRiskSource } from "@/services/riskSourceService";
 import { RiskLevelTag } from "./RiskLevelTag";
 import { PRESET_RISK_CATEGORIES } from "@/utils/constants";
@@ -116,7 +117,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
           <Button icon={<DownloadOutlined />} onClick={() => setImportModalOpen(true)}>
             导入Excel
           </Button>
-          <Button icon={<RobotOutlined />} onClick={() => setAiModalOpen(true)}>
+          <Button icon={<AppIcon name="ai" size={14} />} onClick={() => setAiModalOpen(true)}>
             AI智能生成
           </Button>
         </Space>

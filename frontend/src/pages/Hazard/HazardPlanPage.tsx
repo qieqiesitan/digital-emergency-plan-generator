@@ -16,9 +16,10 @@ import {
   Tooltip,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { PlusOutlined, RobotOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import AppIcon from "@/components/common/AppIcon";
 import {
   aiScheduleSuggestion,
   createHazardPlan,
@@ -413,7 +414,7 @@ export default function HazardPlanPage() {
       >
         <Form form={form} layout="vertical" onFinish={values => void handleSave(values)} style={{ marginTop: 12 }}>
           <Space direction="vertical" style={{ width: "100%", marginBottom: 4 }}>
-            <Button icon={<RobotOutlined />} loading={aiLoading} onClick={() => void handleAiSuggest()} block>
+            <Button icon={<AppIcon name="ai" size={14} />} loading={aiLoading} onClick={() => void handleAiSuggest()} block>
               获取 AI 排程建议
             </Button>
             {suggestion &&

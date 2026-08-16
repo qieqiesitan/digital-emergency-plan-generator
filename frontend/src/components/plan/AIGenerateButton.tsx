@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Button, Alert, Modal, Form, Input, Tag, Typography } from "antd";
-import { RobotOutlined, LoadingOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { LoadingOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import { generateSectionStream, stopGeneration, regenerateSelectionStream } from "@/services/generationService";
 import { getAIConfig } from "@/services/aiConfigService";
 import { getQuickPrompts } from "@/utils/quickPrompts";
@@ -154,7 +155,7 @@ export default function AIGenerateButton({
         <Button icon={<CheckCircleOutlined style={{ color: "#52c41a" }} />} disabled>生成完成</Button>
       ) : (
         <>
-          <Button icon={<RobotOutlined />} onClick={handleGenerate} disabled={disabled}>AI 生成</Button>
+          <Button icon={<AppIcon name="ai" size={14} />} onClick={handleGenerate} disabled={disabled}>AI 生成</Button>
           {status === "error" && (
             <Alert type="error" title={errorMsg} closable onClose={() => setStatus("idle")} style={{ marginTop: 8 }}
               action={<Button size="small" onClick={handleConfirm}>重试</Button>}

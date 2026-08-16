@@ -22,9 +22,10 @@ import {
   Upload,
 } from "antd";
 import type { UploadProps } from "antd";
-import { PlusOutlined, RobotOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import AppIcon from "@/components/common/AppIcon";
 import {
   aiGradeHazard,
   aiGovernancePlan,
@@ -779,10 +780,10 @@ export default function HazardRecordDetailPage() {
           </Form.Item>
           <Form.Item>
             <Space wrap>
-              <Button icon={<RobotOutlined />} loading={aiGradeLoading} onClick={() => void handleAiGrade()}>
+              <Button icon={<AppIcon name="ai" size={14} />} loading={aiGradeLoading} onClick={() => void handleAiGrade()}>
                 AI 分级建议
               </Button>
-              <Button icon={<RobotOutlined />} loading={aiPlanLoading} onClick={() => void handleAiPlan()}>
+              <Button icon={<AppIcon name="ai" size={14} />} loading={aiPlanLoading} onClick={() => void handleAiPlan()}>
                 AI 治理方案草稿
               </Button>
             </Space>

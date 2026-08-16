@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Table, Button, Select, Input, InputNumber, Switch, Modal, Space, message } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import AppIcon from "@/components/common/AppIcon";
 import { listResources, createResource, updateResource, deleteResource } from "@/services/emergencyResourceService";
 import { PRESET_INTERNAL_RESOURCE_CATEGORIES, PRESET_EXTERNAL_RESOURCE_CATEGORIES } from "@/utils/constants";
 import ResourceImportModal from "./ResourceImportModal";
@@ -77,7 +78,7 @@ export default function EmergencyResourceForm({ enterpriseId }: { enterpriseId: 
         <Button icon={<DownloadOutlined />} onClick={() => setImportModalOpen(true)}>
           导入Excel
         </Button>
-        <Button icon={<RobotOutlined />} onClick={() => setAiModalOpen(true)}>
+        <Button icon={<AppIcon name="ai" size={14} />} onClick={() => setAiModalOpen(true)}>
           AI智能生成
         </Button>
         <Select value={filterExt} onChange={setFilterExt} style={{ width: 120 }}

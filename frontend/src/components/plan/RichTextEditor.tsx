@@ -9,12 +9,13 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { Button, Tooltip } from "antd";
-import { RobotOutlined, LoadingOutlined } from "@ant-design/icons";
+import { LoadingOutlined } from "@ant-design/icons";
 import {
   BoldOutlined, ItalicOutlined, UnderlineOutlined, StrikethroughOutlined,
   OrderedListOutlined, UnorderedListOutlined, TableOutlined,
   UndoOutlined, RedoOutlined, AlignLeftOutlined, AlignCenterOutlined, AlignRightOutlined,
 } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import MermaidRenderer from "./MermaidRenderer";
 import AIGenerateButton from "./AIGenerateButton";
 
@@ -136,7 +137,7 @@ export default function RichTextEditor({
               <LoadingOutlined style={{ marginRight: 4 }} />AI 重写中...
             </span>
           ) : (
-            <Button size="small" type="primary" ghost icon={<RobotOutlined />} onClick={() => setAiRewriteModalOpen(true)}>
+            <Button size="small" type="primary" ghost icon={<AppIcon name="ai" size={14} />} onClick={() => setAiRewriteModalOpen(true)}>
               AI 重写选中内容
             </Button>
           )}

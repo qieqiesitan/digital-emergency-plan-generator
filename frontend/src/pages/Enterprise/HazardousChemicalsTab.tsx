@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { Button, Table, Modal, Form, Input, Space, message, Popconfirm } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, RobotOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import {
   listChemicals,
   createChemical,
@@ -155,7 +156,7 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
             添加危险化学品
           </Button>
-          <Button icon={<RobotOutlined />} onClick={() => setAiModalOpen(true)}>
+          <Button icon={<AppIcon name="ai" size={14} />} onClick={() => setAiModalOpen(true)}>
             AI智能生成
           </Button>
         </Space>
