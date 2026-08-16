@@ -139,6 +139,12 @@ def search(q: str, page: int = 1, limit: int = PAGE_SIZE) -> list[dict]:
         "fromCollection": "1",
         "fills": "",
         "ctoken": "null",
+        "line": "1",
+        "fill": "",
+        "flat": "",
+        "hand": "",
+        "simple": "",
+        "complex": "",
         "t": str(int(time.time() * 1000)),
     }
     body = urllib.parse.urlencode(params).encode("utf-8")
