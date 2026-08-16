@@ -145,7 +145,7 @@ export default function PlanListPage() {
             ? "全部预案"
             : (entName ? `${entName} - 预案列表` : "预案列表")
         }
-        onBack={enterprise_id ? () => navigate("/plans") : undefined}
+        onBack={enterprise_id ? () => navigate(`/enterprises/${enterprise_id}`) : undefined}
         extra={
           <Button
             type="primary"
