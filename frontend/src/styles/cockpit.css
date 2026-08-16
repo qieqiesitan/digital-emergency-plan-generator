@@ -87,14 +87,17 @@
 .cp-h b { color: var(--text); font-weight: 800; letter-spacing: 1px; }
 .cp-h .right { margin-left: auto; font-weight: 400; letter-spacing: 1px; font-size: 9px; color: var(--muted); }
 
-.cp-donut { position: relative; width: 138px; height: 138px; margin: 0 auto 10px; border-radius: 50%;
+.cp-donut-wrap { position: relative; width: 138px; height: 138px; margin: 0 auto 10px; }
+.cp-donut { position: absolute; inset: 0; border-radius: 50%;
   filter: drop-shadow(0 0 14px rgba(0,212,255,.22));
   -webkit-mask: radial-gradient(circle, transparent 60%, #000 61%); mask: radial-gradient(circle, transparent 60%, #000 61%); }
-.cp-donut-center { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; margin-top: -148px; }
-.cp-donut-center b { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums;
+.cp-donut-center { position: absolute; inset: 0; }
+.cp-donut-center b { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums;
   background: linear-gradient(180deg, #fff, #8fd6ff); -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 0 8px rgba(0,212,255,.45)); }
-.cp-donut-center span { font-size: 9px; color: var(--muted); letter-spacing: 2px; }
+.cp-donut-center span { position: absolute; left: 0; right: 0; top: calc(50% + 17px);
+  text-align: center; font-size: 9px; color: var(--muted); letter-spacing: 2px; }
 .cp-legend { display: flex; flex-direction: column; gap: 5px; }
 .cp-lg { display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--muted); letter-spacing: .5px; }
 .cp-lg i { width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; display: inline-block; }

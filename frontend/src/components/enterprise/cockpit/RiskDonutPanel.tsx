@@ -33,10 +33,12 @@ export default function RiskDonutPanel({ counts, topRisks }: Props) {
       <i className="cp-corner tl" /><i className="cp-corner tr" />
       <i className="cp-corner bl" /><i className="cp-corner br" />
       <div className="cp-h">风险等级分布</div>
-      <div className="cp-donut" style={{ background: donutBackground(counts) }} />
-      <div className="cp-donut-center">
-        <b>{counts.total > 0 ? counts.total : "--"}</b>
-        <span>风险事件</span>
+      <div className="cp-donut-wrap">
+        <div className="cp-donut" style={{ background: donutBackground(counts) }} />
+        <div className="cp-donut-center">
+          <b>{counts.total > 0 ? counts.total : "--"}</b>
+          <span>风险事件</span>
+        </div>
       </div>
       <div className="cp-legend">
         {ORDER.map((key) => (
