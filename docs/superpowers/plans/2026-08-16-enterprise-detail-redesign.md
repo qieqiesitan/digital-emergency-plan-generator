@@ -115,7 +115,7 @@ def test_classify_level():
 
 
 def test_risk_index_formula_and_clamp():
-    assert _risk_index({"major": 2, "larger": 4, "general": 18, "low": 10}) == 62
+    assert _risk_index({"major": 2, "larger": 4, "general": 18, "low": 10}) == 38
     assert _risk_index({"major": 5, "larger": 0, "general": 0, "low": 0}) == 100
 
 
@@ -128,7 +128,7 @@ def test_aggregate_events_counts_zones_and_top():
     ]
     out = aggregate_events(events)
     assert out["risk_counts"] == {"major": 1, "larger": 1, "general": 1, "low": 1, "total": 4}
-    assert out["risk_index"] == 45
+    assert out["risk_index"] == 55
     assert out["zone_risks"][0]["zone_name"] == "生产车间"
     assert out["zone_risks"][0]["total"] == 3
     assert out["top_risks"][0]["name"] == "反应釜区"
@@ -197,15 +197,18 @@ def _classify_level(level: str | None) -> str:
 
 
 def _risk_index(counts: dict) -> int:
-    return min(
-        100,
-        round(
-            counts["major"] * 100
-            + counts["larger"] * 70
-            + counts["general"] * 40
-            + counts["low"] * 10
-        ),
+    total = counts.get("total") or (
+        counts["major"] + counts["larger"] + counts["general"] + counts["low"]
     )
+    if total <= 0:
+        return 0
+    weighted = (
+        counts["major"] * 100
+        + counts["larger"] * 70
+        + counts["general"] * 40
+        + counts["low"] * 10
+    )
+    return min(100, round(weighted / total))
 
 
 def _event_zone_name(e: RiskEvent) -> str:
@@ -457,7 +460,7 @@ def test_cockpit_summary_returns_payload(mock_build):
         "risk_counts": {"major": 1, "larger": 1, "general": 1, "low": 1, "total": 4},
         "zone_risks": [],
         "top_risks": [],
-        "risk_index": 45,
+        "risk_index": 55,
         "hazard_counts": {"open": 3, "due": 2, "overdue": 0},
         "todos": [],
         "completion": {"percent": 50, "modules": []},
@@ -470,7 +473,7 @@ def test_cockpit_summary_returns_payload(mock_build):
     resp = client.get("/enterprises/e1/cockpit-summary")
     assert resp.status_code == 200
     data = resp.json()["data"]
-    assert data["risk_index"] == 45
+    assert data["risk_index"] == 55
     assert data["completion"]["percent"] == 50
 ```
 
@@ -634,7 +637,7 @@ describe("cockpitService", () => {
       risk_counts: { major: 1, larger: 1, general: 1, low: 1, total: 4 },
       zone_risks: [],
       top_risks: [],
-      risk_index: 45,
+      risk_index: 55,
       hazard_counts: { open: 3, due: 2, overdue: 0 },
       todos: [],
       completion: { percent: 50, modules: [] },
@@ -2066,7 +2069,7 @@ const SUMMARY = {
     top_risks: [
       { name: "液氨储罐区", level: "重大", score: 82, responsible_unit: "生产部" },
     ],
-    risk_index: 62,
+    risk_index: 38,
     hazard_counts: { open: 3, due: 2, overdue: 0 },
     todos: [
       { priority: "high", title: "风险评估报告未生成", note: "建议本周完成 · AI 可辅助生成" },

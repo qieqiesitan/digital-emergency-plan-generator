@@ -197,7 +197,7 @@
   "risk_counts": { "major": 2, "larger": 4, "general": 18, "low": 10, "total": 34 },
   "top_risks": [{ "name": "液氨储罐区", "level": "重大", "score": 82, "responsible_unit": "生产部" }],
   "zone_risks": [{ "zone_name": "生产车间", "counts": { "major": 1, "larger": 2, "general": 8, "low": 2 }, "total": 13 }],
-  "risk_index": 62,
+  "risk_index": 38,
   "todos": [{ "priority": "high", "title": "风险评估报告未生成", "note": "建议本周完成" }],
   "completion": { "percent": 78, "modules": [{ "key": "enterprise_info", "label": "基本信息", "done": true }] },
   "recent_activities": [{ "actor": "张伟", "action": "更新了组织架构", "time": "2026-08-16T10:32:00+08:00" }]
@@ -207,7 +207,7 @@
 ### 7.2 计算规则
 
 - **风险等级分布 / 分区分布 / TOP**：从风险层级树（zone→object→unit→event）聚合，事件级 `risk_level` 与 `risk_score` 取值；TOP 按 `risk_score` 降序取 3；
-- **综合风险指数 risk_index**（0-100）：`min(100, round(major*100 + larger*70 + general*40 + low*10))` 按企业规模系数归一（规格默认直接取该式，超过 100 截断；后续可配置权重）；
+- **综合风险指数 risk_index**（0-100）：事件平均严重度加权归一——`min(100, round((major*100 + larger*70 + general*40 + low*10) / max(total, 1)))`，其中 total 为事件总数；0 事件时为 0。后续可配置权重；
 - **待办提醒**：由三类信号派生——①风险评估/应急资源调查报告 status 非 completed；②隐患整改到期（deadline 3 天内且状态未闭环）；③数据完成度缺失模块（周边环境/报告未完成时提示）；
 - **完成度**：复用 onboarding `completion` 逻辑与 `MODULE_KEY_MAP`（enterprise_info/org_structure/risk_chemical/resources/surrounding/reports 6 模块），不重复实现；
 - **最近动态**：MVP 从企业 `updated_at` 与各子模块最近更新时间聚合，操作人字段可为空（显示「系统」），不做操作审计表（后续如需再建）。
