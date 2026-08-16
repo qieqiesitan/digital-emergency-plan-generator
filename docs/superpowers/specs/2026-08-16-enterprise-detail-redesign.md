@@ -150,8 +150,7 @@
 
 - 新增 `ModulePageShell` 布局组件：顶栏（返回驾驶舱）+ 可选 `ModuleSideNav` + `<Outlet/>`；
 - 风险管控/隐患治理使用嵌套路由，现有子页面（RiskOverviewPage、RiskMappingWorkbenchPage、RiskControlListPage、RiskNoticeCardPage、RiskPublicityPage、RiskMethodListPage/Editor、EnterpriseDictConfigPage、HazardPlanPage/TaskPage/RecordDetail/TemplatePage/DashboardPage/PublicityPage 等）作为子路由渲染在壳内，**页面自身内容与逻辑不动**，仅包裹布局；
-- 风险树编辑为现有 `RiskManagementTab` 内的核心内容：拆出为独立 `RiskTreePanel` 组件供模块页默认路由使用（行为不变）；
-- 隐患台账为现有 `HazardInspectionTab` 核心内容，同理拆为 `HazardLedgerPanel`。
+- 风险分级管控模块默认路由直接渲染现有 `RiskManagementTab`（风险树编辑），通过新增可选 prop `embedded` 隐藏其内部子功能按钮行（该行按钮由左竖导航承接，避免导航重复）；隐患排查治理同理渲染 `HazardInspectionTab` 并隐藏其内部按钮行。两处均只加 prop 与条件渲染，不改动页面内部逻辑，行为不变。
 
 ## 6. 路由设计
 
