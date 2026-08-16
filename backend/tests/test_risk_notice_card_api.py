@@ -587,7 +587,10 @@ def test_review_signs_parses_suggestion(monkeypatch):
     from unittest.mock import AsyncMock
     from app.services import risk_notice_card_ai
 
+    captured_messages = []
+
     async def fake_completion(messages, config, timeout=60):
+        captured_messages.append(messages)
         return (
             '{"remove": ["instruction-helmet"], "add": ["warning-fall"], '
             '"reasons": [{"sign_name": "必须戴安全帽", "reason": "会议室为非生产区域"}, '
@@ -606,6 +609,9 @@ def test_review_signs_parses_suggestion(monkeypatch):
         assert result["remove"] == ["instruction-helmet"]
         assert result["add"] == ["warning-fall"]
         assert len(result["reasons"]) == 2
+        prompt = captured_messages[0][1]["content"]
+        assert "只能从这里选" in prompt
+        assert "每类" in prompt
 
     asyncio.run(run())
 

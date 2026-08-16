@@ -78,12 +78,12 @@ async def review_signs(
     """AI 审查安全标志：返回 {remove, add, reasons} 差异建议。"""
     ai_config = await _get_ai_config(user_id, db)
     events_text = "\n".join(
-        f"- 事故类型：{e.get('accident_type', '')}；触发条件：{e.get('trigger_conditions', '') or ''}；"
+        f"- 事故类型：{e.get('accident_type', '') or ''}；触发条件：{e.get('trigger_conditions', '') or ''}；"
         f"可能后果：{e.get('consequences', '') or ''}"
         for e in events
     )
-    current_text = "、".join(f"{s['name']}({s['svg_name']})" for s in current_signs) or "（无）"
-    catalog_text = "；".join(f"{s['name']}({s['svg_name']})" for s in catalog)
+    current_text = "、".join(f"{s.get('name', '')}({s.get('svg_name', '')})" for s in current_signs) or "（无）"
+    catalog_text = "；".join(f"{s.get('name', '')}({s.get('svg_name', '')})" for s in catalog)
     prompt = (
         "你是安全生产专家，熟悉 GB 2894-2025《安全色和安全标志》与 GB 6441-1986 事故分类。"
         "请审查以下风险点告知卡的安全标志是否合理，输出严格 JSON："
@@ -105,6 +105,8 @@ async def review_signs(
         data = _parse_optimized_json(raw)
     except json.JSONDecodeError:
         logger.warning("AI 审查标志 JSON 解析失败: raw=%s", raw[:200])
+        raise HTTPException(502, "AI 返回格式异常，无法解析 JSON")
+    if not isinstance(data, dict):
         raise HTTPException(502, "AI 返回格式异常，无法解析 JSON")
     remove = data.get("remove", []) if isinstance(data.get("remove"), list) else []
     add = data.get("add", []) if isinstance(data.get("add"), list) else []
