@@ -24,16 +24,24 @@ from app.models.risk_management import RiskEvent, RiskObject, RiskUnit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.schemas.risk_notice_card import (
+    AiSignReviewResponse,
     AiOptimizeResponse,
     CardData,
     CardSummary,
     ExportRequest,
     ExportResponse,
+    SignSuggestion,
     SnapshotSaveRequest,
     SnapshotResponse,
     TokenResetResponse,
 )
-from app.services.risk_notice_card_data import LEVEL_COLORS, LEVEL_ORDER
+from app.services import risk_notice_card_ai
+from app.services.risk_notice_card_data import (
+    DEFAULT_SIGN_GROUP,
+    LEVEL_COLORS,
+    LEVEL_ORDER,
+    SIGN_GROUPS,
+)
 from app.services.hazard_service import open_hazard_count_by_objects
 from app.services.risk_notice_card_ai import optimize_right_column
 from app.services.risk_notice_card_docx import render_cards_docx, svg_to_png
@@ -42,12 +50,16 @@ from app.services.risk_notice_card_service import (
     build_right_column,
     collect_measures,
     compute_level,
+    get_snapshot,
     is_stale,
     load_events_and_measures,
     match_signs,
     merge_object_events,
+    normalize_signs,
     resolve_responsible,
     save_snapshot,
+    snapshot_content,
+    snapshot_signs,
 )
 
 router = APIRouter(
@@ -306,6 +318,85 @@ async def ai_optimize(
         )
         raise HTTPException(502, "AI 优化失败，请稍后重试或保留原版")
     return ApiResponse(data=AiOptimizeResponse(original=original, optimized=optimized))
+
+
+@router.post(
+    "/{object_id}/ai-review-signs",
+    response_model=ApiResponse[AiSignReviewResponse],
+)
+async def ai_review_signs(
+    enterprise_id: str,
+    object_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """AI 审查风险点安全标志：返回增删差异建议，无副作用。
+
+    当前标志优先取快照 signs，否则按规则 match_signs(accident_types)；
+    存在旧快照（无 signs）时按快照 accident_types 回退，与卡片展示一致；
+    快照/规则结果经 normalize_signs 过滤非法元素后使用；候选库为
+    SIGN_GROUPS 全组 + DEFAULT_SIGN_GROUP 去重；事件数据取
+    accident_type/trigger_conditions/consequences 传给 review_signs。
+    """
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    obj = (
+        await db.execute(
+            select(RiskObject).where(
+                RiskObject.id == object_id,
+                RiskObject.enterprise_id == enterprise_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not obj:
+        raise HTTPException(404, "风险点不存在")
+    events, measures = await load_events_and_measures(db, object_id)
+    snapshot = await get_snapshot(db, object_id)
+    right = build_right_column(events, measures, snapshot_content(snapshot))
+    cached_signs = snapshot_signs(snapshot)
+    current_signs = normalize_signs(
+        cached_signs if cached_signs is not None else match_signs(right.accident_types)
+    )
+    catalog: list[dict] = []
+    seen: set[str] = set()
+    for s in [s for group in SIGN_GROUPS.values() for s in group] + DEFAULT_SIGN_GROUP:
+        if s["svg_name"] not in seen:
+            seen.add(s["svg_name"])
+            catalog.append(s)
+    event_data = [
+        {
+            "accident_type": e.accident_type,
+            "trigger_conditions": e.trigger_conditions,
+            "consequences": e.consequences,
+        }
+        for e in events
+    ]
+    try:
+        suggestion = await risk_notice_card_ai.review_signs(
+            db,
+            current_user.id,
+            ent.name,
+            obj.name,
+            obj.category,
+            obj.location,
+            event_data,
+            current_signs,
+            catalog,
+        )
+        response = AiSignReviewResponse(
+            original_signs=current_signs,
+            suggestion=SignSuggestion(**suggestion),
+            catalog=catalog,
+        )
+    except HTTPException:
+        raise  # AI 未配置等业务错误保留原语义（如 400/502）
+    except Exception:
+        logger.exception(
+            "风险告知卡 AI 标志审查失败: enterprise=%s object=%s",
+            enterprise_id,
+            object_id,
+        )
+        raise HTTPException(502, "AI 审查失败，已保留原版")
+    return ApiResponse(data=response)
 
 
 @router.put("/{object_id}/snapshot", response_model=ApiResponse[SnapshotResponse])

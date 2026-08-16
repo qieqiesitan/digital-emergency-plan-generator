@@ -73,7 +73,7 @@ def _count_result(value):
     return res
 
 
-def _risk_card_db(ent, objs, detail_obj=None, events_obj=None, snapshots=None):
+def _risk_card_db(ent, objs, detail_obj=None, events_obj=None, snapshots=None, snapshot=None):
     """按 SQL 文本特征分发：
     FROM enterprises → 企业（scalar_one_or_none）；
     risk_notice_cards + enterprise_id → 企业全部快照列表（all）；
@@ -96,7 +96,7 @@ def _risk_card_db(ent, objs, detail_obj=None, events_obj=None, snapshots=None):
             if "WHERE risk_notice_cards.enterprise_id" in text:
                 res.scalars.return_value.all.return_value = snapshots or []
             else:
-                res.scalars.return_value.first.return_value = None
+                res.scalars.return_value.first.return_value = snapshot
             return res
         if "FROM risk_objects" in text:
             if "enterprise_id =" in text:
@@ -589,3 +589,409 @@ def test_reset_token_object_not_found_404(client):
     resp = client.post("/enterprises/e1/risk-notice-cards/not-exist/token/reset")
     assert resp.status_code == 404
     assert "风险点不存在" in resp.json()["detail"]
+
+
+def test_review_signs_parses_suggestion(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+    from app.services import risk_notice_card_ai
+
+    captured_messages = []
+
+    async def fake_completion(messages, config, timeout=60):
+        captured_messages.append(messages)
+        return (
+            '{"remove": ["instruction-helmet"], "add": ["warning-fall"], '
+            '"reasons": [{"sign_name": "必须戴安全帽", "reason": "会议室为非生产区域"}, '
+            '{"sign_name": "当心滑倒", "reason": "存在滑倒风险"}]}'
+        )
+
+    async def run():
+        monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()  # 避免 _get_ai_config 产生未 await 的 coroutine
+        result = await risk_notice_card_ai.review_signs(
+            db, "u1", "测试公司", "会议室", "工作场所", "三楼",
+            [{"accident_type": "火灾"}, {"accident_type": "人员滑倒/摔伤"}],
+            [{"category": "instruction", "name": "必须戴安全帽", "svg_name": "instruction-helmet"}],
+            [{"category": "warning", "name": "当心滑倒", "svg_name": "warning-fall"}],
+        )
+        assert result["remove"] == ["instruction-helmet"]
+        assert result["add"] == ["warning-fall"]
+        assert len(result["reasons"]) == 2
+        prompt = captured_messages[0][1]["content"]
+        assert "只能从这里选" in prompt
+        assert "每类" in prompt
+
+    asyncio.run(run())
+
+
+def test_ai_review_signs_endpoint_returns_suggestion(client, monkeypatch):
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def fake_review(*args, **kwargs):
+        return {
+            "remove": [],
+            "add": ["warning-fall"],
+            "reasons": [{"sign_name": "当心滑倒", "reason": "有滑倒风险"}],
+        }
+
+    monkeypatch.setattr(risk_notice_card_ai, "review_signs", fake_review)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["suggestion"]["add"] == ["warning-fall"]
+    assert data["original_signs"]
+    assert "warning-fire" in [s["svg_name"] for s in data["original_signs"]]
+    # 候选库：全量去重返回，供前端人工微调/中文名映射
+    catalog = data["catalog"]
+    assert catalog
+    catalog_names = [s["svg_name"] for s in catalog]
+    assert "warning-fire" in catalog_names
+    assert "prohibition-smoking" in catalog_names
+    assert "notice-exit" in catalog_names
+    assert len(catalog_names) == len(set(catalog_names))
+    assert all(set(s) == {"category", "name", "svg_name"} for s in catalog)
+    assert (
+        next(s for s in catalog if s["svg_name"] == "warning-fire")["category"]
+        == "warning"
+    )
+
+
+def test_ai_review_signs_object_not_found_404(client):
+    ent = _enterprise()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [], detail_obj=None
+    )
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/not-exist/ai-review-signs")
+    assert resp.status_code == 404
+    assert "风险点不存在" in resp.json()["detail"]
+
+
+def test_ai_review_signs_failure_returns_502(client, monkeypatch):
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def broken_review(*args, **kwargs):
+        raise ValueError("llm boom")
+
+    monkeypatch.setattr(risk_notice_card_ai, "review_signs", broken_review)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 502
+    assert "AI 审查失败，已保留原版" in resp.json()["detail"]
+
+
+def test_ai_review_signs_http_exception_passthrough(client, monkeypatch):
+    from fastapi import HTTPException
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def no_config(user_id, db):
+        raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
+
+    monkeypatch.setattr(risk_notice_card_ai, "_get_ai_config", no_config)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 400
+    assert "系统未配置" in resp.json()["detail"]
+
+
+def test_ai_review_signs_prefers_snapshot_signs(client, monkeypatch):
+    from app.models.risk_notice_card import RiskNoticeCard
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    snap = RiskNoticeCard(
+        enterprise_id="e1",
+        object_id="o1",
+        version=2,
+        source="ai",
+        content={
+            "signs": [
+                {"category": "warning", "name": "当心坠落", "svg_name": "warning-fall"}
+            ]
+        },
+    )
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj, snapshot=snap
+    )
+
+    async def fake_review(*args, **kwargs):
+        return {"remove": [], "add": [], "reasons": []}
+
+    monkeypatch.setattr(risk_notice_card_ai, "review_signs", fake_review)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["original_signs"] == [
+        {"category": "warning", "name": "当心坠落", "svg_name": "warning-fall"}
+    ]
+
+
+def test_ai_review_signs_old_snapshot_uses_snapshot_accident_types(client, monkeypatch):
+    from app.models.risk_notice_card import RiskNoticeCard
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())  # 源数据事故类型：火灾
+    snap = RiskNoticeCard(
+        enterprise_id="e1",
+        object_id="o1",
+        version=1,
+        source="ai",
+        content={"accident_types": ["高处坠落"]},  # 旧快照无 signs，回退按快照事故类型
+    )
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj, snapshot=snap
+    )
+
+    async def fake_review(*args, **kwargs):
+        return {"remove": [], "add": [], "reasons": []}
+
+    monkeypatch.setattr(risk_notice_card_ai, "review_signs", fake_review)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 200
+    svg_names = [s["svg_name"] for s in resp.json()["data"]["original_signs"]]
+    assert "warning-fall" in svg_names
+    assert "warning-fire" not in svg_names
+
+
+def test_ai_review_signs_malformed_suggestion_returns_502(client, monkeypatch):
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj
+    )
+
+    async def fake_review(*args, **kwargs):
+        return {"remove": [], "add": [123], "reasons": []}
+
+    monkeypatch.setattr(risk_notice_card_ai, "review_signs", fake_review)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 502
+    assert "AI 审查失败，已保留原版" in resp.json()["detail"]
+
+
+def test_ai_review_signs_drops_malformed_snapshot_signs(client, monkeypatch):
+    from app.models.risk_notice_card import RiskNoticeCard
+    from app.services import risk_notice_card_ai
+
+    ent = _enterprise()
+    obj = _risk_object()
+    obj.events.append(_fire_event())
+    snap = RiskNoticeCard(
+        enterprise_id="e1",
+        object_id="o1",
+        version=2,
+        source="ai",
+        content={
+            "signs": [
+                {"category": "warning", "name": "当心火灾"}  # 缺 svg_name，非法元素静默丢弃
+            ]
+        },
+    )
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [obj], detail_obj=obj, events_obj=obj, snapshot=snap
+    )
+
+    async def fake_review(*args, **kwargs):
+        return {"remove": [], "add": [], "reasons": []}
+
+    monkeypatch.setattr(risk_notice_card_ai, "review_signs", fake_review)
+
+    resp = client.post("/enterprises/e1/risk-notice-cards/o1/ai-review-signs")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["original_signs"] == []
+
+
+def test_review_signs_invalid_json_raises_502(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    import pytest
+    from fastapi import HTTPException
+    from app.services import risk_notice_card_ai
+
+    async def fake_completion(messages, config, timeout=60):
+        return "这不是 JSON"
+
+    async def run():
+        monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        with pytest.raises(HTTPException) as exc:
+            await risk_notice_card_ai.review_signs(
+                db, "u1", "测试公司", "会议室", "工作场所", "三楼",
+                [{"accident_type": "火灾"}],
+                [],
+                [],
+            )
+        assert exc.value.status_code == 502
+        assert "AI 返回格式异常" in exc.value.detail
+
+    asyncio.run(run())
+
+
+def test_review_signs_non_list_fields_fall_back(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+    from app.services import risk_notice_card_ai
+
+    async def fake_completion(messages, config, timeout=60):
+        return '{"remove": "instruction-helmet", "add": null, "reasons": {}}'
+
+    async def run():
+        monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        result = await risk_notice_card_ai.review_signs(
+            db, "u1", "测试公司", "会议室", "工作场所", "三楼",
+            [{"accident_type": "火灾"}],
+            [],
+            [],
+        )
+        assert result["remove"] == []
+        assert result["add"] == []
+        assert result["reasons"] == []
+
+    asyncio.run(run())
+
+
+def test_snapshot_save_with_signs(client):
+    """PUT /snapshot 的 content 含 signs 时，服务端按规则库规范化后持久化，
+    signs_source 原样保留；库外 svg_name 被丢弃、按类别顺序重排。
+    """
+    ent = _enterprise()
+    db = _risk_card_db(ent, [], detail_obj=_risk_object())
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+                    {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+                    {"category": "warning", "name": "自造标志", "svg_name": "not-in-library"},
+                ],
+                "signs_source": "manual",
+            }
+        },
+    )
+    assert resp.status_code == 200
+    saved = db.add.call_args.args[0]
+    assert saved.content["signs"] == [
+        {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+        {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+    ]
+    assert saved.content["signs_source"] == "manual"
+
+
+def test_snapshot_save_persists_explicit_empty_signs(client):
+    """PUT /snapshot 的 content 含 signs: [] + signs_source=manual 时，显式空列表
+    作为合法最终状态持久化（不回退规则标志、来源保持 manual）。"""
+    ent = _enterprise()
+    db = _risk_card_db(ent, [], detail_obj=_risk_object())
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [],
+                "signs_source": "manual",
+            }
+        },
+    )
+    assert resp.status_code == 200
+    saved = db.add.call_args.args[0]
+    assert saved.content["signs"] == []
+    assert saved.content["signs_source"] == "manual"
+
+
+def test_snapshot_save_invalid_sign_category_422(client):
+    """写端点经 pydantic SignItem 严格校验：非法 category → 422。"""
+    ent = _enterprise()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [], detail_obj=_risk_object()
+    )
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "bogus", "name": "自造标志", "svg_name": "not-in-library"}
+                ],
+            }
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_snapshot_save_invalid_signs_source_falls_back_rule(client):
+    """API 层非法 signs_source → 端到端回退 rule。"""
+    ent = _enterprise()
+    db = _risk_card_db(ent, [], detail_obj=_risk_object())
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"}
+                ],
+                "signs_source": "not-a-valid-source",
+            }
+        },
+    )
+    assert resp.status_code == 200
+    saved = db.add.call_args.args[0]
+    assert saved.content["signs_source"] == "rule"

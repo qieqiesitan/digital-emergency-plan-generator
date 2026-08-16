@@ -16,6 +16,10 @@ from app.services.risk_notice_card_data import (
 from app.services.hazard_service import open_hazard_count
 from app.schemas.risk_notice_card import CardData, RightColumn
 
+# 库内合法标志全集：SIGN_GROUPS 各事故组 + 兜底组（EXTRA_SIGN_GROUPS 复用 SIGN_GROUPS 条目，无需重复收录）
+VALID_SVG_NAMES = {s["svg_name"] for group in SIGN_GROUPS.values() for s in group}
+VALID_SVG_NAMES |= {s["svg_name"] for s in DEFAULT_SIGN_GROUP}
+
 
 def _max_level(events: list, attr: str, default: str | None) -> str | None:
     values = {getattr(ev, attr) for ev in events if getattr(ev, attr, None)}
@@ -126,14 +130,63 @@ def match_signs(accident_types: list[str]) -> list[dict]:
             if s["svg_name"] not in seen:
                 seen.add(s["svg_name"])
                 merged.append(s)
+    return _order_by_category(merged, 2)
+
+
+def _order_by_category(items: list[dict], max_per_category: int) -> list[dict]:
+    """按 SIGN_CATEGORY_ORDER 排序，每类最多 max_per_category 个（category 缺失/错配的项被跳过）。"""
     ordered: list[dict] = []
     counts: dict[str, int] = {}
     for category in SIGN_CATEGORY_ORDER:
-        for s in merged:
-            if s["category"] == category and counts.get(category, 0) < 2:
+        for s in items:
+            if s.get("category") == category and counts.get(category, 0) < max_per_category:
                 ordered.append(s)
                 counts[category] = counts.get(category, 0) + 1
     return ordered
+
+
+def normalize_signs(
+    signs: list[dict],
+    max_per_category: int = 2,
+    max_total: int = 8,
+) -> list[dict]:
+    """规范化 AI/人工提交的标志：过滤非法 svg_name、去重、按类别排序、限量。
+
+    写端点（PUT /snapshot）在进入本函数前已经过 pydantic SignItem 严格校验
+    （非法 category/缺字段 → 422）；本函数对 category 缺失/错配的静默丢弃
+    主要用于读取旧快照脏数据路径（以及规则兜底结果），不作为写入口的校验。
+    """
+    seen: set[str] = set()
+    merged: list[dict] = []
+    for s in signs or []:
+        if not isinstance(s, dict):
+            continue
+        svg = s.get("svg_name")
+        if svg not in VALID_SVG_NAMES or svg in seen:
+            continue
+        seen.add(svg)
+        merged.append(s)
+    return _order_by_category(merged, max_per_category)[:max_total]
+
+
+def snapshot_content(snapshot: RiskNoticeCard | None) -> dict | None:
+    """规范化取快照 content：非 dict（脏数据/None）视为无快照内容。"""
+    if snapshot is not None and isinstance(snapshot.content, dict):
+        return snapshot.content
+    return None
+
+
+def snapshot_signs(snapshot: RiskNoticeCard | None) -> list[dict] | None:
+    """快照 content 中的 signs 列表；无快照或无 signs 键返回 None。
+
+    显式空列表（signs: []）是合法最终状态（人工移除全部标志），
+    与缺省（无 signs 键）区分：前者返回 []（不回退规则标志），
+    后者返回 None（回退规则 match_signs）。
+    """
+    content = snapshot_content(snapshot)
+    if content is not None and content.get("signs") is not None:
+        return content["signs"]
+    return None
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -209,7 +262,13 @@ async def build_card_data(
     measures: list[RiskMeasure],
 ) -> CardData:
     snapshot = await get_snapshot(db, obj.id)
-    col = build_right_column(events, measures, snapshot.content if snapshot else None)
+    content = snapshot_content(snapshot)
+    col = build_right_column(events, measures, content)
+    cached_signs = snapshot_signs(snapshot)
+    signs = cached_signs if cached_signs is not None else match_signs(col.accident_types)
+    # 前端来源 Tag（任务 8）依赖 signs_source：有快照 signs 时取快照值，
+    # 缺省/无快照/无 signs 时回退 rule（前端按缺省处理）
+    signs_source = (content or {}).get("signs_source") or "rule"
     unit, person, phone, fallback = resolve_responsible(obj, ent)
     level = compute_level(events)
     timestamps = [
@@ -235,7 +294,8 @@ async def build_card_data(
         contact_phone=phone,
         fallback_used=fallback,
         has_open_hazard=hazard_count > 0,
-        signs=match_signs(col.accident_types),
+        signs=signs,
+        signs_source=signs_source,
         hazard_description=col.hazard_description,
         accident_types=col.accident_types,
         control_measures=col.control_measures,
@@ -254,6 +314,14 @@ async def save_snapshot(
     user_id: str,
     content: dict,
 ) -> RiskNoticeCard | None:
+    content = dict(content)
+    signs = content.get("signs")
+    if isinstance(signs, list):
+        # 人工/AI 提交的标志按规则库过滤非法、去重、排序、限量；
+        # signs_source 非法值回退 rule（缺省 rule，前端据此显示来源 Tag）。
+        content["signs"] = normalize_signs(signs)
+        source = content.get("signs_source")
+        content["signs_source"] = source if source in ("rule", "ai", "manual") else "rule"
     existing = await get_snapshot(db, object_id)
     if existing:
         existing.version += 1

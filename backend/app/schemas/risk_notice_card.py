@@ -13,6 +13,8 @@ class RightColumn(BaseModel):
     accident_types: list[str] = []
     control_measures: list[str] = []
     emergency_measures: list[str] = []
+    signs: list[SignItem] = []
+    signs_source: str | None = None
 
 
 class CardData(RightColumn):
@@ -62,6 +64,19 @@ class ExportResponse(BaseModel):
 class AiOptimizeResponse(BaseModel):
     original: RightColumn
     optimized: RightColumn
+
+
+class SignSuggestion(BaseModel):
+    remove: list[str] = []
+    add: list[str] = []
+    reasons: list[dict] = []
+
+
+class AiSignReviewResponse(BaseModel):
+    original_signs: list[SignItem] = []
+    suggestion: SignSuggestion
+    # 候选库（端点已组装的去重全量标志，供前端人工微调/中文名映射复用）
+    catalog: list[SignItem] = []
 
 
 class SnapshotSaveRequest(BaseModel):

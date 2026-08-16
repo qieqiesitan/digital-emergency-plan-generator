@@ -12,6 +12,21 @@ export interface SignItem {
   svg_name: string;
 }
 
+/** AI 标志审查建议（remove/add 为 svg_name 集合，reasons 为逐项理由）。 */
+export interface SignSuggestion {
+  remove: string[];
+  add: string[];
+  reasons: { sign_name: string; reason: string }[];
+}
+
+/** AI 标志审查结果（original_signs 为审查时当前标志，catalog 为候选库）。 */
+export interface AiSignReviewResponse {
+  original_signs: SignItem[];
+  suggestion: SignSuggestion;
+  /** 候选库（全量去重，供人工微调勾选与 add 行中文名映射）。 */
+  catalog: SignItem[];
+}
+
 /** 右栏四块内容（AI 优化仅针对 hazard_description/control_measures/emergency_measures）。 */
 export interface RightColumn {
   hazard_description: string;
@@ -42,6 +57,8 @@ export interface CardData extends RightColumn {
   /** 存在未闭环隐患（规格 §11.1，告知卡 badge） */
   has_open_hazard: boolean;
   signs: SignItem[];
+  /** 标志来源（后端回填，旧响应可能缺失）。 */
+  signs_source?: "rule" | "ai" | "manual";
   snapshot: SnapshotInfo | null;
   stale: boolean;
   public_url: string;

@@ -245,3 +245,305 @@ def test_save_snapshot_increments_version():
         db.refresh.assert_awaited_once_with(existing)
 
     asyncio.run(run())
+
+
+def test_build_card_data_prefers_snapshot_signs():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.risk_notice_card_service import build_card_data
+
+    async def run():
+        snap = MagicMock()
+        snap.content = {
+            "hazard_description": "x", "accident_types": ["火灾"],
+            "control_measures": [], "emergency_measures": [],
+            "signs": [{"category": "notice", "name": "注意通风", "svg_name": "notice-ventilation"}],
+            "signs_source": "ai",
+        }
+        snap.version = 1
+        snap.source = "ai"
+        snap.updated_at = None
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        db.execute.return_value.scalars.return_value.first.return_value = snap
+        ent = Enterprise(name="测试公司", safety_officer="李四", safety_officer_phone="13900000000")
+        obj = RiskObject(id="o1", name="会议室", category="工作场所")
+        events = [RiskEvent(id="e1", accident_type="火灾", risk_level="较大",
+                            trigger_conditions="线路老化", consequences="火灾",
+                            method_type="LS", method_params={"l": 3, "s": 3})]
+        card = await build_card_data(db, ent, obj, [obj], events, [])
+        # 快照标志优先：即使事故类型为火灾，也应使用快照中的人工/AI 标志，
+        # 而不是规则 match_signs(["火灾"]) 产出的 当心火灾/禁止烟火。
+        assert len(card.signs) == 1
+        assert card.signs[0].svg_name == "notice-ventilation"
+        assert card.signs[0].name == "注意通风"
+        # 来源 Tag 回填：有快照 signs 时取快照 signs_source
+        assert card.signs_source == "ai"
+
+    asyncio.run(run())
+
+
+def test_build_card_data_persists_explicit_empty_snapshot_signs():
+    """快照 content 显式 signs: [] + signs_source=manual → 卡片返回空标志且来源
+    保持 manual，不回退规则标志（规格 §6：空列表是合法最终状态）。"""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.risk_notice_card_service import build_card_data
+
+    async def run():
+        snap = MagicMock()
+        snap.content = {
+            "hazard_description": "x", "accident_types": ["火灾"],
+            "control_measures": [], "emergency_measures": [],
+            "signs": [],
+            "signs_source": "manual",
+        }
+        snap.version = 1
+        snap.source = "ai"
+        snap.updated_at = None
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        db.execute.return_value.scalars.return_value.first.return_value = snap
+        ent = Enterprise(name="测试公司", safety_officer="李四", safety_officer_phone="13900000000")
+        obj = RiskObject(id="o1", name="会议室", category="工作场所")
+        events = [RiskEvent(id="e1", accident_type="火灾", risk_level="较大",
+                            trigger_conditions="线路老化", consequences="火灾",
+                            method_type="LS", method_params={"l": 3, "s": 3})]
+        card = await build_card_data(db, ent, obj, [obj], events, [])
+        # 事故类型为火灾（规则会产出当心火灾/禁止烟火），但显式空快照必须保持空，
+        # 且来源 Tag 保持 manual（不回退 rule、不丢来源）。
+        assert card.signs == []
+        assert card.signs_source == "manual"
+
+    asyncio.run(run())
+
+
+def test_build_card_data_signs_source_defaults_rule_without_snapshot():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.risk_notice_card_service import build_card_data
+
+    async def run():
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        db.execute.return_value.scalars.return_value.first.return_value = None
+        ent = Enterprise(name="测试公司", safety_officer="李四", safety_officer_phone="13900000000")
+        obj = RiskObject(id="o1", name="会议室", category="工作场所")
+        events = [RiskEvent(id="e1", accident_type="火灾", risk_level="较大",
+                            trigger_conditions="线路老化", consequences="火灾",
+                            method_type="LS", method_params={"l": 3, "s": 3})]
+        card = await build_card_data(db, ent, obj, [obj], events, [])
+        # 无快照 → 规则标志 + 来源缺省 rule
+        assert card.signs_source == "rule"
+        assert card.signs  # 规则产出的标志
+
+    asyncio.run(run())
+
+
+def test_build_card_data_signs_source_defaults_rule_when_snapshot_missing_source():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.risk_notice_card_service import build_card_data
+
+    async def run():
+        snap = MagicMock()
+        snap.content = {
+            "hazard_description": "x", "accident_types": ["火灾"],
+            "control_measures": [], "emergency_measures": [],
+            "signs": [{"category": "notice", "name": "注意通风", "svg_name": "notice-ventilation"}],
+        }
+        snap.version = 1
+        snap.source = "ai"
+        snap.updated_at = None
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        db.execute.return_value.scalars.return_value.first.return_value = snap
+        ent = Enterprise(name="测试公司", safety_officer="李四", safety_officer_phone="13900000000")
+        obj = RiskObject(id="o1", name="会议室", category="工作场所")
+        events = [RiskEvent(id="e1", accident_type="火灾", risk_level="较大",
+                            trigger_conditions="线路老化", consequences="火灾",
+                            method_type="LS", method_params={"l": 3, "s": 3})]
+        card = await build_card_data(db, ent, obj, [obj], events, [])
+        # 快照有 signs 但缺 signs_source → 缺省 rule
+        assert card.signs_source == "rule"
+
+    asyncio.run(run())
+
+
+def test_normalize_signs_filters_and_limits():
+    from app.services.risk_notice_card_service import normalize_signs
+
+    signs = [
+        {"category": "notice", "name": "紧急出口", "svg_name": "notice-exit"},
+        {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+        {"category": "warning", "name": "当心火灾（重复）", "svg_name": "warning-fire"},
+        {"category": "warning", "name": "当心爆炸", "svg_name": "warning-explosion"},
+        {"category": "warning", "name": "当心触电", "svg_name": "warning-electric"},
+        {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+        {"category": "instruction", "name": "必须戴安全帽", "svg_name": "instruction-helmet"},
+        {"category": "instruction", "name": "必须戴防护手套", "svg_name": "instruction-gloves"},
+        {"category": "instruction", "name": "必须穿绝缘鞋", "svg_name": "instruction-insulating-shoes"},
+        {"category": "bogus", "name": "自造标志", "svg_name": "not-in-library"},
+    ]
+    out = normalize_signs(signs)
+    names = [s["name"] for s in out]
+    assert "自造标志" not in names
+    cats = [s["category"] for s in out]
+    order = ["warning", "prohibition", "instruction", "notice"]
+    assert cats == sorted(cats, key=order.index)
+    assert cats.count("instruction") <= 2
+    assert len(out) <= 8
+    assert len(out) == len({s["svg_name"] for s in out})  # 去重
+    assert "当心火灾（重复）" not in names  # 重复项被丢弃，保留首现
+
+
+def test_normalize_signs_max_total_truncates():
+    from app.services.risk_notice_card_service import normalize_signs
+
+    signs = [
+        {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+        {"category": "warning", "name": "当心爆炸", "svg_name": "warning-explosion"},
+        {"category": "warning", "name": "当心触电", "svg_name": "warning-electric"},
+        {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+        {"category": "instruction", "name": "必须戴安全帽", "svg_name": "instruction-helmet"},
+        {"category": "instruction", "name": "必须戴防护手套", "svg_name": "instruction-gloves"},
+        {"category": "instruction", "name": "必须穿绝缘鞋", "svg_name": "instruction-insulating-shoes"},
+        {"category": "notice", "name": "紧急出口", "svg_name": "notice-exit"},
+    ]
+    out = normalize_signs(signs, max_total=4)
+    assert len(out) == 4
+    assert [s["name"] for s in out] == ["当心火灾", "当心爆炸", "禁止烟火", "必须戴安全帽"]
+
+
+def test_save_snapshot_normalizes_signs_and_signs_source():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def run():
+        db = AsyncMock()
+        db.add = MagicMock()
+        res = MagicMock()
+        res.scalars.return_value.first.return_value = None
+        db.execute.return_value = res
+
+        saved = await save_snapshot(
+            db, "e1", "o1", "u1",
+            {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+                    {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+                    {"category": "warning", "name": "自造标志", "svg_name": "not-in-library"},
+                ],
+                "signs_source": "not-a-valid-source",
+            },
+        )
+        # 库外 svg_name 丢弃、按类别顺序重排；signs_source 非法回退 rule
+        assert saved.content["signs"] == [
+            {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+            {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+        ]
+        assert saved.content["signs_source"] == "rule"
+
+    asyncio.run(run())
+
+
+def test_save_snapshot_existing_with_signs_increments_and_normalizes():
+    """已存在快照 + signs 时：版本递增且 content 整体替换为规范化结果。"""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def run():
+        existing = RiskNoticeCard(
+            enterprise_id="e1",
+            object_id="o1",
+            version=3,
+            content={"hazard_description": "旧文案", "accident_types": ["火灾"]},
+            source="ai",
+            created_by="u1",
+        )
+        db = AsyncMock()
+        res = MagicMock()
+        res.scalars.return_value.first.return_value = existing
+        db.execute.return_value = res
+
+        saved = await save_snapshot(
+            db, "e1", "o1", "u1",
+            {
+                "hazard_description": "新文案",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+                    {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+                    {"category": "warning", "name": "自造标志", "svg_name": "not-in-library"},
+                ],
+                "signs_source": "manual",
+            },
+        )
+        assert saved is existing
+        assert saved.version == 4
+        assert saved.content["hazard_description"] == "新文案"
+        assert saved.content["signs"] == [
+            {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"},
+            {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
+        ]
+        assert saved.content["signs_source"] == "manual"
+        db.commit.assert_awaited_once()
+
+    asyncio.run(run())
+
+
+def test_save_snapshot_signs_missing_source_defaults_rule():
+    """有 signs 但缺 signs_source → 缺省 rule。"""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def run():
+        db = AsyncMock()
+        db.add = MagicMock()
+        res = MagicMock()
+        res.scalars.return_value.first.return_value = None
+        db.execute.return_value = res
+
+        saved = await save_snapshot(
+            db, "e1", "o1", "u1",
+            {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [{"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"}],
+            },
+        )
+        assert saved.content["signs_source"] == "rule"
+
+    asyncio.run(run())
+
+
+def test_save_snapshot_without_signs_keeps_content_unchanged():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def run():
+        db = AsyncMock()
+        db.add = MagicMock()
+        res = MagicMock()
+        res.scalars.return_value.first.return_value = None
+        db.execute.return_value = res
+        content = {
+            "hazard_description": "x",
+            "accident_types": ["火灾"],
+            "control_measures": [],
+            "emergency_measures": [],
+        }
+
+        saved = await save_snapshot(db, "e1", "o1", "u1", content)
+        # 无 signs 时 content 原样保存，不新增 signs/signs_source 键
+        assert saved.content == content
+
+    asyncio.run(run())
