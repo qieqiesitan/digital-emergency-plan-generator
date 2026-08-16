@@ -112,18 +112,37 @@ SECTION_ADDITIONAL_DIAGRAM_MAP: dict[tuple[str, str], str] = {
     ("special", "sec_3"):         "response_timeline",  # 处置程序与措施 → 处置时间轴
 }
 
+def _normalize_org_groups(org_structure: list) -> list[dict]:
+    """统一组织架构为预案可消费的分组格式。
+
+    兼容两种存储格式：
+    - 旧格式：{group_key, group_name, members: [{name, ...}]}
+    - 新格式（组织树）：{type, name, parent_id, members: [{name, ...}]}，含成员的节点视为一个组
+    """
+    groups: list[dict] = []
+    for g in org_structure or []:
+        if not isinstance(g, dict):
+            continue
+        members = [m for m in (g.get("members") or []) if isinstance(m, dict) and m.get("name")]
+        if not members:
+            continue
+        group_name = g.get("group_name") or g.get("name") or "应急小组"
+        groups.append({"group_name": group_name, "members": members})
+    return groups
+
+
 def _build_org_chart_mermaid(org_structure: list) -> str | None:
     """企业组织架构 → Mermaid graph TD 文本；无有效数据返回 None。"""
-    groups = [g for g in (org_structure or []) if g.get("members")]
+    groups = _normalize_org_groups(org_structure)
     if not groups:
         return None
     lines = ["graph TD", "    HQ[应急救援指挥部]"]
     node_id = 1
     for g in groups:
-        group_node = f"G{node_id}[{g.get('group_name','应急小组')}]"
+        group_node = f"G{node_id}[{g['group_name']}]"
         lines.append(f"    HQ --> {group_node}")
         node_id += 1
-        for m in g.get("members", []):
+        for m in g["members"]:
             name = m.get("name", "")
             position = m.get("position", "")
             if not name:
@@ -146,7 +165,7 @@ def _append_additional_diagram_prompt(prompt: str, plan_type: str, section_key: 
     variables = {}
     if additional_key == "org_chart":
         variables = {"org_structure": json.dumps(
-            enterprise_data.get("org_structure", []), ensure_ascii=False
+            _normalize_org_groups(enterprise_data.get("org_structure", [])), ensure_ascii=False
         )}
     return prompt + "\n\n" + render_template(tmpl, variables)
 

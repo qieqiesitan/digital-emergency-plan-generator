@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { PRESET_EMERGENCY_GROUPS } from "@/utils/constants";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   App as AntApp,
@@ -218,6 +219,24 @@ export default function EnterpriseOrgPage() {
   const [localNodes, setLocalNodes] = useState<OrgNode[] | null>(null);
   const nodes = localNodes ?? fetchedNodes;
   const dirty = localNodes !== null;
+
+  // 组织架构为空时预置应急预案所需六个应急小组（指挥部/抢险/疏散/医疗/通讯/后勤），
+  // 用户可直接在组下挂成员，避免生成预案时应急组织机构缺组
+  useEffect(() => {
+    if (!nodesLoading && fetchedNodes.length === 0 && localNodes === null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 空组织架构首次加载时播种预置应急小组，属一次性初始化；react-hooks v7 新规则对同步 setState 误报（全仓同类基线）
+      setLocalNodes(
+        Object.entries(PRESET_EMERGENCY_GROUPS).map(([key, name]) => ({
+          id: `preset-${key}`,
+          type: "team" as const,
+          name,
+          members: [],
+          parent_id: null,
+        })),
+      );
+    }
+  }, [fetchedNodes, nodesLoading, localNodes]);
+
   const [nodeModal, setNodeModal] = useState<NodeModalState>({ open: false, mode: "add" });
   const [memberModal, setMemberModal] = useState<MemberModalState>({ open: false, mode: "create" });
   const [searchEmail, setSearchEmail] = useState("");
