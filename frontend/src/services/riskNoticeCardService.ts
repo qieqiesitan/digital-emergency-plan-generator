@@ -1,6 +1,12 @@
 import api from "./api";
 import type { ApiResponse } from "@/types/common";
-import type { CardData, CardSummary, RightColumn, SnapshotInfo } from "@/types/riskNoticeCard";
+import type {
+  AiSignReviewResponse,
+  CardData,
+  CardSummary,
+  RightColumn,
+  SnapshotInfo,
+} from "@/types/riskNoticeCard";
 
 const BASE = (enterpriseId: string) => `/enterprises/${enterpriseId}/risk-notice-cards`;
 
@@ -32,6 +38,12 @@ export const aiOptimize = (enterpriseId: string, objectId: string) =>
     .post<ApiResponse<{ original: RightColumn; optimized: RightColumn }>>(
       `${BASE(enterpriseId)}/${objectId}/ai-optimize`,
     )
+    .then(r => r.data.data);
+
+/** AI 标志审查（无副作用）：返回当前标志与 AI 增删建议。 */
+export const aiReviewSigns = (enterpriseId: string, objectId: string) =>
+  api
+    .post<ApiResponse<AiSignReviewResponse>>(`${BASE(enterpriseId)}/${objectId}/ai-review-signs`)
     .then(r => r.data.data);
 
 /** 保存 AI 快照，返回新版本号（source=ai）。 */

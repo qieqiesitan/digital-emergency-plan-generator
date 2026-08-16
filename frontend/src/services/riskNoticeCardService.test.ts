@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   aiOptimize,
+  aiReviewSigns,
   exportCards,
   fetchCardDetail,
   fetchCardSummaries,
@@ -106,6 +107,28 @@ describe("riskNoticeCardService", () => {
 
     expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/risk-notice-cards/o1/ai-optimize");
     expect(result).toEqual({ original, optimized });
+  });
+
+  it("aiReviewSigns POST ai-review-signs 并解包返回 AI 标志审查建议", async () => {
+    apiMock.post.mockResolvedValue({
+      data: {
+        code: 0,
+        message: "ok",
+        data: {
+          original_signs: [],
+          suggestion: {
+            remove: [],
+            add: ["warning-fall"],
+            reasons: [{ sign_name: "当心滑倒", reason: "有滑倒风险" }],
+          },
+        },
+      },
+    });
+
+    const result = await aiReviewSigns("e1", "o1");
+
+    expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/risk-notice-cards/o1/ai-review-signs");
+    expect(result.suggestion.add).toContain("warning-fall");
   });
 
   it("saveSnapshot PUT snapshot 携带 content body 并返回快照信息", async () => {
