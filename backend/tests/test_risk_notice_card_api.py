@@ -580,3 +580,82 @@ def test_reset_token_object_not_found_404(client):
     resp = client.post("/enterprises/e1/risk-notice-cards/not-exist/token/reset")
     assert resp.status_code == 404
     assert "风险点不存在" in resp.json()["detail"]
+
+
+def test_review_signs_parses_suggestion(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+    from app.services import risk_notice_card_ai
+
+    async def fake_completion(messages, config, timeout=60):
+        return (
+            '{"remove": ["instruction-helmet"], "add": ["warning-fall"], '
+            '"reasons": [{"sign_name": "必须戴安全帽", "reason": "会议室为非生产区域"}, '
+            '{"sign_name": "当心滑倒", "reason": "存在滑倒风险"}]}'
+        )
+
+    async def run():
+        monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
+        db = AsyncMock()
+        result = await risk_notice_card_ai.review_signs(
+            db, "u1", "测试公司", "会议室", "工作场所", "三楼",
+            [{"accident_type": "火灾"}, {"accident_type": "人员滑倒/摔伤"}],
+            [{"category": "instruction", "name": "必须戴安全帽", "svg_name": "instruction-helmet"}],
+            [{"category": "warning", "name": "当心滑倒", "svg_name": "warning-fall"}],
+        )
+        assert result["remove"] == ["instruction-helmet"]
+        assert result["add"] == ["warning-fall"]
+        assert len(result["reasons"]) == 2
+
+    asyncio.run(run())
+
+
+def test_review_signs_invalid_json_raises_502(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    import pytest
+    from fastapi import HTTPException
+    from app.services import risk_notice_card_ai
+
+    async def fake_completion(messages, config, timeout=60):
+        return "这不是 JSON"
+
+    async def run():
+        monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
+        db = AsyncMock()
+        with pytest.raises(HTTPException) as exc:
+            await risk_notice_card_ai.review_signs(
+                db, "u1", "测试公司", "会议室", "工作场所", "三楼",
+                [{"accident_type": "火灾"}],
+                [],
+                [],
+            )
+        assert exc.value.status_code == 502
+        assert "AI 返回格式异常" in exc.value.detail
+
+    asyncio.run(run())
+
+
+def test_review_signs_non_list_fields_fall_back(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+    from app.services import risk_notice_card_ai
+
+    async def fake_completion(messages, config, timeout=60):
+        return '{"remove": "instruction-helmet", "add": null, "reasons": {}}'
+
+    async def run():
+        monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
+        db = AsyncMock()
+        result = await risk_notice_card_ai.review_signs(
+            db, "u1", "测试公司", "会议室", "工作场所", "三楼",
+            [{"accident_type": "火灾"}],
+            [],
+            [],
+        )
+        assert result["remove"] == []
+        assert result["add"] == []
+        assert result["reasons"] == []
+
+    asyncio.run(run())
