@@ -147,3 +147,7 @@ interface AppIconProps {
 - 移动端 lucide 图标统一为同一套语言（第二阶段，需单独设计）；
 - 开工前执行 `graphify update`（当前 `graphify-out/graph.json` 已过期）；
 - 实现完成后按项目惯例沉淀记忆：`project-decisions`（AppIcon 双轨制）、`global/patterns`（SVG 清洗与内联接入流程）、`global/commands`（iconfont 搜索/下载用法）。
+
+## 10. 实现状态
+
+（日期：2026-08-17）本设计已按实现计划落地：AppIcon + 24 个本地 SVG 资产、驾驶舱模块导航 10 项、主导航业务菜单 7 项、法规类型 4 项、AI 标识 14 处、位置/通知/安全 10 处全部替换完成；通用操作图标与 5 个通用菜单入口保留 AntD。已知遗留：部分文件存在既有 eslint lint 债（任务 8 记录）；移动端 lucide 统一为第二阶段。
