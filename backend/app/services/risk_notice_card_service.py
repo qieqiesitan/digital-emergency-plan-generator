@@ -202,6 +202,10 @@ async def build_card_data(
 ) -> CardData:
     snapshot = await get_snapshot(db, obj.id)
     col = build_right_column(events, measures, snapshot.content if snapshot else None)
+    snapshot_signs = None
+    if snapshot and isinstance(snapshot.content, dict) and snapshot.content.get("signs"):
+        snapshot_signs = snapshot.content["signs"]
+    signs = snapshot_signs if snapshot_signs is not None else match_signs(col.accident_types)
     unit, person, phone, fallback = resolve_responsible(obj, ent)
     level = compute_level(events)
     timestamps = [
@@ -224,7 +228,7 @@ async def build_card_data(
         responsible_person=person,
         contact_phone=phone,
         fallback_used=fallback,
-        signs=match_signs(col.accident_types),
+        signs=signs,
         hazard_description=col.hazard_description,
         accident_types=col.accident_types,
         control_measures=col.control_measures,

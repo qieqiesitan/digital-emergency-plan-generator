@@ -217,3 +217,37 @@ def test_save_snapshot_increments_version():
         db.refresh.assert_awaited_once_with(existing)
 
     asyncio.run(run())
+
+
+def test_build_card_data_prefers_snapshot_signs():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.risk_notice_card_service import build_card_data
+
+    async def run():
+        snap = MagicMock()
+        snap.content = {
+            "hazard_description": "x", "accident_types": ["火灾"],
+            "control_measures": [], "emergency_measures": [],
+            "signs": [{"category": "notice", "name": "注意通风", "svg_name": "notice-ventilation"}],
+            "signs_source": "ai",
+        }
+        snap.version = 1
+        snap.source = "ai"
+        snap.updated_at = None
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        db.execute.return_value.scalars.return_value.first.return_value = snap
+        ent = Enterprise(name="测试公司", safety_officer="李四", safety_officer_phone="13900000000")
+        obj = RiskObject(id="o1", name="会议室", category="工作场所")
+        events = [RiskEvent(id="e1", accident_type="火灾", risk_level="较大",
+                            trigger_conditions="线路老化", consequences="火灾",
+                            method_type="LS", method_params={"l": 3, "s": 3})]
+        card = await build_card_data(db, ent, obj, [obj], events, [])
+        # 快照标志优先：即使事故类型为火灾，也应使用快照中的人工/AI 标志，
+        # 而不是规则 match_signs(["火灾"]) 产出的 当心火灾/禁止烟火。
+        assert len(card.signs) == 1
+        assert card.signs[0].svg_name == "notice-ventilation"
+        assert card.signs[0].name == "注意通风"
+
+    asyncio.run(run())
