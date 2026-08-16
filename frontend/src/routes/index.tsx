@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
+import { createBrowserRouter, Navigate, useLocation, useParams } from "react-router-dom";
 import { APP_BASE } from "@/utils/platform";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -63,10 +63,11 @@ function MobileRedirect() {
 // eslint-disable-next-line react-refresh/only-export-components -- 本文件同时导出 createRouter 工厂，属既有结构
 function RiskRedirect({ to, params = [] }: { to: string; params?: Array<"objectId" | "methodId"> }) {
   const { id, objectId, methodId } = useParams<{ id: string; objectId?: string; methodId?: string }>();
+  const location = useLocation();
   let suffix = "";
   if (params.includes("objectId") && objectId) suffix += `/${objectId}`;
   if (params.includes("methodId") && methodId) suffix += `/${methodId}`;
-  return <Navigate to={`/enterprises/${id}${to}${suffix}`} replace />;
+  return <Navigate to={`/enterprises/${id}${to}${suffix}${location.search}`} replace />;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- 本文件同时导出 createRouter 工厂，属既有结构

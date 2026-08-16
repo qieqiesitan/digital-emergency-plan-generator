@@ -330,7 +330,7 @@ export default function HazardRecordDetailPage() {
   const queryClient = useQueryClient();
   const { message } = AntApp.useApp();
   const { user } = useAuth();
-  const backTarget = `/enterprises/${enterpriseId}?tab=hazard-inspection`;
+  const backTarget = `/enterprises/${enterpriseId}/hazard`;
 
   const [gradeOpen, setGradeOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);

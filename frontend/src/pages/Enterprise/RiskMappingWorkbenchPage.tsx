@@ -50,7 +50,7 @@ export default function RiskMappingWorkbenchPage() {
   const goBack = () => {
     const back = () => {
       if (enterpriseId) {
-        navigate(`/enterprises/${enterpriseId}?tab=risk-management`);
+        navigate(`/enterprises/${enterpriseId}/risk-management`);
       } else {
         navigate(-1);
       }
