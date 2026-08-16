@@ -19,10 +19,12 @@ export interface SignSuggestion {
   reasons: { sign_name: string; reason: string }[];
 }
 
-/** AI 标志审查结果（original_signs 为审查时当前标志）。 */
+/** AI 标志审查结果（original_signs 为审查时当前标志，catalog 为候选库）。 */
 export interface AiSignReviewResponse {
   original_signs: SignItem[];
   suggestion: SignSuggestion;
+  /** 候选库（全量去重，供人工微调勾选与 add 行中文名映射）。 */
+  catalog: SignItem[];
 }
 
 /** 右栏四块内容（AI 优化仅针对 hazard_description/control_measures/emergency_measures）。 */

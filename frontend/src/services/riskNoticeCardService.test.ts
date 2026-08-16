@@ -121,6 +121,7 @@ describe("riskNoticeCardService", () => {
             add: ["warning-fall"],
             reasons: [{ sign_name: "当心滑倒", reason: "有滑倒风险" }],
           },
+          catalog: [{ category: "warning", name: "当心滑倒", svg_name: "warning-fall" }],
         },
       },
     });
@@ -129,6 +130,9 @@ describe("riskNoticeCardService", () => {
 
     expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/risk-notice-cards/o1/ai-review-signs");
     expect(result.suggestion.add).toContain("warning-fall");
+    expect(result.catalog).toEqual([
+      { category: "warning", name: "当心滑倒", svg_name: "warning-fall" },
+    ]);
   });
 
   it("saveSnapshot PUT snapshot 携带 content body 并返回快照信息", async () => {

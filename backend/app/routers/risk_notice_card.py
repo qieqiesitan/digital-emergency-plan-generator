@@ -378,6 +378,7 @@ async def ai_review_signs(
         response = AiSignReviewResponse(
             original_signs=current_signs,
             suggestion=SignSuggestion(**suggestion),
+            catalog=catalog,
         )
     except HTTPException:
         raise  # AI 未配置等业务错误保留原语义（如 400/502）

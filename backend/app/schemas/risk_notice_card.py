@@ -71,6 +71,8 @@ class SignSuggestion(BaseModel):
 class AiSignReviewResponse(BaseModel):
     original_signs: list[SignItem] = []
     suggestion: SignSuggestion
+    # 候选库（端点已组装的去重全量标志，供前端人工微调/中文名映射复用）
+    catalog: list[SignItem] = []
 
 
 class SnapshotSaveRequest(BaseModel):

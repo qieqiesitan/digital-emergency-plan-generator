@@ -642,6 +642,19 @@ def test_ai_review_signs_endpoint_returns_suggestion(client, monkeypatch):
     assert data["suggestion"]["add"] == ["warning-fall"]
     assert data["original_signs"]
     assert "warning-fire" in [s["svg_name"] for s in data["original_signs"]]
+    # 候选库：全量去重返回，供前端人工微调/中文名映射
+    catalog = data["catalog"]
+    assert catalog
+    catalog_names = [s["svg_name"] for s in catalog]
+    assert "warning-fire" in catalog_names
+    assert "prohibition-smoking" in catalog_names
+    assert "notice-exit" in catalog_names
+    assert len(catalog_names) == len(set(catalog_names))
+    assert all(set(s) == {"category", "name", "svg_name"} for s in catalog)
+    assert (
+        next(s for s in catalog if s["svg_name"] == "warning-fire")["category"]
+        == "warning"
+    )
 
 
 def test_ai_review_signs_object_not_found_404(client):

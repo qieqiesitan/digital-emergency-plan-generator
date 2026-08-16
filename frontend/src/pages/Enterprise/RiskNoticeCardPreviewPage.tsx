@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Alert, App as AntApp, Button, List, Modal, Result, Space, Spin, Tag } from "antd";
+import {
+  Alert,
+  App as AntApp,
+  Button,
+  Checkbox,
+  List,
+  Modal,
+  Result,
+  Space,
+  Spin,
+  Tag,
+} from "antd";
 import { useQuery } from "@tanstack/react-query";
 import RiskNoticeCard, { EMPTY_TEXT } from "@/components/enterprise/RiskNoticeCard";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -18,6 +29,18 @@ import type {
   SignCategory,
   SignItem,
 } from "@/types/riskNoticeCard";
+import {
+  MAX_SIGNS_PER_CATEGORY,
+  MAX_TOTAL_SIGNS,
+  SIGN_CATEGORY_ORDER,
+  applySignSuggestion,
+  buildNameLookup,
+  buildReasonLookup,
+  buildSignLookup,
+  countSignsByCategory,
+  signSrc,
+  sortSignsByCategory,
+} from "@/utils/riskNoticeCardSigns";
 
 /** AI 优化对比面板样式（.rnc-cmp-* 前缀）。 */
 const COMPARE_CSS = `
@@ -92,6 +115,74 @@ const COMPARE_CSS = `
 .rnc-sr-keep {
   color: #8c8c8c;
 }
+
+.rnc-edit-current {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.rnc-edit-chip {
+  align-items: center;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+}
+.rnc-edit-chip img {
+  height: 24px;
+  width: 24px;
+}
+.rnc-edit-remove {
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.rnc-edit-remove:hover {
+  color: #ff4d4f;
+}
+.rnc-edit-category {
+  color: #595959;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 10px 0 6px;
+}
+.rnc-edit-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rnc-edit-item {
+  align-items: center;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px 6px;
+  width: 92px;
+}
+.rnc-edit-item:hover {
+  border-color: #91caff;
+}
+.rnc-edit-item-selected {
+  background: #f0f7ff;
+  border-color: #1677ff;
+}
+.rnc-edit-item img {
+  height: 40px;
+  width: 40px;
+}
+.rnc-edit-name {
+  color: #333;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+}
 `;
 
 const COMPARE_BLOCKS = [
@@ -99,6 +190,14 @@ const COMPARE_BLOCKS = [
   { key: "control_measures", label: "主要风险控制措施" },
   { key: "emergency_measures", label: "应急处置措施" },
 ] as const;
+
+/** 类别中文标签（编辑 Modal 分组标题）。 */
+const CATEGORY_LABELS: Record<SignCategory, string> = {
+  warning: "警告类",
+  prohibition: "禁止类",
+  instruction: "指令类",
+  notice: "提示类",
+};
 
 interface AiCompareResult {
   original: RightColumn;
@@ -109,49 +208,6 @@ interface AiCompareResult {
 interface SignReviewContent extends RightColumn {
   signs: SignItem[];
   signs_source: "rule" | "ai" | "manual";
-}
-
-/** 按 svg_name 前缀推断标志类别（svg_name 均以类别英文开头）。 */
-function categoryOf(svgName: string): SignCategory {
-  if (svgName.startsWith("warning")) return "warning";
-  if (svgName.startsWith("prohibition")) return "prohibition";
-  if (svgName.startsWith("instruction")) return "instruction";
-  return "notice";
-}
-
-/** 预览图地址（svg_name 无扩展名，与卡片渲染一致）。 */
-function signSrc(svgName: string): string {
-  return `/signs/${svgName}.svg`;
-}
-
-/** 把 AI 建议应用到当前标志：remove 去掉、add 加入（按 svg_name 匹配），返回新标志列表。 */
-function applySignSuggestion(
-  current: SignItem[],
-  suggestion: AiSignReviewResponse["suggestion"],
-): SignItem[] {
-  const remove = new Set(suggestion.remove);
-  const kept = current.filter((sign) => !remove.has(sign.svg_name));
-  const existing = new Set(kept.map((sign) => sign.svg_name));
-  const added: SignItem[] = suggestion.add
-    .filter((svg) => !existing.has(svg))
-    .map((svg) => ({
-      category: categoryOf(svg),
-      name: svg,
-      svg_name: svg,
-    }));
-  return [...kept, ...added];
-}
-
-/** 当前标志的中文名查找表（svg_name → name）。 */
-function buildNameLookup(signs: SignItem[]): Map<string, string> {
-  return new Map(signs.map((sign) => [sign.svg_name, sign.name]));
-}
-
-/** 建议理由查找表（中文名 → 理由）。 */
-function buildReasonLookup(
-  suggestion: AiSignReviewResponse["suggestion"],
-): Map<string, string> {
-  return new Map(suggestion.reasons.map((r) => [r.sign_name, r.reason]));
 }
 
 /** 标志行展示：图标 + 名称 + 可选理由。 */
@@ -311,14 +367,23 @@ function SignReviewModal({
     [suggestion],
   );
   const nameLookup = useMemo(() => buildNameLookup(currentSigns), [currentSigns]);
+  const catalogLookup = useMemo(
+    () => (result ? buildSignLookup(result.catalog) : new Map<string, SignItem>()),
+    [result],
+  );
   const removeSet = useMemo(
     () => (suggestion ? new Set(suggestion.remove) : new Set<string>()),
     [suggestion],
   );
-  const kept = currentSigns.filter((sign) => !removeSet.has(sign.svg_name));
+  const kept = sortSignsByCategory(
+    currentSigns.filter((sign) => !removeSet.has(sign.svg_name)),
+  );
 
   const reasonFor = (svgName: string, fallbackName?: string) =>
     reasonLookup.get(fallbackName ?? "") ?? reasonLookup.get(svgName) ?? "";
+  // add/delete 行中文名优先取候选库（AI 返回 svg_name，catalog 映射真实中文名）
+  const nameFor = (svgName: string) =>
+    catalogLookup.get(svgName)?.name ?? nameLookup.get(svgName) ?? svgName;
 
   return (
     <Modal
@@ -350,8 +415,8 @@ function SignReviewModal({
               <SignRow
                 key={svgName}
                 svgName={svgName}
-                name={nameLookup.get(svgName) ?? svgName}
-                reason={reasonFor(svgName, nameLookup.get(svgName))}
+                name={nameFor(svgName)}
+                reason={reasonFor(svgName, nameFor(svgName))}
                 tone="del"
               />
             )}
@@ -369,8 +434,8 @@ function SignReviewModal({
               <SignRow
                 key={svgName}
                 svgName={svgName}
-                name={nameLookup.get(svgName) ?? svgName}
-                reason={reasonFor(svgName, nameLookup.get(svgName))}
+                name={nameFor(svgName)}
+                reason={reasonFor(svgName, nameFor(svgName))}
                 tone="add"
               />
             )}
@@ -398,6 +463,155 @@ function SignReviewModal({
   );
 }
 
+/** 编辑 Modal 正文（随 open 挂载/卸载，每次打开用当前标志初始化状态）。 */
+function SignEditBody({
+  catalog,
+  initialSigns,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  catalog: SignItem[];
+  initialSigns: SignItem[];
+  saving: boolean;
+  onSave: (signs: SignItem[]) => void;
+  onCancel: () => void;
+}) {
+  const { message } = AntApp.useApp();
+  const [selected, setSelected] = useState<SignItem[]>(() =>
+    sortSignsByCategory(initialSigns),
+  );
+
+  const selectedNames = useMemo(
+    () => new Set(selected.map((sign) => sign.svg_name)),
+    [selected],
+  );
+  const categoryCounts = useMemo(() => countSignsByCategory(selected), [selected]);
+  const sortedCatalog = useMemo(() => sortSignsByCategory(catalog), [catalog]);
+
+  const toggleSign = (sign: SignItem) => {
+    if (selectedNames.has(sign.svg_name)) {
+      setSelected((prev) => prev.filter((s) => s.svg_name !== sign.svg_name));
+      return;
+    }
+    if ((categoryCounts.get(sign.category) ?? 0) >= MAX_SIGNS_PER_CATEGORY) {
+      message.warning(`「${sign.name}」同类标志最多选择 ${MAX_SIGNS_PER_CATEGORY} 个`);
+      return;
+    }
+    if (selected.length >= MAX_TOTAL_SIGNS) {
+      message.warning(`标志总数最多选择 ${MAX_TOTAL_SIGNS} 个`);
+      return;
+    }
+    setSelected((prev) => sortSignsByCategory([...prev, sign]));
+  };
+
+  return (
+    <div>
+      <div style={{ color: "#8c8c8c", fontSize: 12, marginBottom: 8 }}>
+        当前已选（{selected.length}/{MAX_TOTAL_SIGNS}），每类不超过 {MAX_SIGNS_PER_CATEGORY}{" "}
+        个
+      </div>
+      <div className="rnc-edit-current">
+        {selected.length ? (
+          selected.map((sign) => (
+            <div className="rnc-edit-chip" key={sign.svg_name}>
+              <img src={signSrc(sign.svg_name)} alt={sign.name} />
+              <span>{sign.name}</span>
+              <span
+                className="rnc-edit-remove"
+                title="移除"
+                onClick={() => toggleSign(sign)}
+              >
+                ×
+              </span>
+            </div>
+          ))
+        ) : (
+          <span style={{ color: "#bfbfbf" }}>暂无已选标志</span>
+        )}
+      </div>
+      <div style={{ color: "#8c8c8c", fontSize: 12, marginBottom: 8 }}>
+        候选库（{catalog.length}）
+      </div>
+      {sortedCatalog.length ? (
+        SIGN_CATEGORY_ORDER.map((category) => {
+          const items = sortedCatalog.filter((sign) => sign.category === category);
+          if (!items.length) return null;
+          const count = categoryCounts.get(category) ?? 0;
+          return (
+            <div key={category}>
+              <div className="rnc-edit-category">
+                {CATEGORY_LABELS[category]}（{count}/{MAX_SIGNS_PER_CATEGORY}）
+              </div>
+              <div className="rnc-edit-grid">
+                {items.map((sign) => {
+                  const checked = selectedNames.has(sign.svg_name);
+                  return (
+                    <div
+                      className={`rnc-edit-item${checked ? " rnc-edit-item-selected" : ""}`}
+                      key={sign.svg_name}
+                      onClick={() => toggleSign(sign)}
+                    >
+                      <img src={signSrc(sign.svg_name)} alt={sign.name} />
+                      <span className="rnc-edit-name">{sign.name}</span>
+                      <Checkbox checked={checked} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })
+      ) : (
+        <div style={{ color: "#bfbfbf" }}>
+          候选库未加载，请先运行「AI 审查标志」获取候选库后重试（当前仍可移除已选标志）。
+        </div>
+      )}
+      <div style={{ marginTop: 16, textAlign: "right" }}>
+        <Space>
+          <Button onClick={onCancel} disabled={saving}>
+            取消（不保存）
+          </Button>
+          <Button type="primary" loading={saving} onClick={() => onSave(selected)}>
+            保存并更新卡片（版本 +1）
+          </Button>
+        </Space>
+      </div>
+    </div>
+  );
+}
+
+/** 人工微调编辑 Modal：当前已选标志可移除 + 候选库网格勾选添加（每类 ≤2、总数 ≤8）。 */
+function SignEditModal({
+  open,
+  catalog,
+  initialSigns,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  open: boolean;
+  catalog: SignItem[];
+  initialSigns: SignItem[];
+  saving: boolean;
+  onSave: (signs: SignItem[]) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal title="编辑安全标志" open={open} width={680} onCancel={onCancel} footer={null}>
+      {open && (
+        <SignEditBody
+          catalog={catalog}
+          initialSigns={initialSigns}
+          saving={saving}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      )}
+    </Modal>
+  );
+}
+
 /** 风险告知卡单卡预览 + AI 优化对比页。 */
 export default function RiskNoticeCardPreviewPage() {
   const { id: enterpriseId = "", objectId = "" } = useParams<{
@@ -409,10 +623,14 @@ export default function RiskNoticeCardPreviewPage() {
   const { message } = AntApp.useApp();
   const [compare, setCompare] = useState<AiCompareResult | null>(null);
   const [reviewResult, setReviewResult] = useState<AiSignReviewResponse | null>(null);
+  /** AI 审查响应中的候选库（与 reviewResult 生命周期解耦，供人工微调复用）。 */
+  const [signCatalog, setSignCatalog] = useState<SignItem[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const autoTriggered = useRef(false);
 
@@ -440,7 +658,9 @@ export default function RiskNoticeCardPreviewPage() {
     if (!enterpriseId || !objectId) return;
     setReviewing(true);
     try {
-      setReviewResult(await aiReviewSigns(enterpriseId, objectId));
+      const result = await aiReviewSigns(enterpriseId, objectId);
+      setReviewResult(result);
+      setSignCatalog(result.catalog);
     } catch {
       message.error("AI 审查失败，已保留原版");
     } finally {
@@ -517,7 +737,7 @@ export default function RiskNoticeCardPreviewPage() {
         accident_types: card.accident_types,
         control_measures: card.control_measures,
         emergency_measures: card.emergency_measures,
-        signs: applySignSuggestion(card.signs, reviewResult.suggestion),
+        signs: applySignSuggestion(card.signs, reviewResult.suggestion, reviewResult.catalog),
         signs_source: "ai",
       };
       const info = await saveSnapshot(enterpriseId, objectId, content);
@@ -532,6 +752,34 @@ export default function RiskNoticeCardPreviewPage() {
       message.error("保存快照失败，请重试");
     } finally {
       setReviewSaving(false);
+    }
+  };
+
+  /** 人工微调保存：组装完整 content（右栏 + 调整后 signs + manual）→ 快照 → 刷新。 */
+  const handleSaveManualSigns = async (signs: SignItem[]) => {
+    if (!card || editSaving) return;
+    setEditSaving(true);
+    try {
+      const content: SignReviewContent = {
+        hazard_description: card.hazard_description,
+        accident_types: card.accident_types,
+        control_measures: card.control_measures,
+        emergency_measures: card.emergency_measures,
+        signs,
+        signs_source: "manual",
+      };
+      const info = await saveSnapshot(enterpriseId, objectId, content);
+      const refreshed = await refetch();
+      if (refreshed.isError) {
+        message.error("已保存快照，但刷新卡片数据失败，请稍后重试");
+      } else {
+        message.success(`已保存快照 V1.${info.version}`);
+      }
+      setEditOpen(false);
+    } catch {
+      message.error("保存快照失败，请重试");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -598,7 +846,7 @@ export default function RiskNoticeCardPreviewPage() {
         </Button>
       </Space>
 
-      <RiskNoticeCard card={card} />
+      <RiskNoticeCard card={card} onEditSigns={() => setEditOpen(true)} />
 
       <AiCompareModal
         result={compare}
@@ -613,6 +861,15 @@ export default function RiskNoticeCardPreviewPage() {
         saving={reviewSaving}
         onAdopt={() => void handleAdoptSigns()}
         onDiscard={() => setReviewResult(null)}
+      />
+
+      <SignEditModal
+        open={editOpen}
+        catalog={signCatalog}
+        initialSigns={card.signs}
+        saving={editSaving}
+        onSave={(signs) => void handleSaveManualSigns(signs)}
+        onCancel={() => setEditOpen(false)}
       />
     </div>
   );

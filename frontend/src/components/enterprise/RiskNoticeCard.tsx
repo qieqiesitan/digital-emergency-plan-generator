@@ -106,13 +106,39 @@ const RNC_CSS = `
   font-weight: 700;
 }
 .rnc-signs-title {
+  align-items: center;
   background: #434343;
   color: #fff;
+  display: flex;
   font-size: 13px;
   font-weight: 700;
+  justify-content: center;
   letter-spacing: 8px;
-  padding: 6px 0;
+  padding: 4px 0;
+  position: relative;
   text-align: center;
+}
+.rnc-signs-source {
+  background: #fff;
+  border-radius: 2px;
+  color: #434343;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin-left: 6px;
+  padding: 0 6px;
+}
+.rnc-signs-edit {
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  position: absolute;
+  right: 10px;
+}
+.rnc-signs-edit:hover {
+  color: #ffd666;
 }
 .rnc-signs {
   background: #fff;
@@ -279,14 +305,23 @@ function InfoBlock({ title, body }: InfoBlockProps) {
 
 interface RiskNoticeCardProps {
   card: CardData;
+  /** 提供时在标志区显示「编辑」入口（仅编辑页使用，公开页不传）。 */
+  onEditSigns?: () => void;
 }
 
 /** 风险告知卡（v5 版式）：头部 + 左右分栏 + 页脚，与 Word 导出布局一致。 */
-export default function RiskNoticeCard({ card }: RiskNoticeCardProps) {
+export default function RiskNoticeCard({ card, onEditSigns }: RiskNoticeCardProps) {
   const accidentText = card.accident_types.length
     ? `${card.accident_types.join("、")}（GB 6441 事故类别）`
     : "";
   const versionText = card.snapshot ? `V1.${card.snapshot.version}` : "V1.0";
+  // 标志来源小 Tag：ai=AI 审查、manual=人工调整；规则/缺省不显示
+  const sourceTagText =
+    card.signs_source === "ai"
+      ? "AI 审查"
+      : card.signs_source === "manual"
+        ? "人工调整"
+        : "";
   const [qrDataUrl, setQrDataUrl] = useState("");
 
   useEffect(() => {
@@ -338,7 +373,15 @@ export default function RiskNoticeCard({ card }: RiskNoticeCardProps) {
               ))}
             </tbody>
           </table>
-          <div className="rnc-signs-title">安全标志</div>
+          <div className="rnc-signs-title">
+            <span>安全标志</span>
+            {sourceTagText && <span className="rnc-signs-source">{sourceTagText}</span>}
+            {onEditSigns && (
+              <span className="rnc-signs-edit" onClick={onEditSigns}>
+                编辑
+              </span>
+            )}
+          </div>
           <div className="rnc-signs">
             {card.signs.length ? (
               card.signs.map((sign) => (
