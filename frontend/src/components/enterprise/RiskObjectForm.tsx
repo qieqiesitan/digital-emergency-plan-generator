@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Drawer, Form, Input, Select, Button, Switch, Upload, InputNumber, Space, message, Divider } from "antd";
-import { UploadOutlined, EnvironmentOutlined } from "@ant-design/icons";
+import { UploadOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import type { UploadFile } from "antd/es/upload/interface";
 import FloorPlanPicker from "./FloorPlanPicker";
 
@@ -177,7 +178,7 @@ export default function RiskObjectForm({ open, onClose, onSubmit, initialValues,
               <Form.Item label="平面图坐标">
                 <div style={{ display: "flex", gap: 8 }}>
                   <Button
-                    icon={<EnvironmentOutlined />}
+                    icon={<AppIcon name="location" size={14} />}
                     onClick={() => setFloorPlanOpen(true)}
                     disabled={!floorPlanUrl}
                   >

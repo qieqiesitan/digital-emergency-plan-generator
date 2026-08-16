@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { Layout, Typography } from "antd";
-import { SafetyOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 
 const { Content } = Layout;
 const { Title, Paragraph } = Typography;
@@ -27,7 +27,7 @@ export function AuthLayout() {
             color: "#fff",
           }}
         >
-          <SafetyOutlined style={{ fontSize: 64, marginBottom: 24 }} />
+          <AppIcon name="safety" size={64} style={{ marginBottom: 24 }} />
           <Title level={2} style={{ color: "#fff", marginBottom: 8 }}>
             数字化应急预案自动生成系统
           </Title>

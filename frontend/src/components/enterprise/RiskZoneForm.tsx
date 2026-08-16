@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Drawer, Form, Input, Button, Modal, Space, Select } from "antd";
-import { EnvironmentOutlined, DeleteOutlined } from "@ant-design/icons";
+import { DeleteOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import { mergeEditedPolygon } from "@/utils/zoneSubmit";
 import type { EnterpriseFloor } from "@/types/riskMappingWorkbench";
 
@@ -126,7 +127,7 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
           {planUrl ? (
             <div style={{ marginBottom: 16 }}>
               <Button
-                icon={<EnvironmentOutlined />}
+                icon={<AppIcon name="location" size={14} />}
                 onClick={handleOpen}
                 block
               >

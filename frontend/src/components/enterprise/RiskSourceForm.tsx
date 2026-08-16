@@ -1,6 +1,6 @@
 ﻿import { useState } from "react";
 import { Table, Button, Select, Input, Radio, Modal, Space, message, Tag } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, EnvironmentOutlined, DownloadOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AppIcon from "@/components/common/AppIcon";
 import { listRiskSources, createRiskSource, updateRiskSource, deleteRiskSource } from "@/services/riskSourceService";
@@ -70,7 +70,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
         const hasCoord = record.location_x != null && record.location_y != null;
         return (
           <span>
-            {hasCoord && <EnvironmentOutlined style={{ color: "#ff4d4f", marginRight: 4 }} />}
+            {hasCoord && <AppIcon name="location" size={14} style={{ color: "#ff4d4f", marginRight: 4 }} />}
             {v || (hasCoord ? `(${record.location_x!.toFixed(0)}%, ${record.location_y!.toFixed(0)}%)` : "-")}
           </span>
         );
@@ -147,7 +147,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
 
           <div style={{ display: "flex", gap: 8 }}>
             <Button
-              icon={<EnvironmentOutlined />}
+                icon={<AppIcon name="location" size={14} />}
               onClick={() => setFloorPlanOpen(true)}
               disabled={!floorPlanUrl}
             >

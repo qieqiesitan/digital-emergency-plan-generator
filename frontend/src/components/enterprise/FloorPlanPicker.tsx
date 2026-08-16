@@ -1,6 +1,6 @@
 ﻿import { useState, useRef, useEffect, useCallback } from "react";
 import { Modal, Button, Input } from "antd";
-import { EnvironmentOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 
 interface FloorPlanPickerProps {
   /** 厂区平面图 URL（由企业信息提供） */
@@ -96,7 +96,7 @@ export default function FloorPlanPicker({ imageUrl, value, onChange, visible, on
                   zIndex: 10,
                 }}
               >
-                <EnvironmentOutlined style={{ fontSize: 28, color: "#ff4d4f", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" }} />
+                <AppIcon name="location" size={28} style={{ color: "#ff4d4f", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" }} />
               </div>
             )}
           </div>

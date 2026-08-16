@@ -9,13 +9,13 @@ import {
   EditOutlined,
   FullscreenOutlined,
   HighlightOutlined,
-  EnvironmentOutlined,
   FontSizeOutlined,
   DragOutlined,
   NodeIndexOutlined,
   ZoomInOutlined,
   ZoomOutOutlined,
 } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 
 type ToolValue = "select" | "rect" | "circle" | "polygon" | "pen" | "freehand" | "risk-point" | "text";
@@ -27,7 +27,7 @@ const TOOLS: Array<{ value: ToolValue; label: string; hint: string; icon: ReactN
   { value: "polygon", label: "多边形", hint: "单击添加顶点，Enter 或双击闭合", icon: <NodeIndexOutlined /> },
   { value: "pen", label: "钢笔", hint: "单击添加锚点，按住左键拖出贝塞尔控制手柄，Enter 或双击闭合", icon: <EditOutlined /> },
   { value: "freehand", label: "自由画笔", hint: "按住左键自由绘制区域", icon: <HighlightOutlined /> },
-  { value: "risk-point", label: "风险点", hint: "点击放置风险点", icon: <EnvironmentOutlined /> },
+  { value: "risk-point", label: "风险点", hint: "点击放置风险点", icon: <AppIcon name="location" size={14} /> },
   { value: "text", label: "文字", hint: "点击放置文字并立即编辑", icon: <FontSizeOutlined /> },
 ];
 

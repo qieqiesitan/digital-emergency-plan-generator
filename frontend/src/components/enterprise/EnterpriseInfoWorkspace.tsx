@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Button, Card, message, Progress, Space } from "antd";
-import { DeleteOutlined, EnvironmentOutlined, UploadOutlined } from "@ant-design/icons";
+import { DeleteOutlined, UploadOutlined } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import axios from "axios";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEnterprise, updateEnterprise, uploadFile } from "@/services/enterpriseService";
@@ -242,7 +243,7 @@ export default function EnterpriseInfoWorkspace({
         <div>
           <div style={{ fontWeight: 500, marginBottom: 8 }}>GIS 坐标</div>
           <Space>
-            <Button icon={<EnvironmentOutlined />} onClick={() => setGisModalOpen(true)}>
+            <Button icon={<AppIcon name="location" size={14} />} onClick={() => setGisModalOpen(true)}>
               {effectiveGis ? "重新选择厂区位置" : "在地图上选择厂区位置"}
             </Button>
             {effectiveGis && (
