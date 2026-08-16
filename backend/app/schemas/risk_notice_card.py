@@ -28,7 +28,6 @@ class CardData(RightColumn):
     responsible_person: str
     contact_phone: str
     fallback_used: bool = False
-    signs: list[SignItem] = []
     snapshot: dict | None = None
     stale: bool = False
     public_url: str

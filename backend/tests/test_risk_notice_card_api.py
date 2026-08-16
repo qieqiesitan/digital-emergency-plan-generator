@@ -600,6 +600,7 @@ def test_review_signs_parses_suggestion(monkeypatch):
     async def run():
         monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
         db = AsyncMock()
+        db.execute.return_value = MagicMock()  # 避免 _get_ai_config 产生未 await 的 coroutine
         result = await risk_notice_card_ai.review_signs(
             db, "u1", "测试公司", "会议室", "工作场所", "三楼",
             [{"accident_type": "火灾"}, {"accident_type": "人员滑倒/摔伤"}],
@@ -825,6 +826,7 @@ def test_review_signs_invalid_json_raises_502(monkeypatch):
     async def run():
         monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
         db = AsyncMock()
+        db.execute.return_value = MagicMock()
         with pytest.raises(HTTPException) as exc:
             await risk_notice_card_ai.review_signs(
                 db, "u1", "测试公司", "会议室", "工作场所", "三楼",
@@ -849,6 +851,7 @@ def test_review_signs_non_list_fields_fall_back(monkeypatch):
     async def run():
         monkeypatch.setattr(risk_notice_card_ai, "llm_text_completion", fake_completion)
         db = AsyncMock()
+        db.execute.return_value = MagicMock()
         result = await risk_notice_card_ai.review_signs(
             db, "u1", "测试公司", "会议室", "工作场所", "三楼",
             [{"accident_type": "火灾"}],
@@ -894,3 +897,53 @@ def test_snapshot_save_with_signs(client):
         {"category": "prohibition", "name": "禁止烟火", "svg_name": "prohibition-smoking"},
     ]
     assert saved.content["signs_source"] == "manual"
+
+
+def test_snapshot_save_invalid_sign_category_422(client):
+    """写端点经 pydantic SignItem 严格校验：非法 category → 422。"""
+    ent = _enterprise()
+    client.app.dependency_overrides[get_db] = lambda: _risk_card_db(
+        ent, [], detail_obj=_risk_object()
+    )
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "bogus", "name": "自造标志", "svg_name": "not-in-library"}
+                ],
+            }
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_snapshot_save_invalid_signs_source_falls_back_rule(client):
+    """API 层非法 signs_source → 端到端回退 rule。"""
+    ent = _enterprise()
+    db = _risk_card_db(ent, [], detail_obj=_risk_object())
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [
+                    {"category": "warning", "name": "当心火灾", "svg_name": "warning-fire"}
+                ],
+                "signs_source": "not-a-valid-source",
+            }
+        },
+    )
+    assert resp.status_code == 200
+    saved = db.add.call_args.args[0]
+    assert saved.content["signs_source"] == "rule"

@@ -144,7 +144,9 @@ def normalize_signs(
 ) -> list[dict]:
     """规范化 AI/人工提交的标志：过滤非法 svg_name、去重、按类别排序、限量。
 
-    调用方须保证每个标志的 category 合法（缺失/错配会被静默丢弃）。
+    写端点（PUT /snapshot）在进入本函数前已经过 pydantic SignItem 严格校验
+    （非法 category/缺字段 → 422）；本函数对 category 缺失/错配的静默丢弃
+    主要用于读取旧快照脏数据路径（以及规则兜底结果），不作为写入口的校验。
     """
     seen: set[str] = set()
     merged: list[dict] = []
@@ -247,9 +249,13 @@ async def build_card_data(
     measures: list[RiskMeasure],
 ) -> CardData:
     snapshot = await get_snapshot(db, obj.id)
-    col = build_right_column(events, measures, snapshot_content(snapshot))
+    content = snapshot_content(snapshot)
+    col = build_right_column(events, measures, content)
     cached_signs = snapshot_signs(snapshot)
     signs = cached_signs if cached_signs is not None else match_signs(col.accident_types)
+    # 前端来源 Tag（任务 8）依赖 signs_source：有快照 signs 时取快照值，
+    # 缺省/无快照/无 signs 时回退 rule（前端按缺省处理）
+    signs_source = (content or {}).get("signs_source") or "rule"
     unit, person, phone, fallback = resolve_responsible(obj, ent)
     level = compute_level(events)
     timestamps = [
@@ -273,6 +279,7 @@ async def build_card_data(
         contact_phone=phone,
         fallback_used=fallback,
         signs=signs,
+        signs_source=signs_source,
         hazard_description=col.hazard_description,
         accident_types=col.accident_types,
         control_measures=col.control_measures,
