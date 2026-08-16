@@ -7,9 +7,9 @@ import {
 import {
   PlusOutlined, SearchOutlined, StopOutlined, BookOutlined,
   CheckCircleOutlined, CloseCircleOutlined, FileTextOutlined,
-  AuditOutlined, SafetyCertificateOutlined, FlagOutlined,
   EditOutlined, EyeOutlined, ClearOutlined, DeleteOutlined,
 } from "@ant-design/icons";
+import AppIcon from "@/components/common/AppIcon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchRegulations, fetchStats, deleteRegulation, updateRegulation, batchAbolish } from "@/services/regulationService";
 import { RegulationForm } from "./RegulationForm";
@@ -24,10 +24,10 @@ interface Props {
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  law: { label: "法律", color: "#1677ff", icon: <AuditOutlined /> },
-  standard: { label: "标准", color: "#52c41a", icon: <SafetyCertificateOutlined /> },
-  policy: { label: "政策", color: "#faad14", icon: <FlagOutlined /> },
-  topic: { label: "主题", color: "#eb2f96", icon: <BookOutlined /> },
+  law: { label: "法律", color: "#1677ff", icon: <AppIcon name="law" /> },
+  standard: { label: "标准", color: "#52c41a", icon: <AppIcon name="standard" /> },
+  policy: { label: "政策", color: "#faad14", icon: <AppIcon name="policy" /> },
+  topic: { label: "主题", color: "#eb2f96", icon: <AppIcon name="topic" /> },
 };
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
