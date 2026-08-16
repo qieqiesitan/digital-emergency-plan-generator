@@ -34,12 +34,41 @@ import { PageHeader } from "@/components/common/PageHeader";
 const { TextArea } = Input;
 const { Text } = Typography;
 
+/** 字典类型 → 中文名（与后端种子字典保持一致，新增类型未收录时回退显示原始 code）。 */
+const DICT_TYPE_LABELS: Record<string, string> = {
+  control_level_map: "管控层级映射",
+  deadline_rules: "整改期限",
+  hazard_type: "隐患类型",
+  measure_factors: "评估折算系数",
+  publicity_scope: "公示范围",
+  record_status_label: "隐患状态标签",
+  source_type: "隐患来源",
+};
+
+function dictTypeLabel(type: string): string {
+  return DICT_TYPE_LABELS[type] ?? type;
+}
+
 function formatValue(value: Record<string, unknown> | null | undefined): string {
   try {
     return JSON.stringify(value ?? {});
   } catch {
     return "{}";
   }
+}
+
+/** 把常见字典值渲染成可读文案（系数/折算口径/等级映射/天数等），其余回退 JSON。 */
+function formatValueSummary(value: Record<string, unknown> | null | undefined): string {
+  const v = value ?? {};
+  if (typeof v.factor === "number") return `系数 ${v.factor}`;
+  if (typeof v.mode === "string") return `折算口径 ${v.mode}`;
+  if (typeof v.level === "string" && typeof v.control_level === "string") {
+    return `${v.level} → ${v.control_level}`;
+  }
+  if (typeof v.days === "number") return `${v.days} 天`;
+  const keys = Object.keys(v);
+  if (keys.length === 0) return "—";
+  return keys.map(k => `${k}: ${JSON.stringify(v[k])}`).join("；");
 }
 
 function errMsg(e: unknown): string {
@@ -195,13 +224,22 @@ export default function EnterpriseDictConfigPage() {
   };
 
   const columns: TableColumnsType<DataDictItem> = [
-    { title: "编码", dataIndex: "code", width: 130 },
-    { title: "名称", dataIndex: "label", width: 150 },
+    {
+      title: "名称",
+      key: "name",
+      width: 190,
+      render: (_: unknown, record) => (
+        <div style={{ lineHeight: 1.4 }}>
+          <div style={{ fontWeight: 500 }}>{record.label || record.code}</div>
+          <div style={{ fontSize: 11, color: "#999" }}>{record.code}</div>
+        </div>
+      ),
+    },
     {
       title: "值",
       dataIndex: "value",
       render: (value: Record<string, unknown>) => (
-        <Text code style={{ fontSize: 12 }}>{formatValue(value)}</Text>
+        <Text style={{ fontSize: 12 }}>{formatValueSummary(value)}</Text>
       ),
     },
     {
@@ -236,24 +274,24 @@ export default function EnterpriseDictConfigPage() {
       render: (_: unknown, record) =>
         record.scope === "system" ? (
           coveredKeys.has(`${record.dict_type}:${record.code}`) ? (
-            <Tooltip title="已覆盖，可编辑企业条目">
+            <Tooltip title="已覆盖，请在左侧选择对应企业条目编辑">
               <Button
                 type="link"
                 size="small"
                 disabled
                 onClick={() => openOverride(record)}
               >
-                覆盖
+                已覆盖
               </Button>
             </Tooltip>
           ) : (
-            <Tooltip title="复制系统条目为企业条目，之后可编辑">
+            <Tooltip title="复制为企业条目后即可按本企业情况修改">
               <Button
                 type="link"
                 size="small"
                 onClick={() => openOverride(record)}
               >
-                覆盖
+                覆盖并编辑
               </Button>
             </Tooltip>
           )
@@ -325,7 +363,10 @@ export default function EnterpriseDictConfigPage() {
               style={{ marginBottom: 4, textAlign: "left", overflow: "hidden" }}
               onClick={() => setActiveType(type)}
             >
-              {type}
+              <div style={{ textAlign: "left", lineHeight: 1.3 }}>
+                <div>{dictTypeLabel(type)}</div>
+                <div style={{ fontSize: 10, opacity: 0.65 }}>{type}</div>
+              </div>
             </Button>
           ))}
         </div>
@@ -348,7 +389,11 @@ export default function EnterpriseDictConfigPage() {
       </div>
 
       <Drawer
-        title={drawer?.mode === "create" ? "覆盖系统默认" : "编辑企业条目"}
+        title={
+          drawer
+            ? `${dictTypeLabel(drawer.source.dict_type)} · ${drawer.mode === "create" ? "覆盖系统默认" : "编辑企业条目"}`
+            : ""
+        }
         width={480}
         open={!!drawer}
         onClose={() => setDrawer(null)}
@@ -371,7 +416,7 @@ export default function EnterpriseDictConfigPage() {
             label="字典类型"
             rules={[{ required: true, message: "请输入字典类型" }]}
           >
-            <Input disabled />
+            <Input disabled value={drawer ? dictTypeLabel(drawer.source.dict_type) : ""} />
           </Form.Item>
           <Form.Item
             name="code"
@@ -382,11 +427,28 @@ export default function EnterpriseDictConfigPage() {
           </Form.Item>
           <Form.Item
             name="label"
-            label="名称"
+            label="名称（中文，预案中展示用）"
             rules={[{ required: true, message: "请输入名称" }]}
           >
             <Input />
           </Form.Item>
+          {drawer && (
+            <div
+              style={{
+                marginBottom: 12,
+                padding: "8px 10px",
+                background: "#f5f7fa",
+                borderRadius: 6,
+                fontSize: 12,
+                color: "#555",
+              }}
+            >
+              当前值含义：{formatValueSummary(drawer.source.value)}
+              <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
+                如需修改，在下方的 JSON 中调整对应字段；系统默认条目需先「覆盖并编辑」。
+              </div>
+            </div>
+          )}
           <Form.Item
             name="value_json"
             label="值（JSON）"
