@@ -14,7 +14,7 @@ export default function CockpitTicker({ items }: Props) {
     <div className="cp-ticker">
       <div>
         {inner}
-        {inner}
+        <span aria-hidden="true">{inner}</span>
       </div>
     </div>
   );
