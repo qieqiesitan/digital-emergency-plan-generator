@@ -147,7 +147,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
 
           <div style={{ display: "flex", gap: 8 }}>
             <Button
-                icon={<AppIcon name="location" size={14} />}
+              icon={<AppIcon name="location" size={14} />}
               onClick={() => setFloorPlanOpen(true)}
               disabled={!floorPlanUrl}
             >
