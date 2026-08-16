@@ -5,6 +5,7 @@ export interface SideNavItem {
   label: string;
   to: string;
   matchSearch?: string;
+  inactiveWhenSearch?: string;
 }
 
 export interface SideNavGroup {
@@ -27,8 +28,8 @@ export default function ModuleSideNav({ groups }: { groups: SideNavGroup[] }) {
           <div style={{ fontSize: 10, color: "#9aa4b4", padding: "8px 12px 3px", letterSpacing: 1 }}>{g.label}</div>
           {g.items.map((it) => {
             const active = it.matchSearch
-              ? location.search.includes(it.matchSearch)
-              : location.pathname === it.to;
+              ? location.pathname === it.to.split("?")[0] && location.search.includes(it.matchSearch)
+              : location.pathname === it.to && !(it.inactiveWhenSearch && location.search.includes(it.inactiveWhenSearch));
             return (
               <div
                 key={it.key}

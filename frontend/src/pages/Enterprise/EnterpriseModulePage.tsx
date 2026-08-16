@@ -1,5 +1,4 @@
-import { useParams } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Spin, Button } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
@@ -13,26 +12,29 @@ import EmergencyResourceForm from "@/components/enterprise/EmergencyResourceForm
 import RiskAssessmentTab from "@/pages/Enterprise/RiskAssessmentTab";
 import ResourceInvestigationTab from "@/pages/Enterprise/ResourceInvestigationTab";
 
-type Ctx = { enterpriseId: string; enterprise: Enterprise };
+type Ctx = { enterpriseId: string; enterprise?: Enterprise };
 
 const MODULE_MAP: Record<string, { title: string; en: string; render: (ctx: Ctx) => React.ReactNode }> = {
   info: {
     title: "基本信息", en: "ENTERPRISE ARCHIVE",
-    render: ({ enterprise }) => (
-      <>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-          <EditButton />
-        </div>
-        <EnterpriseInfoCards enterprise={enterprise} readOnly />
-      </>
-    ),
+    render: ({ enterprise }) =>
+      enterprise ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <EditButton />
+          </div>
+          <EnterpriseInfoCards enterprise={enterprise} readOnly />
+        </>
+      ) : (
+        <div>企业信息加载失败</div>
+      ),
   },
   surrounding: {
     title: "周边环境", en: "SURROUNDING",
     render: ({ enterpriseId, enterprise }) => (
       <SurroundingInfoPanel
         enterpriseId={enterpriseId}
-        surroundingInfo={enterprise.surrounding_info || { nearby_units: [], sensitive_targets: [], traffic_info: "" }}
+        surroundingInfo={enterprise?.surrounding_info || { nearby_units: [], sensitive_targets: [], traffic_info: "" }}
         onRefresh={() => undefined}
       />
     ),
@@ -53,14 +55,30 @@ export default function EnterpriseModulePage() {
   const { id, moduleKey = "" } = useParams<{ id: string; moduleKey: string }>();
   const navigate = useNavigate();
   const mod = MODULE_MAP[moduleKey];
-  const { data: enterprise, isLoading } = useQuery({
+  const needsEnterprise = moduleKey === "info" || moduleKey === "surrounding";
+  const enterpriseQ = useQuery({
     queryKey: ["enterprise", id],
     queryFn: () => getEnterprise(id!),
-    enabled: !!id,
+    enabled: !!id && needsEnterprise,
   });
 
-  if (!mod) return <div>模块不存在</div>;
-  if (isLoading || !enterprise) return <Spin size="large" />;
+  if (!mod) {
+    return (
+      <div>
+        模块不存在
+        <Button type="link" onClick={() => navigate(`/enterprises/${id}`)}>返回企业驾驶舱</Button>
+      </div>
+    );
+  }
+  if (needsEnterprise && enterpriseQ.isLoading) return <Spin size="large" />;
+  if (needsEnterprise && (enterpriseQ.isError || !enterpriseQ.data)) {
+    return (
+      <div>
+        企业信息加载失败
+        <Button type="link" onClick={() => enterpriseQ.refetch()}>重试</Button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -69,7 +87,7 @@ export default function EnterpriseModulePage() {
         subtitle={mod.en}
         onBack={() => navigate(`/enterprises/${id}`)}
       />
-      {mod.render({ enterpriseId: id!, enterprise })}
+      {mod.render({ enterpriseId: id!, enterprise: enterpriseQ.data })}
     </div>
   );
 }
