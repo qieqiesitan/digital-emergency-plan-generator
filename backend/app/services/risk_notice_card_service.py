@@ -149,12 +149,29 @@ def normalize_signs(
     seen: set[str] = set()
     merged: list[dict] = []
     for s in signs or []:
+        if not isinstance(s, dict):
+            continue
         svg = s.get("svg_name")
         if svg not in VALID_SVG_NAMES or svg in seen:
             continue
         seen.add(svg)
         merged.append(s)
     return _order_by_category(merged, max_per_category)[:max_total]
+
+
+def snapshot_content(snapshot: RiskNoticeCard | None) -> dict | None:
+    """规范化取快照 content：非 dict（脏数据/None）视为无快照内容。"""
+    if snapshot is not None and isinstance(snapshot.content, dict):
+        return snapshot.content
+    return None
+
+
+def snapshot_signs(snapshot: RiskNoticeCard | None) -> list[dict] | None:
+    """快照 content 中的 signs 列表；无快照或无 signs 返回 None。"""
+    content = snapshot_content(snapshot)
+    if content and content.get("signs"):
+        return content["signs"]
+    return None
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -230,11 +247,9 @@ async def build_card_data(
     measures: list[RiskMeasure],
 ) -> CardData:
     snapshot = await get_snapshot(db, obj.id)
-    col = build_right_column(events, measures, snapshot.content if snapshot else None)
-    snapshot_signs = None
-    if snapshot and isinstance(snapshot.content, dict) and snapshot.content.get("signs"):
-        snapshot_signs = snapshot.content["signs"]
-    signs = snapshot_signs if snapshot_signs is not None else match_signs(col.accident_types)
+    col = build_right_column(events, measures, snapshot_content(snapshot))
+    cached_signs = snapshot_signs(snapshot)
+    signs = cached_signs if cached_signs is not None else match_signs(col.accident_types)
     unit, person, phone, fallback = resolve_responsible(obj, ent)
     level = compute_level(events)
     timestamps = [

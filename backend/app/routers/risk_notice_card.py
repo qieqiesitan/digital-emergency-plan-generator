@@ -54,8 +54,11 @@ from app.services.risk_notice_card_service import (
     load_events_and_measures,
     match_signs,
     merge_object_events,
+    normalize_signs,
     resolve_responsible,
     save_snapshot,
+    snapshot_content,
+    snapshot_signs,
 )
 
 router = APIRouter(
@@ -323,7 +326,9 @@ async def ai_review_signs(
     """AI 审查风险点安全标志：返回增删差异建议，无副作用。
 
     当前标志优先取快照 signs，否则按规则 match_signs(accident_types)；
-    候选库为 SIGN_GROUPS 全组 + DEFAULT_SIGN_GROUP 去重；事件数据取
+    存在旧快照（无 signs）时按快照 accident_types 回退，与卡片展示一致；
+    快照/规则结果经 normalize_signs 过滤非法元素后使用；候选库为
+    SIGN_GROUPS 全组 + DEFAULT_SIGN_GROUP 去重；事件数据取
     accident_type/trigger_conditions/consequences 传给 review_signs。
     """
     ent = await _get_ent(enterprise_id, current_user.id, db)
@@ -338,17 +343,11 @@ async def ai_review_signs(
     if not obj:
         raise HTTPException(404, "风险点不存在")
     events, measures = await load_events_and_measures(db, object_id)
-    right = build_right_column(events, measures)
     snapshot = await get_snapshot(db, object_id)
-    snapshot_signs = None
-    if (
-        snapshot
-        and isinstance(snapshot.content, dict)
-        and snapshot.content.get("signs")
-    ):
-        snapshot_signs = snapshot.content["signs"]
-    current_signs = (
-        snapshot_signs if snapshot_signs is not None else match_signs(right.accident_types)
+    right = build_right_column(events, measures, snapshot_content(snapshot))
+    cached_signs = snapshot_signs(snapshot)
+    current_signs = normalize_signs(
+        cached_signs if cached_signs is not None else match_signs(right.accident_types)
     )
     catalog: list[dict] = []
     seen: set[str] = set()
@@ -376,6 +375,10 @@ async def ai_review_signs(
             current_signs,
             catalog,
         )
+        response = AiSignReviewResponse(
+            original_signs=current_signs,
+            suggestion=SignSuggestion(**suggestion),
+        )
     except HTTPException:
         raise  # AI 未配置等业务错误保留原语义（如 400/502）
     except Exception:
@@ -384,13 +387,8 @@ async def ai_review_signs(
             enterprise_id,
             object_id,
         )
-        raise HTTPException(502, "AI 审查失败，请稍后重试或保留原版")
-    return ApiResponse(
-        data=AiSignReviewResponse(
-            original_signs=current_signs,
-            suggestion=SignSuggestion(**suggestion),
-        )
-    )
+        raise HTTPException(502, "AI 审查失败，已保留原版")
+    return ApiResponse(data=response)
 
 
 @router.put("/{object_id}/snapshot", response_model=ApiResponse[SnapshotResponse])
