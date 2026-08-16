@@ -137,7 +137,7 @@ def search(q: str, page: int = 1, limit: int = PAGE_SIZE) -> list[dict]:
         "pageSize": str(limit),
         "sType": "",
         "fromCollection": "1",
-        "fills": "0",
+        "fills": "",
         "ctoken": "null",
         "t": str(int(time.time() * 1000)),
     }
