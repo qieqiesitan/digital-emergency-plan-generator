@@ -38,6 +38,7 @@ import {
   buildReasonLookup,
   buildSignLookup,
   countSignsByCategory,
+  mergeOptimizedContent,
   signSrc,
   sortSignsByCategory,
 } from "@/utils/riskNoticeCardSigns";
@@ -709,10 +710,18 @@ export default function RiskNoticeCardPreviewPage() {
   };
 
   const adoptOptimized = async () => {
-    if (!compare || saving) return;
+    if (!compare || saving || !card) return;
     setSaving(true);
     try {
-      const info = await saveSnapshot(enterpriseId, objectId, compare.optimized);
+      // 采用 AI 优化必须保留当前已展示的标志与来源：compare.optimized 为
+      // RightColumn（无 signs/signs_source），直接保存会被后端缺省值
+      // signs: [] / signs_source: None 覆盖已采用/人工调整的标志。
+      const content = mergeOptimizedContent(
+        compare.optimized,
+        card.signs,
+        card.signs_source,
+      );
+      const info = await saveSnapshot(enterpriseId, objectId, content);
       const refreshed = await refetch();
       if (refreshed.isError) {
         message.error("已保存快照，但刷新卡片数据失败，请稍后重试");

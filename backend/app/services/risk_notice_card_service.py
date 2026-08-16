@@ -169,9 +169,14 @@ def snapshot_content(snapshot: RiskNoticeCard | None) -> dict | None:
 
 
 def snapshot_signs(snapshot: RiskNoticeCard | None) -> list[dict] | None:
-    """快照 content 中的 signs 列表；无快照或无 signs 返回 None。"""
+    """快照 content 中的 signs 列表；无快照或无 signs 键返回 None。
+
+    显式空列表（signs: []）是合法最终状态（人工移除全部标志），
+    与缺省（无 signs 键）区分：前者返回 []（不回退规则标志），
+    后者返回 None（回退规则 match_signs）。
+    """
     content = snapshot_content(snapshot)
-    if content and content.get("signs"):
+    if content is not None and content.get("signs") is not None:
         return content["signs"]
     return None
 

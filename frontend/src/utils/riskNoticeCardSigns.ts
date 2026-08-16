@@ -1,5 +1,6 @@
 import type {
   AiSignReviewResponse,
+  RightColumn,
   SignCategory,
   SignItem,
 } from "@/types/riskNoticeCard";
@@ -93,4 +94,22 @@ export function applySignSuggestion(
       );
     });
   return sortSignsByCategory([...kept, ...added]);
+}
+
+/**
+ * 采用 AI 优化时组装完整快照 content：右栏四块原样保留，
+ * 叠加当前已展示的标志与来源（signs/signs_source），
+ * 避免后端 RightColumn 缺省把快照标志写空、覆盖已采用/人工调整的标志。
+ * signs_source 缺失时回落 "rule"（前端按缺省处理）。
+ */
+export function mergeOptimizedContent(
+  optimized: RightColumn,
+  signs: SignItem[],
+  signs_source: "rule" | "ai" | "manual" | undefined,
+): RightColumn & { signs: SignItem[]; signs_source: "rule" | "ai" | "manual" } {
+  return {
+    ...optimized,
+    signs,
+    signs_source: signs_source ?? "rule",
+  };
 }

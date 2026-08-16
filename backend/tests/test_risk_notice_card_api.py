@@ -912,6 +912,32 @@ def test_snapshot_save_with_signs(client):
     assert saved.content["signs_source"] == "manual"
 
 
+def test_snapshot_save_persists_explicit_empty_signs(client):
+    """PUT /snapshot 的 content 含 signs: [] + signs_source=manual 时，显式空列表
+    作为合法最终状态持久化（不回退规则标志、来源保持 manual）。"""
+    ent = _enterprise()
+    db = _risk_card_db(ent, [], detail_obj=_risk_object())
+    client.app.dependency_overrides[get_db] = lambda: db
+
+    resp = client.put(
+        "/enterprises/e1/risk-notice-cards/o1/snapshot",
+        json={
+            "content": {
+                "hazard_description": "x",
+                "accident_types": ["火灾"],
+                "control_measures": [],
+                "emergency_measures": [],
+                "signs": [],
+                "signs_source": "manual",
+            }
+        },
+    )
+    assert resp.status_code == 200
+    saved = db.add.call_args.args[0]
+    assert saved.content["signs"] == []
+    assert saved.content["signs_source"] == "manual"
+
+
 def test_snapshot_save_invalid_sign_category_422(client):
     """写端点经 pydantic SignItem 严格校验：非法 category → 422。"""
     ent = _enterprise()

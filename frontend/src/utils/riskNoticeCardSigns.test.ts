@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SignItem } from "@/types/riskNoticeCard";
+import type { RightColumn, SignItem } from "@/types/riskNoticeCard";
 import {
   MAX_SIGNS_PER_CATEGORY,
   MAX_TOTAL_SIGNS,
@@ -8,6 +8,7 @@ import {
   buildSignLookup,
   categoryOf,
   countSignsByCategory,
+  mergeOptimizedContent,
   signSrc,
   sortSignsByCategory,
 } from "./riskNoticeCardSigns";
@@ -128,6 +129,44 @@ describe("applySignSuggestion", () => {
       [fireWarning],
     );
     expect(result).toEqual([fireWarning]);
+  });
+});
+
+describe("mergeOptimizedContent", () => {
+  it("右栏四块原值保留 + 自定义 signs + 来源透传（覆盖 optimized 自带缺省 signs）", () => {
+    const optimized: RightColumn & {
+      signs: SignItem[];
+      signs_source: "rule" | "ai" | "manual" | null;
+    } = {
+      hazard_description: "优化后描述",
+      accident_types: ["火灾"],
+      control_measures: ["优化后控制措施"],
+      emergency_measures: ["优化后应急措施"],
+      // 后端 RightColumn.model_dump() 缺省会带空标志：采用时必须被自定义 signs 覆盖
+      signs: [],
+      signs_source: null,
+    };
+    const result = mergeOptimizedContent(optimized, [fireWarning, noSmoking], "ai");
+    expect(result).toEqual({
+      hazard_description: "优化后描述",
+      accident_types: ["火灾"],
+      control_measures: ["优化后控制措施"],
+      emergency_measures: ["优化后应急措施"],
+      signs: [fireWarning, noSmoking],
+      signs_source: "ai",
+    });
+  });
+
+  it("signs_source 缺失时回落 rule", () => {
+    const optimized: RightColumn = {
+      hazard_description: "x",
+      accident_types: [],
+      control_measures: [],
+      emergency_measures: [],
+    };
+    const result = mergeOptimizedContent(optimized, [], undefined);
+    expect(result.signs).toEqual([]);
+    expect(result.signs_source).toBe("rule");
   });
 });
 

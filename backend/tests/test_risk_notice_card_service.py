@@ -255,6 +255,41 @@ def test_build_card_data_prefers_snapshot_signs():
     asyncio.run(run())
 
 
+def test_build_card_data_persists_explicit_empty_snapshot_signs():
+    """快照 content 显式 signs: [] + signs_source=manual → 卡片返回空标志且来源
+    保持 manual，不回退规则标志（规格 §6：空列表是合法最终状态）。"""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.risk_notice_card_service import build_card_data
+
+    async def run():
+        snap = MagicMock()
+        snap.content = {
+            "hazard_description": "x", "accident_types": ["火灾"],
+            "control_measures": [], "emergency_measures": [],
+            "signs": [],
+            "signs_source": "manual",
+        }
+        snap.version = 1
+        snap.source = "ai"
+        snap.updated_at = None
+        db = AsyncMock()
+        db.execute.return_value = MagicMock()
+        db.execute.return_value.scalars.return_value.first.return_value = snap
+        ent = Enterprise(name="测试公司", safety_officer="李四", safety_officer_phone="13900000000")
+        obj = RiskObject(id="o1", name="会议室", category="工作场所")
+        events = [RiskEvent(id="e1", accident_type="火灾", risk_level="较大",
+                            trigger_conditions="线路老化", consequences="火灾",
+                            method_type="LS", method_params={"l": 3, "s": 3})]
+        card = await build_card_data(db, ent, obj, [obj], events, [])
+        # 事故类型为火灾（规则会产出当心火灾/禁止烟火），但显式空快照必须保持空，
+        # 且来源 Tag 保持 manual（不回退 rule、不丢来源）。
+        assert card.signs == []
+        assert card.signs_source == "manual"
+
+    asyncio.run(run())
+
+
 def test_build_card_data_signs_source_defaults_rule_without_snapshot():
     import asyncio
     from unittest.mock import AsyncMock, MagicMock
