@@ -43,7 +43,7 @@ export default function RiskRadarPanel({ riskIndex, zoneRisks }: Props) {
           <span>综合风险指数</span>
         </div>
       </div>
-      <div className="cp-radar-cap">风险点实时定位 · 圆心为风险指数 <b>{riskIndex} / 100</b></div>
+      <div className="cp-radar-cap">风险点实时定位 · 圆心为风险指数 <b>{riskIndex > 0 ? riskIndex : "--"} / 100</b></div>
       <div className="cp-h" style={{ marginTop: 12 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>分区风险分布</span>
         <span className="right">按管控区域</span>

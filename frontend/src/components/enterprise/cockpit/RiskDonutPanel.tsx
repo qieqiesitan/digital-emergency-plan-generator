@@ -1,6 +1,13 @@
 import type { RiskCounts, TopRisk } from "@/types/cockpit";
 import { RISK_LEVEL_COLORS, RISK_LEVEL_LABELS } from "@/types/cockpit";
 
+const LEVEL_CN_COLORS: Record<string, string> = {
+  重大: "#ff4d4f",
+  较大: "#ff9f43",
+  一般: "#ffd666",
+  低: "#40a9ff",
+};
+
 const ORDER: Array<keyof RiskCounts> = ["major", "larger", "general", "low"];
 
 function donutBackground(counts: RiskCounts): string {
@@ -45,7 +52,7 @@ export default function RiskDonutPanel({ counts, topRisks }: Props) {
       ) : (
         topRisks.slice(0, 3).map((r) => (
           <div className="cp-todo" style={{ marginBottom: 0 }} key={r.name}>
-            <span className="lv" style={{ background: RISK_LEVEL_COLORS[r.level] || "#8aa3c8" }} />
+            <span className="lv" style={{ background: LEVEL_CN_COLORS[r.level] || "#8aa3c8" }} />
             <div>
               <b>{r.name}</b>
               <span>综合得分 {r.score ?? "--"} · {r.responsible_unit ?? "未指定责任单位"}</span>
