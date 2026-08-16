@@ -564,7 +564,7 @@ git commit -m "feat(icon-system): replace regulation type icons with AppIcon"
 
 ---
 
-### 任务 6：AI 标识统一（12 处 RobotOutlined → AppIcon ai）
+### 任务 6：AI 标识统一（14 处 RobotOutlined → AppIcon ai）
 
 **文件（修改）：**
 - `frontend/src/pages/Chat/index.tsx:292,438`
@@ -587,7 +587,7 @@ git commit -m "feat(icon-system): replace regulation type icons with AppIcon"
 |---|---|---|
 | Chat/index.tsx:292 | `<RobotOutlined style={{ fontSize: 36, marginBottom: 12 }} />` | `<AppIcon name="ai" size={36} style={{ marginBottom: 12 }} />` |
 | Chat/index.tsx:438 | `<RobotOutlined style={{ fontSize: 48, marginBottom: 16, color: "#d9d9d9" }} />` | `<AppIcon name="ai" size={48} style={{ marginBottom: 16, color: "#d9d9d9" }} />` |
-| 其余 10 处按钮 | `<RobotOutlined />` | `<AppIcon name="ai" />` |
+| 其余 12 处按钮（含 RiskEventForm.tsx:773、HazardRecordDetailPage.tsx:785） | `<RobotOutlined />` | `<AppIcon name="ai" />` |
 
 替换后若某文件不再使用 `RobotOutlined`，将其从 import 行移除（eslint 报 unused 为准）。
 
