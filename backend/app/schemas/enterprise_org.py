@@ -24,6 +24,12 @@ class OrgTreeUpdate(BaseModel):
     nodes: list[OrgNode]
 
 
+class OrgSuggestRequest(BaseModel):
+    """AI 建树补充要求（可选，供用户补充企业特殊信息辅助分析）。"""
+
+    extra_requirements: str = ""
+
+
 class MemberCreate(BaseModel):
     user_id: str
     org_node_id: str | None = None

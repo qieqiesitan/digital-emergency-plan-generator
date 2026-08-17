@@ -259,11 +259,13 @@ export default function EnterpriseOrgPage() {
   const [searchResults, setSearchResults] = useState<BindableUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<BindableUser | null>(null);
-  const [aiModal, setAiModal] = useState<{ open: boolean; suggestion: OrgTreeSuggestion | null; loading: boolean }>({
-    open: false,
-    suggestion: null,
-    loading: false,
-  });
+  const [aiModal, setAiModal] = useState<{
+    open: boolean;
+    step: "input" | "loading" | "result";
+    suggestion: OrgTreeSuggestion | null;
+    loading: boolean;
+  }>({ open: false, step: "input", suggestion: null, loading: false });
+  const [aiExtra, setAiExtra] = useState("");
   const [importing, setImporting] = useState(false);
 
   const nodeOptions = useMemo(
@@ -361,16 +363,29 @@ export default function EnterpriseOrgPage() {
 
   // ── AI 建树 ──
 
-  const handleAiSuggest = useCallback(async () => {
-    setAiModal({ open: true, suggestion: null, loading: true });
+  const handleAiSuggest = useCallback(() => {
+    setAiExtra("");
+    setAiModal({ open: true, step: "input", suggestion: null, loading: false });
+  }, []);
+
+  const startAiAnalysis = useCallback(async () => {
+    setAiModal(prev => ({ ...prev, step: "loading", loading: true }));
     try {
-      const suggestion = await suggestOrgTree(enterpriseId);
-      setAiModal({ open: true, suggestion, loading: false });
+      const suggestion = await suggestOrgTree(enterpriseId, aiExtra);
+      setAiModal({ open: true, step: "result", suggestion, loading: false });
     } catch (e) {
-      setAiModal({ open: false, suggestion: null, loading: false });
-      message.error(`AI 建树失败：${e instanceof Error ? e.message : "未知错误"}`);
+      setAiModal({
+        open: true,
+        step: "result",
+        suggestion: { available: false, note: `AI 建树失败：${e instanceof Error ? e.message : "未知错误"}` },
+        loading: false,
+      });
     }
-  }, [enterpriseId, message]);
+  }, [aiExtra, enterpriseId]);
+
+  const closeAiModal = useCallback(() => {
+    setAiModal({ open: false, step: "input", suggestion: null, loading: false });
+  }, []);
 
   const applyAiSuggestion = useCallback(
     (suggestion: OrgTreeSuggestion) => {
@@ -381,10 +396,10 @@ export default function EnterpriseOrgPage() {
         members: n.members ?? [],
       }));
       setLocalNodes(mergeOrgNodes(nodes, suggested));
-      setAiModal({ open: false, suggestion: null, loading: false });
+      closeAiModal();
       message.info("已将 AI 建议合并到现有组织树（保留已有节点），请核对后点击「保存组织树」生效");
     },
-    [message, nodes],
+    [closeAiModal, message, nodes],
   );
 
   const aiTreeData = useMemo(
@@ -807,36 +822,77 @@ export default function EnterpriseOrgPage() {
 
       {/* AI 建树预览 Modal */}
       <Modal
-        title="AI 建树建议"
+        title={
+          aiModal.step === "input"
+            ? "AI 建树（可补充说明）"
+            : aiModal.step === "loading"
+              ? "AI 建树分析中"
+              : "AI 建树建议"
+        }
         open={aiModal.open}
-        onCancel={() => setAiModal({ open: false, suggestion: null, loading: false })}
+        onCancel={closeAiModal}
         footer={
-          aiModal.suggestion?.available
+          aiModal.step === "input"
             ? [
-                <Button key="cancel" onClick={() => setAiModal({ open: false, suggestion: null, loading: false })}>
+                <Button key="cancel" onClick={closeAiModal}>
                   取消
                 </Button>,
-                <Button key="apply" type="primary" onClick={() => aiModal.suggestion && applyAiSuggestion(aiModal.suggestion)}>
-                  合并建议（未保存）
+                <Button key="start" type="primary" onClick={() => void startAiAnalysis()}>
+                  开始分析
                 </Button>,
               ]
-            : [
-                <Button key="close" onClick={() => setAiModal({ open: false, suggestion: null, loading: false })}>
-                  关闭
-                </Button>,
-              ]
+            : aiModal.step === "loading"
+              ? [
+                  <Button key="cancel" onClick={closeAiModal}>
+                    取消
+                  </Button>,
+                ]
+              : aiModal.suggestion?.available
+                ? [
+                    <Button key="cancel" onClick={closeAiModal}>
+                      取消
+                    </Button>,
+                    <Button key="apply" type="primary" onClick={() => aiModal.suggestion && applyAiSuggestion(aiModal.suggestion)}>
+                      合并建议（未保存）
+                    </Button>,
+                  ]
+                : [
+                    <Button key="retry" onClick={() => setAiModal(prev => ({ ...prev, step: "input", suggestion: null }))}>
+                      修改补充说明重试
+                    </Button>,
+                    <Button key="close" type="primary" onClick={closeAiModal}>
+                      关闭
+                    </Button>,
+                  ]
         }
       >
-        {aiModal.loading ? (
+        {aiModal.step === "input" ? (
+          <div>
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="可补充企业特殊情况，帮助 AI 更准确地生成组织架构（可选）。"
+            />
+            <Input.TextArea
+              value={aiExtra}
+              onChange={e => setAiExtra(e.target.value)}
+              rows={4}
+              maxLength={500}
+              showCount
+              placeholder="例如：企业有 3 个生产车间、1 个危化品仓库，一线员工约 120 人，实行倒班制……"
+            />
+          </div>
+        ) : aiModal.step === "loading" ? (
           <div style={{ textAlign: "center", padding: 24 }}>
-            <Spin tip="AI 正在分析企业信息并生成组织架构建议…" />
+            <Spin tip="AI 正在分析企业信息并生成组织架构建议…（最多约 2 分钟）" />
           </div>
         ) : aiModal.suggestion?.available === false ? (
           <Alert
             type="warning"
             showIcon
-            message="AI 暂不可用"
-            description={aiModal.suggestion.note || "AI 服务未配置或调用失败，请手动维护组织架构。"}
+            message="AI 建树未成功"
+            description={aiModal.suggestion.note || "AI 服务异常，请稍后重试或手动维护组织架构。"}
           />
         ) : aiModal.suggestion ? (
           <div>
@@ -844,7 +900,7 @@ export default function EnterpriseOrgPage() {
               type="info"
               showIcon
               style={{ marginBottom: 12 }}
-              message="以下为 AI 建议的组织架构，确认后将填充到左侧组织树（尚未保存，需手动点击保存）。"
+              message="以下为 AI 建议的组织架构，确认后将合并到左侧组织树（保留已有节点，尚未保存，需手动点击保存）。"
             />
             <Tree treeData={aiTreeData} defaultExpandAll selectable={false} />
           </div>

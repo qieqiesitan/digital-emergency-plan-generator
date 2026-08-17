@@ -2,6 +2,7 @@ import json
 import logging
 import re
 
+from fastapi import HTTPException
 from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 
@@ -139,7 +140,7 @@ def _summarize_org_structure(nodes: list) -> str:
     return "；".join(parts) if parts else "（暂无）"
 
 
-async def suggest_org_tree(enterprise_info: dict, ai_config) -> dict:
+async def suggest_org_tree(enterprise_info: dict, ai_config, extra_requirements: str = "") -> dict:
     """AI 建议组织树（文本通道，不依赖图像识别）。
 
     Args:
@@ -149,7 +150,7 @@ async def suggest_org_tree(enterprise_info: dict, ai_config) -> dict:
 
     Returns:
         available=True 时含 nodes 列表；否则
-        {"available": False, "note": "AI 不可用，请手动维护组织架构"}
+        {"available": False, "note": 可读失败原因（超时/未配置等）}
     """
     existing = enterprise_info.get("org_structure")
     org_summary = (
@@ -164,6 +165,10 @@ async def suggest_org_tree(enterprise_info: dict, ai_config) -> dict:
         "你是企业组织架构专家。根据企业基础信息，建议合理的组织架构树。\n\n"
         f"企业信息：\n{json.dumps(info_for_prompt, ensure_ascii=False, indent=2)}\n"
         f"现有组织架构：{org_summary}\n\n"
+    )
+    if extra_requirements and extra_requirements.strip():
+        prompt += f"用户补充要求：{extra_requirements.strip()}\n\n"
+    prompt += (
         '输出 JSON：{"nodes": [{"id": "唯一短 id", "type": "dept|team|position", '
         '"name": "部门/班组/岗位名称", "parent_id": "父节点 id 或 null", '
         '"members": [{"name": "姓名", "position": "岗位"}]}]}\n'
@@ -176,12 +181,16 @@ async def suggest_org_tree(enterprise_info: dict, ai_config) -> dict:
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=120)
         data = _parse_ai_json(raw)
         nodes = data.get("nodes")
         if not isinstance(nodes, list):
             raise ValueError("AI 返回缺少 nodes")
         return {"available": True, "nodes": nodes}
+    except HTTPException as e:
+        note = e.detail if isinstance(e.detail, str) else "AI 服务异常，请稍后重试"
+        logger.warning("AI org tree suggestion failed: %s", note)
+        return {"available": False, "note": note}
     except Exception:
         logger.exception("AI org tree suggestion failed: industry=%s", enterprise_info.get("industry"))
-        return {"available": False, "note": "AI 不可用，请手动维护组织架构"}
+        return {"available": False, "note": "AI 服务异常，请稍后重试或手动维护组织架构"}

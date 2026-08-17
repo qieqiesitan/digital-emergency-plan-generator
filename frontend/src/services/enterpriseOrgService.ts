@@ -84,9 +84,11 @@ export const importMembers = (enterpriseId: string, file: File) => {
 };
 
 /** AI 建议组织树（available=false 时降级，不阻塞手动维护）。 */
-export const suggestOrgTree = (enterpriseId: string) =>
+export const suggestOrgTree = (enterpriseId: string, extraRequirements = "") =>
   api
-    .post<ApiResponse<OrgTreeSuggestion>>(`/enterprises/${enterpriseId}/org/ai-suggest`)
+    .post<ApiResponse<OrgTreeSuggestion>>(`/enterprises/${enterpriseId}/org/ai-suggest`, {
+      extra_requirements: extraRequirements,
+    })
     .then(r => r.data.data);
 
 /** 下载 Excel 成员导入模板（返回 blob 响应，DOM 下载由页面触发，与 exportControlList 惯例一致）。 */

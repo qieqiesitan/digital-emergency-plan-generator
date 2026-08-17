@@ -17,6 +17,7 @@ from app.schemas.enterprise_org import (
     MemberCreate,
     MemberResponse,
     MemberUpdate,
+    OrgSuggestRequest,
     OrgTreeUpdate,
 )
 from app.services.risk_ai_service import _get_ai_config
@@ -149,6 +150,7 @@ async def update_org_nodes(
 @router.post("/ai-suggest", response_model=ApiResponse[dict])
 async def ai_suggest_org_tree(
     enterprise_id: str,
+    body: OrgSuggestRequest | None = None,
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
@@ -168,7 +170,11 @@ async def ai_suggest_org_tree(
         "employee_count": ent.employee_count,
         "org_structure": ent.org_structure or [],
     }
-    result = await suggest_org_tree(enterprise_info, ai_config)
+    result = await suggest_org_tree(
+        enterprise_info,
+        ai_config,
+        extra_requirements=body.extra_requirements if body else "",
+    )
     return ApiResponse(data=result)
 
 

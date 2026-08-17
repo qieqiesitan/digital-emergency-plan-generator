@@ -977,3 +977,32 @@ def test_ai_suggest_endpoint_non_owner_403(client):
     client.app.dependency_overrides[get_db] = lambda: _org_db(ent)
     resp = client.post("/enterprises/e1/org/ai-suggest")
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+@patch("app.services.enterprise_org_service.llm_text_completion", new_callable=AsyncMock)
+async def test_suggest_org_tree_appends_extra_requirements(mock_llm):
+    mock_llm.return_value = (
+        '{"nodes": [{"id": "d1", "type": "dept", "name": "生产部", '
+        '"parent_id": null, "members": []}]}'
+    )
+    result = await suggest_org_tree(
+        {"industry": "化工", "employee_count": 200},
+        object(),
+        extra_requirements="补充：有 3 个生产车间、1 个危化仓库",
+    )
+    assert result["available"] is True
+    user_msg = mock_llm.call_args[0][0][1]["content"]
+    assert "用户补充要求：补充：有 3 个生产车间、1 个危化仓库" in user_msg
+    assert mock_llm.call_args[1]["timeout"] == 120
+
+
+@pytest.mark.asyncio
+@patch("app.services.enterprise_org_service.llm_text_completion", new_callable=AsyncMock)
+async def test_suggest_org_tree_timeout_returns_actionable_note(mock_llm):
+    from fastapi import HTTPException
+
+    mock_llm.side_effect = HTTPException(504, "AI 响应超时（120s），请稍后重试")
+    result = await suggest_org_tree({"industry": "化工"}, object())
+    assert result["available"] is False
+    assert "超时" in result["note"]

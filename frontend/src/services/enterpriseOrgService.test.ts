@@ -125,7 +125,19 @@ describe("enterpriseOrgService", () => {
     const suggestion: OrgTreeSuggestion = { available: true, nodes: [NODE] };
     apiMock.post.mockResolvedValue(wrap(suggestion));
     const result = await suggestOrgTree("e1");
-    expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/org/ai-suggest");
+    expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/org/ai-suggest", {
+      extra_requirements: "",
+    });
+    expect(result).toEqual(suggestion);
+  });
+
+  it("suggestOrgTree 透传补充要求", async () => {
+    const suggestion: OrgTreeSuggestion = { available: true, nodes: [NODE] };
+    apiMock.post.mockResolvedValue(wrap(suggestion));
+    const result = await suggestOrgTree("e1", "补充：有 3 个车间");
+    expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/org/ai-suggest", {
+      extra_requirements: "补充：有 3 个车间",
+    });
     expect(result).toEqual(suggestion);
   });
 
