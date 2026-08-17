@@ -47,6 +47,7 @@ import {
   suggestOrgTree,
   updateMember,
 } from "@/services/enterpriseOrgService";
+import { mergeOrgNodes } from "@/utils/orgMerge";
 import type {
   BindableUser,
   EnterpriseMember,
@@ -348,15 +349,15 @@ export default function EnterpriseOrgPage() {
     modal.confirm({
       title: "应用预置应急组织？",
       content:
-        "将用「应急组织机构 → 六个应急小组 → 岗位」替换当前组织树（未保存的修改会丢失）。确认后请点击右上角「保存组织树」生效。",
+        "将「应急组织机构 → 六个应急小组 → 岗位」合并到当前组织树：只补齐缺失的组与岗位，已有节点保留。确认后请点击右上角「保存组织树」生效。",
       okText: "应用",
       onOk: () => {
-        setLocalNodes(buildPresetOrgNodes());
+        setLocalNodes(mergeOrgNodes(nodes, buildPresetOrgNodes()));
         setSelectedNodeId(undefined);
-        message.info("已填充预置应急组织，请核对后点击「保存组织树」");
+        message.info("已合并预置应急组织（保留已有节点），请核对后点击「保存组织树」");
       },
     });
-  }, [message, modal]);
+  }, [message, modal, nodes]);
 
   // ── AI 建树 ──
 
@@ -379,11 +380,11 @@ export default function EnterpriseOrgPage() {
         parent_id: n.parent_id ?? null,
         members: n.members ?? [],
       }));
-      setLocalNodes(suggested);
+      setLocalNodes(mergeOrgNodes(nodes, suggested));
       setAiModal({ open: false, suggestion: null, loading: false });
-      message.info("已填充 AI 建议树，请核对后点击「保存组织树」生效");
+      message.info("已将 AI 建议合并到现有组织树（保留已有节点），请核对后点击「保存组织树」生效");
     },
-    [message],
+    [message, nodes],
   );
 
   const aiTreeData = useMemo(
@@ -816,7 +817,7 @@ export default function EnterpriseOrgPage() {
                   取消
                 </Button>,
                 <Button key="apply" type="primary" onClick={() => aiModal.suggestion && applyAiSuggestion(aiModal.suggestion)}>
-                  使用建议（未保存）
+                  合并建议（未保存）
                 </Button>,
               ]
             : [
