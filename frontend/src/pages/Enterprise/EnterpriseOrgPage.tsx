@@ -196,6 +196,28 @@ interface MemberModalState {
   member?: EnterpriseMember;
 }
 
+/** 预置应急预案组织结构：「应急组织机构」→ 六个应急小组 → 各组岗位（指挥部：总指挥/副总指挥/成员；其余组：组长/副组长/组员）。 */
+function buildPresetOrgNodes(): OrgNode[] {
+  const presetNodes: OrgNode[] = [
+    { id: "preset-org-root", type: "dept", name: "应急组织机构", members: [], parent_id: null },
+  ];
+  Object.entries(PRESET_EMERGENCY_GROUPS).forEach(([key, name]) => {
+    const teamId = `preset-${key}`;
+    presetNodes.push({ id: teamId, type: "team", name, members: [], parent_id: "preset-org-root" });
+    const positions = key === "headquarters" ? ["总指挥", "副总指挥", "成员"] : ["组长", "副组长", "组员"];
+    positions.forEach((pos, pi) => {
+      presetNodes.push({
+        id: `${teamId}-${pi}`,
+        type: "position",
+        name: pos,
+        members: [],
+        parent_id: teamId,
+      });
+    });
+  });
+  return presetNodes;
+}
+
 /** 企业组织与成员管理页：组织树 + 成员管理 + Excel 导入 + AI 建树。 */
 export default function EnterpriseOrgPage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
@@ -224,30 +246,14 @@ export default function EnterpriseOrgPage() {
   // 「应急组织机构」→ 六个应急小组（指挥部/抢险/疏散/医疗/通讯/后勤）→ 各组岗位（指挥部：总指挥/副总指挥/成员；其余组：组长/副组长/组员）
   useEffect(() => {
     if (!nodesLoading && fetchedNodes.length === 0 && localNodes === null) {
-      const presetNodes: OrgNode[] = [
-        { id: "preset-org-root", type: "dept", name: "应急组织机构", members: [], parent_id: null },
-      ];
-      Object.entries(PRESET_EMERGENCY_GROUPS).forEach(([key, name]) => {
-        const teamId = `preset-${key}`;
-        presetNodes.push({ id: teamId, type: "team", name, members: [], parent_id: "preset-org-root" });
-        const positions = key === "headquarters" ? ["总指挥", "副总指挥", "成员"] : ["组长", "副组长", "组员"];
-        positions.forEach((pos, pi) => {
-          presetNodes.push({
-            id: `${teamId}-${pi}`,
-            type: "position",
-            name: pos,
-            members: [],
-            parent_id: teamId,
-          });
-        });
-      });
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 空组织架构首次加载时播种预置应急小组，属一次性初始化；react-hooks v7 新规则对同步 setState 误报（全仓同类基线）
-      setLocalNodes(presetNodes);
+      setLocalNodes(buildPresetOrgNodes());
     }
   }, [fetchedNodes, nodesLoading, localNodes]);
 
   const [nodeModal, setNodeModal] = useState<NodeModalState>({ open: false, mode: "add" });
   const [memberModal, setMemberModal] = useState<MemberModalState>({ open: false, mode: "create" });
+  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
   const [searchEmail, setSearchEmail] = useState("");
   const [searchResults, setSearchResults] = useState<BindableUser[]>([]);
   const [searching, setSearching] = useState(false);
@@ -336,6 +342,22 @@ export default function EnterpriseOrgPage() {
     }
   }, [enterpriseId, message, nodes, refetchAll]);
 
+  // ── 预置应急组织 ──
+
+  const applyPresetOrg = useCallback(() => {
+    modal.confirm({
+      title: "应用预置应急组织？",
+      content:
+        "将用「应急组织机构 → 六个应急小组 → 岗位」替换当前组织树（未保存的修改会丢失）。确认后请点击右上角「保存组织树」生效。",
+      okText: "应用",
+      onOk: () => {
+        setLocalNodes(buildPresetOrgNodes());
+        setSelectedNodeId(undefined);
+        message.info("已填充预置应急组织，请核对后点击「保存组织树」");
+      },
+    });
+  }, [message, modal]);
+
   // ── AI 建树 ──
 
   const handleAiSuggest = useCallback(async () => {
@@ -402,9 +424,11 @@ export default function EnterpriseOrgPage() {
         role: member.role,
         enabled: member.enabled,
       });
+    } else if (mode === "create" && selectedNodeId) {
+      form.setFieldsValue({ org_node_id: selectedNodeId });
     }
     setMemberModal({ open: true, mode, member });
-  }, [form]);
+  }, [form, selectedNodeId]);
 
   const submitMemberModal = useCallback(() => {
     form.validateFields().then(async values => {
@@ -654,6 +678,9 @@ export default function EnterpriseOrgPage() {
             <Button icon={<ApartmentOutlined />} onClick={() => openAddNode("position", null)}>
               添加根岗位
             </Button>
+            <Button icon={<ApartmentOutlined />} onClick={applyPresetOrg}>
+              应用预置应急组织
+            </Button>
             {dirty && <Tag color="orange">有未保存的修改</Tag>}
           </Space>
           {isLoading ? (
@@ -665,7 +692,8 @@ export default function EnterpriseOrgPage() {
               key={nodes.map(n => n.id).join(",")}
               treeData={treeData}
               defaultExpandAll
-              selectable={false}
+              selectedKeys={selectedNodeId ? [selectedNodeId] : []}
+              onSelect={keys => setSelectedNodeId((keys[0] as string) ?? undefined)}
             />
           )}
         </div>
@@ -676,6 +704,11 @@ export default function EnterpriseOrgPage() {
             <Button type="primary" icon={<UserAddOutlined />} onClick={() => openMemberModal("create")}>
               添加成员
             </Button>
+            {selectedNodeId && (
+              <Tag color="blue">
+                将添加到：{buildOrgPath(selectedNodeId, nodes) || "未命名节点"}
+              </Tag>
+            )}
             <span style={{ color: "#8c8c8c", fontSize: 13 }}>绑定已有账号：按邮箱搜索</span>
           </Space>
           <Table
