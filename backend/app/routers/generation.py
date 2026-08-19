@@ -232,6 +232,10 @@ def _get_mermaid_instruction(section_key: str | None, section_title: str, diagra
 
 def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*", accident_type: str | None = None, diagram_preference: str = "mermaid") -> str:
     """构建章节提示词，优先使用数据库模板，未命中则用代码拼接兜底。"""
+    no_heading_rule = (
+        "请直接输出章节正文内容，不要在正文中输出章节标题或编号"
+        "（如“第X章”“X.”“X.X”），章节编号由导出时自动生成。"
+    )
     # 尝试从数据库获取模板
     if plan_type != "*" and section_key:
         tmpl = get_section_prompt(plan_type, section_key)
@@ -243,6 +247,8 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
             mermaid_inst = _get_mermaid_instruction(section_key, section_title, diagram_preference)
             if mermaid_inst:
                 prompt += "\n\n" + mermaid_inst
+
+            prompt += "\n\n" + no_heading_rule
 
             # 追加法规上下文（修复：DB 模板路径也要注入法规）
             reg_ctx = RegulationContextBuilder().get_chapter_context(
@@ -257,7 +263,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
             return _append_additional_diagram_prompt(prompt, plan_type, section_key, enterprise_data)
 
     # 兜底：代码拼接
-    num_hint = f"这是应急预案的第{section_number}个章节，请在正文中使用“{section_number}.”或“{section_number}.x”的编号格式。\n" if section_number is not None else ""
+    num_hint = f"这是应急预案的第{section_number}个章节。\n" if section_number is not None else ""
 
     prompt = f"请撰写应急预案章节《{section_title}》的内容。\n\n"
     if accident_type:
@@ -279,7 +285,7 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
 
         prompt += mermaid_inst + "\n"
 
-    prompt += "请直接输出章节正文内容，不要重复章节标题作为正文第一行。"
+    prompt += no_heading_rule
 
     reg_ctx = RegulationContextBuilder().get_chapter_context(
         section_key=section_key,

@@ -25,9 +25,11 @@ from typing import Optional, Callable
 from docx import Document
 from docx.shared import Pt, Cm, Inches, RGBColor, Emu
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.enum.text import WD_COLOR_INDEX
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn, nsdecls
+
 from docx.oxml import parse_xml
 from bs4 import BeautifulSoup
 
@@ -672,6 +674,8 @@ def _add_inline_runs(paragraph, element):
                 run.underline = True
             if 'text-decoration: line-through' in style_attr:
                 run.font.strike = True
+            if 'background-color: yellow' in style_attr or 'background: yellow' in style_attr:
+                run.font.highlight_color = WD_COLOR_INDEX.YELLOW
         else:
             _add_inline_runs(paragraph, child)
 
@@ -761,6 +765,7 @@ def generate_plan_docx(
     signers: list[dict] | None = None,
     enterprise_info: dict | None = None,
     mermaid_pngs: dict | None = None,
+    quality_evidence: dict | None = None,
 ) -> Document:
     """生成完整的应急预案 DOCX 文档。
 
@@ -828,6 +833,10 @@ def generate_plan_docx(
         numbered_title = f"{num} {title}" if num else title
         add_heading(doc, numbered_title, heading_level)
 
+        # 质量证据高亮：正文中出现的片段包 <span background-color:yellow>（_add_inline_runs 转 Word 高亮）
+        for ev in (quality_evidence or {}).get(section.get("section_key", ""), []):
+            if ev and ev in content:
+                content = content.replace(ev, f'<span style="background-color: yellow">{ev}</span>')
         if not content or not content.strip():
             continue
 

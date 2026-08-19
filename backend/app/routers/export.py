@@ -18,6 +18,7 @@ from app.services.docx_template import (
     generate_plan_docx, fix_markdown_tables, _wrap_raw_mermaid,
     html_to_docx_content
 )
+from app.services.plan_section_content import strip_section_heading
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class ExportPreviewResponse(BaseModel):
     plan_id: str; title: str; html: str
 
 class ExportValidationResponse(BaseModel):
-    valid: bool; issues: list[dict]; warnings: list[str]
+    valid: bool; issues: list[dict]; warnings: list[dict]
 
 # Preview CSS matching TipTap editor styling
 PREVIEW_CSS = """<style>
@@ -72,38 +73,8 @@ PREVIEW_CSS = """<style>
 
 
 def _strip_section_heading(html: str) -> str:
-    """Recursively strip all leading heading tags from HTML or Markdown content."""
-    if not html or not html.strip():
-        return html
-    while True:
-        m_html = re.match(
-            r'\s*<h[1-6][^>]*>\s*(?:[\d.]+\s*)?.*?</h[1-6]>\s*',
-            html, re.DOTALL
-        )
-        if m_html:
-            html = html[m_html.end():]
-            continue
-        m_p = re.match(
-            r'\s*<(?:p|div)[^>]*>\s*(?:[\d.]+\s*)?[^<]{1,80}</(?:p|div)>\s*',
-            html, re.DOTALL
-        )
-        if m_p:
-            html = html[m_p.end():]
-            continue
-        m_md = re.match(r'\s*#{1,6}\s+[^\n]+\n\s*', html)
-        if m_md:
-            html = html[m_md.end():]
-            continue
-        m_num = re.match(r'\s*\d+\.\s+[^\n]+\n\s*', html)
-        if m_num:
-            html = html[m_num.end():]
-            continue
-        m_plain = re.match(r'\s*[^\n<]{1,80}\n\s*\n', html)
-        if m_plain:
-            html = html[m_plain.end():]
-            continue
-        break
-    return html
+    """兼容别名：导出预览与历史调用继续使用（实现已抽到 plan_section_content）。"""
+    return strip_section_heading(html)
 
 
 def _build_section_numbers(sections: list) -> dict:
@@ -299,12 +270,37 @@ async def export_plan_docx(
 
         _ms = s.mermaid_svgs or {}
         sections_data.append({
+            "section_key": s.section_key,
             "title": s.title,
             "level": s.level,
             "content": content,
             "mermaid_svgs": _ms,
             "diagram_svgs": s.diagram_svgs or {},
         })
+
+    # 质量校验 → 正文证据片段（预览与 docx 高亮共用）
+    from app.services.plan_quality_service import check_plan
+    required = []
+    tpl = (await db.execute(
+        select(PlanTemplate).where(
+            PlanTemplate.plan_type == plan.plan_type, PlanTemplate.is_active == True
+        ).order_by(PlanTemplate.version.desc()).limit(1)
+    )).scalar_one_or_none()
+    if tpl and tpl.structure:
+        required = [item.get("key") for item in tpl.structure if item.get("required")]
+    resources = (await db.execute(
+        select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
+    )).scalars().all()
+    quality_result = check_plan(
+        plan, enterprise, sections,
+        required_sections=required or None,
+        resources=resources,
+        has_risk=bool(enterprise.risk_sources) if enterprise else False,
+    )
+    quality_evidence: dict[str, list[str]] = {}
+    for w in quality_result["warnings"]:
+        if w.get("evidence"):
+            quality_evidence.setdefault(w.get("section_key", ""), []).append(w["evidence"])
 
     # 生成文档
     if not plan.plan_number or not plan.version_number:
@@ -322,6 +318,7 @@ async def export_plan_docx(
             version_number=plan.version_number,
             sections=sections_data,
             signers=signers or None,
+            quality_evidence=quality_evidence or None,
         )
 
         # 保存
@@ -400,9 +397,14 @@ async def validate_plan_export(
         # 风险点来源：企业档案风险源（selectin 已预加载），用于 E3「资源数量为 0」告警前提
         has_risk=bool(enterprise.risk_sources) if enterprise else False,
     )
-    # 兼容既有响应：warnings 为字符串列表
+    # 结构化为 {section_key, section_title, warning, evidence}，前端可定位正文并高亮
     warnings = [
-        f"「{w['section_title']}」{w['warning']}"
+        {
+            "section_key": w.get("section_key", ""),
+            "section_title": w.get("section_title", ""),
+            "warning": w["warning"],
+            "evidence": w.get("evidence", ""),
+        }
         for w in result["warnings"]
     ]
     return ApiResponse(data={

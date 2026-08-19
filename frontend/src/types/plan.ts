@@ -140,7 +140,7 @@ export interface ExportPreview {
 export interface ExportValidation {
   valid: boolean;
   issues: Array<{ section_key: string; section_title: string; issue: string }>;
-  warnings: string[];
+  warnings: Array<{ section_key: string; section_title: string; warning: string; evidence?: string }>;
 }
 
 // ponytail: merged from types/generation.ts

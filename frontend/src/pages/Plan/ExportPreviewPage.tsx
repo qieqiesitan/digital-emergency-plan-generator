@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Spin, Button, Space, message, Alert } from "antd";
+import { Spin, Button, Space, message, Alert, Tag } from "antd";
 import { DownloadOutlined, PrinterOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getExportPreview, exportDocx, validateExport } from "@/services/exportService";
@@ -21,6 +21,25 @@ export default function ExportPreviewPage() {
     queryFn: () => validateExport(id!),
     enabled: !!id,
   });
+
+  // 质量证据 → 预览正文中高亮标注（「待补充」等片段）
+  const evidenceList = useMemo(() => {
+    const items: string[] = [];
+    for (const w of validation?.warnings ?? []) {
+      if (w.evidence) items.push(w.evidence);
+    }
+    return [...new Set(items)];
+  }, [validation]);
+
+  const previewHtml = useMemo(() => {
+    let htmlStr = preview?.html || "";
+    for (const ev of evidenceList) {
+      if (ev && htmlStr.includes(ev)) {
+        htmlStr = htmlStr.split(ev).join(`<mark class="quality-issue">${ev}</mark>`);
+      }
+    }
+    return htmlStr;
+  }, [preview, evidenceList]);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -94,17 +113,30 @@ export default function ExportPreviewPage() {
           message="质量提示"
           description={
             <ul>
-              {validation.warnings.map((w, idx) => <li key={idx}>{w}</li>)}
+              {validation.warnings.map((w, idx) => (
+                <li key={idx}>
+                  「{w.section_title}」{w.warning}
+                  {w.evidence && <Tag color="orange" style={{ marginLeft: 8 }}>正文定位：{w.evidence}</Tag>}
+                </li>
+              ))}
             </ul>
           }
           style={{ marginTop: 8 }}
         />
       )}
+      <style>{`
+        mark.quality-issue {
+          background-color: #fff3a8;
+          color: #ad6800;
+          padding: 0 2px;
+          border-radius: 2px;
+        }
+      `}</style>
       <div className="export-preview-container">
         {isLoading ? (
           <Spin size="large" />
         ) : (
-          <MermaidRenderer html={preview?.html || ""} />
+          <MermaidRenderer html={previewHtml} />
         )}
       </div>
     </div>

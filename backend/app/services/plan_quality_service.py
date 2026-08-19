@@ -85,6 +85,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                 "section_key": s.section_key,
                 "section_title": s.title,
                 "warning": "存在待补充占位符，请人工补全",
+                "evidence": "（待补充）",
             })
 
         # Mermaid 代码块缺少图表类型声明（规则 5）
@@ -99,6 +100,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                     "section_key": s.section_key,
                     "section_title": s.title,
                     "warning": "Mermaid 代码块缺少图表类型声明",
+                    "evidence": code.strip()[:80],
                 })
 
         # 占位附图
@@ -108,6 +110,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                     "section_key": s.section_key,
                     "section_title": s.title,
                     "warning": f"存在未生成的附图占位：{key}（{meta.get('reason', '')}）",
+                    "evidence": f"【{key}】",
                 })
 
         # C0：档案字段未体现 —— 仅必含章节检查，地址用关键片段匹配
@@ -131,6 +134,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                         "section_key": s.section_key,
                         "section_title": s.title,
                         "warning": f"正文未体现企业档案{label}：{field}",
+                        "evidence": label,
                     })
 
         # 档案缺失时正文出现疑似地址 → 可能是推断

@@ -25,6 +25,14 @@ def test_placeholder_residue_is_warning():
     assert any("待补充" in w["warning"] for w in result["warnings"])
 
 
+def test_placeholder_warning_has_evidence():
+    """质量提示必须带正文证据片段，便于预览/导出高亮定位。"""
+    enterprise = MagicMock(address="西安市高新区一路1号", legal_representative="张三", safety_officer="李四")
+    plan = MagicMock()
+    result = check_plan(plan, enterprise, [_section("sec_2", "风险描述", "<p>地址（待补充）</p>")])
+    assert any(w.get("evidence") == "（待补充）" for w in result["warnings"])
+
+
 def test_suspected_inferred_address_warning():
     enterprise = MagicMock(address="（待补充）", legal_representative="张三", safety_officer="李四")
     plan = MagicMock()

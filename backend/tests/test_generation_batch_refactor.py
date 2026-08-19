@@ -2,6 +2,24 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 
+def test_build_section_prompt_forbids_inline_heading_numbering():
+    """提示词不再要求正文使用 “N.” 编号，改为由导出自动生成，避免正文与导出标题重复。"""
+    from app.routers.generation import _build_section_prompt
+
+    prompt = _build_section_prompt("总则", {"name": "甲公司"}, section_number=2)
+    assert "请在正文中使用" not in prompt
+    assert "不要在正文中输出章节标题或编号" in prompt
+
+
+def test_strip_section_heading_removes_leading_chapter_title():
+    from app.services.plan_section_content import strip_section_heading
+
+    assert strip_section_heading("第一章 总则\n\n正文内容") == "正文内容"
+    assert strip_section_heading("<h1>第一章 总则</h1>\n\n正文内容") == "正文内容"
+    assert strip_section_heading("1. 总则\n\n正文内容") == "正文内容"
+    assert strip_section_heading("正文内容") == "正文内容"
+
+
 @pytest.mark.asyncio
 async def test_run_batch_generation_collects_failures():
     from app.routers.generation import _run_batch_generation
