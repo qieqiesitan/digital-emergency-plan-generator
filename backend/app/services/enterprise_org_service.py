@@ -98,25 +98,27 @@ def build_member_import_template() -> Workbook:
 
 
 def parse_member_rows(rows: list[dict]) -> list[dict]:
-    """rows 为 {列名: 值}；邮箱必填且格式校验；角色映射 ROLE_LABEL_MAP（缺省 member）。
+    """rows 为 {列名: 值}；姓名必填；邮箱可选（为空则导入为未绑定账号成员），
+    有邮箱时格式校验；角色映射 ROLE_LABEL_MAP（缺省 member）。
 
     返回 [{name, email, department, team, position, role, error?}]。
     """
     out = []
     for row in rows:
         email = str(row.get("邮箱") or "").strip()
+        name = str(row.get("姓名") or "").strip()
         role = ROLE_LABEL_MAP.get(str(row.get("角色") or "").strip(), "member")
         item = {
-            "name": str(row.get("姓名") or "").strip(),
+            "name": name,
             "email": email,
             "department": str(row.get("部门") or "").strip(),
             "team": str(row.get("班组") or "").strip(),
             "position": str(row.get("岗位") or "").strip(),
             "role": role,
         }
-        if not email:
-            item["error"] = "邮箱必填"
-        elif not _EMAIL_RE.match(email):
+        if not name:
+            item["error"] = "姓名必填"
+        elif email and not _EMAIL_RE.match(email):
             item["error"] = "邮箱格式不正确"
         out.append(item)
     return out

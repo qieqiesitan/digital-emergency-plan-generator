@@ -37,6 +37,7 @@ const MEMBER: EnterpriseMember = {
   user_id: "u2",
   email: "zhang@x.com",
   name: "张三",
+  phone: null,
   org_node_id: "t1",
   position: "班组长",
   role: "team_leader",

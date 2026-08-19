@@ -628,17 +628,93 @@ def test_parse_member_rows_role_mapping():
     assert [p["role"] for p in parsed] == ["enterprise_admin", "team_leader", "member", "member", "member"]
 
 
-def test_parse_member_rows_missing_email_error():
+def test_parse_member_rows_allows_missing_email():
     parsed = parse_member_rows([{"姓名": "张三", "邮箱": "  ", "角色": "班组长"}])
     assert parsed[0]["email"] == ""
-    assert parsed[0]["error"] == "邮箱必填"
+    assert "error" not in parsed[0]
     assert parsed[0]["role"] == "team_leader"
+
+
+def test_parse_member_rows_missing_name_error():
+    parsed = parse_member_rows([{"姓名": "  ", "邮箱": "", "角色": "员工"}])
+    assert parsed[0]["error"] == "姓名必填"
 
 
 def test_parse_member_rows_invalid_email_error():
     parsed = parse_member_rows([{"姓名": "张三", "邮箱": "zhangx.com", "角色": "员工"}])
     assert "邮箱格式" in parsed[0]["error"]
     assert parsed[0]["role"] == "member"
+
+
+def test_members_post_creates_unbound_member(client):
+    ent = _org_ent()
+    db = _org_db(ent, user=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.post("/enterprises/e1/org/members", json={"name": "临时工", "position": "安全员", "role": "member"})
+    assert resp.status_code == 201
+    data = resp.json()["data"]
+    assert data["user_id"] is None
+    assert data["name"] == "临时工"
+    added = db.add.call_args[0][0]
+    assert isinstance(added, EnterpriseMember)
+    assert added.user_id is None
+    assert added.name == "临时工"
+    db.commit.assert_awaited()
+
+
+def test_members_post_unbound_requires_name(client):
+    ent = _org_ent()
+    db = _org_db(ent, user=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.post("/enterprises/e1/org/members", json={"name": "", "position": "安全员"})
+    assert resp.status_code == 422
+    assert "姓名" in resp.json()["detail"]
+
+
+def test_members_get_includes_unbound_member(client):
+    ent = _org_ent()
+    member = _org_member(user_id=None, org_node_id="n1", position="安全员", role="member")
+    member.name = "临时工"
+    db = _org_db(ent, member_rows=[(member, None)])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/org/members")
+    assert resp.status_code == 200
+    item = resp.json()["data"][0]
+    assert item["user_id"] is None
+    assert item["name"] == "临时工"
+    assert item["phone"] is None
+
+
+def test_members_available_includes_unbound(client):
+    ent = _org_ent()
+    member = _org_member(user_id=None, org_node_id="n1", position="安全员", role="member", enabled=True)
+    member.name = "临时工"
+    db = _org_db(ent, member_rows=[(member, None)])
+    client.app.dependency_overrides[get_db] = lambda: db
+    resp = client.get("/enterprises/e1/org/members/available")
+    assert resp.status_code == 200
+    item = resp.json()["data"][0]
+    assert item["name"] == "临时工"
+
+
+def test_members_import_unbound_row_creates_member(client):
+    ent = _org_ent(org_structure=[])
+    db = _org_db(ent, user=None, member=None)
+    client.app.dependency_overrides[get_db] = lambda: db
+    content = _import_xlsx_bytes([
+        ["临时工", "", "生产部", "甲班", "安全员", "员工"],
+    ])
+    resp = client.post(
+        "/enterprises/e1/org/members/import",
+        files={"file": ("members.xlsx", content, _XLSX_MIME)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 1
+    assert data["errors"] == []
+    added = [c.args[0] for c in db.add.call_args_list if isinstance(c.args[0], EnterpriseMember)]
+    assert added[0].user_id is None
+    assert added[0].name == "临时工"
 
 
 # ── POST /members/import ──

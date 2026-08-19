@@ -1,6 +1,6 @@
 import type { ApiResponse } from '@/types/common';
 import type { ResourceInvestigationReport, ResourceInvestigationPreview } from "@/types/resourceInvestigation";
-import type { SSEEvent } from "@/types/riskAssessment";
+import type { ReportVersionItem, SSEEvent } from "@/types/riskAssessment";
 import type { ChapterDef } from '@/services/riskAssessmentService';
 import api from "./api";
 
@@ -106,4 +106,24 @@ export async function mergeResourceInvestigation(
 export async function getResourceInvestigationChapters(enterpriseId: string): Promise<ChapterDef[]> {
   const res = await api.get<ApiResponse<ChapterDef[]>>(`/enterprises/${enterpriseId}/resource-investigation/chapters`);
   return res.data.data;
+}
+
+export async function saveResourceInvestigationContent(enterpriseId: string, content: string): Promise<{ content_length: number }> {
+  const res = await api.put(`/enterprises/${enterpriseId}/resource-investigation/content`, { content });
+  return res.data.data;
+}
+
+export async function createResourceInvestigationVersion(enterpriseId: string): Promise<ReportVersionItem> {
+  const res = await api.post(`/enterprises/${enterpriseId}/resource-investigation/versions`);
+  return res.data.data;
+}
+
+export async function listResourceInvestigationVersions(enterpriseId: string): Promise<ReportVersionItem[]> {
+  const res = await api.get(`/enterprises/${enterpriseId}/resource-investigation/versions`);
+  return res.data.data;
+}
+
+export async function rollbackResourceInvestigationVersion(enterpriseId: string, versionId: string): Promise<{ message: string; current_version: number }> {
+  const res = await api.post(`/enterprises/${enterpriseId}/resource-investigation/versions/${versionId}/rollback`);
+  return res.data;
 }

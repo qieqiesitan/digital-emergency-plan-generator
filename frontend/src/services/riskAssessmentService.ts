@@ -1,5 +1,5 @@
 import type { ApiResponse } from '@/types/common';
-import type { RiskAssessmentReport, RiskAssessmentPreview, SSEEvent } from "@/types/riskAssessment";
+import type { RiskAssessmentReport, RiskAssessmentPreview, ReportVersionItem, SSEEvent } from "@/types/riskAssessment";
 import api from "./api";
 
 export async function getRiskAssessment(enterpriseId: string): Promise<RiskAssessmentReport> {
@@ -33,6 +33,26 @@ export async function downloadRiskAssessment(enterpriseId: string): Promise<void
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(link.href);
+}
+
+export async function saveRiskAssessmentContent(enterpriseId: string, content: string): Promise<{ content_length: number }> {
+  const res = await api.put(`/enterprises/${enterpriseId}/risk-assessment/content`, { content });
+  return res.data.data;
+}
+
+export async function createRiskAssessmentVersion(enterpriseId: string): Promise<ReportVersionItem> {
+  const res = await api.post(`/enterprises/${enterpriseId}/risk-assessment/versions`);
+  return res.data.data;
+}
+
+export async function listRiskAssessmentVersions(enterpriseId: string): Promise<ReportVersionItem[]> {
+  const res = await api.get(`/enterprises/${enterpriseId}/risk-assessment/versions`);
+  return res.data.data;
+}
+
+export async function rollbackRiskAssessmentVersion(enterpriseId: string, versionId: string): Promise<{ message: string; current_version: number }> {
+  const res = await api.post(`/enterprises/${enterpriseId}/risk-assessment/versions/${versionId}/rollback`);
+  return res.data;
 }
 
 export function generateRiskAssessmentStream(

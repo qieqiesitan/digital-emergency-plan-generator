@@ -12,7 +12,9 @@ type OrgMemberRole = "enterprise_admin" | "team_leader" | "member";
 
 /** 新增成员载荷（对应后端 MemberCreate）。 */
 interface MemberCreatePayload {
-  user_id: string;
+  user_id?: string | null;
+  name?: string;
+  phone?: string | null;
   org_node_id?: string | null;
   position?: string | null;
   role?: OrgMemberRole;
@@ -20,6 +22,8 @@ interface MemberCreatePayload {
 
 /** 编辑成员载荷（对应后端 MemberUpdate；role/enabled 显式 null 由后端 422 拦截）。 */
 interface MemberUpdatePayload {
+  name?: string;
+  phone?: string | null;
   org_node_id?: string | null;
   position?: string | null;
   role?: OrgMemberRole | null;
@@ -52,7 +56,7 @@ export const searchBindableUsers = (enterpriseId: string, email: string) =>
     })
     .then(r => r.data.data);
 
-/** 添加成员（绑定已有账号）。 */
+/** 添加成员（默认仅登记人员信息；传 user_id 时绑定已有账号）。 */
 export const createMember = (enterpriseId: string, payload: MemberCreatePayload) =>
   api
     .post<ApiResponse<EnterpriseMember>>(`/enterprises/${enterpriseId}/org/members`, payload)

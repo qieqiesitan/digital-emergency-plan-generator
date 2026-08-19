@@ -24,6 +24,7 @@ export interface ResourceInvestigationReport {
   status: "draft" | "generating" | "completed";
   generated_by: "ai" | "manual";
   generated_at: string | null;
+  current_version?: number;
   created_at: string;
   updated_at: string;
 }

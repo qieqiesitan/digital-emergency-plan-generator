@@ -31,13 +31,19 @@ class OrgSuggestRequest(BaseModel):
 
 
 class MemberCreate(BaseModel):
-    user_id: str
+    user_id: str | None = None
+    name: str = ""
+    phone: str | None = None
+    email: str | None = None
     org_node_id: str | None = None
     position: str | None = None
     role: Literal["enterprise_admin", "team_leader", "member"] = "member"
 
 
 class MemberUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    email: str | None = None
     org_node_id: str | None = None
     position: str | None = None
     role: Literal["enterprise_admin", "team_leader", "member"] | None = None
@@ -47,9 +53,10 @@ class MemberUpdate(BaseModel):
 class MemberResponse(BaseModel):
     id: str
     enterprise_id: str
-    user_id: str
+    user_id: str | None = None
     email: str | None = None
     name: str | None = None
+    phone: str | None = None
     org_node_id: str | None = None
     position: str | None = None
     role: str

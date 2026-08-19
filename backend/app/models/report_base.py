@@ -17,6 +17,7 @@ class ReportBase(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     summary: Mapped[dict] = mapped_column(JSONB, default=dict)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    current_version: Mapped[int] = mapped_column(default=1)
     generated_by: Mapped[str] = mapped_column(String(20), nullable=False, default="ai")
     generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -22,9 +22,10 @@ export interface OrgNode {
 export interface EnterpriseMember {
   id: string;
   enterprise_id: string;
-  user_id: string;
+  user_id: string | null;
   email: string | null;
   name: string | null;
+  phone: string | null;
   org_node_id: string | null;
   position: string | null;
   role: string;

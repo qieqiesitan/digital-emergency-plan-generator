@@ -9,6 +9,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.database import engine, Base, async_session
 from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, hazard_management, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, data_dicts
+from app.models.report_version import ResourceInvestigationVersion, RiskAssessmentVersion
+from app.models.risk_assessment import RiskAssessmentReport
+from app.models.resource_investigation import ResourceInvestigationReport
+from app.routers.report_versions import build_report_versions_router
 from app.dependencies import get_current_user
 from app.services.mermaid_renderer import _close_browser
 from app.middleware.hmac_auth import HmacAuthMiddleware
@@ -90,6 +94,8 @@ app.include_router(export_tasks.router, prefix="/api/v1")
 app.include_router(ai_config.router, prefix="/api/v1")
 app.include_router(risk_assessment.router, prefix="/api/v1")
 app.include_router(resource_investigation.router, prefix="/api/v1")
+app.include_router(build_report_versions_router("risk-assessment", RiskAssessmentReport, RiskAssessmentVersion), prefix="/api/v1")
+app.include_router(build_report_versions_router("resource-investigation", ResourceInvestigationReport, ResourceInvestigationVersion), prefix="/api/v1")
 app.include_router(risk_sources_ext.router, prefix="/api/v1")
 app.include_router(risk_management.router, prefix="/api/v1")
 app.include_router(resources_ext.router, prefix="/api/v1")

@@ -24,6 +24,7 @@ export interface RiskAssessmentReport {
   status: "draft" | "generating" | "completed";
   generated_by: "ai" | "manual";
   generated_at: string | null;
+  current_version?: number;
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +33,14 @@ export interface RiskAssessmentPreview {
   report_id: string;
   title: string;
   html: string;
+}
+
+export interface ReportVersionItem {
+  id: string;
+  version_number: number;
+  created_by: string;
+  description: string | null;
+  created_at: string;
 }
 
 export interface SSEEvent {

@@ -186,18 +186,26 @@ async def create_member(
     db=Depends(get_db),
 ):
     await _get_owned_ent(enterprise_id, current_user.id, db)
-    user = (await db.execute(select(User).where(User.id == body.user_id))).scalar_one_or_none()
-    if not user:
-        raise HTTPException(404, "用户不存在")
-    exists = (await db.execute(
-        select(EnterpriseMember.id).where(
-            EnterpriseMember.enterprise_id == enterprise_id,
-            EnterpriseMember.user_id == body.user_id,
-        )
-    )).first()
-    if exists:
-        raise HTTPException(409, "该用户已是企业成员")
-    member = EnterpriseMember(enterprise_id=enterprise_id, **body.model_dump(exclude_none=True))
+    if body.user_id:
+        user = (await db.execute(select(User).where(User.id == body.user_id))).scalar_one_or_none()
+        if not user:
+            raise HTTPException(404, "用户不存在")
+        exists = (await db.execute(
+            select(EnterpriseMember.id).where(
+                EnterpriseMember.enterprise_id == enterprise_id,
+                EnterpriseMember.user_id == body.user_id,
+            )
+        )).first()
+        if exists:
+            raise HTTPException(409, "该用户已是企业成员")
+        payload = body.model_dump(exclude_none=True)
+        payload["name"] = body.name or (user.name or "")
+        payload.setdefault("email", user.email)
+    else:
+        if not body.name.strip():
+            raise HTTPException(422, "未绑定账号时姓名必填")
+        payload = body.model_dump(exclude_none=True)
+    member = EnterpriseMember(enterprise_id=enterprise_id, **payload)
     db.add(member)
     await db.commit()
     await db.refresh(member)
@@ -252,7 +260,7 @@ async def list_members(
     await _get_ent(enterprise_id, current_user.id, db)
     rows = (await db.execute(
         select(EnterpriseMember, User)
-        .join(User, User.id == EnterpriseMember.user_id)
+        .outerjoin(User, User.id == EnterpriseMember.user_id)
         .where(EnterpriseMember.enterprise_id == enterprise_id)
         .order_by(EnterpriseMember.created_at)
     )).all()
@@ -261,8 +269,9 @@ async def list_members(
             id=m.id,
             enterprise_id=m.enterprise_id,
             user_id=m.user_id,
-            email=u.email,
-            name=u.name,
+            email=m.email or (u.email if u else None),
+            name=m.name or (u.name if u else None),
+            phone=m.phone,
             org_node_id=m.org_node_id,
             position=m.position,
             role=m.role,
@@ -342,7 +351,7 @@ async def import_members(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
-    """Excel 批量导入成员：按邮箱绑定已有账号，部门/班组名查或建节点。"""
+    """Excel 批量导入成员：有邮箱按账号绑定；无邮箱则登记为未绑定账号成员。部门/班组名查或建节点。"""
     ent = await _get_owned_ent(enterprise_id, current_user.id, db)
     content = await file.read()
     if len(content) > MAX_IMPORT_SIZE:
@@ -398,28 +407,32 @@ async def import_members(
         if item.get("error"):
             errors.append({"row": row_num, "reason": item["error"]})
             continue
-        user = users_by_email.get(item["email"])
-        if not user:
+        user = users_by_email.get(item["email"]) if item["email"] else None
+        if item["email"] and not user:
             errors.append({"row": row_num, "reason": f"用户不存在: {item['email']}"})
             continue
-        # 文件内重复邮箱：提交前 DB 查询看不到本批未 flush 的成员，需请求内去重
-        if user.id in imported_user_ids:
-            skipped += 1
-            continue
-        if user.id in existing_user_ids:
-            skipped += 1
-            continue
+        if user:
+            # 文件内重复邮箱：提交前 DB 查询看不到本批未 flush 的成员，需请求内去重
+            if user.id in imported_user_ids:
+                skipped += 1
+                continue
+            if user.id in existing_user_ids:
+                skipped += 1
+                continue
         dept_id = _find_or_create_org_node(nodes, "dept", item["department"], None)
         team_id = _find_or_create_org_node(nodes, "team", item["team"], dept_id) if item["team"] else None
         db.add(EnterpriseMember(
             enterprise_id=enterprise_id,
-            user_id=user.id,
+            user_id=user.id if user else None,
+            name=item["name"],
+            email=item["email"] or None,
             org_node_id=team_id or dept_id,
             position=item["position"] or None,
             role=item["role"],
         ))
         imported += 1
-        imported_user_ids.add(user.id)
+        if user:
+            imported_user_ids.add(user.id)
 
     ent.org_structure = nodes
     await db.commit()
@@ -436,7 +449,7 @@ async def get_available_members(
     ent = await _get_ent(enterprise_id, current_user.id, db)
     rows = (await db.execute(
         select(EnterpriseMember, User)
-        .join(User, User.id == EnterpriseMember.user_id)
+        .outerjoin(User, User.id == EnterpriseMember.user_id)
         .where(
             EnterpriseMember.enterprise_id == enterprise_id,
             EnterpriseMember.enabled.is_(True),
@@ -447,8 +460,8 @@ async def get_available_members(
     items = [
         {
             "id": m.id,
-            "name": u.name,
-            "email": u.email,
+            "name": m.name or (u.name if u else ""),
+            "email": m.email or (u.email if u else ""),
             "role": m.role,
             "position": m.position,
             "org_path": _build_org_path(m.org_node_id, nodes),

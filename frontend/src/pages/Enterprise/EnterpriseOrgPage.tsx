@@ -10,6 +10,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Radio,
   Select,
   Space,
   Spin,
@@ -259,6 +260,7 @@ export default function EnterpriseOrgPage() {
   const [searchResults, setSearchResults] = useState<BindableUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<BindableUser | null>(null);
+  const [memberMode, setMemberMode] = useState<"person" | "account">("person");
   const [aiModal, setAiModal] = useState<{
     open: boolean;
     step: "input" | "loading" | "result";
@@ -435,9 +437,12 @@ export default function EnterpriseOrgPage() {
     setSearchResults([]);
     setSelectedUser(null);
     setSearchEmail("");
+    setMemberMode("person");
     form.resetFields();
     if (mode === "edit" && member) {
       form.setFieldsValue({
+        name: member.name ?? "",
+        phone: member.phone ?? "",
         org_node_id: member.org_node_id ?? undefined,
         position: member.position ?? "",
         role: member.role,
@@ -451,25 +456,46 @@ export default function EnterpriseOrgPage() {
 
   const submitMemberModal = useCallback(() => {
     form.validateFields().then(async values => {
-      const payload = {
-        org_node_id: values.org_node_id ?? null,
-        position: values.position || null,
-        role: values.role,
-      };
       try {
         if (memberModal.mode === "edit" && memberModal.member) {
           await updateMember(enterpriseId, memberModal.member.id, {
-            ...payload,
+            name: values.name ?? undefined,
+            phone: values.phone || null,
+            org_node_id: values.org_node_id ?? null,
+            position: values.position || null,
+            role: values.role,
             enabled: values.enabled,
           });
           message.success("成员已更新");
         } else {
-          if (!selectedUser) {
-            message.error("请先按邮箱搜索并选择要绑定的账号");
-            return;
+          if (memberMode === "person") {
+            const name = String(values.name ?? "").trim();
+            if (!name) {
+              message.error("姓名必填");
+              return;
+            }
+            await createMember(enterpriseId, {
+              name,
+              phone: values.phone || null,
+              org_node_id: values.org_node_id ?? null,
+              position: values.position || null,
+              role: values.role,
+            });
+            message.success(`成员「${name}」已添加`);
+          } else {
+            if (!selectedUser) {
+              message.error("请先按邮箱搜索并选择要绑定的账号");
+              return;
+            }
+            await createMember(enterpriseId, {
+              user_id: selectedUser.id,
+              name: selectedUser.name,
+              org_node_id: values.org_node_id ?? null,
+              position: values.position || null,
+              role: values.role,
+            });
+            message.success(`成员「${selectedUser.name}」已添加`);
           }
-          await createMember(enterpriseId, { user_id: selectedUser.id, ...payload });
-          message.success(`成员「${selectedUser.name}」已添加`);
         }
         setMemberModal({ open: false, mode: "create" });
         refetchAll();
@@ -477,7 +503,7 @@ export default function EnterpriseOrgPage() {
         message.error(`操作失败：${e instanceof Error ? e.message : "未知错误"}`);
       }
     });
-  }, [enterpriseId, form, memberModal, message, refetchAll, selectedUser]);
+  }, [enterpriseId, form, memberModal, message, memberMode, refetchAll, selectedUser]);
 
   const toggleMemberEnabled = useCallback(
     async (member: EnterpriseMember) => {
@@ -566,6 +592,7 @@ export default function EnterpriseOrgPage() {
     () => [
       { title: "姓名", dataIndex: "name", width: 110, render: (v?: string | null) => v || "-" },
       { title: "邮箱", dataIndex: "email", width: 190, render: (v?: string | null) => v || "-" },
+      { title: "手机号", dataIndex: "phone", width: 120, render: (v?: string | null) => v || "-" },
       {
         title: "部门班组",
         dataIndex: "org_node_id",
@@ -777,7 +804,7 @@ export default function EnterpriseOrgPage() {
 
       {/* 成员添加/编辑 Modal */}
       <Modal
-        title={memberModal.mode === "edit" ? `编辑成员「${memberModal.member?.name ?? ""}」` : "添加成员（绑定已有账号）"}
+        title={memberModal.mode === "edit" ? `编辑成员「${memberModal.member?.name ?? ""}」` : "添加成员"}
         open={memberModal.open}
         onCancel={() => setMemberModal({ open: false, mode: "create" })}
         onOk={submitMemberModal}
@@ -785,6 +812,35 @@ export default function EnterpriseOrgPage() {
       >
         <Form form={form} layout="vertical" autoComplete="off">
           {memberModal.mode === "create" && (
+            <>
+              <Form.Item label="添加方式" style={{ marginBottom: 12 }}>
+                <Radio.Group
+                  value={memberMode}
+                  onChange={e => setMemberMode(e.target.value)}
+                  options={[
+                    { label: "仅登记人员信息（不绑定账号）", value: "person" },
+                    { label: "绑定已有账号", value: "account" },
+                  ]}
+                  optionType="button"
+                  buttonStyle="solid"
+                />
+              </Form.Item>
+            </>
+          )}
+          {memberModal.mode === "edit" || memberMode === "person" ? (
+            <>
+              <Form.Item
+                name="name"
+                label="姓名"
+                rules={memberModal.mode === "create" ? [{ required: true, whitespace: true, message: "请输入姓名" }] : []}
+              >
+                <Input placeholder="请输入姓名" maxLength={50} />
+              </Form.Item>
+              <Form.Item name="phone" label="手机号">
+                <Input placeholder="选填" maxLength={30} />
+              </Form.Item>
+            </>
+          ) : (
             <>
               <Form.Item label="按邮箱搜索已有账号" required>
                 <Space.Compact style={{ width: "100%" }}>
@@ -811,6 +867,9 @@ export default function EnterpriseOrgPage() {
                   onChange={id => setSelectedUser(searchResults.find(u => u.id === id) ?? null)}
                   notFoundContent={searching ? <Spin size="small" /> : "无匹配账号"}
                 />
+              </Form.Item>
+              <Form.Item label="姓名（来自账号）">
+                <Input value={selectedUser?.name ?? ""} disabled placeholder="选择账号后自动带入" />
               </Form.Item>
             </>
           )}

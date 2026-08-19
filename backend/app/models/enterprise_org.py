@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import uuid4
 from typing import Optional
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Index, String, Boolean, DateTime, ForeignKey, text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,7 +12,14 @@ from app.database import Base
 class EnterpriseMember(Base):
     __tablename__ = "enterprise_members"
     __table_args__ = (
-        UniqueConstraint("enterprise_id", "user_id", name="uq_enterprise_members_ent_user"),
+        # 部分唯一索引：仅绑定账号的成员去重；未绑定账号（user_id IS NULL）可多名
+        Index(
+            "uq_enterprise_members_bound_user",
+            "enterprise_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
     )
 
     def __init__(self, **kwargs):
@@ -22,7 +29,10 @@ class EnterpriseMember(Base):
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     enterprise_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    phone: Mapped[Optional[str]] = mapped_column(String(30))
+    email: Mapped[Optional[str]] = mapped_column(String(255))
     org_node_id: Mapped[Optional[str]] = mapped_column(String(64))
     position: Mapped[Optional[str]] = mapped_column(String(100))
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="member")
