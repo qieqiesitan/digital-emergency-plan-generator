@@ -39,7 +39,7 @@ export default function PlanCreatePage() {
       message.success("预案创建成功");
       queryClient.invalidateQueries({ queryKey: ["plans"] });
       // auto_generate=sample：C2-4（样章确认）在 PlanEditorPage 支持该参数前，创建后不自动生成；依赖记录见 TASKS.md
-      navigate(`/plans/${data.id}/edit?auto_generate=sample`);
+      navigate(`/plans/${data.id}/edit?auto_generate=sample${queryEnterpriseId ? `&enterprise_id=${queryEnterpriseId}` : ""}`);
     },
     onError: () => message.error("创建失败"),
   });
@@ -56,7 +56,10 @@ export default function PlanCreatePage() {
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <PageHeader title="新建预案" onBack={() => navigate("/plans")} />
+      <PageHeader
+        title="新建预案"
+        onBack={() => navigate(queryEnterpriseId ? `/enterprises/${queryEnterpriseId}/plans` : "/plans")}
+      />
       <Steps current={currentStep} items={steps} style={{ marginBottom: 32 }} />
 
       {currentStep === 0 && (

@@ -43,3 +43,13 @@ def test_rollback_legacy_snapshot_without_new_fields():
     snap = {"sections": [{"section_key": "sec_1", "content": "<p>旧</p>"}]}
     _apply_snapshot(plan, {"sec_1": sec}, snap)
     assert sec.content == "<p>旧</p>"
+
+
+def test_rollback_marks_current_version_and_updated_at():
+    """回滚后当前版本号必须同步，否则页面/版本列表看不到任何变化。"""
+    from app.routers.versions import _mark_rollback
+
+    plan = MagicMock()
+    _mark_rollback(plan, 3)
+    assert plan.current_version == 3
+    assert plan.updated_at is not None

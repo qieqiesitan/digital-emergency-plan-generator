@@ -1,10 +1,13 @@
 from io import BytesIO
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException
 from PIL import Image
 
 import app.services.floor_plan_storage_service as fps
+from app.models.enterprise import Enterprise, EnterpriseFloor
 from app.services.floor_plan_storage_service import MAX_BYTES, remove_floor_plan, remove_floor_plan_dir, save_floor_plan
 
 
@@ -122,3 +125,56 @@ def test_remove_enterprise_uploads_removes_dir(tmp_path, monkeypatch):
     (target / "floors" / "f-9" / "a.png").write_bytes(b"x")
     fps.remove_enterprise_uploads("e-9")
     assert not target.exists()
+
+
+def _scalar_result(value):
+    res = MagicMock()
+    res.scalar_one_or_none.return_value = value
+    return res
+
+
+@pytest.mark.asyncio
+async def test_delete_floor_plan_endpoint_clears_url_and_file(monkeypatch):
+    """删除平面图：清空 floor 与企业默认平面图字段、删除磁盘文件、返回已清空楼层。"""
+    from app.routers import risk_management as rm
+    from app.schemas.risk_management import FloorResponse
+
+    ent = Enterprise(
+        id="e1", user_id="u1", name="甲公司",
+        floor_plan_url="/uploads/enterprises/e1/floors/f1/x.png",
+    )
+    floor = EnterpriseFloor(
+        id="f1", enterprise_id="e1", name="一层", sort_order=0, is_default=True,
+        floor_plan_url="/uploads/enterprises/e1/floors/f1/x.png",
+        canvas_width=120, canvas_height=80,
+    )
+    db = AsyncMock()
+
+    def fake_execute(stmt, *params):
+        text = str(stmt)
+        if "FROM enterprises" in text:
+            return _scalar_result(ent)
+        if "FROM enterprise_floors" in text:
+            return _scalar_result(floor)
+        return _scalar_result(None)
+
+    db.execute.side_effect = fake_execute
+    remove_mock = MagicMock()
+    monkeypatch.setattr(rm, "remove_floor_plan", remove_mock)
+    now = datetime.now()
+    monkeypatch.setattr(rm, "_floor_response", AsyncMock(return_value=FloorResponse(
+        id=floor.id, enterprise_id=floor.enterprise_id, name=floor.name,
+        sort_order=floor.sort_order, floor_plan_url=None, description=None,
+        canvas_width=None, canvas_height=None, canvas_texts=[], is_default=True,
+        zone_count=0, risk_point_count=0,
+        created_at=now.isoformat(), updated_at=now.isoformat(),
+    )))
+
+    result = await rm.delete_floor_plan("f1", "e1", MagicMock(id="u1"), db)
+
+    assert floor.floor_plan_url is None
+    assert floor.canvas_width is None
+    assert floor.canvas_height is None
+    assert ent.floor_plan_url is None
+    remove_mock.assert_called_once_with("/uploads/enterprises/e1/floors/f1/x.png")
+    assert result.data.floor_plan_url is None

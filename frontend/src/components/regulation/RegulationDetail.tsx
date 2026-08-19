@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { useState } from "react";
-import { Descriptions, Tag, Timeline, Table, Button, Modal, Space } from "antd";
+import { Descriptions, Tag, Timeline, Table, Button, Modal, Space, message } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { fetchRegulation, fetchRegulationHistory, getSourceDownloadUrl, updateTopics } from "@/services/regulationService";
+import { fetchRegulation, fetchRegulationHistory, fetchSourceFile, updateTopics } from "@/services/regulationService";
 import type { RegulationNode } from "@/types/regulation";
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
 }
 
 export function RegulationDetail({ id, onClose }: Props) {
+  const [sourcePreview, setSourcePreview] = useState<{ filename: string; url: string; type: string; text?: string } | null>(null);
   const { data: reg, isLoading } = useQuery({
     queryKey: ["regulation", id],
     queryFn: () => fetchRegulation(id),
@@ -25,12 +26,29 @@ export function RegulationDetail({ id, onClose }: Props) {
   const typeLabels: Record<string, string> = { law: "法律", standard: "标准", policy: "政策" };
   const actionLabels: Record<string, string> = { created: "新增入库", updated: "编辑更新", abolished: "标记废止", deleted: "删除", reindexed: "重建索引" };
 
+  const closeSourcePreview = () => {
+    if (sourcePreview) URL.revokeObjectURL(sourcePreview.url);
+    setSourcePreview(null);
+  };
+
+  const handleViewSource = async (filename: string) => {
+    try {
+      const blob = await fetchSourceFile(id, filename);
+      const url = URL.createObjectURL(blob);
+      const text = blob.type.startsWith("text/") ? await blob.text() : undefined;
+      setSourcePreview({ filename, url, type: blob.type, text });
+    } catch {
+      message.error("源文件加载失败，请重试");
+    }
+  };
+
   const articleCols = [
     { title: "条号", dataIndex: "number", key: "number", width: 120 },
     { title: "内容", dataIndex: "text", key: "text", ellipsis: true },
   ];
 
   return (
+    <>
     <Modal title="法规详情" open={!!id} onCancel={onClose} width={800} footer={<Button onClick={onClose}>关闭</Button>}>
       {reg && (
         <div>
@@ -90,9 +108,9 @@ export function RegulationDetail({ id, onClose }: Props) {
               <h4 style={{ marginTop: 16 }}>源文件</h4>
               {reg.source_files.map(f => (
                 <div key={f.filename} style={{ marginBottom: 4 }}>
-                  <a href={getSourceDownloadUrl(id, f.filename)} target="_blank" rel="noopener noreferrer">
+                  <Button type="link" size="small" style={{ paddingLeft: 0 }} onClick={() => handleViewSource(f.filename)}>
                     {f.filename}
-                  </a>
+                  </Button>
                   <span style={{ color: "#999", marginLeft: 8 }}>{(f.size / 1024).toFixed(1)}KB</span>
                 </div>
               ))}
@@ -117,5 +135,42 @@ export function RegulationDetail({ id, onClose }: Props) {
         </div>
       )}
     </Modal>
+    {sourcePreview && (
+      <Modal
+        title={`源文件：${sourcePreview.filename}`}
+        open={!!sourcePreview}
+        onCancel={closeSourcePreview}
+        width={860}
+        styles={{ body: { height: "70vh" } }}
+        footer={[
+          <Button key="download" onClick={() => {
+            const a = document.createElement("a");
+            a.href = sourcePreview.url;
+            a.download = sourcePreview.filename;
+            a.click();
+          }}>
+            下载
+          </Button>,
+          <Button key="close" type="primary" onClick={closeSourcePreview}>关闭</Button>,
+        ]}
+      >
+        {sourcePreview.type === "application/pdf" || sourcePreview.type.startsWith("image/") ? (
+          <iframe
+            title={sourcePreview.filename}
+            src={sourcePreview.url}
+            style={{ width: "100%", height: "100%", border: "none" }}
+          />
+        ) : sourcePreview.text != null ? (
+          <pre style={{ maxHeight: "100%", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {sourcePreview.text}
+          </pre>
+        ) : (
+          <div style={{ textAlign: "center", paddingTop: 80, color: "#999" }}>
+            该格式暂不支持在线预览，请点击「下载」查看原文
+          </div>
+        )}
+      </Modal>
+    )}
+    </>
   );
 }

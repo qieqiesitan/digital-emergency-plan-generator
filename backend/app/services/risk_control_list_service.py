@@ -6,6 +6,15 @@ from sqlalchemy.orm import selectinload
 from app.models.risk_management import RiskEvent, RiskObject, RiskUnit, RiskZone
 
 
+# 措施类别英文键 → 中文（前端/入库数据使用英文键，管控清单与台账必须输出中文）
+MEASURE_CATEGORY_LABELS = {
+    "engineering": "工程技术",
+    "management": "管理措施",
+    "ppe": "个体防护",
+    "emergency": "应急处置",
+}
+
+
 # 分区→风险点→单元→事件 树形查询的公共加载选项，管理端与公开端共用。
 ZONE_TREE_OPTIONS = (
     selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
@@ -33,7 +42,9 @@ def flatten_rows(zones: list, mapping: dict) -> list[dict]:
 
 def _row(z, obj, unit, ev, mapping) -> dict:
     measures = "；".join(
-        f"{m.measure_category}:{m.description}" for m in (ev.measures or [])) or "-"
+        f"{MEASURE_CATEGORY_LABELS.get(m.measure_category, m.measure_category)}:{m.description}"
+        for m in (ev.measures or [])
+    ) or "-"
     return {
         "zone_id": z.id, "object_id": obj.id,
         "zone": z.name, "object": obj.name, "unit": unit.name if unit else "-",

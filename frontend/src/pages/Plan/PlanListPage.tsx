@@ -126,7 +126,10 @@ export default function PlanListPage() {
       width: 140,
       render: (_: unknown, record: Record<string, unknown>) => (
         <Space>
-          <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); navigate(`/plans/${record.id as string}/edit`); }}>
+          <Button type="link" size="small" onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/plans/${record.id as string}/edit${enterprise_id ? `?enterprise_id=${enterprise_id}` : ""}`);
+          }}>
             编辑
           </Button>
           <Button type="link" size="small" danger onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: record.id as string, name: record.title as string }); }}>
@@ -200,7 +203,7 @@ export default function PlanListPage() {
         }}
         onRow={(record) => ({
           style: { cursor: "pointer" },
-          onClick: () => navigate(`/plans/${record.id}/edit`),
+          onClick: () => navigate(`/plans/${record.id}/edit${enterprise_id ? `?enterprise_id=${enterprise_id}` : ""}`),
         })}
         locale={{ emptyText: "暂无预案" }}
       />

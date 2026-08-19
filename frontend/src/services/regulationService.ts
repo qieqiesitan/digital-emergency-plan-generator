@@ -6,6 +6,8 @@ import type {
   DuplicateCheckResponse, ImpactResponse, BatchAbolishResponse,
 } from "@/types/regulation";
 
+import { getApiBaseUrl } from "@/utils/platform";
+
 export async function fetchRegulations(params: RegulationListParams = {}): Promise<RegulationListResponse> {
   const res = await api.get("/regulations", { params });
   return res.data.data;
@@ -83,7 +85,13 @@ export async function fetchSourceVersions(id: string): Promise<SourceFile[]> {
 
 export function getSourceDownloadUrl(id: string, filename?: string): string {
   const params = filename ? `?filename=${encodeURIComponent(filename)}` : "";
-  return `/api/v1/regulations/${id}/source${params}`;
+  return `${getApiBaseUrl()}/regulations/${id}/source${params}`;
+}
+
+export async function fetchSourceFile(id: string, filename?: string): Promise<Blob> {
+  const params = filename ? `?filename=${encodeURIComponent(filename)}` : "";
+  const res = await api.get(`/regulations/${id}/source${params}`, { responseType: "blob" });
+  return res.data as Blob;
 }
 
 export async function updateTopics(id: string, topics: string[]): Promise<void> {

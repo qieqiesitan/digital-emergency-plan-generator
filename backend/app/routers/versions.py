@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from app.database import get_db
 from app.models.enterprise import PlanProject, PlanSection, PlanVersion
 from app.schemas.common import ApiResponse
@@ -58,6 +58,12 @@ def _apply_snapshot(plan, section_map: dict, snapshot: dict) -> None:
         s.content = s_data.get("content")
         if "mermaid_svgs" in s_data:
             s.mermaid_svgs = s_data.get("mermaid_svgs")
+
+
+def _mark_rollback(plan, version_number: int) -> None:
+    """回滚后同步当前版本号与更新时间，保证页面/版本列表能看到变化。"""
+    plan.current_version = version_number
+    plan.updated_at = func.now()
 
 
 @router.get("/{plan_id}/versions", response_model=ApiResponse[list[VersionResponse]])
@@ -120,6 +126,7 @@ async def rollback_version(plan_id: str, version_id: str, current_user=Depends(g
         if s:
             section_map[s.section_key] = s
     _apply_snapshot(p, section_map, v.snapshot or {})
+    _mark_rollback(p, v.version_number)
     await db.commit()
-    return {"code": 0, "message": "已回滚"}
+    return {"code": 0, "message": f"已回滚到 V{v.version_number}", "current_version": v.version_number}
 

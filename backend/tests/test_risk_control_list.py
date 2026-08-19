@@ -114,6 +114,26 @@ def test_flatten_rows_unit_measures_and_mapping_fallback():
     assert row["location"] == "储罐区东侧"
 
 
+def test_flatten_rows_maps_english_measure_category_to_chinese():
+    """管控清单措施类别必须输出中文（engineering 等英文键来自前端/入库数据）。"""
+    zone = RiskZone(id="z1", enterprise_id="e1", floor_id="f1", name="储罐区")
+    obj = RiskObject(id="o1", enterprise_id="e1", zone_id="z1", name="1#储罐")
+    ev = RiskEvent(accident_type="泄漏", risk_level="较大", inherent_risk_level="重大")
+    ev.measures = [
+        RiskMeasure(event_id="m1", measure_category="engineering", description="报警器年检"),
+        RiskMeasure(event_id="m2", measure_category="management", description="操作规程上墙"),
+        RiskMeasure(event_id="m3", measure_category="ppe", description="佩戴防毒面具"),
+        RiskMeasure(event_id="m4", measure_category="emergency", description="启动应急预案"),
+    ]
+    obj.events = [ev]
+    zone.objects = [obj]
+    rows = flatten_rows([zone], {"较大": "部门"})
+    assert rows[0]["measures"] == (
+        "工程技术:报警器年检；管理措施:操作规程上墙；"
+        "个体防护:佩戴防毒面具；应急处置:启动应急预案"
+    )
+
+
 def test_apply_control_list_filters_matches_endpoint_semantics():
     from app.routers.risk_management import _apply_control_list_filters
 

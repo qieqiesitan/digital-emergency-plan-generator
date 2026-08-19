@@ -96,7 +96,7 @@ function PlanListTable({
           size="small"
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/plans/${record.id}/edit`);
+            navigate(`/plans/${record.id}/edit${record.enterprise_id ? `?enterprise_id=${record.enterprise_id}` : ""}`);
           }}
         >
           编辑
@@ -121,7 +121,7 @@ function PlanListTable({
       }}
       onRow={(record) => ({
         style: { cursor: "pointer" },
-        onClick: () => navigate(`/plans/${record.id}/edit`),
+        onClick: () => navigate(`/plans/${record.id}/edit${record.enterprise_id ? `?enterprise_id=${record.enterprise_id}` : ""}`),
       })}
       locale={{ emptyText: "暂无预案" }}
     />

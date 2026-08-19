@@ -6,7 +6,6 @@ export function riskNavGroups(id: string): SideNavGroup[] {
       label: "数据编辑",
       items: [
         { key: "tree", label: "风险树编辑", to: `/enterprises/${id}/risk-management`, inactiveWhenSearch: "floor=1" },
-        { key: "floors", label: "楼层平面图", to: `/enterprises/${id}/risk-management?floor=1`, matchSearch: "floor=1" },
         { key: "methods", label: "评估方法", to: `/enterprises/${id}/risk-management/methods` },
         { key: "dicts", label: "风险与隐患配置", to: `/enterprises/${id}/risk-management/data-dicts` },
       ],

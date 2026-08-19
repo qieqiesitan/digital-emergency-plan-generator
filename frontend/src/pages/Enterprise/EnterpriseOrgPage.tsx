@@ -282,11 +282,13 @@ export default function EnterpriseOrgPage() {
 
   const openAddNode = useCallback((type: OrgNodeType, parentId: string | null) => {
     setNodeModal({ open: true, mode: "add", type, parentId });
-  }, []);
+    form.setFieldsValue({ type });
+  }, [form]);
 
   const openRenameNode = useCallback((node: OrgNode) => {
     setNodeModal({ open: true, mode: "rename", node });
-  }, []);
+    form.setFieldsValue({ name: node.name, type: node.type });
+  }, [form]);
 
   const submitNodeModal = useCallback(() => {
     form.validateFields().then(values => {
@@ -296,7 +298,7 @@ export default function EnterpriseOrgPage() {
         return;
       }
       if (nodeModal.mode === "add") {
-        const type = nodeModal.type ?? "dept";
+        const type = (values.type as OrgNodeType) ?? nodeModal.type ?? "dept";
         const id = nextNodeId(nodes);
         setLocalNodes([
           ...nodes,
@@ -305,8 +307,9 @@ export default function EnterpriseOrgPage() {
       } else {
         const node = nodeModal.node;
         if (node) {
+          const type = (values.type as OrgNodeType) ?? node.type ?? "dept";
           setLocalNodes(
-            nodes.map(n => (n.id === node.id ? { ...n, name } : n)),
+            nodes.map(n => (n.id === node.id ? { ...n, name, type } : n)),
           );
         }
       }
@@ -741,13 +744,27 @@ export default function EnterpriseOrgPage() {
 
       {/* 节点新增/改名 Modal */}
       <Modal
-        title={nodeModal.mode === "add" ? `添加${nodeModal.type ? TYPE_LABEL[nodeModal.type] : "节点"}` : "重命名节点"}
+        title={
+          nodeModal.mode === "add"
+            ? `添加${nodeModal.type ? TYPE_LABEL[nodeModal.type] : "节点"}`
+            : `编辑节点「${nodeModal.node?.name ?? ""}」`
+        }
         open={nodeModal.open}
         onCancel={() => setNodeModal({ open: false, mode: "add" })}
         onOk={submitNodeModal}
         destroyOnClose
       >
         <Form form={form} layout="vertical" autoComplete="off">
+          <Form.Item
+            name="type"
+            label="节点类型"
+            rules={[{ required: true, message: "请选择节点类型" }]}
+          >
+            <Select
+              options={Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label }))}
+              placeholder="部门 / 班组 / 岗位"
+            />
+          </Form.Item>
           <Form.Item
             name="name"
             label="名称"

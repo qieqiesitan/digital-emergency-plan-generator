@@ -187,6 +187,28 @@ async def upload_floor_plan(floor_id: str, enterprise_id: str, file: UploadFile 
     await db.refresh(floor)
     return ApiResponse(data=await _floor_response(db, floor))
 
+
+@router.delete("/floors/{floor_id}/plan", response_model=ApiResponse[FloorResponse])
+async def delete_floor_plan(floor_id: str, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    """删除当前楼层平面图（仅清除底图，不影响分区/风险点数据）。"""
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
+    if not floor:
+        raise HTTPException(404, "楼层不存在")
+    old_url = floor.floor_plan_url
+    if not old_url:
+        raise HTTPException(404, "该楼层无平面图")
+    floor.floor_plan_url = None
+    floor.canvas_width = None
+    floor.canvas_height = None
+    if floor.is_default:
+        ent.floor_plan_url = None
+    await db.commit()
+    remove_floor_plan(old_url)
+    await db.refresh(floor)
+    return ApiResponse(data=await _floor_response(db, floor))
+
+
 @router.post("/floors/{floor_id}/four-color/analyze", response_model=ApiResponse[FourColorAnalyzeResponse])
 async def analyze_four_color(floor_id: str, enterprise_id: str, file: UploadFile = File(...), current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)

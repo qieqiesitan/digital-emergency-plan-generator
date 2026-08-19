@@ -40,11 +40,11 @@ const MODULES: ModuleItem[] = [
     icon: <AppIcon name="rescue" size={24} />,
   },
   {
-    key: "assessment", label: "风险评估", en: "REPORT", to: (id) => `/enterprises/${id}/modules/assessment`,
+    key: "assessment", label: "风险评估报告", en: "REPORT", to: (id) => `/enterprises/${id}/modules/assessment`,
     icon: <AppIcon name="assessment" size={24} />,
   },
   {
-    key: "investigation", label: "资源调查", en: "SURVEY", to: (id) => `/enterprises/${id}/modules/investigation`,
+    key: "investigation", label: "资源调查报告", en: "SURVEY", to: (id) => `/enterprises/${id}/modules/investigation`,
     icon: <AppIcon name="investigation" size={24} />,
   },
   {

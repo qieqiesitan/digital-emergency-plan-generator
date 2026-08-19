@@ -7,6 +7,7 @@ import {
   createEnterpriseFloor,
   updateEnterpriseFloor,
   deleteEnterpriseFloor,
+  deleteEnterpriseFloorPlan,
   uploadEnterpriseFloorPlan,
 } from "@/services/riskMappingWorkbenchService";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
@@ -96,6 +97,23 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
       refresh();
     } catch (e) {
       message.error(apiErrorMessage(e, "删除楼层失败（楼层下存在分区或风险点时不可删除）"));
+    }
+  };
+
+  const doDeletePlan = async () => {
+    const activeFloorId = useRiskMappingWorkbenchStore.getState().currentFloorId;
+    const current = floors.find(f => f.id === activeFloorId);
+    if (!current) return;
+    if (!current.floor_plan_url) {
+      message.info("当前楼层无平面图");
+      return;
+    }
+    try {
+      await deleteEnterpriseFloorPlan(enterpriseId, current.id);
+      message.success("平面图已删除");
+      refresh();
+    } catch (e) {
+      message.error(apiErrorMessage(e, "删除平面图失败"));
     }
   };
 
@@ -206,6 +224,20 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
       >
         <Button icon={<UploadOutlined />}>上传当前楼层平面图</Button>
       </Upload>
+      <Popconfirm
+        title="删除当前楼层平面图？"
+        description="仅清除底图，不影响已绘制的分区和风险点数据。"
+        disabled={!currentFloorId || !(floors.find(f => f.id === currentFloorId)?.floor_plan_url)}
+        onConfirm={doDeletePlan}
+      >
+        <Button
+          danger
+          icon={<DeleteOutlined />}
+          disabled={!currentFloorId || !(floors.find(f => f.id === currentFloorId)?.floor_plan_url)}
+        >
+          删除平面图
+        </Button>
+      </Popconfirm>
       <Modal
         title={editId ? "编辑楼层" : "新建楼层"}
         open={modalOpen}

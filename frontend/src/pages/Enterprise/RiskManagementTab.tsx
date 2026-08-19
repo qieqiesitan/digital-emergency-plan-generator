@@ -17,7 +17,7 @@ import RiskEventForm from "@/components/enterprise/RiskEventForm";
 import RiskMeasureForm from "@/components/enterprise/RiskMeasureForm";
 import RiskSmartGuideModal from "@/components/enterprise/RiskSmartGuideModal";
 import FloorManagementDrawer from "@/components/enterprise/FloorManagementDrawer";
-import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { MEASURE_CATEGORY_LABELS, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 
 interface Props {
   enterpriseId: string;
@@ -402,7 +402,12 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
               {info.event?.risk_level && <p>风险等级：<Tag color={RISK_LEVEL_COLORS[info.event.risk_level]}>{info.event.risk_level}</Tag></p>}
               {info.event?.risk_score && <p>风险分值：{info.event.risk_score}</p>}
               {info.event?.description && <p style={{ color: "#666" }}>{info.event.description}</p>}
-              {info.measure && <p>措施类别：{info.measure.measure_category}</p>}
+              {info.measure && (
+                <p>
+                  措施类别：
+                  {MEASURE_CATEGORY_LABELS[info.measure.measure_category] ?? info.measure.measure_category}
+                </p>
+              )}
               {info.measure?.status && <p>状态：{info.measure.status}</p>}
               {info.object?.category && <p>类别：{info.object.category}</p>}
               {info.unit?.unit_type && <p>类型：{info.unit.unit_type}</p>}

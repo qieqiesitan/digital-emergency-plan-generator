@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Stage, Layer, Line, Circle, Text as KonvaText } from "react-konva";
+import { Stage, Layer, Line, Circle, Text as KonvaText, Image as KonvaImage } from "react-konva";
 import { Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getRiskMappingOverview } from "@/services/riskManagementService";
@@ -30,6 +30,8 @@ export default function RiskDistributionStage({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [floorPlanImg, setFloorPlanImg] = useState<HTMLImageElement | null>(null);
+  const [floorPlanImgUrl, setFloorPlanImgUrl] = useState<string | null>(null);
   const floor = data?.floors[0];
   const floorPlanUrl = floor?.floor_plan_url ?? null;
 
@@ -38,6 +40,8 @@ export default function RiskDistributionStage({
     const img = new window.Image();
     img.onload = () => {
       setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+      setFloorPlanImg(img);
+      setFloorPlanImgUrl(floorPlanUrl);
     };
     img.src = floorPlanUrl;
     return () => {
@@ -59,49 +63,23 @@ export default function RiskDistributionStage({
 
   const width = floor?.canvas_width || imageSize?.width || DEFAULT_WIDTH;
   const height = floor?.canvas_height || imageSize?.height || DEFAULT_HEIGHT;
+  // 仅当已加载图片与当前楼层底图 URL 一致时才作为底图，切换楼层不闪现旧图
+  const activePlanImg = floorPlanImgUrl === floorPlanUrl ? floorPlanImg : null;
 
-  const contentBounds = useMemo(() => {
-    if (!data) return null;
-    const rawPoints: Array<[number, number]> = [];
-    for (const zone of data.zones) {
-      for (const polygon of zone.floor_plan_polygon?.polygons || []) {
-        for (const p of polygon.points) rawPoints.push([p.x, p.y]);
-      }
-    }
-    for (const p of data.riskPoints) {
-      if (p.location_x != null && p.location_y != null) rawPoints.push([p.location_x, p.location_y]);
-    }
-    for (const t of data.texts) rawPoints.push([t.x, t.y]);
-    if (!rawPoints.length) {
-      return { x: 0, y: 0, width, height };
-    }
-    const xs = rawPoints.map(p => p[0]);
-    const ys = rawPoints.map(p => p[1]);
-    const minX = Math.max(0, Math.min(...xs));
-    const minY = Math.max(0, Math.min(...ys));
-    const maxX = Math.min(100, Math.max(...xs));
-    const maxY = Math.min(100, Math.max(...ys));
-    return {
-      x: toCanvasX(minX, width),
-      y: toCanvasY(minY, height),
-      width: Math.max(toCanvasX(maxX, width) - toCanvasX(minX, width), 1),
-      height: Math.max(toCanvasY(maxY, height) - toCanvasY(minY, height), 1),
-    };
-  }, [data, width, height]);
-
+  // 与四色图工作台一致：按整张画布（floor.canvas_width/height）等比适配并居中，
+  // 避免「按内容包围盒缩放」导致风险点/分区相对底图整体偏移。
   const viewTransform = useMemo(() => {
-    if (!containerSize.width || !containerSize.height || !contentBounds) {
+    if (!containerSize.width || !containerSize.height) {
       return { scale: 1, x: 0, y: 0 };
     }
     const scale = Math.min(
-      containerSize.width / contentBounds.width,
-      containerSize.height / contentBounds.height,
-      2,
+      4,
+      Math.max(0.25, Math.min(containerSize.width / width, containerSize.height / height)),
     );
-    const x = (containerSize.width - contentBounds.width * scale) / 2 - contentBounds.x * scale;
-    const y = (containerSize.height - contentBounds.height * scale) / 2 - contentBounds.y * scale;
+    const x = (containerSize.width - width * scale) / 2;
+    const y = (containerSize.height - height * scale) / 2;
     return { scale, x, y };
-  }, [containerSize, contentBounds]);
+  }, [containerSize, width, height]);
 
   if (isLoading) return <Spin style={{ display: "block", margin: "60px auto" }} />;
   if (!data) return null;
@@ -126,6 +104,14 @@ export default function RiskDistributionStage({
         y={viewTransform.y}
       >
         <Layer>
+          {activePlanImg && (
+            <KonvaImage
+              image={activePlanImg}
+              width={width}
+              height={height}
+              listening={false}
+            />
+          )}
           {data.zones.map(z =>
             (z.floor_plan_polygon?.polygons || []).map(p => {
               const isHighlighted = highlightZone === z.id;

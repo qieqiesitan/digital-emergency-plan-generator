@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Spin, Input, Button, Space, Badge, message, Progress, Alert } from "antd";
+import { Spin, Input, Button, Space, Badge, message, Progress, Alert, Tag } from "antd";
 import Modal from "antd/es/modal";
 import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,7 @@ export default function PlanEditorPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const autoGenerate = searchParams.get("auto_generate"); // "1" 全量（旧）| "sample" 样章
+  const enterpriseId = searchParams.get("enterprise_id");
 
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -334,7 +335,7 @@ export default function PlanEditorPage() {
   return (
     <div style={{ height: "calc(100vh - 140px)", display: "flex", flexDirection: "column" }}>
       <PageHeader
-        onBack={() => navigate("/plans")}
+        onBack={() => navigate(enterpriseId ? `/enterprises/${enterpriseId}/plans` : "/plans")}
         title={
           <Space>
             <Input
@@ -344,6 +345,7 @@ export default function PlanEditorPage() {
               style={{ fontWeight: 600, fontSize: 16, width: 300 }}
             />
             <PlanStatusTag status={plan.status} />
+            <Tag color="blue">当前版本 V{plan.current_version}</Tag>
           </Space>
         }
         extra={

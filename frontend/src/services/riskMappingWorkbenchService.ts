@@ -61,6 +61,9 @@ export const uploadEnterpriseFloorPlan = (eid: string, floorId: string, file: Fi
   return api.post<ApiResponse<EnterpriseFloor>>(`${BASE(eid)}/floors/${floorId}/plan`, form).then(r => r.data.data);
 };
 
+export const deleteEnterpriseFloorPlan = (eid: string, floorId: string) =>
+  api.delete<ApiResponse<EnterpriseFloor>>(`${BASE(eid)}/floors/${floorId}/plan`).then(r => r.data.data);
+
 export const analyzeFourColorMap = (eid: string, floorId: string, file: File) => {
   const form = new FormData();
   form.append("file", file);
