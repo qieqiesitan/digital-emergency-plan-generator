@@ -1,4 +1,27 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-19）：用户提交 21 项反馈 → 已完成全量代码定位与方案文档，等待用户确认批次与设计取舍
+- 刚完成的动作：
+  - 逐项代码定位 21 项反馈（组织成员/组织树/管控清单/工作台/驾驶舱/报告/风险树/楼层/四色图/预案编辑与导出/版本/法规库）
+  - 产出 `docs/superpowers/specs/2026-08-19-user-feedback-triage.md`：每项含根因、文件证据、方案、量级、优先级；含建议批次 A-D 与 4 个待确认问题
+  - 关键根因确认：engineering 来自 risk_control_list_service._row 英文键直出；热区偏移来自 RiskDistributionStage contentBounds 缩放 vs 工作台整画布 fit；版本回滚不更新 current_version 且前端未失效 plan query；docx 导出未剥离正文开头标题（预览已剥离）；法规新 tab 401（无鉴权头）+ 硬编码 /api/v1；PlanEditorPage 返回固定 /plans
+- 下一步：等待用户确认（批次顺序；§1 树内成员是否并入 enterprise_members；§6 工作台布局；§11 字典位置）→ 按批次进入实现（按铁律二先 git save/codegraph 查询）
+- 关键上下文：master 分支；本批次为纯分析未改源码；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-19 09:5x）：图谱增量更新（用户指令「更新图谱」，覆盖 08-16~08-19 工作）
+- 刚完成的动作：
+  - 增量检测：64 代码 + 11 文档 + 25 图片变更，1 删除（frontend/src/pages/Enterprise/EnterpriseDetailPage.tsx，被驾驶舱页取代）
+  - 变更内容：企业驾驶舱落地（backend enterprise_cockpit_service/schemas + 前端 11 个 cockpit 组件 + EnterpriseCockpitPage/EnterpriseModulePage/enterpriseNavConfig/cockpitService/routes + E2E）、图标系统整体优化（AppIcon.tsx + icons.tsx + 20+ 组件迁移 + fetch_icons/gen_icons_tsx 脚本 + 24 个图标资产）、企业组织服务更新
+  - AST 提取 64 文件（540 节点/1342 边）+ 语义 11 文档（12 节点/20 边，新概念 concept_icon_system，驾驶舱文档原地更新）→ `build_merge(dedup=False)`（9370 节点）→ 剪除 EnterpriseDetailPage 9 个残留节点 → Step 4 `to_json` 写回 → 重聚类 741 社区 → 重打标签（0 占位符）→ 重生成报告/HTML → manifest 已保存
+- 验证结果：`graphify-out/graph.json` = 9361 节点 / 17762 边；`services_enterprise_cockpit_service`、`enterprise_enterprisecockpitpage`、`common_appicon`、`common_icons`、`concept_icon_system`、`scripts_fetch_icons` 均在图中（cockpit 相关节点 108 个）
+- 关键上下文：临时脚本 `graphify-out/_build_semantic7.py` 可复现语义数据
+- 下一步：可用 graphify query/path/explain 查询驾驶舱与图标系统
+- 以下为历史快照，保留供压缩恢复参考
+- 正在做什么（2026-08-16 19:0x）：图谱增量更新（用户指令「更新图谱」，覆盖 08-13~08-16 工作）
+- 正在做什么（2026-08-19，主控·打包前就绪核查）：核查结论=基本可无痛部署，但发现并修复一个阻塞项——qrcode 新依赖导致 lockfile 又被 npm 11 写成 npm 10 不接受的状态（Missing @floating-ui/dom），已用 node:20 容器 npm install 收敛并提交 f2b5aa2；容器/宿主 npm ci 均通过、tsc 0、vitest 136
+- 刚完成的动作：部署交付物 12 文件全在且关键标记完好（stripAppBase 边界/VITE_BASE_PATH 校验/nginx 拆分 location/生产密钥必填//api/health/--project-directory/PROTEGO）；硬编码跳转仅 MobileRedirect（无新增）；package.json 新增 qrcode/@types/qrcode；db-init/ 与 model-cache/ 仓库内不存在（需用户提供）
+- 下一步：用户确认后跑 scripts/package-release.sh <版本> 出正式包（前置：准备 db-init/01_restore.sql、model-cache/chroma、.env 的 SECRET_KEY/POSTGRES_PASSWORD）；注意 package-release 默认 VITE_BASE_PATH=/emergency-plan-migration/ 会覆盖本地根路径 dist，本地验证 8000 兜底页需重建根路径 dist
+- 关键上下文：master HEAD=f2b5aa2；迁移 SQL（含 db_migration_enterprise_org.sql）随 backend/ 入包，已有库需手动应用、全新库 create_all 自动建表；教训：此后任何 npm install 都要用 node:20 容器执行或装完立即容器验证 npm ci
 - 正在做什么（2026-08-17，主控·图标优化·已合并）：图标系统优化已本地合并回 master（HEAD f5768dc，快进合并 55 文件 +1336/-73）；分支 codex/icon-system 与 worktree .worktrees\icon-system 已清理；合并后主工作区门禁复测通过（tsc exit 0、vitest 130 passed）
 - 刚完成的动作：①按 finishing-a-development-branch 执行选项 1（本地合并）——git pull 确认最新、git merge --ff-only 快进到 f5768dc、合并结果上复跑 tsc+vitest 通过；②清理——worktree remove + prune（.worktrees/icon-system 已删除）、git branch -d codex/icon-system 成功；③最终整体审查结论「可以合并」已确认；④主工作区临时脚本与台账已整理
 - 下一步：可选——推远程（git finish 推 GitHub+Gitee，或 git push origin master）需用户确认；第二阶段候选：移动端 lucide 统一、eslint 既有债 78 文件/280 项清理（可基于批次基线开单）、codegraph worktree 索引、视觉伴侣服务器停止（port 53543 闲置 4h 自动退出）
