@@ -1,0 +1,4 @@
+interface:
+  display_name: "iconfont 图标自选"
+  short_description: "从阿里 iconfont 搜索并下载设计图标/插画 SVG"
+  default_prompt: "Use $iconfont-selector 从 iconfont 搜索并挑选适合当前设计的图标。"
