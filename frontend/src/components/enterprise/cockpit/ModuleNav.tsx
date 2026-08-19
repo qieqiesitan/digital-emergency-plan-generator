@@ -36,6 +36,10 @@ const MODULES: ModuleItem[] = [
     icon: <AppIcon name="hazard" size={24} />,
   },
   {
+    key: "dicts", label: "字典配置", en: "DICT", to: (id) => `/enterprises/${id}/risk-management/data-dicts`,
+    icon: <AppIcon name="data-dict" size={24} />,
+  },
+  {
     key: "rescue", label: "应急资源", en: "RESCUE", to: (id) => `/enterprises/${id}/modules/resources`,
     icon: <AppIcon name="rescue" size={24} />,
   },

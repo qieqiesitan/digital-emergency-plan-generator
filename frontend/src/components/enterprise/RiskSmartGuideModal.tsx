@@ -5,17 +5,17 @@ import {
   ThunderboltOutlined,
   EditOutlined,
 } from "@ant-design/icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   aiSmartGuide,
-  listZones,
+  getFullHierarchy,
   createZone,
   createObject,
   createUnit,
   createEvent,
   createMeasure,
 } from "@/services/riskManagementService";
-import { buildImportPlan } from "@/utils/smartGuideImport";
+import { buildExistingIndex } from "@/utils/smartGuideImport";
 import type {
   MethodType,
   MeasureCategory,
@@ -145,13 +145,6 @@ export default function RiskSmartGuideModal({
   const [editValue, setEditValue] = useState("");
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
 
-  const { data: existingZones = [] } = useQuery({
-    queryKey: ["risk-zones", enterpriseId],
-    queryFn: () => listZones(enterpriseId),
-    enabled: open,
-  });
-  const existingZoneNames = useMemo(() => new Set(existingZones.map(z => z.name)), [existingZones]);
-
   useEffect(() => {
     if (open) {
       setStep("input");
@@ -191,115 +184,193 @@ export default function RiskSmartGuideModal({
   const importMut = useMutation({
     mutationFn: async () => {
       const keySet = new Set(checkedKeys.map(String));
-      const { filteredHierarchy, skippedZones } = buildImportPlan(hierarchy, nameOverrides, existingZoneNames);
-      let totalCreated = 0;
+      const existing = await getFullHierarchy(enterpriseId);
+      const index = buildExistingIndex(existing);
+      let created = 0;
+      let merged = 0;
+      let skipped = 0;
 
-      for (let zi = 0; zi < filteredHierarchy.length; zi++) {
-        const zone = filteredHierarchy[zi];
-        const originalZi = hierarchy.indexOf(zone);
-        const zoneKey = "z-" + originalZi;
+      // 本批次新建集合：避免建议自身重复（分区/对象/单元按名，事件按事故类型，措施按 类别|描述）
+      const newZoneIds = new Map<string, string>();
+      const newObjectIds = new Map<string, Map<string, string>>();
+      const newUnitIds = new Map<string, Map<string, string>>();
+      const newEventTypes = new Map<string, Set<string>>();
+      const newMeasureKeys = new Map<string, Set<string>>();
+
+      const createMeasures = async (
+        eventId: string,
+        ev: SmartGuideEvent,
+        keyPrefix: string,
+        existingMeasureKeys: Set<string>,
+      ) => {
+        const batchMeasures = newMeasureKeys.get(eventId) ?? new Set<string>();
+        newMeasureKeys.set(eventId, batchMeasures);
+        for (let mi = 0; mi < (ev.measures || []).length; mi++) {
+          const m = ev.measures![mi];
+          const mKey = keyPrefix + "-m-" + mi;
+          if (!keySet.has(mKey)) continue;
+          const mDesc = nameOverrides[mKey] || m.description;
+          const mCategory = (m.measure_category as MeasureCategory) || "engineering";
+          const dedupeKey = `${mCategory}|${mDesc}`;
+          if (existingMeasureKeys.has(dedupeKey) || batchMeasures.has(dedupeKey)) {
+            skipped++;
+            continue;
+          }
+          await createMeasure(enterpriseId, eventId, {
+            measure_category: mCategory,
+            measure_type: m.measure_type || undefined,
+            description: mDesc,
+            check_items: m.check_items || [],
+          });
+          batchMeasures.add(dedupeKey);
+          created++;
+        }
+      };
+
+      for (let zi = 0; zi < hierarchy.length; zi++) {
+        const zone = hierarchy[zi];
+        const zoneKey = "z-" + zi;
         if (!keySet.has(zoneKey)) continue;
 
         const zoneName = nameOverrides[zoneKey] || zone.name;
-        const createdZone = await createZone(enterpriseId, {
-          name: zoneName,
-          description: zone.description || undefined,
-        });
-        totalCreated++;
+        let zoneId: string;
+        const existingZoneId = index.zones.get(zoneName);
+        if (existingZoneId) {
+          zoneId = existingZoneId;
+          merged++;
+        } else if (newZoneIds.has(zoneName)) {
+          zoneId = newZoneIds.get(zoneName)!;
+          skipped++;
+        } else {
+          const createdZone = await createZone(enterpriseId, {
+            name: zoneName,
+            description: zone.description || undefined,
+          });
+          zoneId = createdZone.id;
+          newZoneIds.set(zoneName, zoneId);
+          created++;
+        }
 
         for (let oi = 0; oi < (zone.objects || []).length; oi++) {
           const obj = zone.objects![oi];
-          const objKey = "z-" + originalZi + "-o-" + oi;
+          const objKey = zoneKey + "-o-" + oi;
           if (!keySet.has(objKey)) continue;
 
           const objName = nameOverrides[objKey] || obj.name;
-          const createdObj = await createObject(enterpriseId, {
-            zone_id: createdZone.id,
-            name: objName,
-            category: obj.category || undefined,
-            is_risk_point: false,
-          });
-          totalCreated++;
+          let objectId: string;
+          const existingObjectId = index.objects.get(zoneName)?.get(objName);
+          const batchObjects = newObjectIds.get(zoneId) ?? new Map<string, string>();
+          newObjectIds.set(zoneId, batchObjects);
+          if (existingObjectId) {
+            objectId = existingObjectId;
+            merged++;
+          } else if (batchObjects.has(objName)) {
+            objectId = batchObjects.get(objName)!;
+            skipped++;
+          } else {
+            const createdObj = await createObject(enterpriseId, {
+              zone_id: zoneId,
+              name: objName,
+              category: obj.category || undefined,
+              is_risk_point: false,
+            });
+            objectId = createdObj.id;
+            batchObjects.set(objName, objectId);
+            created++;
+          }
 
           for (let ui = 0; ui < (obj.units || []).length; ui++) {
             const unit = obj.units![ui];
-            const unitKey = "z-" + originalZi + "-o-" + oi + "-u-" + ui;
+            const unitKey = objKey + "-u-" + ui;
             const unitName = nameOverrides[unitKey] || unit.name;
-            const createdUnit = await createUnit(enterpriseId, createdObj.id, {
-              name: unitName,
-              unit_type: unit.unit_type || undefined,
-            });
-            totalCreated++;
+            let unitId: string;
+            const existingUnitId = index.units.get(objectId)?.get(unitName);
+            const batchUnits = newUnitIds.get(objectId) ?? new Map<string, string>();
+            newUnitIds.set(objectId, batchUnits);
+            if (existingUnitId) {
+              unitId = existingUnitId;
+              merged++;
+            } else if (batchUnits.has(unitName)) {
+              unitId = batchUnits.get(unitName)!;
+              skipped++;
+            } else {
+              const createdUnit = await createUnit(enterpriseId, objectId, {
+                name: unitName,
+                unit_type: unit.unit_type || undefined,
+              });
+              unitId = createdUnit.id;
+              batchUnits.set(unitName, unitId);
+              created++;
+            }
 
             for (let ei = 0; ei < (unit.events || []).length; ei++) {
               const ev = unit.events![ei];
-              const evKey = "z-" + originalZi + "-o-" + oi + "-u-" + ui + "-ev-" + ei;
+              const evKey = unitKey + "-ev-" + ei;
               if (!keySet.has(evKey)) continue;
 
               const evName = nameOverrides[evKey] || ev.accident_type;
-              const createdEv = await createEvent(enterpriseId, createdUnit.id, {
-                unit_id: createdUnit.id,
+              const existingEventId = index.eventIds.get(unitId)?.get(evName);
+              if (existingEventId) {
+                // 事件已存在：合并模式只补充缺失措施，不重复创建事件
+                merged++;
+                await createMeasures(existingEventId, ev, evKey, index.measures.get(existingEventId) ?? new Set<string>());
+                continue;
+              }
+              const batchTypes = newEventTypes.get(unitId) ?? new Set<string>();
+              if (batchTypes.has(evName)) {
+                skipped++;
+                continue;
+              }
+              const createdEv = await createEvent(enterpriseId, unitId, {
+                unit_id: unitId,
                 accident_type: evName,
                 description: ev.description || undefined,
                 method_type: (ev.method_type as MethodType) || "LS",
                 method_params: ev.method_params || {},
               });
-              totalCreated++;
-
-              for (let mi = 0; mi < (ev.measures || []).length; mi++) {
-                const m = ev.measures![mi];
-                const mKey = "z-" + originalZi + "-o-" + oi + "-u-" + ui + "-ev-" + ei + "-m-" + mi;
-                if (!keySet.has(mKey)) continue;
-
-                const mDesc = nameOverrides[mKey] || m.description;
-                await createMeasure(enterpriseId, createdEv.id, {
-                  measure_category: (m.measure_category as MeasureCategory) || "engineering",
-                  measure_type: m.measure_type || undefined,
-                  description: mDesc,
-                  check_items: m.check_items || [],
-                });
-                totalCreated++;
-              }
+              batchTypes.add(evName);
+              newEventTypes.set(unitId, batchTypes);
+              created++;
+              await createMeasures(createdEv.id, ev, evKey, new Set<string>());
             }
           }
 
           for (let ei = 0; ei < (obj.events || []).length; ei++) {
             const ev = obj.events![ei];
-            const evKey = "z-" + originalZi + "-o-" + oi + "-ev-" + ei;
+            const evKey = objKey + "-ev-" + ei;
             if (!keySet.has(evKey)) continue;
 
             const evName = nameOverrides[evKey] || ev.accident_type;
-            const createdEv = await createEvent(enterpriseId, createdObj.id, {
-              object_id: createdObj.id,
+            const existingEventId = index.eventIds.get(objectId)?.get(evName);
+            if (existingEventId) {
+              merged++;
+              await createMeasures(existingEventId, ev, evKey, index.measures.get(existingEventId) ?? new Set<string>());
+              continue;
+            }
+            const batchTypes = newEventTypes.get(objectId) ?? new Set<string>();
+            if (batchTypes.has(evName)) {
+              skipped++;
+              continue;
+            }
+            const createdEv = await createEvent(enterpriseId, objectId, {
+              object_id: objectId,
               accident_type: evName,
               description: ev.description || undefined,
               method_type: (ev.method_type as MethodType) || "LS",
               method_params: ev.method_params || {},
             });
-            totalCreated++;
-
-            for (let mi = 0; mi < (ev.measures || []).length; mi++) {
-              const m = ev.measures![mi];
-              const mKey = "z-" + originalZi + "-o-" + oi + "-ev-" + ei + "-m-" + mi;
-              if (!keySet.has(mKey)) continue;
-
-              const mDesc = nameOverrides[mKey] || m.description;
-            await createMeasure(enterpriseId, createdEv.id, {
-              measure_category: (m.measure_category as MeasureCategory) || "engineering",
-                measure_type: m.measure_type || undefined,
-                description: mDesc,
-                check_items: m.check_items || [],
-              });
-              totalCreated++;
-            }
+            batchTypes.add(evName);
+            newEventTypes.set(objectId, batchTypes);
+            created++;
+            await createMeasures(createdEv.id, ev, evKey, new Set<string>());
           }
         }
       }
 
-      return { count: totalCreated, skipped: skippedZones.length };
+      return { created, merged, skipped };
     },
-    onSuccess: ({ count, skipped }: { count: number; skipped: number }) => {
-      antMessage.success(`成功导入 ${count} 条数据${skipped > 0 ? `，跳过 ${skipped} 个重名分区` : ""}`);
+    onSuccess: ({ created, merged, skipped }: { created: number; merged: number; skipped: number }) => {
+      antMessage.success(`导入完成：新增 ${created} 条，并入现有 ${merged} 条，跳过重复 ${skipped} 条`);
       onRefresh();
       onClose();
     },
@@ -627,7 +698,7 @@ export default function RiskSmartGuideModal({
           <Alert
             type="warning"
             showIcon
-            message="AI 生成数据请核实后确认导入，确认后可在层级树中继续编辑"
+            message="AI 生成数据请核实后确认导入；同名分区/对象/单元/事件将并入现有树（只补充缺失内容），措施按类别与描述去重"
             style={{ marginBottom: 12 }}
           />
 

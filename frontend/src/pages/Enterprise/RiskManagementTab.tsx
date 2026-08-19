@@ -5,7 +5,7 @@ import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, E
 import AppIcon from "@/components/common/AppIcon";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure, getMigrationPreview } from "@/services/riskManagementService";
-import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
+import { deleteEnterpriseFloor, listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
 import RiskMigrationWizard from "@/components/enterprise/RiskMigrationWizard";
 import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent, HierarchyMeasure, CheckItem, RiskZoneFloorPlanPolygon, MethodType, MeasureCategory } from "@/types/riskManagement";
@@ -170,6 +170,29 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
       content: contents[meta.type],
       onOk: async () => {
         switch (meta.type) {
+          case "floor": {
+            const f = floors.find(x => x.id === meta.id);
+            const zoneCount = f?.zone_count ?? 0;
+            const pointCount = f?.risk_point_count ?? 0;
+            await new Promise<void>((resolve) => {
+              modal.confirm({
+                title: `再次确认删除楼层「${meta.name}」？`,
+                content: zoneCount > 0 || pointCount > 0
+                  ? `该楼层下有 ${zoneCount} 个分区、${pointCount} 个风险点，删除将一并级联删除其全部对象、单元、事件与管控措施，且无法恢复。`
+                  : "删除后无法恢复。",
+                okText: "确认删除",
+                okButtonProps: { danger: true },
+                cancelText: "取消",
+                onOk: async () => {
+                  await deleteEnterpriseFloor(enterpriseId, meta.id);
+                  resolve();
+                },
+                onCancel: () => resolve(),
+              });
+            });
+            refetchFloors();
+            break;
+          }
           case "zone": await deleteZone(enterpriseId, meta.id); break;
           case "object": await deleteObject(enterpriseId, meta.id); break;
           case "unit": await deleteUnit(enterpriseId, meta.parentId || "", meta.id); break;
@@ -179,7 +202,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
         refetch();
       },
     });
-  }, [enterpriseId, refetch, modal]);
+  }, [enterpriseId, refetch, refetchFloors, floors, modal]);
 
   // Handle tree node action (add/edit/delete from RiskHierarchyTree)
   const handleTreeAction = useCallback((action: string, meta: TreeNodeMeta) => {

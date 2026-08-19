@@ -96,7 +96,7 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
       }
       refresh();
     } catch (e) {
-      message.error(apiErrorMessage(e, "删除楼层失败（楼层下存在分区或风险点时不可删除）"));
+      message.error(apiErrorMessage(e, "删除楼层失败"));
     }
   };
 
@@ -117,19 +117,32 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
     }
   };
 
-  const removeFloor = async (floorId: string) => {
-    if (useRiskMappingWorkbenchStore.getState().dirty) {
-      Modal.confirm({
-        title: "删除楼层并放弃未保存的改动",
-        content: "当前楼层存在未保存的改动，删除楼层后这些改动将一并丢失，且无法撤销。是否继续删除？",
-        okText: "删除楼层",
-        okButtonProps: { danger: true },
-        cancelText: "取消",
-        onOk: () => doRemoveFloor(floorId),
-      });
-      return;
-    }
-    await doRemoveFloor(floorId);
+  const removeFloor = (floorId: string) => {
+    const floor = floors.find(f => f.id === floorId);
+    const zoneCount = floor?.zone_count ?? 0;
+    const pointCount = floor?.risk_point_count ?? 0;
+    const cascades = zoneCount > 0 || pointCount > 0;
+    const dirty = useRiskMappingWorkbenchStore.getState().dirty;
+    Modal.confirm({
+      title: `确认删除楼层「${floor?.name ?? ""}」？`,
+      content: (
+        <div>
+          {cascades
+            ? (
+              <span>
+                该楼层下有 <b>{zoneCount}</b> 个分区、<b>{pointCount}</b> 个风险点，
+                删除将一并级联删除其全部对象、单元、事件与管控措施，且无法恢复。
+              </span>
+            )
+            : "删除后无法恢复。"}
+          {dirty && <p style={{ color: "#fa8c16", marginTop: 8 }}>当前工作台存在未保存的改动，删除楼层后将一并丢失。</p>}
+        </div>
+      ),
+      okText: "确认删除",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: () => doRemoveFloor(floorId),
+    });
   };
 
   return (
@@ -180,7 +193,7 @@ export default function EnterpriseFloorManager({ enterpriseId }: { enterpriseId:
       </Button>
       <Popconfirm
         title="删除当前楼层"
-        description="删除后无法恢复；楼层下存在分区或风险点时将被拒绝。"
+        description="删除前将展示楼层下的分区/风险点数量并二次确认。"
         disabled={!currentFloorId || floors.length <= 1}
         onConfirm={() => removeFloor(currentFloorId)}
       >

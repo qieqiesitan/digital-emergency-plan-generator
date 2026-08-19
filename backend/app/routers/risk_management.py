@@ -32,6 +32,7 @@ from app.services.risk_control_list_service import (
 from app.services.hazard_service import open_hazard_count_by_objects
 from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
+from app.services.enterprise_cleanup_service import delete_floor_risk_mapping, floor_delete_counts
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
 from app.config import settings
 logger = logging.getLogger(__name__)
@@ -145,10 +146,9 @@ async def delete_floor(floor_id: str, enterprise_id: str, current_user=Depends(g
     floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not floor:
         raise HTTPException(404, "楼层不存在")
-    zone_count = (await db.execute(select(func.count(RiskZone.id)).where(RiskZone.floor_id == floor_id))).scalar() or 0
-    object_count = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.floor_id == floor_id))).scalar() or 0
-    if zone_count or object_count:
-        raise HTTPException(409, "楼层存在分区或风险对象，不允许删除")
+    counts = await floor_delete_counts(db, floor_id)
+    # 楼层下存在分区/风险对象时同样允许删除：级联清理并向前端返回待清理数量
+    await delete_floor_risk_mapping(db, floor_id)
     if floor.is_default:
         alternative = (await db.execute(
             select(EnterpriseFloor).where(
@@ -166,7 +166,10 @@ async def delete_floor(floor_id: str, enterprise_id: str, current_user=Depends(g
     await db.commit()
     remove_floor_plan(old_url)
     remove_floor_plan_dir(enterprise_id, floor_id)
-    return ApiResponse(data=None, message="已删除")
+    return ApiResponse(
+        data={"zones": counts["zones"], "objects": counts["objects"], "total": counts["total"]},
+        message=f"已删除楼层及 {counts['total']} 条风险数据",
+    )
 
 @router.post("/floors/{floor_id}/plan", response_model=ApiResponse[FloorResponse])
 async def upload_floor_plan(floor_id: str, enterprise_id: str, file: UploadFile = File(...), current_user=Depends(get_current_user), db=Depends(get_db)):

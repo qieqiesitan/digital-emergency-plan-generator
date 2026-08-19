@@ -313,14 +313,18 @@ async def test_delete_floor_returns_valid_api_response():
     db.execute.side_effect = [
         _ent_result(),
         _zone_result(floor),
-        _scalar_count(0),  # zone_count
-        _scalar_count(0),  # object_count
+        _scalar_count(2),  # zones
+        _scalar_count(3),  # objects
+        _scalar_count(4),  # units
+        _scalar_count(5),  # events
+        _scalar_count(6),  # measures
+        MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(),  # 级联 delete
     ]
 
     resp = await delete_floor("floor-1", "e-1", MagicMock(id="u-1"), db)
 
-    assert resp.data is None
-    assert resp.message == "已删除"
+    assert resp.data == {"zones": 2, "objects": 3, "total": 20}
+    assert resp.message == "已删除楼层及 20 条风险数据"
     db.commit.assert_awaited_once()
 
 
@@ -332,8 +336,12 @@ async def test_delete_default_floor_blocked():
     db.execute.side_effect = [
         _ent_result(),
         _zone_result(floor),
-        _scalar_count(0),
-        _scalar_count(0),
+        _scalar_count(0),  # zones
+        _scalar_count(0),  # objects
+        _scalar_count(0),  # units
+        _scalar_count(0),  # events
+        _scalar_count(0),  # measures
+        MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(),  # 级联 delete
         _none_result(),
     ]
 
@@ -355,15 +363,19 @@ async def test_delete_default_floor_promotes_alternative():
     db.execute.side_effect = [
         _ent_result(),
         _zone_result(floor),
-        _scalar_count(0),
-        _scalar_count(0),
+        _scalar_count(0),  # zones
+        _scalar_count(0),  # objects
+        _scalar_count(0),  # units
+        _scalar_count(0),  # events
+        _scalar_count(0),  # measures
+        MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(),  # 级联 delete
         _floor_result(alternative),
         MagicMock(scalar_one=MagicMock(return_value=enterprise)),
     ]
 
     resp = await delete_floor("floor-1", "e-1", MagicMock(id="u-1"), db)
 
-    assert resp.data is None
+    assert resp.data == {"zones": 0, "objects": 0, "total": 0}
     assert alternative.is_default is True
     assert enterprise.floor_plan_url is None
     db.commit.assert_awaited_once()

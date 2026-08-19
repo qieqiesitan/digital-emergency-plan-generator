@@ -82,13 +82,27 @@ export default function FloorManagementDrawer({ enterpriseId, open, onClose, onC
     }
   };
 
-  const removeFloor = async (f: EnterpriseFloor) => {
-    try {
-      await deleteEnterpriseFloor(enterpriseId, f.id);
-      refresh();
-    } catch (e) {
-      message.error(apiErrorMessage(e, "删除楼层失败（楼层下存在分区或风险点时不可删除）"));
-    }
+  const removeFloor = (f: EnterpriseFloor) => {
+    const zoneCount = f.zone_count ?? 0;
+    const pointCount = f.risk_point_count ?? 0;
+    const cascades = zoneCount > 0 || pointCount > 0;
+    Modal.confirm({
+      title: `确认删除楼层「${f.name}」？`,
+      content: cascades
+        ? `该楼层下有 ${zoneCount} 个分区、${pointCount} 个风险点，删除将一并级联删除其全部对象、单元、事件与管控措施，且无法恢复。`
+        : "删除后无法恢复。",
+      okText: "确认删除",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          await deleteEnterpriseFloor(enterpriseId, f.id);
+          refresh();
+        } catch (e) {
+          message.error(apiErrorMessage(e, "删除楼层失败"));
+        }
+      },
+    });
   };
 
   return (
@@ -112,8 +126,8 @@ export default function FloorManagementDrawer({ enterpriseId, open, onClose, onC
                 </Button>,
                 <Popconfirm
                   key="delete"
-                  title={`确认删除楼层「${f.name}」？`}
-                  description="删除后无法恢复；楼层下存在分区或风险点时后端会拒绝。"
+                  title={`删除楼层「${f.name}」？`}
+                  description="删除前将展示楼层下的分区/风险点数量并二次确认。"
                   onConfirm={() => removeFloor(f)}
                 >
                   <Button type="link" size="small" danger icon={<DeleteOutlined />}>
