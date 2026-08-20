@@ -27,13 +27,17 @@ if [[ -e "$STAGE" ]]; then
 fi
 mkdir -p "$STAGE"
 
-cp -r "$ROOT/backend" "$STAGE/backend"
-find "$STAGE/backend" -type d \( -name __pycache__ -o -name .venv \) -prune -exec rm -rf {} +
-rm -rf "$STAGE/backend/uploads" "$STAGE/backend/exports"
+# backend 只取 git 跟踪内容（避免把本机 gitignored 的 models/、本地索引等带进包）
+mkdir -p "$STAGE/backend"
+git -C "$ROOT" ls-files backend | git -C "$ROOT" checkout-index --prefix="$STAGE/" --stdin --force
 
 mkdir -p "$STAGE/frontend"
 cp -r "$ROOT/frontend/dist" "$STAGE/frontend/dist"
 cp -r "$ROOT/deploy" "$STAGE/deploy"
+if [[ -f "$ROOT/docs/deploy/README-DEPLOY.md" ]]; then
+  mkdir -p "$STAGE/docs/deploy"
+  cp "$ROOT/docs/deploy/README-DEPLOY.md" "$STAGE/docs/deploy/"
+fi
 mkdir -p "$STAGE/scripts"
 cp "$ROOT/scripts/package-release.sh" "$ROOT/scripts/backup.sh" "$STAGE/scripts/"
 if [[ -f "$ROOT/scripts/deploy-check.sh" ]]; then
