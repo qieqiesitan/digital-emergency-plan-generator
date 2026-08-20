@@ -11,13 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import async_session
 from app.models.user import User
 from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, EmergencyResource
+from app.models.enterprise_org import EnterpriseMember
 from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.common import ApiResponse
 from app.config import settings
 from app.services.external_file_store import download_external_files
 from app.services.external_service import notify_callback
 from app.routers.generation import (
-    _build_section_prompt, _stream_llm, _collect_enterprise_data,
+    _build_section_prompt, _stream_llm, _collect_enterprise_data, _load_org_members,
     _enrich_with_reports, _pre_render_mermaid_svgs,
 )
 from app.services.markdown_utils import md_to_html
@@ -101,7 +102,8 @@ async def _run_generation_then_callback(
                 select(HazardousChemical).where(HazardousChemical.enterprise_id == enterprise_id)
             )).scalars().all()
             chemicals = {c.id: c for c in chemicals_rows}
-            ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
+            org_members = await _load_org_members(db, enterprise_id) if ent else []
+            ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
             if ent:
                 ent_data = await _enrich_with_reports(ent_data, enterprise_id, db)
 

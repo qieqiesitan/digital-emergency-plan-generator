@@ -176,6 +176,8 @@ async def suggest_org_tree(enterprise_info: dict, ai_config, extra_requirements:
         '"members": [{"name": "姓名", "position": "岗位"}]}]}\n'
         "要求：type 仅限 dept（部门）/team（班组）/position（岗位）；"
         "根节点 parent_id 为 null；members 只含姓名和岗位，不要编造邮箱；"
+        "members 必须严格取自企业信息中提供的成员名单；若企业信息未提供任何成员名单，"
+        "members 一律输出空数组 []，禁止编造或推断任何姓名（如张三、李四等示例名）；"
         "中文输出；只输出 JSON，不要任何解释。"
     )
     messages = [

@@ -365,7 +365,47 @@ def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
     section.diagram_svgs = diagrams
 
 
-def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list, chemicals: dict | None = None) -> dict:
+def _merge_org_members(org_structure: list, org_members: list | None) -> list:
+    """用企业成员表（用户维护的真实成员）覆盖组织树节点内嵌成员。
+
+    按成员 org_node_id 关联岗位节点：有关联的节点用真实成员替换；
+    无关联的节点内嵌成员清空（成员表是唯一事实来源，避免旧内嵌虚构名带入预案）。
+    org_members 为 None/空时原样返回（向后兼容无成员表数据的旧企业）。
+    """
+    if not org_members:
+        return org_structure
+    by_node: dict[str, list] = {}
+    for m in org_members:
+        if isinstance(m, dict):
+            node_id, name, position = m.get("org_node_id"), m.get("name"), m.get("position")
+        else:
+            node_id, name, position = (
+                getattr(m, "org_node_id", None),
+                getattr(m, "name", None),
+                getattr(m, "position", None),
+            )
+        if node_id:
+            by_node.setdefault(node_id, []).append({"name": name, "position": position})
+    merged = []
+    for node in org_structure or []:
+        if not isinstance(node, dict):
+            merged.append(node)
+            continue
+        new_node = dict(node)
+        new_node["members"] = by_node.get(node.get("id"), [])
+        merged.append(new_node)
+    return merged
+
+
+async def _load_org_members(db, enterprise_id: str) -> list:
+    """加载企业成员表（用户维护的真实成员，用于覆盖组织树内嵌成员）。"""
+    rows = (await db.execute(
+        select(EnterpriseMember).where(EnterpriseMember.enterprise_id == enterprise_id)
+    )).scalars().all()
+    return list(rows)
+
+
+def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list, chemicals: dict | None = None, org_members: list | None = None) -> dict:
     chemicals = chemicals or {}
 
     return {
@@ -379,7 +419,7 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
         "employee_count": enterprise.employee_count,
         "building_overview": _missing(enterprise.building_overview),
 
-        "org_structure": enterprise.org_structure,
+        "org_structure": _merge_org_members(enterprise.org_structure, org_members),
         "surrounding_info": _missing(enterprise.surrounding_info),
 
         "legal_representative": _missing(enterprise.legal_representative),
@@ -633,7 +673,8 @@ async def _collect_batch_context(
         select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
     )).scalars().all()
     chemicals = {c.id: c for c in chemicals_rows}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
+    org_members = await _load_org_members(db, p.enterprise_id) if ent else []
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
@@ -1014,7 +1055,8 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
         select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
     )).scalars().all()
     chemicals = {c.id: c for c in chemicals_rows}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
+    org_members = await _load_org_members(db, p.enterprise_id) if ent else []
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
 
     if ent:
 
@@ -1138,7 +1180,8 @@ async def regenerate_selection(
         select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
     )).scalars().all()
     chemicals = {c.id: c for c in chemicals_rows}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
+    org_members = await _load_org_members(db, p.enterprise_id) if ent else []
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
@@ -1234,7 +1277,8 @@ async def generate_preview(
         select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
     )).scalars().all()
     chemicals = {c.id: c for c in chemicals_rows}
-    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals) if ent else {}
+    org_members = await _load_org_members(db, p.enterprise_id) if ent else []
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 

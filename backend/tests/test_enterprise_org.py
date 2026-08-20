@@ -1006,6 +1006,22 @@ async def test_ai_suggest_org_tree_ok():
 
 
 @pytest.mark.asyncio
+async def test_suggest_org_tree_prompt_forbids_fabricated_member_names():
+    """AI 建树提示词必须禁止编造成员姓名：无名单时 members 应为空数组。"""
+    captured = {}
+
+    async def fake_llm(messages, ai_config, **kwargs):
+        captured["user"] = messages[-1]["content"]
+        return '{"nodes": []}'
+
+    with patch("app.services.enterprise_org_service.llm_text_completion", new=fake_llm):
+        out = await suggest_org_tree({"industry": "化工", "employee_count": 120}, MagicMock())
+    assert out["available"] is True
+    assert "不得编造" in captured["user"] or "禁止编造" in captured["user"]
+    assert "members" in captured["user"]
+
+
+@pytest.mark.asyncio
 async def test_ai_suggest_org_tree_fallback():
     with patch("app.services.enterprise_org_service.llm_text_completion",
                AsyncMock(side_effect=Exception("timeout"))):
