@@ -55,6 +55,9 @@ cp .env.example .env          # 按预检表修改 SECRET_KEY / POSTGRES_PASSWOR
 docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d --build
 ```
 
+- 一键方式：`./scripts/deploy.sh`（自动创建 .env、构建并启动、等待 `/api/health` 就绪后提示剩余步骤）。
+- 包根快捷方式：发布包根目录已附带 `docker-compose.yml`（与 `deploy/docker-compose.prod.yml` 同内容），
+  也可直接在包根执行 `docker compose up -d --build`，效果相同。
 - 注意：`--project-directory .` 必须带，否则 compose 的相对路径会按 `deploy/` 目录解析，构建必然失败。
 - 全新库：首次启动 postgres 自动执行 `db-init/` 下 SQL（01_restore.sql 为全量恢复）。
 - 已有库：**不要**挂 db-init 目录（或确保文件名不与已有执行冲突），增量迁移 SQL 需手动应用。

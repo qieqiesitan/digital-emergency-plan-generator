@@ -39,7 +39,7 @@ if [[ -f "$ROOT/docs/deploy/README-DEPLOY.md" ]]; then
   cp "$ROOT/docs/deploy/README-DEPLOY.md" "$STAGE/docs/deploy/"
 fi
 mkdir -p "$STAGE/scripts"
-cp "$ROOT/scripts/package-release.sh" "$ROOT/scripts/backup.sh" "$STAGE/scripts/"
+cp "$ROOT/scripts/package-release.sh" "$ROOT/scripts/backup.sh" "$ROOT/scripts/deploy.sh" "$STAGE/scripts/"
 if [[ -f "$ROOT/scripts/deploy-check.sh" ]]; then
   cp "$ROOT/scripts/deploy-check.sh" "$STAGE/scripts/"
 fi
