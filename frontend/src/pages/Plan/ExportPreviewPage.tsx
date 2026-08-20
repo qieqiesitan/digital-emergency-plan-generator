@@ -5,6 +5,7 @@ import { DownloadOutlined, PrinterOutlined, ArrowLeftOutlined } from "@ant-desig
 import { useQuery } from "@tanstack/react-query";
 import { getExportPreview, exportDocx, validateExport } from "@/services/exportService";
 import MermaidRenderer from "@/components/plan/MermaidRenderer";
+import { EMERGENCY_CARD_CSS } from "@/styles/emergencyCardCss";
 import type { ExportTask } from "@/types/plan";
 
 export default function ExportPreviewPage() {
@@ -131,7 +132,9 @@ export default function ExportPreviewPage() {
           padding: 0 2px;
           border-radius: 2px;
         }
-      `}</style>
+      `}
+        {EMERGENCY_CARD_CSS}
+      </style>
       <div className="export-preview-container">
         {isLoading ? (
           <Spin size="large" />

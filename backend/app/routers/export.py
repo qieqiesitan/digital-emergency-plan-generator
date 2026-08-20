@@ -69,12 +69,33 @@ PREVIEW_CSS = """<style>
   .mermaid-diagram svg { max-width: 100%%; height: auto; }
   .mermaid-rendered { max-width: 100%%; }
   .mermaid-rendered svg { max-width: 100%%; height: auto; }
+  .emergency-card-section { margin: 16px 0; display: grid; gap: 14px; }
+  .emergency-card {
+    border: 1px solid #e8e8e8; border-radius: 10px; padding: 14px 18px;
+    background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .emergency-card h3 {
+    margin: 0 0 8px; font-size: 15px; font-weight: 700;
+    padding-left: 10px; border-left: 4px solid #d9d9d9;
+  }
+  .emergency-card ol, .emergency-card ul { margin-bottom: 0; }
+  .emergency-card li { margin-bottom: 6px; }
+  .emergency-card[data-theme="danger"] { background: #fff7f7; border-color: #ffccc7; }
+  .emergency-card[data-theme="danger"] h3 { border-left-color: #ff4d4f; }
+  .emergency-card[data-theme="action"] { background: #fffdf6; border-color: #ffe7ba; }
+  .emergency-card[data-theme="action"] h3 { border-left-color: #fa8c16; }
+  .emergency-card[data-theme="info"] { background: #f6faff; border-color: #bae0ff; }
+  .emergency-card[data-theme="info"] h3 { border-left-color: #1677ff; }
+  .emergency-card[data-theme="contact"] { background: #f9fff6; border-color: #d9f7be; }
+  .emergency-card[data-theme="contact"] h3 { border-left-color: #52c41a; }
+  .emergency-card[data-theme="default"] h3 { border-left-color: #8c8c8c; }
 </style>"""
 
 
-def _strip_section_heading(html: str) -> str:
+def _strip_section_heading(html: str, section_title: str | None = None) -> str:
     """兼容别名：导出预览与历史调用继续使用（实现已抽到 plan_section_content）。"""
-    return strip_section_heading(html)
+    return strip_section_heading(html, section_title)
 
 
 def _build_section_numbers(sections: list) -> dict:
@@ -91,15 +112,51 @@ def _build_section_numbers(sections: list) -> dict:
     return numbers
 
 
-def _build_preview_section_html(section, sec_numbers: dict) -> str:
+_CARD_THEME_KEYWORDS = [
+    ("danger", ("危险", "警示", "禁忌", "特别警示")),
+    ("action", ("处置", "响应", "报警", "步骤", "初起", "报告", "发现")),
+    ("info", ("疏散", "集合", "清点", "搜救", "路线")),
+    ("contact", ("电话", "联系", "通讯")),
+]
+
+
+def _card_theme_for_title(title: str) -> str:
+    """根据卡片分区标题推断主题色（danger/action/info/contact/default）。"""
+    for theme, keywords in _CARD_THEME_KEYWORDS:
+        if any(kw in title for kw in keywords):
+            return theme
+    return "default"
+
+
+def _wrap_emergency_cards(content: str) -> str:
+    """按 h3 分区把章节正文切成「应急处置卡」卡片；无 h3 时整段单卡。"""
+    pattern = re.compile(r"(<h3[^>]*>.*?</h3>)", re.DOTALL | re.IGNORECASE)
+    parts = pattern.split(content)
+    preamble = parts[0].strip()
+    cards = []
+    if preamble:
+        cards.append(f'<div class="emergency-card" data-theme="default">{preamble}</div>')
+    for i in range(1, len(parts), 2):
+        heading = parts[i]
+        body = parts[i + 1] if i + 1 < len(parts) else ""
+        title = re.sub(r"<[^>]+>", "", heading).strip()
+        theme = _card_theme_for_title(title)
+        cards.append(f'<div class="emergency-card" data-theme="{theme}">{heading}{body}</div>')
+    if not cards:
+        cards.append(f'<div class="emergency-card" data-theme="default">{content}</div>')
+    return f'<div class="emergency-card-section">{"".join(cards)}</div>'
+
+
+def _build_preview_section_html(section, sec_numbers: dict, plan_type: str = "") -> str:
     """构建单个章节的导出预览 HTML（标题 + 正文 + 附图）。
 
     section: PlanSection ORM 对象（或等效 mock），需要 title/level/content/
              mermaid_svgs/diagram_svgs 属性。
     sec_numbers: {id(section): "1.2"} 章节编号映射。
+    plan_type: 预案类型，onsite 时 sec_3* 章节卡片化渲染。
     """
     content = section.content or ""
-    content = _strip_section_heading(content)
+    content = _strip_section_heading(content, getattr(section, "title", None))
     # 仅当内容不含已被包裹的 Mermaid 时才包装原始代码
     if '<code class="language-mermaid"' not in content and '```mermaid' not in content:
         content = _wrap_raw_mermaid(content)
@@ -113,6 +170,14 @@ def _build_preview_section_html(section, sec_numbers: dict) -> str:
         content = markdown.markdown(content, extensions=["tables", "fenced_code", "md_in_html"])
 
     content = fix_markdown_tables(content)
+
+    # 现场处置方案「应急处置卡」系列章节：按 h3 分区渲染成卡片
+    is_card_section = (
+        plan_type == "onsite"
+        and str(getattr(section, "section_key", "")).startswith("sec_3")
+    )
+    if is_card_section:
+        content = _wrap_emergency_cards(content)
 
     # 服务端嵌入 Mermaid SVG（预览直接显示，不依赖前端 MermaidRenderer）
     mermaid_svgs = section.mermaid_svgs or {}
@@ -191,7 +256,7 @@ async def get_export_preview(
     for section in sections:
         if not section.content or not section.content.strip():
             continue
-        html_parts.append(_build_preview_section_html(section, sec_numbers))
+        html_parts.append(_build_preview_section_html(section, sec_numbers, plan.plan_type))
         html_parts.append('<hr class="plan-section-separator">')
 
     full_html = "\n".join(html_parts)
@@ -266,7 +331,7 @@ async def export_plan_docx(
         if not s.content or not s.content.strip():
             continue
         content = s.content
-        content = _strip_section_heading(content)
+        content = _strip_section_heading(content, s.title)
 
         _ms = s.mermaid_svgs or {}
         sections_data.append({

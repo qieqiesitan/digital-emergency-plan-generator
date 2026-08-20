@@ -755,7 +755,7 @@ async def _export_plan_docx(db, user, args):
         content = s.content
         try:
             from app.routers.export import _strip_section_heading
-            content = _strip_section_heading(content)
+            content = _strip_section_heading(content, s.title)
         except Exception:
             pass
         sections_data.append({

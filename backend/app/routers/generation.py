@@ -27,11 +27,13 @@ import asyncio
 
 import logging
 
+import re
+
 from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMError
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import sse_event
-from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, get_additional_diagram_prompt, render_template
+from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, get_additional_diagram_prompt, render_template, ensure_loaded
 from app.services.risk_context_builder import build_risk_management_context
 from app.regulations.context_builder import RegulationContextBuilder
 
@@ -56,6 +58,28 @@ _failed_sections: dict[str, list] = {}
 def _clear_generation_state(plan_id: str) -> None:
     """批量生成结束后清除生成中标记（保留失败清单供前端查询）。"""
     _active_generations[plan_id] = False
+
+
+def _html_to_text_summary(html: str, limit: int = 300) -> str:
+    """HTML 章节正文转纯文本摘要（供 previous_context 注入，控制 token 消耗）。"""
+    text = re.sub(r"<[^>]+>", "", html or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
+
+
+def _collect_previous_context(sections, exclude_key: str, limit: int = 300) -> str:
+    """收集除当前章节外、已有内容的章节摘要，用于提示词去重。"""
+    parts = []
+    for sec in sections:
+        if getattr(sec, "section_key", None) == exclude_key:
+            continue
+        content = getattr(sec, "content", None)
+        if not isinstance(content, str) or not content.strip():
+            continue
+        text = _html_to_text_summary(content, limit=limit)
+        if text:
+            parts.append(f"【{getattr(sec, 'title', '')}】{text}")
+    return "\n\n".join(parts)
 
 
 class _GenerationCancelled(Exception):
@@ -230,17 +254,27 @@ def _get_mermaid_instruction(section_key: str | None, section_title: str, diagra
         f"5. 节点文字使用中文，简洁明了（每节点不超过15个字）\n"
     )
 
-def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*", accident_type: str | None = None, diagram_preference: str = "mermaid") -> str:
+def _build_section_prompt(section_title: str, enterprise_data: dict, custom_instruction: str | None = None, section_number: int | None = None, section_key: str | None = None, plan_type: str = "*", accident_type: str | None = None, diagram_preference: str = "mermaid", previous_context: str | None = None) -> str:
     """构建章节提示词，优先使用数据库模板，未命中则用代码拼接兜底。"""
     no_heading_rule = (
         "请直接输出章节正文内容，不要在正文中输出章节标题或编号"
         "（如“第X章”“X.”“X.X”），章节编号由导出时自动生成。"
     )
+    prev_ctx_rule = (
+        "【预案前文内容】\n"
+        f"{previous_context or ''}\n\n"
+        "以上内容已存在于预案前文（标题+摘要），本章撰写时禁止重复描述"
+        "（如事故特点、风险源分析、编制依据等），只写与本章职责相关的新内容。\n"
+    )
     # 尝试从数据库获取模板
     if plan_type != "*" and section_key:
         tmpl = get_section_prompt(plan_type, section_key)
         if tmpl and tmpl.get("user_prompt_template"):
-            variables = {"enterprise_data": json.dumps(enterprise_data, ensure_ascii=False, indent=2), "accident_type": accident_type or ""}
+            variables = {
+                "enterprise_data": json.dumps(enterprise_data, ensure_ascii=False, indent=2),
+                "accident_type": accident_type or "",
+                "previous_context": previous_context or "",
+            }
             prompt = render_template(tmpl["user_prompt_template"], variables)
             if tmpl.get("system_prompt"):
                 prompt = tmpl["system_prompt"] + "\n\n---\n\n" + prompt
@@ -249,6 +283,8 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
                 prompt += "\n\n" + mermaid_inst
 
             prompt += "\n\n" + no_heading_rule
+            if previous_context:
+                prompt += "\n\n" + prev_ctx_rule
 
             # 追加法规上下文（修复：DB 模板路径也要注入法规）
             reg_ctx = RegulationContextBuilder().get_chapter_context(
@@ -278,6 +314,9 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
     if custom_instruction:
 
         prompt += f"额外要求：{custom_instruction}\n\n"
+
+    if previous_context:
+        prompt += "\n\n" + prev_ctx_rule
 
     mermaid_inst = _get_mermaid_instruction(section_key, section_title, diagram_preference)
 
@@ -640,6 +679,7 @@ async def _run_batch_generation(
     use_section_number: 为 True 时提示词传入 section_number（SSE 原行为）；为 False 时
     不传（background 原行为，避免出现「这是应急预案的第N个章节」编号提示）。
     """
+    await ensure_loaded()
     completed = 0
     failed = 0
     failed_sections = []
@@ -661,6 +701,7 @@ async def _run_batch_generation(
             prompt_kwargs = dict(
                 section_key=section_key, plan_type=plan_type,
                 accident_type=accident_type, diagram_preference="mermaid",
+                previous_context=_collect_previous_context(bg_sections, section_key),
             )
             if use_section_number:
                 prompt_kwargs["section_number"] = i + 1
@@ -946,6 +987,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 @router.post("/{plan_id}/generate/{section_key}")
 
 async def generate_section(plan_id: str, section_key: str, request: Request, current_user=Depends(get_current_user), db=Depends(get_db)):
+    await ensure_loaded()
 
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
 
@@ -996,7 +1038,18 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
     if p.style_preference:
         diagram_pref = p.style_preference.get('diagram_preference', 'mermaid')
 
-    prompt = _build_section_prompt(s.title, ent_data, custom_instruction, section_number=s.sort_order + 1, section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type, diagram_preference=diagram_pref)
+    other_sections = (await db.execute(
+        select(PlanSection).where(
+            PlanSection.plan_project_id == plan_id,
+            PlanSection.section_key != section_key,
+        )
+    )).scalars().all()
+    prev_ctx = _collect_previous_context(other_sections, section_key)
+    prompt = _build_section_prompt(
+        s.title, ent_data, custom_instruction, section_number=s.sort_order + 1,
+        section_key=section_key, plan_type=p.plan_type, accident_type=p.accident_type,
+        diagram_preference=diagram_pref, previous_context=prev_ctx,
+    )
 
     p.status = "generating"
 
@@ -1154,6 +1207,7 @@ async def generate_preview(
     request: Request, current_user=Depends(get_current_user), db=Depends(get_db)
 ):
     """生成风格预览片段（短文本，不落库）。"""
+    await ensure_loaded()
     p = (await db.execute(select(PlanProject).where(
         PlanProject.id == plan_id, PlanProject.user_id == current_user.id
     ))).scalar_one_or_none()

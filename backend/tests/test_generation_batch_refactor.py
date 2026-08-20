@@ -11,6 +11,117 @@ def test_build_section_prompt_forbids_inline_heading_numbering():
     assert "不要在正文中输出章节标题或编号" in prompt
 
 
+def test_build_section_prompt_injects_previous_context():
+    """previous_context 应注入 prompt，且不残留 {{previous_context}} 字面量。"""
+    from app.routers.generation import _build_section_prompt
+
+    ctx = "【总则】本预案适用于公司各类生产安全事故的应急处置。"
+    prompt = _build_section_prompt(
+        "应急处置卡", {"name": "甲公司"}, section_number=5,
+        previous_context=ctx,
+    )
+    assert ctx in prompt
+    assert "{{previous_context}}" not in prompt
+
+
+def test_build_section_prompt_db_template_renders_previous_context(monkeypatch):
+    """数据库模板路径下 {{previous_context}} 占位符应被实际内容替换。"""
+    from app.routers import generation as gen
+
+    tmpl = {
+        "system_prompt": "",
+        "user_prompt_template": (
+            "请撰写【{{section_title}}】章节。\n"
+            "前面章节内容：{{previous_context}}\n"
+            "企业信息：{{enterprise_data}}"
+        ),
+    }
+    monkeypatch.setattr(gen, "get_section_prompt", lambda *a, **k: tmpl)
+    prompt = gen._build_section_prompt(
+        "应急处置卡", {"name": "甲公司"}, section_key="sec_3", plan_type="onsite",
+        previous_context="前面内容摘要",
+    )
+    assert "前面内容摘要" in prompt
+    assert "{{previous_context}}" not in prompt
+    assert "{{enterprise_data}}" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_run_batch_generation_injects_previous_section_content():
+    """批量生成时，后续章节的 prompt 应包含前面已生成章节的内容摘要。"""
+    from app.routers.generation import _run_batch_generation
+
+    bg_db = AsyncMock()
+    sec1 = MagicMock()
+    sec1.section_key = "sec_1"
+    sec2 = MagicMock()
+    sec2.section_key = "sec_2"
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [sec1, sec2]
+    bg_db.execute.return_value = result
+
+    captured = []
+
+    async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
+        captured.append(prompt)
+        return "<p>第一章：总则正文内容，适用于所有生产安全事故。</p>"
+
+    out = await _run_batch_generation(
+        bg_db=bg_db,
+        plan_id="p1",
+        section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
+        ai_config=MagicMock(),
+        ent_data={},
+        plan_type="comprehensive",
+        accident_type=None,
+        style_preference=None,
+        advanced_overrides=None,
+        stream_fn=fake_stream,
+    )
+    assert out["completed"] == 2
+    assert len(captured) == 2
+    # 第二章节 prompt 应包含第一章节的标题与正文摘要
+    assert "总则" in captured[1]
+    assert "第一章：总则正文内容" in captured[1]
+
+
+@pytest.mark.asyncio
+async def test_run_batch_generation_ensures_prompt_cache_loaded(monkeypatch):
+    """批量生成必须先加载 prompt 模板缓存，否则数据库模板不生效、退回代码拼接。"""
+    from app.routers import generation as gen
+
+    calls = {"n": 0}
+
+    async def fake_ensure_loaded(*args, **kwargs):
+        calls["n"] += 1
+
+    monkeypatch.setattr(gen, "ensure_loaded", fake_ensure_loaded)
+
+    bg_db = AsyncMock()
+    sec1 = MagicMock()
+    sec1.section_key = "sec_1"
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [sec1]
+    bg_db.execute.return_value = result
+
+    async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
+        return "<p>ok</p>"
+
+    await gen._run_batch_generation(
+        bg_db=bg_db,
+        plan_id="p1",
+        section_tuples=[("sec_1", "总则")],
+        ai_config=MagicMock(),
+        ent_data={},
+        plan_type="comprehensive",
+        accident_type=None,
+        style_preference=None,
+        advanced_overrides=None,
+        stream_fn=fake_stream,
+    )
+    assert calls["n"] == 1
+
+
 def test_strip_section_heading_removes_leading_chapter_title():
     from app.services.plan_section_content import strip_section_heading
 
@@ -18,6 +129,32 @@ def test_strip_section_heading_removes_leading_chapter_title():
     assert strip_section_heading("<h1>第一章 总则</h1>\n\n正文内容") == "正文内容"
     assert strip_section_heading("1. 总则\n\n正文内容") == "正文内容"
     assert strip_section_heading("正文内容") == "正文内容"
+
+
+def test_strip_section_heading_keeps_first_h3_not_matching_title():
+    """新卡片模板内容以「处置步骤」等 h3 分区开头，不得误剥（它不是章节标题）。"""
+    from app.services.plan_section_content import strip_section_heading
+
+    html = "<h3>处置步骤</h3><ol><li>第一步</li></ol>"
+    assert strip_section_heading(html, section_title="紧急处置步骤") == html
+
+
+def test_strip_section_heading_removes_h3_matching_title():
+    """AI 若重复输出「3.2 紧急处置步骤」章节标题，仍应剥离。"""
+    from app.services.plan_section_content import strip_section_heading
+
+    html = "<h3>3.2 紧急处置步骤</h3><ol><li>第一步</li></ol>"
+    out = strip_section_heading(html, section_title="紧急处置步骤")
+    assert "<h3>" not in out
+
+
+def test_strip_section_heading_removes_plain_p_matching_title():
+    """纯文本章节标题重复（如「应急处置卡」）应剥离，正文保留。"""
+    from app.services.plan_section_content import strip_section_heading
+
+    html = "<p>应急处置卡</p><p>正文内容</p>"
+    out = strip_section_heading(html, section_title="应急处置卡")
+    assert out == "<p>正文内容</p>"
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ import Toast, { useToast } from "@/mobile/components/ui/Toast";
 import { getPlan } from "@/services/planService";
 import { listSections } from "@/services/planService";
 import { getExportPreview, exportDocx, getExportTaskStatus } from "@/services/exportService";
+import { EMERGENCY_CARD_CSS } from "@/styles/emergencyCardCss";
 
 type ExportPhase = "idle" | "validating" | "exporting" | "done" | "failed";
 
@@ -246,6 +247,7 @@ export default function ExportPreviewScreen() {
           },
         ]}
       />
+      <style>{EMERGENCY_CARD_CSS}</style>
 
       {/* 主内容区 */}
       <div className="flex-1 overflow-y-auto" ref={contentRef}>
