@@ -1,11 +1,15 @@
 ## 当前状态快照（压缩恢复用）
-- 正在做什么（2026-08-19）：用户提交 21 项反馈 → 已完成全量代码定位与方案文档，等待用户确认批次与设计取舍
+- 正在做什么（2026-08-20）：用户询问「应急处置卡」——已读 TASKS.md，已检索项目内引用（backend/seed_templates.py:166 sec_3、backend/seed_prompts_full.py:525 现场处置方案-应急处置卡 prompt），回答后更新本快照
+- 正在做什么（2026-08-19）：21 项反馈 A-D 已实现提交，且已完成 Docker 部署生效（迁移应用 + 后端重启 + 冒烟验证）
 - 刚完成的动作：
-  - 逐项代码定位 21 项反馈（组织成员/组织树/管控清单/工作台/驾驶舱/报告/风险树/楼层/四色图/预案编辑与导出/版本/法规库）
-  - 产出 `docs/superpowers/specs/2026-08-19-user-feedback-triage.md`：每项含根因、文件证据、方案、量级、优先级；含建议批次 A-D 与 4 个待确认问题
-  - 关键根因确认：engineering 来自 risk_control_list_service._row 英文键直出；热区偏移来自 RiskDistributionStage contentBounds 缩放 vs 工作台整画布 fit；版本回滚不更新 current_version 且前端未失效 plan query；docx 导出未剥离正文开头标题（预览已剥离）；法规新 tab 401（无鉴权头）+ 硬编码 /api/v1；PlanEditorPage 返回固定 /plans
-- 下一步：等待用户确认（批次顺序；§1 树内成员是否并入 enterprise_members；§6 工作台布局；§11 字典位置）→ 按批次进入实现（按铁律二先 git save/codegraph 查询）
-- 关键上下文：master 分支；本批次为纯分析未改源码；TASKS.md 永不 commit
+  - Docker 生效：backend/app 源码挂载 + 前端 src 挂载（vite HMR）；已应用 db_migration_enterprise_members_unbound.sql 与 db_migration_report_versions.sql（幂等），docker restart emergency-plan-backend，验证 health 200、/risk-assessment/versions 与 /org/members 路由 401（已注册）、frontend 5173 200；enterprise_members 新列/部分唯一索引 uq_enterprise_members_bound_user 与 report_versions 表结构确认
+  - 批次 A 7aed597（9 项）：engineering 中文映射、版本回滚 current_version、逐级返回、热区整画布 fit+底图、驾驶舱文案、法规源文件弹窗、楼层平面图菜单去重、删除平面图端点、组织树节点类型
+  - 批次 B b2d7657（3 项）：楼层级联删除+二次确认（enterprise_cleanup_service.floor_delete_counts/delete_floor_risk_mapping）、智能引导合并导入（buildExistingIndex 层级去重/补措施）、字典配置移入驾驶舱模块导航
+  - 批次 C（2 项）：成员不绑定账号（user_id 可空+name/phone/email、部分唯一索引、迁移 db_migration_enterprise_members_unbound.sql、前端双模式弹窗）；报告编辑+版本（report_versions 工厂路由、迁移 db_migration_report_versions.sql、两个预览页编辑/保存版本/回滚）
+  - 批次 D（6 项）：工作台企业门户化（企业卡片网格+快捷新建筛选）、企业基本信息页扩容（完成度模块/统计/GIS/平面图）、完成度移入驾驶舱（删除 CompletionCard）、质量提示 evidence+预览 mark+docx 高亮（plan_quality_service/docx _add_inline_runs）、章节序号（提示词去编号+公共 strip_section_heading）
+  - 方案文档：`docs/superpowers/specs/2026-08-19-user-feedback-triage.md`
+- 下一步：待确认——graphify update 更新知识图谱（codegraph sync 已完成：92 文件 1635 节点）、git finish 推送 GitHub+Gitee；移动端本轮无改动无需重建镜像
+- 关键上下文：commit 链 a887752(savepoint)→7aed597→b2d7657→C→D；新增迁移：db_migration_enterprise_members_unbound.sql、db_migration_report_versions.sql；TASKS.md 永不 commit
 
 ## 当前状态快照（压缩恢复用）
 - 正在做什么（2026-08-19 09:5x）：图谱增量更新（用户指令「更新图谱」，覆盖 08-16~08-19 工作）
