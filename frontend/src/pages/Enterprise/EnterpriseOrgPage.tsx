@@ -275,6 +275,12 @@ export default function EnterpriseOrgPage() {
     [nodes],
   );
 
+  // 选中组织树节点时，右侧成员列表只显示该节点下的成员（org_node_id 关联节点 id）
+  const visibleMembers = useMemo(
+    () => (selectedNodeId ? members.filter(m => m.org_node_id === selectedNodeId) : members),
+    [members, selectedNodeId],
+  );
+
   const refetchAll = useCallback(() => {
     refetchMembers();
     refetchNodes();
@@ -755,6 +761,16 @@ export default function EnterpriseOrgPage() {
                 将添加到：{buildOrgPath(selectedNodeId, nodes) || "未命名节点"}
               </Tag>
             )}
+            {selectedNodeId && (
+              <Tag color="geekblue">
+                当前显示：{buildOrgPath(selectedNodeId, nodes) || "未命名节点"}（{visibleMembers.length} 人）
+              </Tag>
+            )}
+            {selectedNodeId && (
+              <Button size="small" type="link" onClick={() => setSelectedNodeId(undefined)}>
+                显示全部成员
+              </Button>
+            )}
             <span style={{ color: "#8c8c8c", fontSize: 13 }}>绑定已有账号：按邮箱搜索</span>
           </Space>
           <Table
@@ -762,9 +778,19 @@ export default function EnterpriseOrgPage() {
             size="small"
             loading={membersLoading}
             columns={columns}
-            dataSource={members}
+            dataSource={visibleMembers}
             pagination={false}
-            locale={{ emptyText: <Empty description="暂无成员，可 Excel 导入或手动添加" /> }}
+            locale={{
+              emptyText: (
+                <Empty
+                  description={
+                    selectedNodeId
+                      ? "该节点下暂无成员，可点击「添加成员」或 Excel 导入"
+                      : "暂无成员，可 Excel 导入或手动添加"
+                  }
+                />
+              ),
+            }}
           />
         </div>
       </div>
