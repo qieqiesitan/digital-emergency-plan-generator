@@ -4,6 +4,7 @@ import logging
 import time
 import asyncio
 from typing import Optional
+from sqlalchemy import case, select
 
 logger = logging.getLogger(__name__)
 
@@ -167,10 +168,14 @@ async def _load_from_local_db() -> None:
     try:
         from app.database import async_session
         from app.models.prompt import PromptTemplate
-        from sqlalchemy import select
         async with async_session() as db:
             rows = (await db.execute(
-                select(PromptTemplate).where(PromptTemplate.status.in_(["active", "0"]))
+                select(PromptTemplate)
+                .where(PromptTemplate.status.in_(["active", "0"]))
+                .order_by(
+                    case((PromptTemplate.status == "active", 0), else_=1),
+                    PromptTemplate.id.desc(),
+                )
             )).scalars().all()
             _cache = {}
             for row in rows:

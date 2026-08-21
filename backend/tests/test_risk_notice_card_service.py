@@ -115,6 +115,19 @@ def test_build_right_column_uses_snapshot():
     assert col.emergency_measures == ["快照应急措施"]
 
 
+def test_build_right_column_emergency_template_normalizes_legacy_value():
+    """旧值「瓦斯爆炸」的应急模板应命中「可燃气体爆炸」模板（含严禁火源，通风排放）而非兜底。"""
+    events = [_event("瓦斯爆炸", "重大", "", "")]
+    measures = [
+        RiskMeasure(measure_category="engineering", description="防静电接地"),
+        RiskMeasure(measure_category="management", description="动火审批"),
+    ]
+    col = build_right_column(events, measures)
+    joined = " ".join(col.emergency_measures)
+    assert "严禁火源，通风排放" in joined
+    assert "立即停止作业，保护现场" not in joined  # 非兜底模板
+
+
 def test_is_stale_timezone():
     """naive 与 aware 时间统一换算 UTC 后正确比较。"""
     snap = RiskNoticeCard(updated_at=datetime(2026, 1, 1, 12, 0, 0))

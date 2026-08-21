@@ -81,6 +81,8 @@ def build_right_column(
     measures: list[RiskMeasure],
     snapshot: dict | None = None,
 ) -> RightColumn:
+    from app.services.accident_types import normalize_accident_type
+
     if snapshot:
         return RightColumn(
             hazard_description=snapshot.get("hazard_description", ""),
@@ -107,7 +109,7 @@ def build_right_column(
     if len(emergency) < 2:
         template: list[str] = []
         for at in accident_types:
-            template += EMERGENCY_TEMPLATES.get(at, [])
+            template += EMERGENCY_TEMPLATES.get(normalize_accident_type(at), [])
         if not template:
             template = DEFAULT_EMERGENCY_TEMPLATE
         merged = _dedupe(emergency_db + template)

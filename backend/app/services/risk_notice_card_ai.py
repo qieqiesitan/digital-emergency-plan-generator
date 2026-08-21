@@ -85,7 +85,7 @@ async def review_signs(
     current_text = "、".join(f"{s.get('name', '')}({s.get('svg_name', '')})" for s in current_signs) or "（无）"
     catalog_text = "；".join(f"{s.get('name', '')}({s.get('svg_name', '')})" for s in catalog)
     prompt = (
-        "你是安全生产专家，熟悉 GB 2894-2025《安全色和安全标志》与 GB 6441-1986 事故分类。"
+        "你是安全生产专家，熟悉 GB 2894-2025《安全色和安全标志》与 GB 6441-2025 事故分类。"
         "请审查以下风险点告知卡的安全标志是否合理，输出严格 JSON："
         '{"remove": ["svg_name 列表（仅限当前标志中不合理的）"], "add": ["svg_name 列表（仅限候选库中应补充的）"], '
         '"reasons": [{"sign_name": "标志中文名", "reason": "具体理由"}]}。'
