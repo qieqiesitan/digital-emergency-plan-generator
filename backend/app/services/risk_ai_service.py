@@ -163,7 +163,7 @@ async def suggest_objects(
     messages = [
         {
             "role": "system",
-            "content": "你是持有国家注册安全工程师资格的应急预案专家，精通 GB/T 13861 和 GB 6441。",
+            "content": "你是持有国家注册安全工程师资格的应急预案专家，精通 GB/T 13861 和 GB 6441-2025。",
         },
         {"role": "user", "content": prompt},
     ]
@@ -199,7 +199,7 @@ async def suggest_events(
         f"你是一位持有国家注册安全工程师资格的风险评估专家。\n\n"
         f"请分析以下风险分析单元可能发生的事故类型，给出 1-3 个最可能的风险事件。\n\n"
         f"每个事件包含：\n"
-        f"- accident_type: 事故类型（按 GB 6441-1986）\n"
+        f"- accident_type: 事故类型（按 GB 6441-2025 的 27 类：物体打击、厂（场）内车辆致害、道路（轨道）车辆致害、机械致害、起重致害、触电、淹溺、灼烫、火灾、高处坠落、跌落、坍塌、水害、容器爆炸、管道爆炸、可燃气体爆炸、可燃液体蒸气爆炸、粉尘爆炸、民用爆炸物品爆炸、烟花爆竹爆炸、其他可燃固体爆炸、高温熔融物爆炸、中毒、窒息、滑坡、泄漏、其他）\n"
         f"- description: 事故描述\n"
         f"- trigger_conditions: 触发条件\n"
         f"- consequences: 可能后果\n"
@@ -218,7 +218,7 @@ async def suggest_events(
     messages = [
         {
             "role": "system",
-            "content": "你是持有国家注册安全工程师资格的风险评估专家，精通 GB/T 13861 和 GB 6441。",
+            "content": "你是持有国家注册安全工程师资格的风险评估专家，精通 GB/T 13861 和 GB 6441-2025。",
         },
         {"role": "user", "content": prompt},
     ]
