@@ -7,6 +7,7 @@ from app.models.enterprise import RiskSource
 from app.models.risk_management import RiskZone, RiskObject, RiskEvent, RiskMeasure
 from app.services.risk_mapping_service import ensure_default_floor
 from app.services.risk_method_engine import compute_risk, get_active_method_config
+from app.services.accident_types import normalize_accident_type
 
 
 def split_control_measures(text: str | None) -> list[str]:
@@ -78,10 +79,8 @@ async def build_migration_preview(
             ai = by_id.get(item["source_id"], {})
             item["suggested_zone"] = ai.get("suggested_zone") or item["suggested_zone"]
             item["suggested_object"] = ai.get("suggested_object") or item["suggested_object"]
-            item["suggested_event"] = (
-                ai.get("suggested_accident_type")
-                or ai.get("suggested_event")
-                or item["suggested_event"]
+            item["suggested_event"] = normalize_accident_type(
+                ai.get("suggested_accident_type") or ai.get("suggested_event") or item["suggested_event"]
             )
             params = ai.get("suggested_params") or item["suggested_params"]
             if isinstance(params, dict):
@@ -195,7 +194,7 @@ async def execute_migration(
             rating = compute_risk("LS", params, config)
             event = RiskEvent(
                 object_id=obj.id,
-                accident_type=mapping.accident_type,
+                accident_type=normalize_accident_type(mapping.accident_type),
                 description=source.description or "",
                 method_type="LS",
                 method_params=params,
