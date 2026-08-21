@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AppIcon from "@/components/common/AppIcon";
 import { listRiskSources, createRiskSource, updateRiskSource, deleteRiskSource } from "@/services/riskSourceService";
 import { RiskLevelTag } from "./RiskLevelTag";
-import { PRESET_RISK_CATEGORIES } from "@/utils/constants";
+import { ACCIDENT_TYPES_2025 } from "@/utils/accidentTypes";
 import FloorPlanPicker from "./FloorPlanPicker";
 import RiskSourceImportModal from "./RiskSourceImportModal";
 import RiskSourceAIGenerateModal from "./RiskSourceAIGenerateModal";
@@ -140,7 +140,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
             placeholder="选择风险类别（可多选）"
             value={form.categories}
             onChange={(v) => setForm((f) => ({ ...f, categories: v }))}
-            options={PRESET_RISK_CATEGORIES.map((c) => ({ value: c, label: c }))}
+            options={ACCIDENT_TYPES_2025.map((c) => ({ value: c, label: c }))}
             style={{ width: "100%" }}
           />
           <Input placeholder="风险名称" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />

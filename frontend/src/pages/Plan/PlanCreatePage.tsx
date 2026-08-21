@@ -8,6 +8,7 @@ import { getEnterprise } from "@/services/enterpriseService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PLAN_TYPE_LABELS } from "@/utils/constants";
+import { ACCIDENT_TYPES_2025 } from "@/utils/accidentTypes";
 import type { PlanType } from "@/types/plan";
 
 const { Title, Text } = Typography;
@@ -120,10 +121,7 @@ export default function PlanCreatePage() {
             allowClear
             value={accidentType || undefined}
             onChange={setAccidentType}
-            options={[
-              "火灾", "爆炸", "触电", "中毒窒息", "机械伤害",
-              "高处坠落", "物体打击", "车辆伤害", "淹溺", "坍塌",
-            ].map((t) => ({ value: t, label: t }))}
+            options={ACCIDENT_TYPES_2025.map((t) => ({ value: t, label: t }))}
           />
           <Space style={{ marginTop: 16 }}>
             <Button onClick={() => setCurrentStep(0)}>上一步</Button>

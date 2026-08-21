@@ -29,7 +29,6 @@ export function computeRiskLEC(l: number, e: number, c: number, thresholds = DEF
 
 export const RISK_LEVEL_COLORS: Record<string, string> = { "重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a" };
 export const MEASURE_CATEGORY_LABELS: Record<string, string> = { engineering: "工程技术", management: "管理措施", ppe: "个体防护", emergency: "应急处置" };
-export const ACCIDENT_TYPES = ["物体打击","车辆伤害","机械伤害","起重伤害","触电","淹溺","灼烫","火灾","高处坠落","坍塌","锅炉爆炸","容器爆炸","其他爆炸","中毒和窒息","其他伤害"];
 export function getCellClass(r: number): string { if (r >= 20) return "lvl-red"; if (r >= 15) return "lvl-orange"; if (r >= 9) return "lvl-yellow"; return "lvl-green"; }
 
 export function renderMatrixData(_methodType: string, thresholds = DEFAULT_LS_THRESHOLDS): { l: number; s: number; r: number; level: string; color: string }[][] {
