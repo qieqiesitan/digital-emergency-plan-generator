@@ -121,11 +121,14 @@ def build_right_column(
 
 
 def match_signs(accident_types: list[str]) -> list[dict]:
-    """按 SIGN_GROUPS 合并去重，按 警告→禁止→指令→提示 排序，每类最多 2 个。"""
+    """按 SIGN_GROUPS 合并去重；旧值经 normalize_accident_type 映射；按 警告→禁止→指令→提示 排序，每类最多 2 个。"""
+    from app.services.accident_types import normalize_accident_type
+
     merged: list[dict] = []
     seen: set[str] = set()
     for at in accident_types:
-        group = EXTRA_SIGN_GROUPS.get(at) or SIGN_GROUPS.get(at, DEFAULT_SIGN_GROUP)
+        key = normalize_accident_type(at)
+        group = EXTRA_SIGN_GROUPS.get(key) or SIGN_GROUPS.get(key, DEFAULT_SIGN_GROUP)
         for s in group:
             if s["svg_name"] not in seen:
                 seen.add(s["svg_name"])
