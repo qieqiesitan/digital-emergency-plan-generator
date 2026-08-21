@@ -1,9 +1,3 @@
-export const PRESET_RISK_CATEGORIES = [
-  "火灾", "爆炸", "触电", "中毒窒息", "机械伤害",
-  "高处坠落", "物体打击", "车辆伤害", "淹溺", "坍塌",
-  "锅炉爆炸", "容器爆炸",
-] as const;
-
 export const PRESET_EMERGENCY_GROUPS: Record<string, string> = {
   headquarters: "应急指挥部",
   rescue: "抢险救灾组",

@@ -15,6 +15,7 @@ import { listEnterprises } from "@/services/enterpriseService";
 import { getFullHierarchy } from "@/services/riskManagementService";
 import { createPlan } from "@/services/planService";
 import { flattenHierarchyEvents } from "@/utils/riskHierarchyEvents";
+import { ACCIDENT_TYPES_2025, normalizeAccidentType } from "@/utils/accidentTypes";
 import type { PlanType } from "@/types/plan";
 
 const TYPE_OPTIONS: { type: PlanType; icon: React.ReactNode; title: string; desc: string }[] = [
@@ -59,9 +60,16 @@ export default function PlanCreateScreen() {
 
   const rows = useMemo(() => flattenHierarchyEvents(riskHierarchy), [riskHierarchy]);
 
+  const recommended = useMemo(
+    () =>
+      [...new Set(rows.map((r) => normalizeAccidentType(r.accident_type)))]
+        .filter((t) => ACCIDENT_TYPES_2025.includes(t as (typeof ACCIDENT_TYPES_2025)[number])),
+    [rows],
+  );
+
   const accidentOptions = useMemo(
-    () => [...new Set(rows.map(r => r.accident_type))],
-    [rows]
+    () => [...recommended, ...ACCIDENT_TYPES_2025.filter((t) => !recommended.includes(t))],
+    [recommended],
   );
 
   const defaultTitle = useMemo(() => {
@@ -208,29 +216,21 @@ export default function PlanCreateScreen() {
                 <label className="block text-body-sm font-medium text-neutral-600 mb-2">
                   事故类型 {accidentTypes.length > 0 && <span className="text-primary-600">({accidentTypes.length} 个已选)</span>}
                 </label>
-                {accidentOptions.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {accidentOptions.map(name => (
-                      <Chip
-                        key={name}
-                        selected={accidentTypes.includes(name)}
-                        onClick={() =>
-                          setAccidentTypes(prev =>
-                            prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-                          )
-                        }
-                      >
-                        {name}
-                      </Chip>
-                    ))}
-                  </div>
-                ) : (
-                  <Input
-                    placeholder="输入事故类型，多个用、分隔（如：火灾、触电）"
-                    value={accidentTypes.join("、")}
-                    onChange={(v) => setAccidentTypes(v ? v.split(/[、,]/).filter(Boolean) : [])}
-                  />
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {accidentOptions.map(name => (
+                    <Chip
+                      key={name}
+                      selected={accidentTypes.includes(name)}
+                      onClick={() =>
+                        setAccidentTypes(prev =>
+                          prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+                        )
+                      }
+                    >
+                      {name}
+                    </Chip>
+                  ))}
+                </div>
               </div>
             )}
 

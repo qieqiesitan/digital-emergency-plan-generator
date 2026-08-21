@@ -115,6 +115,19 @@ def test_build_right_column_uses_snapshot():
     assert col.emergency_measures == ["快照应急措施"]
 
 
+def test_build_right_column_emergency_template_normalizes_legacy_value():
+    """旧值「瓦斯爆炸」的应急模板应命中「可燃气体爆炸」模板（含严禁火源，通风排放）而非兜底。"""
+    events = [_event("瓦斯爆炸", "重大", "", "")]
+    measures = [
+        RiskMeasure(measure_category="engineering", description="防静电接地"),
+        RiskMeasure(measure_category="management", description="动火审批"),
+    ]
+    col = build_right_column(events, measures)
+    joined = " ".join(col.emergency_measures)
+    assert "严禁火源，通风排放" in joined
+    assert "立即停止作业，保护现场" not in joined  # 非兜底模板
+
+
 def test_is_stale_timezone():
     """naive 与 aware 时间统一换算 UTC 后正确比较。"""
     snap = RiskNoticeCard(updated_at=datetime(2026, 1, 1, 12, 0, 0))
@@ -137,18 +150,23 @@ def test_match_signs_merges_and_orders():
 
 def test_match_signs_excludes_eyewash_for_burn_and_poisoning():
     """热烫伤/吸入中毒场景不应自动匹配洗眼台（化学灼伤专用设施）。"""
-    for accident_types in (["灼烫"], ["其他伤害", "灼烫"], ["中毒和窒息"]):
+    for accident_types in (["灼烫"], ["其他", "灼烫"], ["中毒"]):
         signs = match_signs(accident_types)
         assert all(s["name"] != "洗眼台" for s in signs), accident_types
 
 
-def test_match_signs_vehicle_and_boiler():
-    """车辆伤害不出现紧急出口；锅炉爆炸不出现必须消除静电。"""
-    vehicle = match_signs(["车辆伤害"])
+def test_match_signs_vehicle_and_explosion():
+    """厂（场）内车辆致害不出现紧急出口；容器爆炸应有疏散出口。"""
+    vehicle = match_signs(["厂（场）内车辆致害"])
     assert all(s["name"] != "紧急出口" for s in vehicle)
-    boiler = match_signs(["锅炉爆炸"])
-    assert all(s["name"] != "必须消除静电" for s in boiler)
-    assert any(s["name"] == "紧急出口" for s in boiler)
+    explosion = match_signs(["容器爆炸"])
+    assert any(s["name"] == "紧急出口" for s in explosion)
+
+
+def test_match_signs_normalizes_legacy_values():
+    """旧值经 normalize 映射到新组：瓦斯爆炸→可燃气体爆炸（含防静电）。"""
+    signs = match_signs(["瓦斯爆炸"])
+    assert any(s["name"] == "必须消除静电" for s in signs)
 
 
 def test_match_signs_fallback_is_generic_only():

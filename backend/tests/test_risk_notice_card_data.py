@@ -1,15 +1,15 @@
-"""风险告知卡常量数据测试：标志映射覆盖 GB 6441 全部 20 类。"""
+"""风险告知卡常量数据测试：标志映射覆盖 GB 6441-2025 全部 27 类。"""
+from app.services.accident_types import ACCIDENT_TYPES_2025
 from app.services.risk_notice_card_data import (
     SIGN_GROUPS,
     DEFAULT_SIGN_GROUP,
     EMERGENCY_TEMPLATES,
     SIGN_CATEGORY_ORDER,
-    GB6441_ACCIDENT_TYPES,
 )
 
 
 def test_sign_groups_cover_all_gb6441_types():
-    assert set(SIGN_GROUPS.keys()) == set(GB6441_ACCIDENT_TYPES)
+    assert set(SIGN_GROUPS.keys()) == set(ACCIDENT_TYPES_2025)
 
 
 def test_sign_groups_are_non_empty_and_ordered():
@@ -39,36 +39,35 @@ def test_default_sign_group_and_emergency_templates():
 
 
 def test_emergency_templates_cover_all_types():
-    assert set(EMERGENCY_TEMPLATES) == set(GB6441_ACCIDENT_TYPES)
+    assert set(EMERGENCY_TEMPLATES) == set(ACCIDENT_TYPES_2025)
     for accident_type, steps in EMERGENCY_TEMPLATES.items():
         assert len(steps) >= 2, accident_type
 
 
 def test_eyewash_not_mapped_to_thermal_burn_or_inhalation():
     """洗眼台仅用于化学灼伤/腐蚀品溅眼，不应出现在热烫伤与吸入中毒的通用标志组。"""
-    for accident_type in ("灼烫", "中毒和窒息"):
+    for accident_type in ("灼烫", "中毒"):
         names = [s["name"] for s in SIGN_GROUPS[accident_type]]
         assert "洗眼台" not in names, f"{accident_type} 不应包含洗眼台"
 
 
-def test_vehicle_injury_group_has_no_emergency_exit():
+def test_vehicle_group_has_no_emergency_exit():
     """车辆伤害发生在厂区道路/装卸区，与安全出口标志无直接关联。"""
-    names = [s["name"] for s in SIGN_GROUPS["车辆伤害"]]
+    names = [s["name"] for s in SIGN_GROUPS["厂（场）内车辆致害"]]
     assert "当心车辆" in names
     assert "紧急出口" not in names
 
 
-def test_boiler_explosion_group_has_no_static_instruction():
-    """锅炉爆炸主因是超压/缺水/安全阀失效，与静电无关联；应有疏散出口。"""
-    names = [s["name"] for s in SIGN_GROUPS["锅炉爆炸"]]
-    assert "当心爆炸" in names
-    assert "必须消除静电" not in names
-    assert "紧急出口" in names
-
-
-def test_other_injury_group_has_no_production_ppe():
+def test_other_group_has_no_production_ppe():
     """其他伤害/兜底组不应含安全帽、机械伤人、禁止烟火等生产性防护标志。"""
-    names = [s["name"] for s in SIGN_GROUPS["其他伤害"]]
+    names = [s["name"] for s in SIGN_GROUPS["其他"]]
     assert "紧急出口" in names
     for bad in ("必须戴安全帽", "当心机械伤人", "禁止烟火"):
-        assert bad not in names, f"其他伤害组不应包含 {bad}"
+        assert bad not in names, f"其他组不应包含 {bad}"
+
+
+def test_new_2025_types_have_sign_groups():
+    for t in ("道路（轨道）车辆致害", "跌落", "管道爆炸", "可燃液体蒸气爆炸", "粉尘爆炸",
+              "烟花爆竹爆炸", "其他可燃固体爆炸", "高温熔融物爆炸", "窒息", "滑坡", "泄漏"):
+        assert SIGN_GROUPS[t], t
+        assert EMERGENCY_TEMPLATES[t], t

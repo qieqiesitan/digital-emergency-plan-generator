@@ -6,7 +6,8 @@ import {
 import { CalculatorOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import AppIcon from "@/components/common/AppIcon";
-import { computeRiskLS, computeRiskLEC, getCellClass, ACCIDENT_TYPES, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { computeRiskLS, computeRiskLEC, getCellClass, RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { ACCIDENT_TYPES_2025 } from "@/utils/accidentTypes";
 import { buildEventPayload, DIRECT_LEVELS } from "@/utils/eventPayload";
 import {
   aiSuggestEvents,
@@ -411,8 +412,8 @@ export default function RiskEventForm({
             showSearch
             mode="multiple"
             allowClear
-            placeholder="选择 GB6441 事故类型"
-            options={ACCIDENT_TYPES.map((t) => ({ value: t, label: t }))}
+            placeholder="选择 GB 6441-2025 事故类型"
+            options={ACCIDENT_TYPES_2025.map((t) => ({ value: t, label: t }))}
             filterOption={(input, option) =>
               (option?.label as string)?.includes(input) ?? false
             }

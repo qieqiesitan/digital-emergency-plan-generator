@@ -25,6 +25,7 @@ from app.database import get_db
 from app.models.enterprise import Enterprise, RiskSource
 
 from app.services.llm_client import llm_text_completion
+from app.services.accident_types import ACCIDENT_TYPES_2025
 
 from app.schemas.risk_source import RiskSourceCreate, RiskSourceResponse
 
@@ -180,7 +181,7 @@ async def download_risk_source_template(
 
     # Data validation for risk categories
 
-    cat_dv = DataValidation(type="list", formula1='"' + ",".join(PRESET_RISK_CATEGORIES) + '"', allow_blank=True)
+    cat_dv = DataValidation(type="list", formula1='"' + ",".join(ACCIDENT_TYPES_2025) + '"', allow_blank=True)
 
     cat_dv.error = "请从列表中选择风险类别"
 
@@ -306,7 +307,7 @@ async def import_risk_sources(
 
     valid_severity = {"高", "中", "低"}
 
-    valid_categories = set(PRESET_RISK_CATEGORIES)
+    valid_categories = set(ACCIDENT_TYPES_2025)
 
 
 
@@ -518,7 +519,7 @@ async def get_risk_ai_questions(
 
 {existing_summary}
 
-参考风险类别（全部）：{", ".join(PRESET_RISK_CATEGORIES)}
+参考风险类别（全部）：{", ".join(ACCIDENT_TYPES_2025)}
 
 
 
@@ -680,7 +681,7 @@ async def generate_risk_sources_ai(
 
 请列出该企业尚未录入的主要风险源。每个风险源包含以下字段（请用简体中文）：
 
-- categories: 风险类别列表，从以下选择：{", ".join(PRESET_RISK_CATEGORIES)}（可选多个，但优先选择最匹配的1-2个）
+- categories: 风险类别列表，从以下选择：{", ".join(ACCIDENT_TYPES_2025)}（可选多个，但优先选择最匹配的1-2个）
 
 - name: 风险源名称（简明扼要，必须与已录入风险源名称不重复）
 
