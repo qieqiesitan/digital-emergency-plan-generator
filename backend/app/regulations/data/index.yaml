@@ -36,6 +36,7 @@ risk_assessment:
   optional:
   - gb30077_2023
   - gb6441_1986
+  - gb6441_2025
   - law_safety_production_2021
   - std_gbt29639_2020
   - reg____
