@@ -195,3 +195,21 @@ async def test_generate_batch_sse_event_sequence(monkeypatch):
     finally:
         gen._active_generations.pop("p1", None)
         gen._failed_sections.pop("p1", None)
+
+
+@pytest.mark.asyncio
+async def test_stream_llm_chunks_yields_each_chunk(monkeypatch):
+    """回归：_stream_llm_chunks 必须逐 chunk 产出（SSE 逐 token 推送的根基）。"""
+    from app.routers import generation as gen
+
+    async def fake_completion(messages, ai_config, stream=True, timeout=120):
+        async def _inner():
+            for c in ["第", "一", "章"]:
+                yield c
+        return _inner()
+
+    monkeypatch.setattr(gen, "llm_chat_completion", fake_completion)
+    chunks = []
+    async for c in gen._stream_llm_chunks("prompt", MagicMock(), "comprehensive"):
+        chunks.append(c)
+    assert chunks == ["第", "一", "章"]
