@@ -32,6 +32,14 @@ graphify-out/
 # 视觉头脑风暴伴侣
 .superpowers/
 
+# 子代理任务池（认领/收据文件不入库）
+.codex-custom-subagents/
+
+# docx 导出排版优化临时验证产物
+backend/exports/_*/
+backend/exports/_*.pdf
+backend/exports/_*.py
+
 # 测试产物
 screenshots/
 test-results/
