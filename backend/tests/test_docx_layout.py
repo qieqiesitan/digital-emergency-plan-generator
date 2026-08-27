@@ -189,3 +189,34 @@ def test_html_table_uses_build_table():
     assert len(doc.tables) == 1
     tbl = doc.tables[0]
     assert tbl.cell(0, 0).paragraphs[0].runs[0].font.size == Pt(12)
+
+
+def test_toc_field_present(no_playwright):
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=_sample_sections(),
+    )
+    # 计划原测试只查 body：TOC 域在正文 body 可命中，但 PAGE/NUMPAGES 域位于
+    # 页脚部件（w:ftr）而非 body，故合并 body + 各节页脚部件一起收集域。
+    flds = list(doc.element.body.findall(".//" + qn("w:fldSimple")))
+    for sec in doc.sections:
+        flds.extend(sec.footer._element.findall(".//" + qn("w:fldSimple")))
+    instrs = [f.get(qn("w:instr")) for f in flds]
+    assert any("TOC" in (i or "") for i in instrs)
+    assert any((i or "").strip() == "PAGE" for i in instrs)
+    assert any((i or "").strip() == "NUMPAGES" for i in instrs)
+
+
+def test_header_footer_text_and_first_page(no_playwright):
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=_sample_sections(),
+    )
+    sec = doc.sections[0]
+    assert sec.different_first_page_header_footer is True
+    assert "测试公司" in sec.header.paragraphs[0].text
+    assert "综合应急预案" in sec.header.paragraphs[0].text
+    assert "第" in sec.footer.paragraphs[0].text
+    assert "共" in sec.footer.paragraphs[0].text

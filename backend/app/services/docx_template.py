@@ -30,7 +30,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn, nsdecls
 
-from docx.oxml import parse_xml
+from docx.oxml import parse_xml, OxmlElement
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
@@ -366,6 +366,63 @@ def _set_east_asian_font_in_run(run, font_name):
         rfonts = parse_xml(f'<w:rFonts {nsdecls("w")} />')
         rpr.insert(0, rfonts)
     rfonts.set(qn("w:eastAsia"), font_name)
+
+
+# ═══════════════════════════════════════════
+# 目录页 + 页眉页脚
+# ═══════════════════════════════════════════
+
+def add_toc(doc: Document):
+    """插入目录页：黑体 18pt 标题 + TOC 域（Word/WPS 打开后 F9 刷新）。"""
+    p = doc.add_paragraph("目　　录", style=STYLE_TOC_TITLE)
+    p.paragraph_format.space_after = Pt(24)
+    toc_p = doc.add_paragraph()
+    fld = OxmlElement("w:fldSimple")
+    fld.set(qn("w:instr"), r'TOC \o "1-3" \h \z \u')
+    run_el = OxmlElement("w:r")
+    t_el = OxmlElement("w:t")
+    t_el.text = "（打开文档后按 F9 刷新目录）"
+    run_el.append(t_el)
+    fld.append(run_el)
+    toc_p._p.append(fld)
+    doc.add_page_break()
+
+
+def _setup_header_footer(doc: Document, company_name: str, plan_title: str):
+    """页眉=企业名+预案标题；页脚=第 X 页 共 Y 页；封面首页不显示。"""
+    sec = doc.sections[0]
+    sec.different_first_page_header_footer = True
+
+    hp = sec.header.paragraphs[0]
+    hp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = hp.add_run(f"{company_name}　{plan_title}")
+    r.font.size = Pt(SIZE_HEADER_FOOTER)
+    _set_east_asian_font_in_run(r, FONT_SONGTI)
+
+    fp = sec.footer.paragraphs[0]
+    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    def _footer_run(text=""):
+        run = fp.add_run(text)
+        run.font.size = Pt(SIZE_HEADER_FOOTER)
+        _set_east_asian_font_in_run(run, FONT_SONGTI)
+        return run
+
+    def _field(instr):
+        fld = OxmlElement("w:fldSimple")
+        fld.set(qn("w:instr"), instr)
+        run_el = OxmlElement("w:r")
+        t_el = OxmlElement("w:t")
+        t_el.text = "1"
+        run_el.append(t_el)
+        fld.append(run_el)
+        fp._p.append(fld)
+
+    _footer_run("第 ")
+    _field("PAGE")
+    _footer_run(" 页 共 ")
+    _field("NUMPAGES")
+    _footer_run(" 页")
 
 
 # ═══════════════════════════════════════════
@@ -823,13 +880,22 @@ def generate_plan_docx(
                 doc_title=doc_title,
                 signature_company=company_name)
 
-    # 3) 签署页
+    # 3) 签署页（保留）
     if signers:
         build_signature_page(doc, signers)
 
-    # 4) 正文节（与封面统一：A4 + 公文边距）
+    # 4) 目录页（批准页/签署页之后、正文节之前）
+    add_toc(doc)
+
+    # 5) 正文节（统一边距）
     add_section(doc, MARGIN_COVER_LEFT, MARGIN_COVER_RIGHT,
                 MARGIN_COVER_TOP, MARGIN_COVER_BOTTOM)
+    body_section = doc.sections[-1]
+    body_section.header.is_linked_to_previous = True
+    body_section.footer.is_linked_to_previous = True
+
+    # 6) 页眉页脚（封面节，首页不显示）
+    _setup_header_footer(doc, company_name, plan_title)
 
     # 正文大标题
     add_body_title(doc, body_title)
