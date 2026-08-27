@@ -586,11 +586,19 @@ def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1, 
             doc.add_paragraph("")
 
         elif tag in ("ul", "ol"):
+            style_name = "List Bullet" if tag == "ul" else "List Number"
             for li in element.find_all("li", recursive=False):
-                prefix = ""  # use Word List Bullet style, no manual bullet
-                p = doc.add_paragraph(li.get_text().strip(), style="List Bullet")
-                p.paragraph_format.left_indent = Cm(1.0)
-                p.paragraph_format.first_line_indent = Cm(-0.5)
+                text = li.get_text().strip()
+                if not text:
+                    continue
+                if len(text) <= LI_TEXT_THRESHOLD:
+                    p = doc.add_paragraph(text, style=style_name)
+                    p.paragraph_format.left_indent = Cm(1.0)
+                    p.paragraph_format.first_line_indent = Cm(-0.5)
+                else:
+                    p = doc.add_paragraph()
+                    p.paragraph_format.first_line_indent = Pt(FIRST_INDENT_NORMAL)
+                    _add_inline_runs(p, li)
 
         elif tag == "blockquote":
             p = doc.add_paragraph()

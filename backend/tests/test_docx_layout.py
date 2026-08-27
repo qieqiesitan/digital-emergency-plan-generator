@@ -119,3 +119,26 @@ def test_no_debug_print_in_source():
     import app.services.docx_template as m
     src = inspect.getsource(m)
     assert "generate_plan_docx CALLED" not in src
+
+
+def test_long_list_item_becomes_body_paragraph():
+    doc = Document()
+    long_text = "这是一个非常长的列表项内容，它超过三十个字符，应当作为正文段落渲染而不是项目符号列表"
+    html_to_docx_content(doc, f"<ul><li>{long_text}</li></ul>")
+    assert len(doc.paragraphs) == 1
+    p = doc.paragraphs[0]
+    assert p.style.name != "List Bullet"
+    assert p.paragraph_format.first_line_indent == Pt(32)
+    assert long_text in p.text
+
+
+def test_short_list_item_stays_bullet():
+    doc = Document()
+    html_to_docx_content(doc, "<ul><li>短条目</li></ul>")
+    assert doc.paragraphs[0].style.name == "List Bullet"
+
+
+def test_ordered_short_item_stays_numbered():
+    doc = Document()
+    html_to_docx_content(doc, "<ol><li>第一步</li></ol>")
+    assert doc.paragraphs[0].style.name == "List Number"
