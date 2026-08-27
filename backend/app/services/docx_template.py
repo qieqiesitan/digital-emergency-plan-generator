@@ -82,6 +82,14 @@ TABLE_COL_MIN_CM = 1.5
 TABLE_COL_MAX_CM = 6.0
 STYLE_TOC_TITLE = "TOC Title"
 
+# 附图图题文案（diagram_svgs 的 key → 图题名，未命中时兜底"示意图"）
+DIAGRAM_CAPTION_MAP = {
+    "evacuation": "人员疏散路线示意图",
+    "rescue": "应急救援路线示意图",
+    "risk_distribution": "风险分布示意图",
+    "floor": "楼层平面示意图",
+}
+
 # 页边距 (Cm)
 MARGIN_COVER_LEFT = 2.8
 MARGIN_COVER_RIGHT = 2.6
@@ -598,6 +606,16 @@ def build_table(doc: Document, headers: list[str], rows: list[list[str]],
     return table
 
 
+def _diagram_caption(key: str, figure_no: int) -> str:
+    """根据 diagram_svgs 的 key 生成图题文本。"""
+    if key.startswith("evacuation_"):
+        floor_no = key.split("_", 1)[1]
+        name = f"{floor_no}层人员疏散路线示意图"
+    else:
+        name = DIAGRAM_CAPTION_MAP.get(key, "示意图")
+    return f"图 {figure_no} {name}"
+
+
 # ═══════════════════════════════════════════
 # HTML/Markdown → DOCX 转换（增强版）
 # ═══════════════════════════════════════════
@@ -851,6 +869,7 @@ def generate_plan_docx(
         mermaid_pngs: Mermaid 流程图 PNG 字节缓存 {hash: bytes}
     """
     doc = Document()
+    figure_no = 0  # 全文图号计数器（Mermaid 流程图 + 疏散图等附图共用）
 
     # 1) 注册所有样式
     register_all_styles(doc)
@@ -1040,6 +1059,8 @@ def generate_plan_docx(
                 doc.add_picture(img_stream, width=Cm(14.6))
                 if doc.paragraphs:
                     doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                figure_no += 1
+                doc.add_paragraph(f"图 {figure_no} 流程图", style="Caption")
 
         # 附图：非占位 SVG → PNG 插入；占位 → 文字行
         for key, meta in (section.get("diagram_svgs") or {}).items():
@@ -1074,6 +1095,8 @@ def generate_plan_docx(
                 doc.add_picture(img_stream, width=Cm(14.6))
                 if doc.paragraphs:
                     doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                figure_no += 1
+                doc.add_paragraph(_diagram_caption(key, figure_no), style="Caption")
             else:
                 add_normal_paragraph(doc, f"【{key}】附图渲染失败")
 

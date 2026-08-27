@@ -233,3 +233,108 @@ def test_first_level_section_uses_page_break_before(no_playwright):
     assert headings
     for h in headings:
         assert h.paragraph_format.page_break_before is True
+
+
+def _placeholder_png() -> bytes:
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (2, 2), color="white").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class _FakeEl:
+    def __init__(self, png):
+        self._png = png
+
+    def screenshot(self, type="png"):
+        return self._png
+
+
+class _FakePage:
+    def __init__(self, png):
+        self._png = png
+        self._el = _FakeEl(png)
+
+    def set_content(self, *a, **k):
+        pass
+
+    def wait_for_selector(self, *a, **k):
+        return True
+
+    def wait_for_timeout(self, *a, **k):
+        pass
+
+    def query_selector(self, *a, **k):
+        return self._el
+
+    def close(self):
+        pass
+
+
+class _FakeBrowser:
+    def __init__(self, png):
+        self._png = png
+
+    def new_page(self, **k):
+        return _FakePage(self._png)
+
+    def close(self):
+        pass
+
+
+class _FakeChromium:
+    def __init__(self, png):
+        self._png = png
+
+    def launch(self, *a, **k):
+        return _FakeBrowser(self._png)
+
+
+class _FakePW:
+    def __init__(self, png):
+        self._png = png
+        self.chromium = _FakeChromium(png)
+
+    def start(self):
+        return self
+
+    def stop(self):
+        pass
+
+
+@pytest.fixture
+def fake_playwright(monkeypatch):
+    png = _placeholder_png()
+    import playwright.sync_api as psa
+    monkeypatch.setattr(psa, "sync_playwright", lambda: _FakePW(png))
+    return png
+
+
+def test_figure_caption_added_after_mermaid_png(fake_playwright):
+    sections = [
+        {
+            "title": "处置措施", "level": 0, "section_key": "measures",
+            "content": (
+                '<div class="mermaid-rendered" data-mermaid-hash="abc">'
+                '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50">'
+                '<rect width="100" height="50" fill="#fff"/></svg></div>'
+            ),
+            "mermaid_svgs": {}, "diagram_svgs": {},
+        },
+    ]
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=sections,
+    )
+    captions = [p.text for p in doc.paragraphs if p.style.name == "Caption"]
+    assert any("图 1" in t for t in captions)
+    assert any("流程图" in t for t in captions)
+
+
+def test_diagram_caption_map():
+    from app.services.docx_template import _diagram_caption
+    assert _diagram_caption("evacuation", 1) == "图 1 人员疏散路线示意图"
+    assert _diagram_caption("evacuation_3", 2) == "图 2 3层人员疏散路线示意图"
+    assert _diagram_caption("unknown", 3) == "图 3 示意图"
