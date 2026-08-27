@@ -775,11 +775,13 @@ def generate_plan_docx(
     # 1) 注册所有样式
     register_all_styles(doc)
 
-    # 2) 第一节：封面 + 批准页（宽边距）
+    # 2) 页面：A4 + 公文边距，全文统一
     first_section = doc.sections[0]
     set_page_margins(first_section,
                      MARGIN_COVER_LEFT, MARGIN_COVER_RIGHT,
                      MARGIN_COVER_TOP, MARGIN_COVER_BOTTOM)
+    first_section.page_width = Cm(21)
+    first_section.page_height = Cm(29.7)
 
     type_names = {"comprehensive": "综合应急预案", "special": "专项应急预案", "onsite": "现场处置方案"}
     body_title = type_names.get(plan_type, "应急预案")
@@ -795,10 +797,9 @@ def generate_plan_docx(
     if signers:
         build_signature_page(doc, signers)
 
-    # 4) 正文节（标准边距）
-    add_section(doc,
-                MARGIN_BODY_LEFT, MARGIN_BODY_RIGHT,
-                MARGIN_BODY_TOP, MARGIN_BODY_BOTTOM)
+    # 4) 正文节（与封面统一：A4 + 公文边距）
+    add_section(doc, MARGIN_COVER_LEFT, MARGIN_COVER_RIGHT,
+                MARGIN_COVER_TOP, MARGIN_COVER_BOTTOM)
 
     # 正文大标题
     add_body_title(doc, body_title)
