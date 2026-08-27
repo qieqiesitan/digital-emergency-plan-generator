@@ -369,3 +369,51 @@ def test_diagram_caption_map():
     assert _diagram_caption("evacuation", 1) == "图 1 人员疏散路线示意图"
     assert _diagram_caption("evacuation_3", 2) == "图 2 3层人员疏散路线示意图"
     assert _diagram_caption("unknown", 3) == "图 3 示意图"
+
+
+def test_section_level1_uses_heading1(no_playwright):
+    """生产数据顶级章节 level=1 → Heading 1（黑体），而非 Heading 2（楷体）。"""
+    sections = [
+        {
+            "title": "总则", "level": 1, "section_key": "general",
+            "content": "<p>正文段落。</p>", "mermaid_svgs": {}, "diagram_svgs": {},
+        },
+        {
+            "title": "组织机构", "level": 1, "section_key": "org",
+            "content": "<p>第二章节正文。</p>", "mermaid_svgs": {}, "diagram_svgs": {},
+        },
+    ]
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=sections,
+    )
+    top_headings = [
+        p for p in doc.paragraphs
+        if p.text.strip() in ("1 总则", "2 组织机构")
+    ]
+    assert top_headings, "未找到顶级章节标题段"
+    for h in top_headings:
+        assert h.style.name == "Heading 1"
+
+
+def test_caption_style_not_bold():
+    doc = Document()
+    register_all_styles(doc)
+    assert doc.styles["Caption"].font.bold is False
+
+
+def test_header_company_not_duplicated(no_playwright):
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=_sample_sections(),
+    )
+    header_text = doc.sections[0].header.paragraphs[0].text
+    assert "测试公司　测试公司" not in header_text
+    assert header_text.count("测试公司") == 1
+
+
+def test_risk_matrix_caption():
+    from app.services.docx_template import _diagram_caption
+    assert _diagram_caption("risk_matrix", 1) == "图 1 事故风险矩阵示意图"

@@ -88,6 +88,7 @@ DIAGRAM_CAPTION_MAP = {
     "rescue": "应急救援路线示意图",
     "risk_distribution": "风险分布示意图",
     "floor": "楼层平面示意图",
+    "risk_matrix": "事故风险矩阵示意图",
 }
 
 # 页边距 (Cm)
@@ -195,8 +196,11 @@ def register_all_styles(doc: Document):
     bt.paragraph_format.line_spacing = Pt(LINE_SPACING_BODY)
 
     # ── 图题 / 目录标题 ──
+    # python-docx 默认模板的 Caption 样式自带 bold=True，必须显式覆盖为 False，
+    # 否则图题会被加粗（见 test_caption_style_not_bold）。
     cap = _define_style(doc, "Caption", font_name=FONT_SONGTI,
-                        font_size=SIZE_CAPTION, alignment=WD_ALIGN_PARAGRAPH.CENTER)
+                        font_size=SIZE_CAPTION, bold=False,
+                        alignment=WD_ALIGN_PARAGRAPH.CENTER)
     _set_east_asian_font(cap, FONT_SONGTI)
     toc = _define_style(doc, STYLE_TOC_TITLE, font_name=FONT_HEITI,
                         font_size=18, alignment=WD_ALIGN_PARAGRAPH.CENTER)
@@ -398,6 +402,14 @@ def add_toc(doc: Document):
     doc.add_page_break()
 
 
+def _clean_plan_title(company_name: str, plan_title: str) -> str:
+    """去掉 plan_title 的企业名前缀与分隔符，避免页眉/封面重复显示企业名。"""
+    title = plan_title or ""
+    if title.startswith(company_name):
+        title = title[len(company_name):].lstrip("-— ")
+    return title
+
+
 def _setup_header_footer(doc: Document, company_name: str, plan_title: str):
     """页眉=企业名+预案标题；页脚=第 X 页 共 Y 页；封面首页不显示。"""
     sec = doc.sections[0]
@@ -405,7 +417,8 @@ def _setup_header_footer(doc: Document, company_name: str, plan_title: str):
 
     hp = sec.header.paragraphs[0]
     hp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = hp.add_run(f"{company_name}　{plan_title}")
+    clean_title = _clean_plan_title(company_name, plan_title) or plan_title
+    r = hp.add_run(f"{company_name}　{clean_title}")
     r.font.size = Pt(SIZE_HEADER_FOOTER)
     _set_east_asian_font_in_run(r, FONT_SONGTI)
 
@@ -888,9 +901,7 @@ def generate_plan_docx(
     body_title = type_names.get(plan_type, "应急预案")
 
     # 封面标题：plan_title 去掉企业名前缀，避免重复
-    doc_title = plan_title or ""
-    if doc_title.startswith(company_name):
-        doc_title = doc_title[len(company_name):].lstrip("-— ")
+    doc_title = _clean_plan_title(company_name, plan_title)
     if not doc_title:
         doc_title = body_title
 
@@ -934,7 +945,9 @@ def generate_plan_docx(
 
         # 写标题（含编号）
         section_level = level
-        heading_level = min(level + 1, 6)
+        # 生产数据顶级章节 level=1 → Heading 1（黑体）；测试样本 level=0 同为顶级。
+        # 旧逻辑 level+1 会把顶级章节映射到 Heading 2（楷体），见 test_section_level1_uses_heading1。
+        heading_level = max(min(level, 6), 1)
         num = sec_numbers.get(idx, "")
         numbered_title = f"{num} {title}" if num else title
         heading = add_heading(doc, numbered_title, heading_level)
