@@ -172,10 +172,19 @@ def test_ol_numbering_resets_per_list():
     assert all(p.style.name != "List Number" for p in doc.paragraphs)
 
 
-def test_ol_item_with_existing_number_kept():
+def test_ol_item_with_existing_number_reassigned():
+    # AI 生成内容中 li 文本可能自带跳号的编号前缀（如 "4. 内容"），
+    # 必须忽略原编号、按 enumerate 顺序强制重编号，否则序号会跳号。
     doc = Document()
-    html_to_docx_content(doc, "<ol><li>1. 内容</li></ol>")
+    html_to_docx_content(doc, "<ol><li>4. 内容</li></ol>")
     assert doc.paragraphs[0].text == "1. 内容"
+
+
+def test_ol_gaps_reindexed_continuously():
+    doc = Document()
+    html_to_docx_content(doc, "<ol><li>1. A</li><li>4. B</li><li>5. C</li></ol>")
+    texts = [p.text for p in doc.paragraphs]
+    assert texts == ["1. A", "2. B", "3. C"]
 
 
 def test_build_table_column_widths_not_even():

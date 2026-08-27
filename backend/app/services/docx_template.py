@@ -702,9 +702,11 @@ def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1, 
                         p = doc.add_paragraph(text, style="List Bullet")
                     else:
                         # ol 手动编号：每列表独立从 1 开始，避免 List Number
-                        # 样式共享同一编号序列导致跨章节连续累计（89、90 等）
-                        if not re.match(r"^\d+\s*[.、．)]", text):
-                            text = f"{i}. {text}"
+                        # 样式共享同一编号序列导致跨章节连续累计（89、90 等）；
+                        # 并忽略 li 文本自带的跳号编号前缀（如 "4. 内容"），
+                        # 一律按 enumerate 顺序强制重编号，保证 1、2、3…连续。
+                        clean = re.sub(r"^\s*\d+\s*[.、．)]\s*", "", text)
+                        text = f"{i}. {clean}"
                         p = doc.add_paragraph(text)
                     p.paragraph_format.left_indent = Cm(1.0)
                     p.paragraph_format.first_line_indent = Cm(-0.5)
