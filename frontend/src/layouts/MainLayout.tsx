@@ -10,8 +10,14 @@ import {
   KeyOutlined,
   TeamOutlined,
   SafetyCertificateOutlined,
+  DashboardOutlined,
+  AppstoreOutlined,
+  FileTextOutlined,
+  RobotOutlined,
+  BookOutlined,
+  DatabaseOutlined,
+  FileProtectOutlined,
 } from "@ant-design/icons";
-import AppIcon from "@/components/common/AppIcon";
 import { useAuth } from "@/contexts/AuthContext";
 import FloatingChat from "@/components/common/FloatingChat";
 import { stripAppBase } from "@/utils/platform";
@@ -72,14 +78,14 @@ export function MainLayout() {
 
   const settingsChildren = [
     ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
-    ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <AppIcon name="ai" size={14} />, label: "AI 配置" }] : []),
-    ...(proMode && hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <AppIcon name="regulations" size={14} />, label: "法规库管理" }] : []),
+    ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <RobotOutlined />, label: "AI 配置" }] : []),
+    ...(proMode && hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <BookOutlined />, label: "法规库管理" }] : []),
   ];
 
   const menuItems = [
-    ...(hasMenu("/dashboard") ? [{ key: "/dashboard", icon: <AppIcon name="dashboard" size={14} />, label: "工作台" }] : []),
-    ...(hasMenu("/enterprises") ? [{ key: "/enterprises", icon: <AppIcon name="enterprise" size={14} />, label: "企业管理" }] : []),
-    ...(hasMenu("/plans") ? [{ key: "/plans", icon: <AppIcon name="plan-list" size={14} />, label: "预案列表" }] : []),
+    ...(hasMenu("/dashboard") ? [{ key: "/dashboard", icon: <DashboardOutlined />, label: "工作台" }] : []),
+    ...(hasMenu("/enterprises") ? [{ key: "/enterprises", icon: <AppstoreOutlined />, label: "企业管理" }] : []),
+    ...(hasMenu("/plans") ? [{ key: "/plans", icon: <FileTextOutlined />, label: "预案列表" }] : []),
     { type: "divider" as const },
     ...(proMode && showSystemGroup
       ? [{
@@ -89,7 +95,7 @@ export function MainLayout() {
             ...(hasMenu("/settings/users") ? [{ key: "/settings/users", icon: <TeamOutlined />, label: "用户管理" }] : []),
             ...(hasMenu("/settings/roles") ? [{ key: "/settings/roles", icon: <SafetyCertificateOutlined />, label: "角色管理" }] : []),
             ...(hasMenu("/settings/system") ? [{ key: "/settings/system", icon: <SettingOutlined />, label: "系统配置" }] : []),
-            ...(hasMenu("/settings/data-dicts") ? [{ key: "/settings/data-dicts", icon: <AppIcon name="data-dict" size={14} />, label: "数据字典管理" }] : []),
+            ...(hasMenu("/settings/data-dicts") ? [{ key: "/settings/data-dicts", icon: <DatabaseOutlined />, label: "数据字典管理" }] : []),
           ],
         }]
       : []),
@@ -98,7 +104,7 @@ export function MainLayout() {
           key: "ai-group",
           label: "AI 管理",
           children: [
-            ...(hasMenu("/settings/prompts") ? [{ key: "/settings/prompts", icon: <AppIcon name="prompt" size={14} />, label: "提示词管理" }] : []),
+            ...(hasMenu("/settings/prompts") ? [{ key: "/settings/prompts", icon: <FileProtectOutlined />, label: "提示词管理" }] : []),
           ],
         }]
       : []),

@@ -137,7 +137,7 @@ export default function RoleManagePage() {
         onCancel={() => setModalOpen(false)}
         onOk={handleSubmit}
         confirmLoading={saveMut.isPending}
-        destroyOnClose
+        destroyOnHidden
         width={680}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>

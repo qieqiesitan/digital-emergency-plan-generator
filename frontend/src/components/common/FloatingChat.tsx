@@ -147,7 +147,7 @@ export default function FloatingChat() {
         open={open}
         onClose={() => setOpen(false)}
         closeIcon={<CloseOutlined />}
-        destroyOnClose={false}
+        destroyOnHidden={false}
         styles={{ body: { padding: "12px 16px", height: "100%" } }}
       >
         <ChatPanel embedded />

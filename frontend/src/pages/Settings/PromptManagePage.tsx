@@ -236,7 +236,7 @@ export default function PromptManagePage() {
         onOk={handleEditSubmit}
         confirmLoading={createMut.isPending || updateMut.isPending}
         width={700}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="template_code" label="模板编码" rules={[{ required: true, message: "请输入模板编码" }]}>
@@ -264,7 +264,7 @@ export default function PromptManagePage() {
         onCancel={() => setTestModalOpen(false)}
         footer={null}
         width={700}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginTop: 16 }}>
           <Form.Item label="输入变量 (JSON 格式)">

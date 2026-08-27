@@ -1,0 +1,29 @@
+任务 7+8 已完成并作为单个提交落库。
+
+## 状态
+
+已提交 `e29e6e8 feat(risk-mapping): add workbench page shell, floor manager, and konva drawing tools`（10 个文件，+1048 行）。未执行 git finish/推送；TASKS.md 与 task*.txt、chroma.sqlite3 均未触碰。
+
+## 修改文件
+
+- `frontend/package.json` / `package-lock.json`：新增 `konva ^10.3.0`、`react-konva ^19.2.5`
+- `frontend/src/pages/Enterprise/RiskMappingWorkbenchPage.tsx`：占位页替换为完整页面壳（楼层切换、工具栏、撤销/重做、保存、三栏布局：分区面板/画布+图例/属性面板）
+- `frontend/src/components/enterprise/EnterpriseFloorManager.tsx`：楼层选择/新建/编辑/删除/平面图上传
+- `frontend/src/components/enterprise/riskMapping/WorkbenchToolbar.tsx`：6 种工具 + 网格/吸附/辅助线开关
+- `frontend/src/components/enterprise/riskMapping/WorkbenchZonePanel.tsx`：分区列表、新增/删除、待绑定区域
+- `frontend/src/components/enterprise/riskMapping/WorkbenchPropertiesPanel.tsx`：可用基础版（分区属性/颜色源、绑定待处理区域、风险点绑定/删除、文字标注新增）
+- `frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx`：Konva 画布（select/rect/polygon/freehand/risk-point/text、网格、待绑定区域、风险点拖拽、文字标注、平面图底图）
+- `frontend/src/components/enterprise/riskMapping/WorkbenchRiskPointLayer.tsx`：可拖拽风险点图层
+- `frontend/src/components/enterprise/riskMapping/WorkbenchLegend.tsx`：四色图例（含“未评估”）
+
+## 测试结果
+
+- `npx tsc -b`：通过
+- `npx vitest run src/store/riskMappingWorkbenchStore.test.ts`：12/12 通过
+- `npm run build`：`vite build` 阶段以原生错误 0xC0000409 崩溃——**已用基线实验证明非本次改动引入**（把页面还原为占位页、依赖变更 stash 后，基线 HEAD 同样在 8532 模块处崩溃）。根因是 rollup 4.62.2 原生二进制在 Windows + Node 24.13 大模块图下的栈溢出（rollup/rollup#6199 已知 issue），小图构建正常；`dist` 上次成功构建为今天 15:37（任务 5 时）。因升级 rollup 超出本任务范围，未改动依赖，留待主控处理。
+
+## 自审
+
+严格使用现有 store（`useRiskMappingWorkbenchStore`、`undo`/`redo`、`setSnapshot`/`commit`）与 `riskMappingGeometry`（`toCanvasX/Y`、`pointsToKonva`、`toPercent`）。一处必要偏差：实际 store 的 `setSnapshot` 只接收领域字段（任务 6 契约），计划片段把 `dirty`/`selectedZoneId` 传给了 `setSnapshot`；已改为领域字段走 `setSnapshot`、UI 字段走 `setState`，未改动 store 本身。
+
+对计划片段做了几处质量修正：风险点拖拽改为 Group 定位在画布坐标、拖拽结束用 `toPercent` 换算（原片段用拖拽偏移量当绝对坐标，会算错）；取点改用 Konva `getPointerPosition()`（原 `offsetX` 在画布被 CSS 缩放时会失真）；自由画笔独立走 mouse 事件避免 click 误加单点；多边形双击完成时去重尾点；图例补“未评估”。保存按钮已接 `saveRiskMappingWorkbench` 及 SAVE_CONFLICT 提示（任务 9 可继续完善）。

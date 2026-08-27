@@ -22,7 +22,9 @@ export default function LoginPage() {
       }
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "登录失败，请检查邮箱和密码";
+      // 优先取后端返回的友好 detail（如「邮箱或密码错误」），否则回退到通用文案
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const msg = detail || (err instanceof Error && err.message ? err.message : "登录失败，请检查邮箱和密码");
       setError(msg);
     } finally {
       setLoading(false);

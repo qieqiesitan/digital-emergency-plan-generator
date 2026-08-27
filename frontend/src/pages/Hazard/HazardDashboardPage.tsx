@@ -428,7 +428,7 @@ export default function HazardDashboardPage() {
               <Statistic
                 title={card.title}
                 value={card.value ?? 0}
-                valueStyle={{ color: card.color }}
+                styles={{ content: { color: card.color } }}
                 suffix={card.suffix}
                 formatter={() => fmtNumber(card.value, card.suffix)}
               />

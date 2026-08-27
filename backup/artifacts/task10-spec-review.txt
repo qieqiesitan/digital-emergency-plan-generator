@@ -1,0 +1,32 @@
+验证命令全部通过。审查完成，现汇总结论。
+
+---
+
+## ❌ 发现问题
+
+**审查对象**：提交 6d79bad（`feat(risk-mapping): connect overview and legacy form to workbench data`，2026-08-05 17:01），5 个文件与计划任务 10 的文件清单完全一致，commit message 与计划 10.6 一字不差。
+
+**验证结果**：`cd frontend && npx tsc -b` ✅ 通过；`npx vitest run src/store/riskMappingWorkbenchStore.test.ts` ✅ 19 passed。审查过程中未修改任何文件、未提交。
+
+### 必须修复
+
+**1. 旧入口编辑分区会清空已有多边形（数据丢失风险）** — 提交 6d79bad 在 [RiskManagementTab.tsx](/C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskManagementTab.tsx:175) 给 `updateZone` 显式传 `floor_plan_polygon: values.floor_plan_polygon ?? null`，而旧表单编辑路径的 `initialValues` 只有 `{ name: meta.name }`（同文件 :128、:150；`TreeNodeMeta` 本身不含 polygon 字段，见 [RiskHierarchyTree.tsx](/C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/RiskHierarchyTree.tsx:21)）。因此用户从旧树编辑分区、不重新绘制多边形时，`values.floor_plan_polygon` 为 undefined → `?? null` → 发送 null；后端 `update_zone` 用 `model_dump(exclude_unset=True)` 后 `setattr(z, "floor_plan_polygon", None)`（[risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:481)），会把工作台画好的多边形清空。提交前 `updateZone` 只传 name/description，多边形会被保留——这是本提交引入的回归，直接违背任务 10「旧入口兼容」的目标。建议改为仅当字段存在时才携带（或编辑时从 hierarchy 预填 `floor_plan_polygon`）。
+
+### 结构偏差（建议修改）
+
+**2. 10.2 页面级数据源与计划不同** — 计划要求 RiskOverviewPage 用 `getRiskMappingOverview` + queryKey `["risk-overview", enterpriseId, floorId]` 填充 Select；实际改用 `listEnterpriseFloors`（[RiskOverviewPage.tsx](/C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/pages/Enterprise/RiskOverviewPage.tsx:27)），总览数据由 Stage 内部自行查询（[RiskDistributionStage.tsx](/C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/components/enterprise/riskMapping/RiskDistributionStage.tsx:27)）。功能等价，且实际上更正确——按计划写法 `overview.floors` 恒为单个当前楼层，Select 无法真正切换楼层；改用 floors 列表接口才满足 AC-02 楼层切换。属合理偏差，但实现者未在提交中说明。
+
+### 合理增强（仅供参考）
+
+**3. 超出计划的最小实现**：Stage 新增 texts 文字渲染（RiskDistributionStage.tsx:102）、分区高亮（:63）、画布尺寸自适应（:53）；总览页新增「点分区 → 树选中」联动（RiskOverviewPage.tsx:41、:84）；RiskZoneForm 的 `handleOpen` 兼容读取 v1/v2 旧数据（RiskZoneForm.tsx:34）。这些均服务于 AC-13 总览联动与 10.4 兼容目标，未发现冲突或多余实现。
+
+### 逐条核对结论
+
+- 10.1 创建 RiskDistributionStage.tsx ✅（实现方式与计划代码不同但契约一致）
+- 10.2 替换 FloorPlanHeatmap + 楼层 Select ✅（数据源偏差见问题 2）
+- 10.3 工作台入口按钮 ✅（RiskManagementTab.tsx:227）；默认楼层平面图 + `enterprise.floor_plan_url` 回退 ✅（EnterpriseDetailPage.tsx:39-51）
+- 10.4 v2 表单结构与 `handlePolygonConfirm` ✅（RiskZoneForm.tsx:10-16、:38-52），但提交链路引入问题 1
+- 10.5 构建/类型验证 ✅（tsc -b 通过；按你的要求以 vitest 补充验证，19 passed）
+- 10.6 commit message ✅ 完全匹配
+
+**结论**：任务 10 主体需求全部落地，但存在 1 个必须修复的数据丢失回归（问题 1），故整体判定 ❌ 发现问题，不建议直接验收。

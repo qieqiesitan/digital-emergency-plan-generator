@@ -1,0 +1,34 @@
+审查完成，所有验证均已复跑。以下是结论。
+
+## ✅ 符合规格
+
+**验证命令复跑结果（全部与 TASKS 快照一致）**
+
+| 命令 | 结果 |
+|---|---|
+| `npx tsc -b` | ✅ 通过 |
+| `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts` | ✅ 25 passed（6 + 19） |
+| `npx playwright test e2e/risk-mapping-workbench.spec.ts`（`E2E_BASE_URL=http://localhost:5174`） | ✅ 3 passed |
+
+**E2E 覆盖核对（任务 11 步骤 11.1）**
+
+[risk-mapping-workbench.spec.ts](C:/Users/55061/Documents/数字化预案自动生成%202/frontend/e2e/risk-mapping-workbench.spec.ts:139) 共 3 个用例，超出规格示例（仅 1 个路由+画布用例）的要求：
+
+1. 路由 + 画布渲染：断言 `/enterprises/:id/risk-mapping-workbench` URL、canvas 可见、「分区」「暂无分区」、新建楼层与保存按钮；
+2. 矩形绘制 + 保存：border 工具按下-拖动-松开 → 断言待绑定区域出现 → 点保存 → 断言「存在待绑定区域」确认弹窗（`antd-modal-confirm-title`）；
+3. 文字标注绘制 + 保存闭环：font-size 工具点击画布 → 保存 → mock batch-save 断言 `texts` 长度 1、`floor_id` 正确、保存成功提示。
+
+路由、画布、绘制、保存四个维度均有覆盖，且 API 全部 Playwright 路由 mock，可脱离后端独立运行。
+
+**TASKS 快照核对（步骤 11.3/11.4）**
+
+- 快照记录了任务 1-11 全部完成及各任务 commit；
+- 「已知发布前置（未执行项）」完整列出 5 项：①迁移 SQL 幂等重跑 ②后端 pytest 66 passed ③`npm run build`（明确标注本次仅 tsc 通过、未跑完整 build）④Playwright E2E 3 passed ⑤旧企业总图抽查 3 个企业；并记录了构建环境限制（5173 为 Docker 旧代码、后端旧构建）；
+- Commit 已落地：`a5ce7b9 test(risk-mapping): add workbench e2e and release verification`，与规格步骤 11.4 指定的 message 完全一致，且仅含 spec + TASKS.md。
+
+**两点备注（非阻塞，供知悉）**
+
+1. 直接按裸命令 `npx playwright test ...` 运行会 3 个用例全失败——默认 `BASE` 指向 5173（Docker 容器内旧源码占位页，无 canvas）。必须 `E2E_BASE_URL=http://localhost:5174` 指向当前源码 dev server 才通过。该限制已在 TASKS 快照中如实记录，但若他人未读快照直接跑会误判为失败。
+2. 规格 11.2 提到"控制台无未捕获错误"，E2E 文件未显式挂 `page.on('pageerror')`/console 监听断言，仅靠 UI 断言兜底；另外完整 `npm run build` 仍未执行（已作为发布前置未执行项记录，任务 11 本身只要求记录而非执行，不算规格违约）。
+
+本次为只读审查，未修改任何文件；Playwright 运行产生的 `test-results/` 产物为测试自然输出，工作区 git 状态除原有未跟踪报告文件外无新增改动。

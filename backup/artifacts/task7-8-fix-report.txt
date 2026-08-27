@@ -1,0 +1,36 @@
+修复完成并已提交。汇报如下：
+
+## 任务 7+8 代码质量修复报告
+
+### 状态
+
+已完成 e29e6e8 复审意见中全部必修项（1–6）及重要项（dirty 恢复），并顺手清理了 eslint 报错。已提交独立 commit：
+
+- `f229b88 fix(risk-mapping): fix undo ordering, zone deletion cleanup, and floor switch safety`（仅包含范围内 8 个前端文件）
+
+注意：工作期间并行任务 4 智能体提交了后端 commit（HEAD 前移），其保存点顺带提交了 TASKS.md 等文件——**我未修改 TASKS.md、计划文件或任何后端文件**（需求 7 遵守）。同样因共享工作区并行提交，未运行 `git save` 保存点以免干扰其他智能体。
+
+### 修改文件（8 个，均在范围内）
+
+| 文件 | 修复内容 |
+|---|---|
+| `riskMappingWorkbenchStore.ts` | 撤销时序改为「先 commit 当前状态、再 setSnapshot 应用变更」；新增 `savedFingerprint` 判定 undo/redo 后 dirty（回到保存点即置 false）；新增 `deleteZone`/`deleteRiskPoint`/`markSaved` 动作 |
+| `riskMappingWorkbenchStore.test.ts` | 全部测试改用真实组件调用序列；新增回归测试：组件调用序列 undo/redo、回到保存点 dirty 恢复、分区删除级联、新建风险点不入删除队列 |
+| `WorkbenchCanvas.tsx` | 所有变更改为 commit→setSnapshot；Stage/底图/网格/坐标换算改用 `floor.canvas_width/height`，缺省回退图片自然尺寸；图片加载重构消除 effect 内同步 setState；`any` 事件改 `KonvaEventObject<MouseEvent>` |
+| `WorkbenchRiskPointLayer.tsx` | 风险点坐标换算跟随画布尺寸；拖拽提交改为 commit→setSnapshot |
+| `WorkbenchZonePanel.tsx` / `WorkbenchPropertiesPanel.tsx` | 删除分区统一走 `deleteZone`：持久化分区下风险点→持久化点入 `deletedRiskPointIds`、新建点直接移除；删除风险点走 `deleteRiskPoint`，`new-point-*` 不入删除队列；绑定待绑定区域合并为单次原子操作 |
+| `EnterpriseFloorManager.tsx` | 切换楼层/删除楼层若有未保存改动，先 `Modal.confirm` 明确警告数据丢失 |
+| `RiskMappingWorkbenchPage.tsx` | 加载/保存成功后用 `markSaved()` 记录保存指纹 |
+
+### 测试结果
+
+- `cd frontend && npx tsc -b`：**通过**
+- `npx vitest run src/store/riskMappingWorkbenchStore.test.ts`：**17/17 通过**（原 12 项修正调用时序 + 5 项新增回归）
+- `npx eslint`（8 个修改文件）：**0 error, 0 warning**
+
+### 自审
+
+- 撤销时序：store 测试按组件真实序列 `commit() → setSnapshot()` 验证，undo 第一次即回退、redo 可重放；此前「按 3 次才撤完」问题消除。
+- 分区删除：后端删除风险点在分区级联检查之前执行（autoflush 生效），孤儿风险点先删后分区可正常删除，不再 422/ZONE_NOT_FOUND；undo 可整体恢复分区及风险点。
+- 画布尺寸：上传接口写入的就是图片原始像素，Stage/底图/网格/百分比换算同源，宽幅平面图不再压扁。
+- 已知遗留（非本轮范围）：审查次要项 8–11（多边形拖动未持久化、rect 预览固定 100×100、辅助线开关无行为、文字双击无编辑等）留待任务 9 迭代。

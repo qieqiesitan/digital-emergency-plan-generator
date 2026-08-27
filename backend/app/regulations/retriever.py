@@ -44,10 +44,9 @@ def _match_section_topics(section_key: str, section_title: str) -> list[str]:
 class RegulationRetriever:
     """编排图谱 + 向量的两级混合检索。"""
 
-    def __init__(self, graph, vector_store, bm25_index=None):
+    def __init__(self, graph, vector_store):
         self.graph = graph
         self.vector_store = vector_store
-        self.bm25_index = bm25_index
         from app.regulations.scorer import ArticleRelevanceScorer
         self.scorer = ArticleRelevanceScorer()
 
@@ -370,31 +369,7 @@ class RegulationRetriever:
                 articles.append({"number": title, "text": text})
         return articles
 
-    
-    def _bm25_article_recall(self, query_text: str, top_k: int = 5) -> list:
-        """BM25 精确匹配召回。作为检索第 0 级，高分命中直接进入输出。"""
-        if not self.bm25_index:
-            return []
-        from app.regulations.scorer import ArticleCandidate
-        results = self.bm25_index.search(query_text, top_k=top_k)
-        candidates = []
-        for item in results:
-            meta = item["meta"]
-            candidates.append(ArticleCandidate(
-                id=item["id"],
-                regulation_id=meta["regulation_id"],
-                regulation_code=meta.get("regulation_code", ""),
-                regulation_name=meta.get("regulation_name", ""),
-                article_number=meta.get("article_number", ""),
-                article_text=item["text"],
-                topics=[],
-                vector_similarity=0.0,
-                is_core=False,
-                is_abolished=False,
-            ))
-        return candidates
-
-def _build_semantic_query(self, enterprise_data: dict, plan_type: str) -> str:
+    def _build_semantic_query(self, enterprise_data: dict, plan_type: str) -> str:
         parts = []
         type_labels = {
             "comprehensive": "综合应急预案",

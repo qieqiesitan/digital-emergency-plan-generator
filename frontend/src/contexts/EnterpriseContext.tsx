@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Enterprise } from "@/types/enterprise";
 import { listEnterprises } from "@/services/enterpriseService";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EnterpriseContextValue {
   currentEnterpriseId: string | null;
@@ -14,6 +15,7 @@ interface EnterpriseContextValue {
 const EnterpriseContext = createContext<EnterpriseContextValue | null>(null);
 
 export function EnterpriseProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [currentEnterpriseId, setCurrentEnterpriseId] = useState<string | null>(
     () => localStorage.getItem("currentEnterpriseId")
   );
@@ -25,6 +27,8 @@ export function EnterpriseProvider({ children }: { children: ReactNode }) {
       const res = await listEnterprises({ page_size: 100 });
       return res.data.items;
     },
+    // 未认证时不发起企业列表请求（登录页也会挂载本 Provider，避免无 token 时 401 刷屏）
+    enabled: isAuthenticated,
   });
 
   const enterprises = enterprisesData || [];

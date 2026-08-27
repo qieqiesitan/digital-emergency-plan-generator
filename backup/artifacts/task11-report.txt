@@ -1,0 +1,28 @@
+## 任务 11 收尾汇报
+
+**状态：DONE（含环境限制说明）** — 未发现必须修改功能代码的阻塞 bug；E2E 采用 mock 方案（计划明确允许），真实服务回归需在部署迁移后的环境执行。
+
+### 修改文件
+- 新建 [risk-mapping-workbench.spec.ts](C:/Users/55061/Documents/数字化预案自动生成%202/frontend/e2e/risk-mapping-workbench.spec.ts)：3 个用例
+  1. 工作台路由打开 + 画布渲染（断言 URL、`canvas`、分区面板、新建楼层/保存按钮）
+  2. 矩形绘制 → 产生待绑定区域 → 保存触发「存在待绑定区域」确认弹窗
+  3. 文字标注绘制 → 保存成功闭环（拦截 batch-save 断言 payload 含 1 条 texts）
+- 更新 [TASKS.md](C:/Users/55061/Documents/数字化预案自动生成%202/TASKS.md)：任务 1-11 状态、发布前置、迁移未执行、构建环境限制均已记录
+
+### 测试结果（全部在要求的工作目录执行）
+- `cd frontend && npx tsc -b` — 通过
+- `cd frontend && npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts` — **25 passed**
+- `cd backend && .venv\Scripts\python.exe -m pytest`（5 个指定文件）— **66 passed**
+- `npx playwright test e2e/risk-mapping-workbench.spec.ts` — **3 passed**（连跑 2 次稳定）
+
+### 环境限制与发布前置（已在 TASKS.md 快照中记录）
+- 本地 8000 后端与 5173 dev server 均为 Docker 内旧构建：`/risk-management/workbench`、`/floors` 返回 SPA HTML（旧代码无 workbench API），5173 的工作台页仍是占位 `<div>四色分布图工作台</div>`，因此真实服务 E2E 无法执行。本次 E2E 用 `E2E_BASE_URL` 指向本地启动的当前源码 dev server + Playwright 路由 mock 跑通，测试本身可脱离后端独立运行。
+- 迁移 `backend/db_migration_risk_mapping_workbench.sql` 尚未在任何环境执行，属于发布前置第 1 项；完整 `npm run build` 未跑（本次只验证了 `tsc -b`）。
+
+### 提交
+- commit `a5ce7b9`：`test(risk-mapping): add workbench e2e and release verification`（仅含 spec + TASKS.md，未触碰功能代码；未跟踪的 task10 报告文件保持原状，未推送远程）
+
+### 自审
+- E2E 覆盖了计划要求的“路由打开、画布渲染、至少一个绘制/保存流程”，并对工作台无「四色分布图工作台」标题的现状做了稳定文案断言（分区/暂无分区/canvas）。
+- 过程中发现并绕开的测试环境细节（antd v6 确认弹窗无 `.ant-modal-content`、右下角 AI 助手浮动面板遮挡鼠标事件）未改动任何功能代码。
+- 临时启动的 5174 dev server 已停止，探测用企业数据已删除。

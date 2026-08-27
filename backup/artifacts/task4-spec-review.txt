@@ -1,0 +1,23 @@
+✅ 符合规格 —— 对照 `docs/superpowers/plans/2026-08-04-risk-mapping-workbench.md` 任务 4 全部步骤，提交 615109d 与当前工作区实现均满足计划要求；43 项测试全部通过。以下为逐项核对结果与若干不阻塞的观察项。
+
+## 核对结论（按计划步骤）
+
+- 步骤 4.1 Workbench 加载 ✅：[risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:257) 在 `list_zones`（:428）之前注册，缺省 `floor_id` 走 `_default_floor`、楼层不存在返回 404、按楼层过滤分区/风险点、`selectinload` 预载 objects→events/units→events、多边形归一化 v2 并补 `max_risk_level`/`effective_color`（`_to_workbench_zone` :229）、返回全部楼层与 `canvas_texts`，与计划示例一致。
+- 步骤 4.2 批量保存 ✅：[risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:287)。`_same_ts` 时区归一化比较（:219）；楼层 `SELECT FOR UPDATE` + `floor_updated_at` 并发检测（SAVE_CONFLICT）；client_id 全请求唯一；`ZONE_NOT_BOUND` 缺失分区校验；分区/风险点 FOR UPDATE 锁与逐条 `updated_at` 冲突检测；新建分区/风险点通过 `created_zone_map`/`created_risk_point_map` 回填映射（AC-19）；`zone_id` 与 `zone_client_id` 互斥（:341）；删除分区级联确认 `CASCADE_CONFIRM_REQUIRED`（AC-21，ORM `cascade="all, delete-orphan"` 支撑删除）；`texts` 全量替换；单事务提交后返回更新数据与映射、`message="保存成功"`。
+- 步骤 4.3 Overview 与 Hierarchy ✅：[get_overview](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:408) 按楼层只读聚合；[get_hierarchy](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:664) 新增 `floor_id` 过滤，`HierarchyZoneResponse`/`HierarchyObjectResponse` 补齐 `floor_id`、`floor_name`、`floor_plan_polygon`、`max_risk_level`、`effective_color`、`location_x`、`location_y`（[schemas](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/schemas/risk_management.py:125)）。
+- 步骤 4.4 旧 CRUD 兼容 ✅：`create_zone` floor_id 缺省→默认楼层（:438，经 `_resolve_zone_floor`，由 caba211 落地）、`update_zone` 移动分区同事务同步风险对象 floor_id（:450）、`create_object` 沿用分区楼层 + `ZONE_FLOOR_MISMATCH` + 风险点必填校验（:494）、`RiskZoneUpdate`/`RiskObjectUpdate` 均含 `floor_id`（schemas :64、:86）。
+- 步骤 4.5/4.7 ✅：[test_risk_mapping_workbench.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/tests/test_risk_mapping_workbench.py) 已创建（5 个测试，超出计划示例的 1 个，均为附加覆盖）；commit message 与计划一致；615109d 仅改计划所列三个文件（另按 4.3 要求改 schemas，属应含内容）。
+
+## 测试结果
+
+`backend/.venv\Scripts\python.exe -m pytest tests/test_risk_mapping_workbench.py tests/test_risk_mapping_service.py tests/test_risk_mapping_migration.py -v` → 43 passed（workbench 5 + service 21 + migration 17），无失败。
+
+## 观察项（不阻塞合入，供后续任务参考）
+
+- [建议修改] AC-04 跨楼层约束在批量保存路径未完全闭合：[risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:343) 对既有风险点改绑 `zone_id` 时未校验目标分区属于当前楼层（计划示例同样未校验）。建议补 `target_zone_id in existing_zones` 校验，否则风险点可被绑定到其他楼层分区。
+- [仅供参考] 规格 5.4 要求 `GET /zones`、`GET /objects` 支持 `floor_id` 参数，但计划任务 4 未列入，当前 [list_zones](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:428) 与 [list_objects](/C:/Users/55061/Documents/数字化预案自动生成 2/backend/app/routers/risk_management.py:481) 均无该参数——属规格与计划的差异，建议确认归属任务。
+- [仅供参考] 风险点 `location_x/y` 的 0-100 范围未校验（:354 直接赋值；多边形点坐标已有校验，schemas :18）；规格错误码表含 `POINT_OUT_OF_RANGE`，但计划任务 4 未要求。
+- [仅供参考] `INVALID_PAYLOAD` 实现返回 422（:326、:361），与规格错误码表的 400 不一致，但与计划示例代码一致，建议统一文档口径。
+- [仅供参考] 计划 4.6 的 API 冒烟（需 DB + token）未独立执行；现有 workbench 测试为 Schema/单元级，409/422 分支与事务回滚尚无集成测试覆盖，建议任务 11 补充。
+
+本次仅审查，未修改任何文件（含 TASKS.md），未提交。

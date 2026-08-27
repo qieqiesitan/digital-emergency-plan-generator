@@ -107,7 +107,7 @@ export default function DashboardPage() {
               value={stats.completed_plan_count}
               suffix={`/ ${stats.plan_count}`}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: "#52c41a" }}
+              styles={{ content: { color: "#52c41a" } }}
             />
           </Card>
         </Col>
@@ -215,7 +215,7 @@ export default function DashboardPage() {
         onCancel={() => setModalOpen(false)}
         footer={null}
         width={480}
-        destroyOnClose
+        destroyOnHidden
       >
         <Space style={{ width: "100%", marginBottom: 12 }} wrap>
           <Input

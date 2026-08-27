@@ -445,7 +445,7 @@ export default function HazardTaskPage() {
         okButtonProps={{ disabled: detail?.status === "done" }}
         onOk={() => void handleSubmit()}
         onCancel={() => setDetailOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         {detail && (
           <div>
@@ -481,7 +481,7 @@ export default function HazardTaskPage() {
         okText="确认登记"
         onOk={() => toRecordForm.submit()}
         onCancel={() => setToRecordOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={toRecordForm} layout="vertical" onFinish={values => void handleToRecord(values)} style={{ marginTop: 12 }}>
           <Form.Item name="title" label="隐患标题" rules={[{ required: true, message: "请填写隐患标题" }]}>

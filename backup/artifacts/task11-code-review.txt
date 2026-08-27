@@ -1,0 +1,41 @@
+# 任务 11 提交 a5ce7b9 代码质量审查
+
+审查范围：`frontend/e2e/risk-mapping-workbench.spec.ts`（新增 216 行）+ TASKS.md（15 行），仅审查未修改。重点覆盖 Playwright mock 稳定性、选择器鲁棒性、测试隔离、TASKS 快照清晰度。
+
+## 验证结果
+
+- `cd frontend && npx tsc -b`：通过。
+- `npx playwright test e2e/risk-mapping-workbench.spec.ts`（默认配置）：**3 failed**。原因：默认 `E2E_BASE_URL` 与 playwright.config.ts 的 baseURL 都是 `localhost:5173`，而本环境 5173 是 Docker 里的旧构建（工作台为占位页，无 canvas），测试全部卡在 `loginAndOpenWorkbench` 的 canvas 断言。
+- `E2E_BASE_URL=http://localhost:5174`（当前源码的本地 Vite dev server，PID 11968）：3 passed（8.7s）；`--repeat-each=2` 并行 2 worker 共 6/6 passed（8.8s），稳定性与隔离性实证良好。
+
+## 优点
+
+- mock 设计整体清晰：`mockWorkbenchApis` + `loginAndOpenWorkbench` 封装到位，3 个用例复用同一套登录/打开流程，覆盖「打开→绘制→保存」闭环。
+- 断言质量不错：大量使用 `getByRole`/`getByPlaceholder` 和稳定业务文案（「分区」「暂无分区」「未绑定区域 · N 个顶点」），并断言了 batch-save 的 payload 内容（`floor_id`、`texts` 长度），不只是 UI 存在性。
+- 测试隔离到位：mock 全部 page 级、每用例注册，`savedPayload` 局部捕获；Playwright 每用例新 context，store 单例随页面重载重置；2 worker 并行 6/6 通过，无状态串扰。
+- 记录诚实：TASKS.md 明确写了迁移未执行、本次只跑 tsc 未跑完整 build、5173 是旧构建等限制，没有虚报；antd v6 无 `.ant-modal-content` 的坑有实证注释。
+
+## 问题
+
+### 关键
+
+1. **默认运行路径不可复现，按指令直接跑即红**（`risk-mapping-workbench.spec.ts:9`、`playwright.config.ts`）。spec 的默认 `BASE` 和 config 的 `baseURL` 都是 5173，但本工作区 5173 是 Docker 旧构建，测试必然失败；真正可用的 5174 需要手工启动并设置 `E2E_BASE_URL`，且该约定只写在 TASKS.md 里、未固化到代码。TASKS.md 声称的「3 passed（连跑 2 次稳定）」与提交的配置不匹配。建议：在 playwright.config.ts 配置 `webServer`（自动拉起 5174）或将默认地址改为 5174，并在 TASKS/README 记录确切命令。这也是「mock 稳定性」的核心问题——测试依赖外部手工起服务，不自包含。
+
+### 重要
+
+2. **选择器耦合 @ant-design/icons 内部实现**（`spec.ts:108/146/178-179`）。工具栏和保存按钮本身没有显式 `aria-label`，`getByRole("button", { name: "border" })`、`button:has([aria-label="save"])`、`button:has([aria-label="font-size"])` 匹配的是 AntD 图标内部 `role="img"` + `aria-label={icon.name}`（已核对 node_modules AntdIcon.js）。换图标、升级图标库或给按钮补上真实文案标签都会静默脆断。建议给工具栏/保存按钮补显式 `aria-label` 或 `data-testid`（顺带是无障碍改进），再同步调整选择器。
+
+3. **绘制坐标硬编码**（`spec.ts:147-151`）。拖拽起点/终点是相对画布左上角的固定偏移，并注明「避开右下角 AI 助手面板、基于 1280x800 实测」——视口、布局、面板位置一变就失效。建议改为相对画布中心/舞台逻辑坐标计算，或至少用百分比换算。
+
+4. **mock 路由重叠且未完全封闭**（`spec.ts:87`、`180-192`）。`workbench**` 这个 glob 同时会匹配 `/workbench/batch-save`，用例 3 之所以不串台，依赖「后注册路由优先」的行为顺序，属于隐性契约；另外未匹配的 `/api/*` 请求没有兜底，会透传 Vite proxy 打到 8000 旧后端（当前恰好没触发，但页面一加新请求测试就不再“脱离后端”。建议把 GET workbench 收窄为精确路径/方法匹配，并加兜底 route 对未匹配 API 统一返回，保证 hermetic。
+
+### 次要
+
+5. **依赖 antd 内部 DOM/语言包默认值**：`.ant-modal-confirm-title`（spec.ts:158）和「知道了」按钮（spec.ts:160）分别依赖 antd v6 DOM 结构与 zh_CN locale 的 `justOkText` 默认值，建议给 `Modal.warning` 显式 `okText` 或改按文案断言。
+6. **mock 与真实契约有小漂移**：mock 里的 `pending_regions: []` 在真实后端 `WorkbenchResponse`（`backend/app/schemas/risk_management.py:134`）中不存在；`FLOOR` 也缺 `created_at`。当前无影响（前端用 `?? []` 兜底），但 mock 应严格对齐真实 schema，避免掩盖未来的契约变化。
+7. `canvas.first()`（spec.ts:135）有歧义——Konva 多图层时会有多个 canvas，建议给主画布加 `data-testid` 精确定位。
+8. **TASKS 快照可复现性**：快照本身写得很清楚（做了什么、验证结果、发布前置、环境限制），但没给出可复现命令（如何起 5174、设什么 env），导致“3 passed”无法按文档复现。
+
+## 结论
+
+整体质量良好：mock 封装、断言思路、测试隔离都做对了，且在正确环境（5174）下稳定通过（6/6）。但存在 1 个关键问题——默认执行路径在当前环境必失败、验证结果不可从提交配置复现，另有 4 项重要改进（选择器耦合图标库内部、坐标硬编码、路由重叠、未匹配请求透传）。建议先修复关键项（补 `webServer` 或修正默认 URL + 记录可复现命令），再用于发布验证；其余重要项可随本次或下个迭代一并处理。

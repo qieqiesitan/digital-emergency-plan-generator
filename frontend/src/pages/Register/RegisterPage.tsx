@@ -23,7 +23,9 @@ export default function RegisterPage() {
       });
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "注册失败，请稍后重试";
+      // 优先取后端返回的友好 detail（如「该邮箱已被注册」），否则回退到通用文案
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const msg = detail || (err instanceof Error && err.message ? err.message : "注册失败，请稍后重试");
       setError(msg);
     } finally {
       setLoading(false);

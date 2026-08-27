@@ -1,0 +1,28 @@
+任务 11 修复完成，已提交独立 commit `c23b36d`。
+
+## 状态
+
+全部 8 项必改已完成并验证通过；仅提交范围内 6 个文件，未触碰后端功能代码。工作区仅剩先前就存在的未跟踪 txt 报告文件（保持原状）。
+
+## 修改文件
+
+- `frontend/playwright.config.ts`：新增 `webServer`（自动 `npm run dev -- --port 5174 --strictPort`，已有实例则复用，CI 总新建）；`baseURL` 默认 `http://localhost:5174`，`E2E_BASE_URL` 可覆盖
+- `frontend/e2e/risk-mapping-workbench.spec.ts`：改用 config baseURL 相对路径；mock 改为单路由 + URL/方法精确分发（GET /workbench 与 POST /workbench/batch-save 分离，无 glob 重叠），未匹配 `/api/*` 统一 404 兜底保证 hermetic；schema 与后端对齐（FLOOR 补 `created_at`、去掉 `pending_regions`）；绘制/点击坐标改为画布 bounding box 比例坐标；选择器全部换成显式 aria-label / data-testid
+- `frontend/src/components/enterprise/riskMapping/WorkbenchToolbar.tsx`：工具按钮与「取消绘制」补显式 `aria-label`
+- `frontend/src/pages/Enterprise/RiskMappingWorkbenchPage.tsx`：撤销/重做/保存按钮补显式 `aria-label`（保存 = 保存工作台）
+- `frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx`：主画布包一层 `<div data-testid="workbench-canvas">`（react-konva v19 的 Stage 不透传 data-testid，已核对源码）
+- `TASKS.md`：补可复现命令（迁移 SQL、一键 Playwright、E2E_BASE_URL 覆盖、tsc、vitest）及本次验证结果
+
+## 测试结果（全部新跑，未设 E2E_BASE_URL）
+
+- `cd frontend && npx tsc -b`：exit 0
+- `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：2 文件 25 passed
+- `npx playwright test e2e/risk-mapping-workbench.spec.ts`：3 passed（7.7s），webServer 自动接管 5174
+- 额外验证：`--repeat-each=2 --workers=2` 并行 6/6 passed；`E2E_BASE_URL=http://localhost:5174` 覆盖运行 3/3 passed
+
+## 自审
+
+- 审查意见逐项核对过代码再动手：`pending_regions` 确实不在 `WorkbenchResponse`（backend/app/schemas/risk_management.py:134），`FloorResponse` 确有 `created_at`；「后注册路由优先」这类隐性契约已通过单路由分发彻底消除
+- mock 数据、选择器、坐标均不再依赖库内部实现或固定视口
+- 提交内容核对：`git diff --stat` 仅 6 个范围内文件，`git diff --check` 无空白错误；commit message 与要求一致
+- 迁移命令在 TASKS.md 中按本地库（`emergency_plan`）给出了可直接执行的 psql 命令，发布前仍需在目标测试库执行确认（TASKS.md 已记录）

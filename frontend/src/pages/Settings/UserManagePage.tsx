@@ -166,7 +166,7 @@ export default function UserManagePage() {
         onCancel={() => setModalOpen(false)}
         onOk={handleSubmit}
         confirmLoading={saveMut.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           {!editingUser && (
@@ -219,7 +219,7 @@ export default function UserManagePage() {
           resetMut.mutate({ id: resetTarget.id, new_password: v.new_password });
         })}
         confirmLoading={resetMut.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={resetForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item

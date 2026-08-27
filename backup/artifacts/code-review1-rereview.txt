@@ -1,0 +1,32 @@
+核对完毕。以下为复审报告。
+
+---
+
+## 复审报告：提交 8719355（对照 d417f12）
+
+**审查范围**：`git diff d417f12 8719355`（3 个文件：迁移 SQL、新增 conftest.py、测试文件）；对照上一轮审查报告 `code-review1.txt` 的 7 条意见；实测两种目录下的测试运行。全程只读，未修改文件、未提交。
+
+### 优点
+
+1. **修复精准、无范围外变更**：仅改迁移 SQL 与测试，未动 app 代码、未夹带其他重构；与上一轮审查意见 3–6 逐一对应。
+2. **risk_objects 跨企业守卫已正确落地**：回填改为 `SET floor_id = rz.floor_id FROM risk_zones rz`，并新增 `AND rz.enterprise_id = ro.enterprise_id`；同时按审查建议去掉了冗余的 `enterprise_floors` 交叉连接与失效的 COALESCE 分支。数据不一致（跨企业/缺分区）的行保持 floor_id 为 NULL，符合模型可空语义，不会误指跨企业楼层。
+3. **zone_id 外键替换边界已封堵**：保留「按名排除」的陈旧约束清理 DO 块之外，新增无条件 `DROP CONSTRAINT IF EXISTS fk_risk_objects_zone` 后再 ADD RESTRICT——即使库中已存在同名但 action 为 SET NULL 的约束也会被替换，正好命中上一轮意见 6 的场景；整体仍在 BEGIN/COMMIT 事务内，重复执行幂等。
+4. **测试覆盖显著增强**：由 3 个 ORM 断言扩到 12 个，新增对建表、默认楼层回填（含「默认总图」）、risk_zones/risk_objects 回填、跨企业守卫、SET NOT NULL、两个 RESTRICT 外键、FK 替换 DROP、v2 多边形转换、字段可空性共 9 类关键语句/语义的断言，防漂移能力符合意见 3 的要求。
+5. **测试可移植性问题已解决**：新增 `backend/tests/conftest.py`，用相对 conftest 计算路径插入 `sys.path[0]`，替代 test_web_search.py 的硬编码绝对路径与 `os.chdir`。实测 `cd backend` 与仓库根目录两种调用均为 **12 passed**；SQL 路径基于测试文件定位，两种目录下都稳定。
+6. `git diff d417f12 8719355 --check` 无空白/冲突标记问题；提交粒度与 message 规范。
+
+### 问题
+
+**关键**：无。
+
+**重要**：
+- 上一轮意见 1、2（迁移落地后 `POST /zones` 因缺 floor_id 抛 IntegrityError、`DELETE /enterprises` 被新 RESTRICT 外键阻塞）**本提交未解决，也未按建议在 TASKS.md 或发布说明中显式登记**。计划已将任务 1+2 排同批、企业删除改造排任务 3，部署顺序上可缓解，但「显式登记已知回归」这一动作缺失，`TASKS.md` 快照中查无回归登记。建议在迁移执行到共享库之前补登记（可写入 TASKS.md 快照或任务 2 报告中），并在任务 2/3 落地前不要单独执行该迁移。这一点不阻塞本修复提交本身，但「全部意见均已解决」的表述并不成立。
+
+**次要**：
+- 全量收集测试时 `test_autofill_research.py`、`test_web_search.py` 因 venv 缺 `scrapling` 依赖报 `ModuleNotFoundError`——属既有环境问题，与本修复无关，但注意别误归因；本修复只承诺并实现了目标测试文件的双目录可移植。
+- 个别 SQL 文本断言仍偏弱（如 `"UPDATE risk_zones"` + `"SET floor_id"` 的组合断言、`re.search("UPDATE risk_objects ro.*?;")` 只匹配首个语句），当前正确，但后续若 SQL 结构变化可能产生误导，属可接受的文本级断言取舍。
+- 上一轮意见 7（SQL 头部注释、模型唯一索引声明、`Enterprise.floors` 关系等「仅供参考」项）仍未处理，与意见原文一致地留待任务 3 补齐，不阻塞。
+
+### 结论
+
+**通过**。上一轮审查中本次修复应覆盖的四项重点（测试可移植性、迁移 SQL 断言、risk_objects 跨企业守卫、zone_id 外键替换边界）已全部解决并经两种调用方式实测验证（12 passed）；无关键缺陷，SQL 改动正确且幂等。需明确：意见 1、2 两项「重要」属部署顺序/登记类事项，本提交未覆盖且未登记，请在迁移执行前补齐登记，并按计划同批推进任务 2；意见 7 按原意见预期留待任务 3。

@@ -6,6 +6,12 @@ backend/uploads/
 graphify-out/
 .playwright-cli/
 .codex-custom-subagents/
+release/
+backup/
+frontend/output/
+screenshots/
+test-results/
+.worktrees/
 参考应急预案/
 参考风险评估报告/
 参考应急资源评估报告/

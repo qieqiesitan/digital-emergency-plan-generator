@@ -315,7 +315,7 @@ export default function RiskAssessmentPreview() {
                   <Statistic
                     title={level}
                     value={count}
-                    valueStyle={{ color: levelColorMap[level], fontSize: 24 }}
+                    styles={{ content: { color: levelColorMap[level], fontSize: 24 } }}
                     suffix="项"
                   />
                 </Card>

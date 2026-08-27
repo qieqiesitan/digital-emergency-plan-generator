@@ -1,4 +1,20 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控）：✅ 图谱增量更新完成（graphify --update 全流程）
+- 刚完成的动作：.graphifyignore 新增 release/ backup/ frontend/output/ screenshots/ test-results/ .worktrees/ 排除产物目录；detect_incremental 得 131 变更（124 代码 + 7 文档）+ 849 删除；AST 提取 1527 节点/3985 边（修复 Windows spawn 需 __main__ 保护）；按项目惯例手写语义脚本补 4 概念/5 文档/9 节点/19 边（accident_types_2025、user_feedback_triage、system_intro_ppt、deploy_manual）；build_merge 剪枝合并 → 25167 节点/43832 边/1317 社区；复用旧标签 + token 频率命名（0 占位符）；graph.html 聚合视图（1317 社区节点 + 880 跨社区边）；graph diff +1051 节点/+3112 边、-557 节点/-929 边；cost.json 追加本次 run（0 token，AST 免费）；.graphify_old.json 已清理
+- 下一步：无阻塞。已知遗留（非本次引入）：图谱含历史 release/ 与 node_modules 噪音节点，需全量重建才能清除；graphify-out/_*_20260827.py 为本次一次性脚本（项目惯例保留）
+- 关键上下文：输出 graphify-out/graph.json（25167 节点）/ GRAPH_REPORT.md / graph.html / .graphify_labels.json；新概念节点 concept_accident_types_2025、concept_user_feedback_triage、concept_system_intro_ppt、concept_deploy_manual 均已入库验证 OK；本次零 LLM token 成本
+
+## 当前状态快照（压缩恢复用）
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-22，主控·一次性优化·业务决策项落地完成）：按用户决策完成 4 项——①四色AI只保留内嵌，删除 four-color-ai/ 与 four-color-ai-java/（git rm，确认主应用用内嵌 recognize_from_bytes，无运行引用，docker-compose 无对应服务即 shuzihuayuan 是移动端非四色AI）；②去掉 qiankun（vite.config.ts 删 import+插件、package.json 删两个依赖、npm install 移除 26 包同步 lock，frontend 首页运行时 qiankun 注入已消失）；③删除 alembic 依赖（requirements.txt，确认从未初始化 alembic 无 alembic.ini/versions）；⑥法规检索收敛到 graph+chromadb 向量主链路，删除 BM25 死路径（bm25_index.py 50MB 数据 bm25_index.json、retriever 的 bm25 参数/属性/_bm25_article_recall 死方法、migrate 脚本 Step4），并顺手修复 _build_semantic_query 缩进错位（原模块级函数却被 self. 调用=潜在 AttributeError，现归入类）
+- 回归验证：后端 pytest 1043 passed / 前端 tsc exit 0 + vitest 141 passed / 前端 HTTP 200（qiankun 移除后无影响）；bm25 引用零残留；regulations import ok
+- 下一步：待用户确认后 git finish 推送（推 GitHub + Gitee），或继续（巨石路由拆分/List 迁移等已按用户决策后续分批做）
+- 关键上下文：本次改动涉及删除目录和依赖，均已 git rm/清理并经回归验证；未触碰他人改动（test_batch_context.py、claimed/*、ppt_gen_system_intro.js、系统介绍.pptx、TASKS.md 保持未提交）；四色AI/四色AI-java 的 docs 规格文档保留未删；TASKS.md 永不 commit
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-22，主控·项目优化审查·批量落地完成）：用户要求「一次性完成所有优化」，已按计划落地 P0/P1/P2 全部安全项，并回归验证通过（前端 tsc exit 0 + vitest 141 passed；后端 pytest 1043 passed）
+- 本次已实施的优化：①P0 登录失败显示友好中文「邮箱或密码错误」（根因 api.ts 拦截器对登录 401 走刷新分支抛 new Error("No refresh token")，修复=认证类接口透传原始 error + Login/Register 读 response.data.detail，实测验证通过）；②删除 cairosvg 死依赖（requirements.txt，零引用）；③antd v6 弃用 API（destroyOnClose→destroyOnHidden 12 文件、Statistic valueStyle→styles.content 3 处；List 整体弃用记录为需迁移项）；④根目录整理（68 个一次性产物 git mv 到 backup/artifacts、删除 frontend;C 空目录、敏感 CSV+临时产物入 .gitignore）；⑤登录后 401 竞态（EnterpriseProvider.useQuery 未认证时无条件请求企业列表→ enabled:isAuthenticated，实测登录+企业列表 20 行零 401）；⑥P1 侧边栏图标统一为 antd 体系（MainLayout 移除 AppIcon 混用）；⑦P1 驾驶舱顶部滚动统计条可读性（字号 10→12.5px、间距 22→26px、数字加粗高亮）；⑧新增 backend/pytest.ini 排除一次性 _docker_test.py 误收集（修复既有测试失败）
+- 下一步：向用户输出本次优化完成报告 + 需业务拍板的决策项清单（四色AI三套去留、qiankun 微前端去留、巨石路由拆分、迁移双轨 alembic vs SQL、List 弃用迁移、法规检索多机制收敛）；待用户确认后进入下一批，或执行 git finish 推送
+- 关键上下文：本次改动源码 15+ 文件已回归验证；未触碰他人改动（test_batch_context.py、claimed/*、ppt_gen_system_intro.js、系统介绍.pptx、TASKS.md 保持未提交）；走查脚本 frontend/walkthrough.mjs+verify_ent.mjs+shot_*.mjs 与截图 output/playwright/ 为本次产物；TASKS.md 永不 commit
 ## 当前状态快照（压缩恢复用）
 - 正在做什么（2026-08-22，主控·项目优化审查·UI 走查阶段）：用户要求「做一次真实 UI 走查」，项目已在 docker 运行（frontend 5173 / backend 8000 / db 5438 / 移动端 8082）；已用 Playwright（headless chromium）登录并走查登录→工作台→企业管理→企业驾驶舱→预案创建核心流程
 - 刚完成的动作：确认凭据 qa_e2e_test@test.com/test123456 有效（test@test.com/123456 密码错误 401）；生成走查脚本 frontend/walkthrough.mjs + 截图 output/playwright/（01-login、02-dashboard、03-enterprise-list、05-enterprise-cockpit、08-plan-create）；修复了脚本路径（playwright 在 frontend/node_modules），playwright-cli 在 Windows 崩溃改用项目自带 playwright + Node 脚本

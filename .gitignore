@@ -62,10 +62,40 @@ chmod
 
 # 本地模型资产（CLIP ONNX + 提示词 embedding，部署时单独打包）
 backend/models/
-four-color-ai/models/
 
 # 打包产物
 release/
 
 # 数据库备份（pg_dump 产物，勿入库）
 backups/
+
+# ===== 安全：敏感凭据（服务器密码等，严禁入库）=====
+*密码*.csv
+*密码*.xlsx
+*secret*.csv
+
+# ===== 本地开发/审查一次性产物（根目录与各子目录）=====
+# 一次性分析/修复脚本（_ 开头 .py）
+/_*.py
+# 审查/测试报告（*.txt）
+/*-review*.txt
+/*-report*.txt
+/task*.txt
+/spec-review*.txt
+/code-review*.txt
+/analysis_output.txt
+/session_analysis.txt
+# 测试产物
+/test_*.docx
+/test_*.png
+/*.log
+# 本地前端构建/测试残留
+/frontend;C/
+/frontend/output/
+# 前端临时 UI 走查脚本（一次性 Playwright）
+/frontend/walkthrough.mjs
+/frontend/verify_ent.mjs
+/frontend/verify_login_err.mjs
+/frontend/trace401.mjs
+/frontend/shot_sidebar.mjs
+/frontend/shot_cockpit.mjs

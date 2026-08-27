@@ -86,16 +86,6 @@ def main():
     logger.info('Vector index: run POST /regulations/rebuild-index API after starting server')
     logger.info('  (requires AI config set up for embedding API)')
 
-    # Step 4: BM25 index (NEW V2.0)
-    logger.info('Rebuilding BM25 index ...')
-    try:
-        from app.regulations.bm25_index import BM25ArticleIndex
-        bm25 = BM25ArticleIndex()
-        bm25_result = bm25.rebuild_all()
-        logger.info('BM25 rebuilt: %s', bm25_result)
-    except Exception as e:
-        logger.warning('BM25 rebuild skipped: %s', e)
-
     return stats
 
 

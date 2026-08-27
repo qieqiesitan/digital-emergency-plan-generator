@@ -1,0 +1,50 @@
+# 提交 31208a6（任务 9）代码质量审查报告
+
+审查对象：`feat(risk-mapping): complete binding, properties, text editing, and save polish`（6 文件，+317/−57）。已用 `git show 31208a6` 与当前文件逐项核对。
+
+## 验证结果
+
+| 检查项 | 结果 |
+|---|---|
+| `npx tsc -b` | 通过（全项目） |
+| `npx vitest run src/store/riskMappingWorkbenchStore.test.ts` | 19/19 通过 |
+| `npx eslint`（6 个修改文件） | 0 错误 0 警告 |
+| `git diff --check` 类（diff 内无冲突/异常空白） | 正常 |
+
+## 优点
+
+- **撤销顺序整体正确**：新增的每处修改（拖动回写、文字编辑、文字删除、矩形生成、待绑定区域）都遵循「先 `commit()` 再 `setSnapshot`」约定；`markSaved` 同时清空 `past`/`future`，与新增 2 个测试完全对应，行为闭环。
+- **矩形工具重做到位**：从「点击两次生成」改为拖拽预览，预览矩形按 min/max 归一化坐标，与生成的多边形四点完全一致；`draftStart`/`draftEnd` 状态管理干净。
+- **拖动回写换算正确**：zone/pending 多边形用「拖动增量（像素 → 百分比）+ 原坐标 + `clampPoint`」，并复位 Konva 节点位置；文字拖动用「绝对位置换算」——两条路径各自与 Konva 节点模型匹配，无漂移。
+- **辅助线实现克制**：居中十字线、`listening={false}`、可开关，不影响画布交互。
+- **楼层确认覆盖全面**：新建/编辑/删除/上传/切换楼层均对 `dirty` 弹确认，防丢失未保存改动；`switchFloor` 还会清理删除队列，避免跨楼层误删。
+- **保存前校验完整**：待绑定区域（升级为 `Modal.warning` 并列出清单）、分区必须有多边形、风险点必须绑定分区；保存载荷字段与 `BatchSavePayload` 类型一一对应。
+- 类型安全：`clampPoint` 复用、`pendingRegions` 映射、`editingText` 判空等均无类型问题；eslint/tsc 全绿。
+
+## 问题
+
+### 关键（建议合入前修复）
+
+无。
+
+### 重要（建议本次或下次迭代修复）
+
+1. **[建议修改] 保存成功后立即编辑存在被静默覆盖的竞态**（`RiskMappingWorkbenchPage.tsx:131-138` + `:44-46`）：`onSave` 用响应回填 store 后仍调用 `queryClient.invalidateQueries({ queryKey: ["risk-workbench", ...] })`，触发重新拉取；页面 `useEffect` 依赖 `data`，会在请求落地时无条件 `setSnapshot` 覆盖当前 store 并 `markSaved`。若用户在「保存成功提示 → 刷新落地」窗口内开始编辑（或连续保存），新改动会被静默丢弃且历史被清空。由于保存响应已包含权威数据，建议去掉 workbench 的 invalidate（保留 hierarchy/overview 的失效），或将覆盖逻辑改为仅在未改动时合并。
+
+2. **[建议修改] 矩形/自由画笔拖出画布后松手，草稿可能残留**（`WorkbenchCanvas.tsx:163-196`）：`handleMouseUp` 只挂在 Stage 上，指针移出 Stage 后松开不会触发，`draftStart/draftEnd`（或 `draftPoints`）会残留为幽灵预览。建议在 Stage 外层补 window 级 mouseup 兜底，或对工具切换/离开画布做草稿清理。
+
+3. **[建议修改] 保存按钮无 loading/防重**（`RiskMappingWorkbenchPage.tsx:74-78`）：`onSave` 为异步但按钮不显示 loading，连点可并发发送两个 batch-save（第二个大概率 SAVE_CONFLICT 误报「数据被他人修改」）。建议保存期间 `disabled` 或加 loading。
+
+### 次要
+
+4. **[仅供参考] 同毫秒新增文字存在 ID 碰撞风险**：属性面板 `addText` 仍用 `text-${Date.now()}`（`WorkbenchPropertiesPanel.tsx:49`），画布已改用带随机后缀的 `nextLocalId`，两个入口 ID 生成规则不一致；同毫秒连续添加会重复 key 且更新互相覆盖。建议面板也复用 `nextLocalId`。
+
+5. **[仅供参考] 同分区多多边形可被拖散**：zone 的多边形是独立 `Line` 逐个拖动（`WorkbenchCanvas.tsx:289-318`），一个分区含多个区域时可单独位移造成形状撕裂；若预期是整区联动，建议后续按 zone 分组拖动。属设计取舍，需确认预期行为。
+
+6. **[仅供参考] 「取消绘制」按钮只切工具、不清草稿**（`WorkbenchToolbar.tsx:69-71`）：绘制中切工具会残留未完成的草稿预览，与第 2 条同源，可一并处理。
+
+## 结论
+
+**通过（建议按上述 1–3 项在后续迭代修复，不阻塞合入）。**
+
+提交范围聚焦、与任务 9 目标一致；矩形预览、多边形/文字拖动回写、辅助线、楼层确认、markSaved 与保存载荷均已核对应症，撤销顺序和类型安全没有问题，tsc / vitest（19 通过）/ eslint 全部通过。1–3 项属边界竞态与交互鲁棒性改进，无数据损坏类必须修复项。未修改任何文件、未提交。

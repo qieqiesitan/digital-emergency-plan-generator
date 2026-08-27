@@ -1,0 +1,24 @@
+修复完成并已提交。以下是汇报：
+
+## 状态
+已完成，提交 `8719355`，分支 `codex/protego-integration`，commit message：`fix(risk-mapping): harden migration SQL and tests`。未推送（按要求只提交）。
+
+## 修改文件（仅 3 个，符合"只提交本次修复相关文件"）
+- 新增 `backend/tests/conftest.py`：按 test_web_search.py 的 sys.path 思路，把 backend 目录插入 `sys.path[0]`，但用相对于 conftest 的计算路径替代硬编码绝对路径、不做 chdir，因此从仓库根和 backend 两个目录都能导入 `app`。
+- 修改 `backend/tests/test_risk_mapping_migration.py`：
+  - 断言 `RiskZone.floor_id nullable=False`、`RiskObject.floor_id nullable=True`；
+  - 读取 `backend/db_migration_risk_mapping_workbench.sql`（路径基于测试文件定位，两种调用目录均稳定），断言 enterprise_floors 建表、默认楼层回填（`INSERT INTO enterprise_floors` + 默认总图）、floor_id 回填（risk_zones/risk_objects 的 UPDATE）、`SET NOT NULL`、RESTRICT 外键（enterprise_floors/risk_zones 两个引用）、v2 polygons 转换（`'version', 2`）。
+- 修改 `backend/db_migration_risk_mapping_workbench.sql`：
+  - risk_objects 回填改为 `SET floor_id = rz.floor_id FROM risk_zones rz`，增加 `rz.enterprise_id = ro.enterprise_id` 守卫，去掉与 enterprise_floors 的交叉连接；
+  - zone_id 外键替换改为无条件 `DROP CONSTRAINT IF EXISTS fk_risk_objects_zone` 后 ADD RESTRICT，已存在非 RESTRICT 同名约束也会被替换。
+
+## 测试结果
+两项均通过（venv pytest 9.1.1，全局 python 的 pytest 因预存 pytest_asyncio 版本冲突不可用，与 TASKS.md 快照一致，故按项目惯例使用 `backend/.venv`）：
+- `cd backend && .venv\Scripts\python.exe -m pytest tests/test_risk_mapping_migration.py -v` → **12 passed**
+- 仓库根 `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_risk_mapping_migration.py -v` → **12 passed**
+- `git diff d417f12 HEAD --check` 无空白/冲突标记问题。
+
+## 自审
+- 六项审查意见逐条核对均已覆盖，未扩大范围：未改 app 代码、未动 TASKS.md、未提交报告文件。
+- 过程中发现 `git save`（`git add -A`）曾把 TASKS.md 与 3 个报告文件带进保存点提交，已用软回退到 d417f12 后只提交 3 个修复文件，TASKS.md 与报告文件已恢复为原来的未提交状态；旧保存点仅存在于 reflog 中，如需可恢复。
+- 已运行 `codegraph sync .`（3 个文件，23 节点）；未运行 graphify update，因为本次未改动 app 代码结构，仅有测试与 SQL。

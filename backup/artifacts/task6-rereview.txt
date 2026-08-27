@@ -1,0 +1,40 @@
+复审完成。核对依据：`git diff 5b7e845 03c0f1f`（含 2673a02 保存点、48be874 类型对齐、03c0f1f 修复提交本身）、上一轮意见 [task6-code-review.txt](C:/Users/55061/Documents/数字化预案自动生成 2/task6-code-review.txt) 与修复声明 [task6-fix-report.txt](C:/Users/55061/Documents/数字化预案自动生成 2/task6-fix-report.txt)，并实跑了 vitest、eslint、tsc、`git diff --check`。全程未修改任何文件、未提交（按要求也未更新 TASKS.md）。
+
+## 优点
+
+1. 修复提交 03c0f1f 本身非常干净：仅改 3 个任务 6 文件（geometry +73、store +49、test +170），`git diff --check` 通过，无空白/冲突标记。
+2. 上一轮 5 项主要意见（1 关键 + 4 重要）逐项对症，无敷衍式绕过：
+
+| 上一轮意见 | 修复落实情况 |
+|---|---|
+| [关键] simplifyPolygon 未用 tolerance，lint 失败 | 改为 Douglas-Peucker 真实现（[riskMappingGeometry.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/riskMappingGeometry.ts:71)）：toleranceSq 驱动抽稀、按最远点对拆闭环消除接缝偏差、迭代栈防深递归；结果 <3 点或 `validatePolygon` 不通过时回退原多边形 |
+| [重要] validatePolygon 对 NaN/Infinity 静默通过 | 面积计算前先做 `Number.isFinite` 校验（[riskMappingGeometry.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/utils/riskMappingGeometry.ts:27)），与后端 `validate_polygon_v2` 口径一致 |
+| [重要] commit 快照含 UI 字段、历史套历史 | 抽出 `WorkbenchDomainState` 8 个领域字段（[riskMappingWorkbenchStore.ts](C:/Users/55061/Documents/数字化预案自动生成 2/frontend/src/store/riskMappingWorkbenchStore.ts:10)），`past/future` 类型改为 `WorkbenchDomainState[]`，`snapshotOf` 只快照领域字段（:56），历史栈不再嵌套 |
+| [重要] undo/redo 连选中态/工具一起回退 | undo/redo 恢复领域字段时保留当前 `tool/selectedZoneId/selectedRegionId/grid/snap/guide`（:77-107），并补了空栈守卫（:78、:95），符合规格 7.1「不记录 viewport/tool/selected」 |
+| [重要] undo/redo 零测试 | 测试扩到 12 个：commit 领域快照、undo 恢复+UI 保留、redo 重放、undo 后 commit 清空 future、50 条上限、dirty 语义，外加几何的容差行为与退化回退 |
+
+3. 测试、lint、类型全部实测通过：vitest **12/12 passed**（`cd frontend && npx vitest run src/store/riskMappingWorkbenchStore.test.ts`）；eslint 指定 3 文件 **0 error**（exit 0）；`tsc -p tsconfig.app.json --noEmit` 通过。当前工作区三个文件与 03c0f1f 逐字节一致（caba211 任务 3 提交未触碰）。
+4. `setSnapshot` 顺带收窄为 `Partial<WorkbenchDomainState>`（:31），上一轮「仅供参考」第 7 条一并解决。
+
+## 问题
+
+### 关键
+
+无。
+
+### 重要
+
+无。5 项主要意见全部闭环。
+
+### 次要 / 仅供参考
+
+1. **[仅供参考] 区间内混入保存点提交**：`git diff 5b7e845 03c0f1f` 包含 2673a02 `[savepoint]`，它把 TASKS.md 与 10 个 task*.txt 报告一并提交进分支（此前明确约定「保持未跟踪」）。非 03c0f1f 引入（该提交仅 3 文件），但已进入历史，日后推送会带上这些工作文件，需主控决策是否保留或改写历史。
+2. **[仅供参考] 快照为浅拷贝**：`snapshotOf` 复制数组但共享内部对象引用（:56-66）。只要组件以不可变方式经 `setSnapshot` 替换数组即安全；若将来有原地 mutate，undo 历史会串扰，建议后续在画布组件落地时约定不可变更新。
+3. **[仅供参考] dirty 无法通过 undo 归 false**：commit/undo/redo 后恒为 true（测试已固化此语义），undo 回到与保存前一致的状态仍提示脏，因 store 未保存基线快照。保守可用，规格 7.1 的「保存成功后重置」由 reset 承担，可接受。
+4. **[仅供参考] 上一轮遗留项未处理（已声明范围外）**：`toPercent` 在 max 为 0/undefined 时返回 NaN（geometry :3）、zustand 位于 devDependencies（历史遗留，非本提交引入）、undo/redo 为模块级导出而非 action。均不影响本次通过结论。
+
+## 结论
+
+**通过。**
+
+上一轮代码质量审查的 1 项关键 + 4 项重要意见在 03c0f1f 全部解决，且以可运行的测试与 lint 证据验证（12 passed / eslint 0 error / tsc 通过 / diff --check 干净）；规格 7.1 的快照范围要求已落实。剩余均为仅供参考级优化或区间内保存点噪声，不构成阻断。建议主控留意第 1 条保存点提交 TASKS.md/txt 的历史污染即可。

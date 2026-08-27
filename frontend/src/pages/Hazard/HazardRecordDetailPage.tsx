@@ -757,7 +757,7 @@ export default function HazardRecordDetailPage() {
           setGradeOpen(false);
           gradeForm.resetFields();
         }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={gradeForm}
@@ -819,7 +819,7 @@ export default function HazardRecordDetailPage() {
           setApproveOpen(false);
           approveForm.resetFields();
         }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={approveForm}
@@ -846,7 +846,7 @@ export default function HazardRecordDetailPage() {
           setRejectOpen(false);
           rejectForm.resetFields();
         }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={rejectForm}
@@ -870,7 +870,7 @@ export default function HazardRecordDetailPage() {
           setRectifyOpen(false);
           rectifyForm.resetFields();
         }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={rectifyForm}
@@ -904,7 +904,7 @@ export default function HazardRecordDetailPage() {
           setReviewOpen(false);
           reviewForm.resetFields();
         }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={reviewForm}

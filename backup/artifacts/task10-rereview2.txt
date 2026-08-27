@@ -1,0 +1,29 @@
+复审完成。以下为提交 9c1d6f7 的二次质量复审报告。
+
+## ✅ 通过
+
+必改项（上一轮审查意见 1–4）已全部解决，验证命令全部通过：
+
+- `npx tsc -b`：通过，0 错误
+- `npx vitest run src/utils/zoneSubmit.test.ts src/store/riskMappingWorkbenchStore.test.ts`：25 passed（zoneSubmit 6 + store 19）
+- `npx eslint`（本次 6 个修改文件）：0 error / 0 warning
+- `git show --check 9c1d6f7`：无空白/冲突标记；提交仅含 6 个前端文件
+
+## 逐条核对
+
+1. **RiskZoneForm 多区域保留与颜色（关键）✅**：新增纯函数 `mergeEditedPolygon`，编辑时只替换编辑器加载的 `polygons[0]`，其余区域保留；`color_source`/`color` 沿用原 v2 值，不再强制重置 auto；多区域打开弹窗时显示「将保留其余区域」提示。同时兼容 legacy v1 `{points}` 格式（version ≠ 2 视为新建并升级 v2）。新增 3 个回归测试覆盖：仅替换编辑区域、保留 manual 颜色、无既有值新建 auto。
+
+2. **getFullHierarchy floor_id ✅**：`getFullHierarchy(eid, floorId?)` 增加可选 `floor_id` 查询参数；已核对后端 `GET /hierarchy` 确认支持 `floor_id: Query(None)`。总览页查询 key 纳入 `effectiveFloorId`，树数据随楼层刷新。
+
+3. **RiskOverviewPage 空态 ✅**：空态判断下移到楼层选择器之后，有楼层时提示「当前楼层暂无风险管控数据，请切换楼层查看」，不再拦截楼层切换。
+
+4. **eslint 新错误 ✅**：RiskDistributionStage 移除 effect 内同步 `setLoadedImage(null)`，改由既有 `url` 守卫派生空图；RiskOverviewPage 移除 effect 内 `setFloorId`，改为派生 `effectiveFloorId`。实测两个文件及全部修改文件 lint 归零。
+
+5. **次要项 toggle 与楼层切换清理 ✅**：点击已高亮分区恢复取消高亮/选中 toggle；`handleFloorChange` 清理旧楼层的高亮与树选中残留。
+
+## 遗留（均属上轮标注的可选打磨项，不阻塞）
+
+- EnterpriseDetailPage 的 10 个既有 lint 错误仍在，但该文件未在本次提交范围内（RiskZoneForm 的未用 `message` 已顺手删除）。
+- 图片加载未处理 onerror / abort 旧请求；floors 空列表时后端自动建默认楼层的前端刷新；`crypto.randomUUID()` 安全上下文提示——上轮均明确为可选，本次未处理。
+
+本次仅审查，未修改任何文件、未提交。

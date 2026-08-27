@@ -212,7 +212,7 @@ export default function FourColorImportModal({
       title="导入四色分布图"
       width={860}
       onCancel={handleClose}
-      destroyOnClose
+      destroyOnHidden
       footer={[
         <Button key="cancel" onClick={handleClose}>取消</Button>,
         <Button

@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import qiankun from "vite-plugin-qiankun";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { configDefaults } from "vitest/config";
@@ -24,7 +23,6 @@ async function getPlugins() {
   const plugins: any[] = [
     react(),
     tailwindcss(),
-    qiankun("emergency-plan", { useDevMode: true }),
   ];
 
   if (!skipPWA) {

@@ -805,7 +805,7 @@ export default function EnterpriseOrgPage() {
         open={nodeModal.open}
         onCancel={() => setNodeModal({ open: false, mode: "add" })}
         onOk={submitNodeModal}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" autoComplete="off">
           <Form.Item
@@ -834,7 +834,7 @@ export default function EnterpriseOrgPage() {
         open={memberModal.open}
         onCancel={() => setMemberModal({ open: false, mode: "create" })}
         onOk={submitMemberModal}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" autoComplete="off">
           {memberModal.mode === "create" && (

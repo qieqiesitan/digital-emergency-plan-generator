@@ -1,0 +1,29 @@
+审查完成，未修改任何文件、未提交。汇报如下：
+
+## ✅ 符合规格
+
+提交 5b7e845 与计划「任务 6」（计划文件 1619–1783 行）逐项核对一致，无缺失需求、无理解偏差。
+
+**6.1 几何工具** `frontend/src/utils/riskMappingGeometry.ts`：8 个导出函数与计划代码逐字一致
+- `toPercent`（:3）、`toCanvasX`（:4）、`toCanvasY`（:5）、`clampPoint`（:7–10）、`pointsToKonva`（:12–13）、`polygonArea`（:15–23）、`validatePolygon`（:25–29）、`simplifyPolygon`（:31–34）
+
+**6.2 Store** `frontend/src/store/riskMappingWorkbenchStore.ts`：与计划 1671–1750 行一致
+- `WorkbenchState` 接口（:5–26）字段齐全，含内联 `EnterpriseFloor[]` 类型、`tool` 六值联合类型、`grid/snap/guideEnabled`、`dirty`、`past/future`
+- `initial`（:28–46）默认值与计划一致
+- `setSnapshot` 不自动进历史（:50）、`commit` 用 `slice(-49)` 限深并清空 future 置 dirty（:51–54）、`reset`（:55）
+- `undo`/`redo`（:58–78）与计划逐字一致
+
+**6.3/6.4 测试与验证**
+- 计划要求的 commit 测试存在于 [riskMappingWorkbenchStore.test.ts](/C:/Users/55061/Documents/数字化预案自动生成%202/frontend/src/store/riskMappingWorkbenchStore.test.ts:13)，内容与计划一致
+- vitest 已按计划加入 devDependencies（[package.json](/C:/Users/55061/Documents/数字化预案自动生成%202/frontend/package.json:64)），`"test": "vitest run"` 脚本已添加（:10）
+- 实测 `cd frontend && npx vitest run src/store/riskMappingWorkbenchStore.test.ts`：**1 个测试文件、5 个用例全部 PASS**（0 失败）
+- 补充只读类型检查 `npx tsc -p tsconfig.app.json --noEmit --incremental false`：通过，无类型错误
+
+**6.5 提交**：commit message 与计划 6.5 完全一致，包含计划要求的 4 个文件 + package-lock.json（添加 vitest 后 lockfile 同步的必要产物，合理）。
+
+## 非阻断偏差（仅供参考）
+
+1. 计划代码中两个未使用的类型导入未保留：geometry 省略 `RiskPolygon`（计划 1631 行）、store 省略 `RiskPolygonPoint`（计划 1673 行）。这两个类型在计划代码中本就未被使用，属于消除未使用导入，功能零影响，反而更利于 lint。
+2. 测试文件超出计划范围：额外增加了 4 个 `riskMappingGeometry` 用例（test 文件 :22–60），所以用例数是 5 而非计划预期的 1。全部通过，是对计划内几何函数的正向覆盖，建议保留。
+
+审查过程验证了当前文件与提交 5b7e845 完全一致（无后续改动），且未执行任何文件修改或提交。

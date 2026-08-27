@@ -35,6 +35,14 @@ api.interceptors.response.use(
 
     // 401 自动刷新
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // 认证类接口（登录/注册）的 401 属于「凭据错误」，不触发刷新，直接透传原始 error，
+      // 让页面能读取后端返回的友好 detail（如「邮箱或密码错误」）而不是技术性错误。
+      const url: string = originalRequest?.url || "";
+      const isAuthEndpoint = /\/auth\/(login|register)/.test(url);
+      if (isAuthEndpoint) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });

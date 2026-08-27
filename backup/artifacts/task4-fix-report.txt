@@ -1,0 +1,22 @@
+任务 4 修复已完成并提交，汇报如下。
+
+## 状态
+
+已完成全部必须修复项并提交独立 commit `397bec8`（未推送，未触碰 TASKS.md、计划文件与前端文件；工作区中前端未提交改动为并行任务 7+8 的产出，保持原状）。
+
+## 修改文件（4 个，均在任务范围内）
+
+- [risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/routers/risk_management.py)：`batch_save_workbench` 风险点循环新增两级校验——坐标先过 `_validate_point_range`（422 `POINT_OUT_OF_RANGE`）；凡携带 `item.zone_id` 的风险点（含既有与新建，新建直接绑既有分区同样会产生跨楼层不一致，故一并覆盖）用 `RiskZone.id + floor_id + enterprise_id` 三条件查询校验，不满足返回 422 `ZONE_FLOOR_MISMATCH`。
+- [risk_management.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/app/schemas/risk_management.py)：`BatchSaveRiskPointItem.location_x/location_y` 增加 `field_validator`，拒绝非有限数值（NaN/Inf）及超出 0-100 的值，与多边形顶点校验口径一致。
+- [test_risk_mapping_workbench.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/tests/test_risk_mapping_workbench.py)：schema 级坐标边界/越界/非有限数值测试。
+- [test_risk_mapping_service.py](/C:/Users/55061/Documents/数字化预案自动生成%202/backend/tests/test_risk_mapping_service.py)：基于 AsyncMock 的路由级测试——跨楼层绑定被拒（`ZONE_FLOOR_MISMATCH`）、同楼层绑定放行、坐标越界 4 种非法值被拒（`POINT_OUT_OF_RANGE`）、client_id 重复、缺失分区（`ZONE_NOT_BOUND`）、级联删除需确认（409 `CASCADE_CONFIRM_REQUIRED`）及确认后删除成功。
+
+## 测试结果
+
+- 任务指定命令：`backend/.venv\Scripts\python.exe -m pytest backend/tests/test_risk_mapping_workbench.py backend/tests/test_risk_mapping_service.py backend/tests/test_risk_mapping_migration.py -v` → **56 passed**（含新增 13 个）。
+- 回归：跑全部后端测试（排除 `test_autofill_research.py`、`test_web_search.py` 两个因环境缺少 `scrapling` 模块导致的预存在收集错误）→ **66 passed**。
+- `git diff --check` 无空白错误；模块导入正常。
+
+## 自审
+
+审查意见关键问题 1 与重要问题 2、3 均已落实：跨楼层/跨企业绑定不再可写入，错误码契约与规格文档一致；坐标校验在 schema 与路由双保险。已按项目规则创建保存点 `21ebca2` 并执行 `codegraph sync`；未执行 `graphify update`（耗时重、非本任务要求）和 `git finish`（任务只要求本地独立 commit，不推送）。审查中的次要项 4-7（naive 时间戳语义、GET 写副作用、floor_id 字段语义、删除容错说明）不在本次修复范围，如需要可另行处理。

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button, Table, Modal, Form, Input, Space, message, Popconfirm } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import AppIcon from "@/components/common/AppIcon";
@@ -179,7 +179,7 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
         onOk={handleSubmit}
         confirmLoading={submitting}
         width={700}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>

@@ -1,0 +1,26 @@
+审查完成。结论如下。
+
+## ✅ 符合规格（任务 9 计划）
+
+提交 31208a6 满足计划“任务 9：绑定、属性、文字与保存”，且用户指定的两项验证命令全部通过：
+
+- `cd frontend && npx tsc -b` → 通过（exit 0）
+- `npx vitest run src/store/riskMappingWorkbenchStore.test.ts` → 19 tests passed
+
+重点逐项核对：
+
+1. **文字编辑/删除** ✅ — 双击文字弹窗可改内容/字号/颜色、可删除（[WorkbenchCanvas.tsx](frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx:356)）；属性面板文字列表也有删除按钮（[WorkbenchPropertiesPanel.tsx](frontend/src/components/enterprise/riskMapping/WorkbenchPropertiesPanel.tsx:192)）。所有修改均先 `commit()` 再 `setSnapshot()`，可撤销。
+2. **多边形拖动** ✅ — 分区多边形与待绑定区域仅在 select 工具下可拖（[WorkbenchCanvas.tsx](frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx:240)、[WorkbenchCanvas.tsx](frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx:290)）；dragStart 记录原点、dragEnd 按百分比换算并 clamp，`commit()` 在 `setSnapshot()` 之前，撤销顺序正确。
+3. **rect 预览** ✅ — 按下拖动实时绘制虚线+半透明 `Rect` 预览，松手转四点多边形，带最小尺寸保护（[WorkbenchCanvas.tsx](frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx:259)、[WorkbenchCanvas.tsx](frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx:172)）。
+4. **辅助线** ✅（简化实现）— `guideEnabled` 开关已接工具栏，开启后画布渲染中心十字参考线（[WorkbenchCanvas.tsx](frontend/src/components/enterprise/riskMapping/WorkbenchCanvas.tsx:225)）。
+5. **楼层未保存确认** ✅ — 切换楼层、新建/编辑、删除、上传平面图在 `dirty` 时均弹出确认并明确提示改动丢失（[EnterpriseFloorManager.tsx](frontend/src/components/enterprise/EnterpriseFloorManager.tsx:62)、[EnterpriseFloorManager.tsx](frontend/src/components/enterprise/EnterpriseFloorManager.tsx:115)、[EnterpriseFloorManager.tsx](frontend/src/components/enterprise/EnterpriseFloorManager.tsx:182)）。
+6. **markSaved 清历史** ✅ — `markSaved` 置 `dirty:false` 并清空 `past/future`（[riskMappingWorkbenchStore.ts](frontend/src/store/riskMappingWorkbenchStore.ts:94)）；新增两条测试覆盖“清 past+future”和“undo 产生的 future 也被清空”（[riskMappingWorkbenchStore.test.ts](frontend/src/store/riskMappingWorkbenchStore.test.ts:273)）。
+7. **保存校验** ✅ — 待绑定区域弹出清单并阻止保存（[RiskMappingWorkbenchPage.tsx](frontend/src/pages/Enterprise/RiskMappingWorkbenchPage.tsx:53)）、分区必须至少一个区域、风险点必须绑定分区、`SAVE_CONFLICT` 已处理；载荷与后端 `BatchSaveRequest` 契约一致（`client_id`/`zone_client_id`/`floor_id`/`updated_at`）。
+
+非阻塞观察（不影响本任务通过）：
+
+- [仅供参考] 辅助线为静态中心线，而设计规格 7.4 写的是“动态显示对齐线”（拖动时对齐提示）；如需严格对齐规格，可在后续任务增强。
+- [仅供参考] 文字编辑弹窗缺“旋转”入口（设计规格 6.7 列了旋转），字段有保留但无 UI。
+- [仅供参考] 设计规格 7.1 的“页面离开前检查 dirty”尚未实现（仅楼层级操作有确认），超出本提交范围，可归入任务 11。
+
+审查过程未修改任何文件（工作区除既有未跟踪报告文件外干净）。

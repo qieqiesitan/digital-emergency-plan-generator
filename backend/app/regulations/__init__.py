@@ -33,16 +33,7 @@ def get_retriever():
     except ImportError as e:
         logger.warning("向量存储不可用(chromadb未安装): %s，将仅使用图谱检索", e)
 
-        # BM25 索引可选
-    bm25_index = None
-    try:
-        from app.regulations.bm25_index import BM25ArticleIndex
-        bm25_index = BM25ArticleIndex()
-        bm25_index.load()
-    except ImportError as e:
-        logger.warning("BM25 索引不可用: %s", e)
-
-    _retriever = RegulationRetriever(graph, vector_store, bm25_index=bm25_index)
+    _retriever = RegulationRetriever(graph, vector_store)
     logger.info("法规检索器已初始化 (向量:%s)", "可用" if vector_store else "不可用")
     return _retriever
 
