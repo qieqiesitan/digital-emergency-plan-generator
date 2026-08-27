@@ -70,6 +70,18 @@ SIZE_IDX = 14               # 索引
 FIRST_INDENT_NORMAL = 32    # Normal 首行缩进
 FIRST_INDENT_HEADING = 31.6 # 标题首行缩进
 
+# 表格/图题/页眉页脚（GB/T 29639 与 PRD-07）
+SIZE_TABLE = 12            # 表格文字（小四）
+SIZE_CAPTION = 14          # 图题
+SIZE_HEADER_FOOTER = 10.5  # 页眉页脚（五号）
+LINE_SPACING_BODY = 28     # 正文固定行距（磅）
+LINE_SPACING_TABLE = 22    # 表格固定行距（磅）
+LI_TEXT_THRESHOLD = 30     # 列表项转正文的字符阈值
+TABLE_BODY_WIDTH_CM = 15.6 # 正文区宽（21 - 2.8 - 2.6）
+TABLE_COL_MIN_CM = 1.5
+TABLE_COL_MAX_CM = 6.0
+STYLE_TOC_TITLE = "TOC Title"
+
 # 页边距 (Cm)
 MARGIN_COVER_LEFT = 2.8
 MARGIN_COVER_RIGHT = 2.6
@@ -129,86 +141,62 @@ def register_all_styles(doc: Document):
     normal = doc.styles["Normal"]
     normal.font.name = FONT_TNR
     normal.font.size = Pt(SIZE_NORMAL)
-    normal.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    normal.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     normal.paragraph_format.space_before = Pt(0)
     normal.paragraph_format.space_after = Pt(0)
-    normal.paragraph_format.line_spacing = 1.5
+    normal.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    normal.paragraph_format.line_spacing = Pt(LINE_SPACING_BODY)
     _set_full_fonts(normal, ascii_font=FONT_TNR, ea_font=FONT_FANGSONG)
 
-    # ── 封面标题 ──
-    _define_style(doc, STYLE_COVER_TITLE,
-                  font_name=FONT_SONGTI, font_size=SIZE_COVER_TITLE,
-                  alignment=WD_ALIGN_PARAGRAPH.CENTER,
+    # ── 封面标题 / 落款 / 正文大标题 ──
+    _define_style(doc, STYLE_COVER_TITLE, font_name=FONT_SONGTI,
+                  font_size=SIZE_COVER_TITLE, alignment=WD_ALIGN_PARAGRAPH.CENTER,
                   space_before=0, space_after=0)
     _set_east_asian_font(doc.styles[STYLE_COVER_TITLE], FONT_SONGTI)
-
-    # ── 封面落款 ──
-    _define_style(doc, STYLE_COVER_SIGN,
-                  font_name=FONT_FANGSONG, font_size=SIZE_COVER_SIGN,
-                  alignment=WD_ALIGN_PARAGRAPH.CENTER,
+    _define_style(doc, STYLE_COVER_SIGN, font_name=FONT_FANGSONG,
+                  font_size=SIZE_COVER_SIGN, alignment=WD_ALIGN_PARAGRAPH.CENTER,
                   space_before=0, space_after=0)
     _set_east_asian_font(doc.styles[STYLE_COVER_SIGN], FONT_FANGSONG)
-
-    # ── 正文大标题 ──
-    _define_style(doc, STYLE_BODY_TITLE,
-                  font_name=FONT_SONGTI, font_size=SIZE_BODY_TITLE,
-                  bold=True, alignment=WD_ALIGN_PARAGRAPH.CENTER,
+    _define_style(doc, STYLE_BODY_TITLE, font_name=FONT_SONGTI,
+                  font_size=SIZE_BODY_TITLE, bold=True,
+                  alignment=WD_ALIGN_PARAGRAPH.CENTER,
                   space_before=Pt(24), space_after=Pt(12))
     _set_east_asian_font(doc.styles[STYLE_BODY_TITLE], FONT_SONGTI)
 
-    # ── Heading 1 ──
-    h1 = _define_style(doc, "Heading 1",
-                       font_name=FONT_HEITI, font_size=SIZE_HEADING,
-                       bold=True, first_line_indent=FIRST_INDENT_HEADING,
-                       space_before=Pt(28), space_after=Pt(0))
-    _set_east_asian_font(h1, FONT_HEITI)
+    # ── 标题 1-6：黑体/楷体/仿宋 ──
+    headings = [
+        ("Heading 1", FONT_HEITI, 28),
+        ("Heading 2", FONT_KAITI, 6),
+        ("Heading 3", FONT_FANGSONG, 6),
+        ("Heading 4", FONT_FANGSONG, 6),
+        ("Heading 5", FONT_FANGSONG, 6),
+        ("Heading 6", FONT_FANGSONG, 6),
+    ]
+    for name, font_name, before in headings:
+        st = _define_style(doc, name, font_name=font_name, font_size=SIZE_HEADING,
+                           bold=True, first_line_indent=FIRST_INDENT_HEADING,
+                           space_before=Pt(before), space_after=Pt(0))
+        _set_east_asian_font(st, font_name)
 
-    # ── Heading 2 ──
-    h2 = _define_style(doc, "Heading 2",
-                       font_name=FONT_SONGTI, font_size=SIZE_HEADING,
-                       bold=True, first_line_indent=FIRST_INDENT_HEADING,
-                       space_before=Pt(6), space_after=Pt(0))
-    _set_east_asian_font(h2, FONT_SONGTI)
+    # ── 正文 ──
+    bt = _define_style(doc, "Body Text", font_name=FONT_FANGSONG_GB,
+                       font_size=SIZE_NORMAL, first_line_indent=FIRST_INDENT_NORMAL)
+    _set_east_asian_font(bt, FONT_FANGSONG_GB)
+    bt.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    bt.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    bt.paragraph_format.line_spacing = Pt(LINE_SPACING_BODY)
 
-    # ── Heading 3 ──
-    h3 = _define_style(doc, "Heading 3",
-                       font_name=FONT_SONGTI, font_size=SIZE_HEADING,
-                       bold=True, first_line_indent=FIRST_INDENT_HEADING,
-                       space_before=Pt(6), space_after=Pt(0))
-    _set_east_asian_font(h3, FONT_SONGTI)
+    # ── 图题 / 目录标题 ──
+    cap = _define_style(doc, "Caption", font_name=FONT_SONGTI,
+                        font_size=SIZE_CAPTION, alignment=WD_ALIGN_PARAGRAPH.CENTER)
+    _set_east_asian_font(cap, FONT_SONGTI)
+    toc = _define_style(doc, STYLE_TOC_TITLE, font_name=FONT_HEITI,
+                        font_size=18, alignment=WD_ALIGN_PARAGRAPH.CENTER)
+    _set_east_asian_font(toc, FONT_HEITI)
 
-    # ── Heading 4 ──
-    h4 = _define_style(doc, "Heading 4",
-                       font_name=FONT_FANGSONG, font_size=SIZE_HEADING,
-                       bold=True, first_line_indent=FIRST_INDENT_HEADING,
-                       space_before=Pt(6), space_after=Pt(0))
-    _set_east_asian_font(h4, FONT_FANGSONG)
-
-
-    # ── Heading 5 ──
-    h5 = _define_style(doc, "Heading 5",
-                       font_name=FONT_FANGSONG, font_size=SIZE_HEADING,
-                       bold=True, first_line_indent=FIRST_INDENT_HEADING,
-                       space_before=Pt(6), space_after=Pt(0),
-                       color=RGBColor(0, 0, 0))
-    _set_east_asian_font(h5, FONT_FANGSONG)
-
-    # ── Heading 6 ──
-    h6 = _define_style(doc, "Heading 6",
-                       font_name=FONT_FANGSONG, font_size=SIZE_HEADING,
-                       bold=True, first_line_indent=FIRST_INDENT_HEADING,
-                       space_before=Pt(6), space_after=Pt(0),
-                       color=RGBColor(0, 0, 0))
-    _set_east_asian_font(h6, FONT_FANGSONG)    # ── Body Text ──
-    _define_style(doc, "Body Text",
-                  font_name=FONT_FANGSONG_GB, font_size=SIZE_NORMAL,
-                  first_line_indent=FIRST_INDENT_NORMAL)
-    _set_east_asian_font(doc.styles["Body Text"], FONT_FANGSONG_GB)
-
-    # ── IDX-B ──
-    _define_style(doc, STYLE_IDX_B,
-                  font_name=FONT_HK_ZHONGKAI, font_size=SIZE_IDX,
-                  first_line_indent=0)
+    # ── IDX-B（保留参考文档兼容） ──
+    _define_style(doc, STYLE_IDX_B, font_name=FONT_HK_ZHONGKAI,
+                  font_size=SIZE_IDX, first_line_indent=0)
     _set_east_asian_font(doc.styles[STYLE_IDX_B], FONT_HK_ZHONGKAI)
 
     logger.info("All custom styles registered")
