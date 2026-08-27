@@ -155,7 +155,27 @@ def test_short_list_item_stays_bullet():
 def test_ordered_short_item_stays_numbered():
     doc = Document()
     html_to_docx_content(doc, "<ol><li>第一步</li></ol>")
-    assert doc.paragraphs[0].style.name == "List Number"
+    p = doc.paragraphs[0]
+    assert p.text == "1. 第一步"
+    assert p.style.name != "List Number"
+
+
+def test_ol_numbering_resets_per_list():
+    doc = Document()
+    html_to_docx_content(doc, "<ol><li>第一步</li><li>第二步</li></ol>")
+    html_to_docx_content(doc, "<ol><li>内容甲</li><li>内容乙</li></ol>")
+    texts = [p.text for p in doc.paragraphs]
+    assert texts[0] == "1. 第一步"
+    assert texts[1] == "2. 第二步"
+    assert texts[2] == "1. 内容甲"
+    assert texts[3] == "2. 内容乙"
+    assert all(p.style.name != "List Number" for p in doc.paragraphs)
+
+
+def test_ol_item_with_existing_number_kept():
+    doc = Document()
+    html_to_docx_content(doc, "<ol><li>1. 内容</li></ol>")
+    assert doc.paragraphs[0].text == "1. 内容"
 
 
 def test_build_table_column_widths_not_even():

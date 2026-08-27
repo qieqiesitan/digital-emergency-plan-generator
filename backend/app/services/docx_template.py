@@ -693,13 +693,19 @@ def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1, 
             doc.add_paragraph("")
 
         elif tag in ("ul", "ol"):
-            style_name = "List Bullet" if tag == "ul" else "List Number"
-            for li in element.find_all("li", recursive=False):
+            for i, li in enumerate(element.find_all("li", recursive=False), start=1):
                 text = li.get_text().strip()
                 if not text:
                     continue
                 if len(text) <= LI_TEXT_THRESHOLD:
-                    p = doc.add_paragraph(text, style=style_name)
+                    if tag == "ul":
+                        p = doc.add_paragraph(text, style="List Bullet")
+                    else:
+                        # ol 手动编号：每列表独立从 1 开始，避免 List Number
+                        # 样式共享同一编号序列导致跨章节连续累计（89、90 等）
+                        if not re.match(r"^\d+\s*[.、．)]", text):
+                            text = f"{i}. {text}"
+                        p = doc.add_paragraph(text)
                     p.paragraph_format.left_indent = Cm(1.0)
                     p.paragraph_format.first_line_indent = Cm(-0.5)
                 else:
