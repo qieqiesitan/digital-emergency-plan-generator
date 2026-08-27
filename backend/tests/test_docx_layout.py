@@ -142,3 +142,50 @@ def test_ordered_short_item_stays_numbered():
     doc = Document()
     html_to_docx_content(doc, "<ol><li>第一步</li></ol>")
     assert doc.paragraphs[0].style.name == "List Number"
+
+
+def test_build_table_column_widths_not_even():
+    doc = Document()
+    tbl = build_table(
+        doc,
+        ["序号", "法律法规及标准名称", "文号/标准号"],
+        [["1", "《中华人民共和国安全生产法》及其配套法规标准的完整名称", "主席令第八十八号"]],
+    )
+    widths = [tbl.cell(0, j).width for j in range(3)]
+    assert len(set(widths)) > 1
+
+
+def test_build_table_header_shading_and_size():
+    doc = Document()
+    tbl = build_table(doc, ["类别", "名称"], [["法律", "《安全生产法》"]])
+    shd = tbl.cell(0, 0)._tc.get_or_add_tcPr().find(qn("w:shd"))
+    assert shd is not None and shd.get(qn("w:fill")) == "D9D9D9"
+    run = tbl.cell(0, 0).paragraphs[0].runs[0]
+    assert run.font.size == Pt(12) and run.bold
+    data_run = tbl.cell(1, 1).paragraphs[0].runs[0]
+    assert data_run.font.size == Pt(12)
+    assert data_run.font.bold is not True
+
+
+def test_build_table_long_column_left_aligned():
+    doc = Document()
+    tbl = build_table(
+        doc,
+        ["类别", "非常长的法规名称列标题用于测试对齐"],
+        [["法律", "这是一段很长的标准名称内容，超过六个字，应当左对齐阅读"]],
+    )
+    from docx.enum.text import WD_ALIGN_PARAGRAPH as WA
+    assert tbl.cell(1, 1).paragraphs[0].alignment == WA.LEFT
+    assert tbl.cell(1, 0).paragraphs[0].alignment == WA.CENTER
+
+
+def test_html_table_uses_build_table():
+    doc = Document()
+    html_to_docx_content(
+        doc,
+        "<table><tr><th>类别</th><th>名称</th></tr>"
+        "<tr><td>法律</td><td>《中华人民共和国安全生产法》</td></tr></table>",
+    )
+    assert len(doc.tables) == 1
+    tbl = doc.tables[0]
+    assert tbl.cell(0, 0).paragraphs[0].runs[0].font.size == Pt(12)

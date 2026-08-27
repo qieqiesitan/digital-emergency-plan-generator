@@ -407,6 +407,7 @@ def build_signature_page(doc: Document, signers: list[dict]):
                 r.font.size = Pt(12)
                 r.bold = True
                 _set_east_asian_font_in_run(r, FONT_SONGTI)
+        _shade_cell(cell, "D9D9D9")
 
     # 数据行
     for i, signer in enumerate(signers):
@@ -458,27 +459,63 @@ def add_numbered_paragraph(doc: Document, text: str, level: int = 0):
 # 表格构建
 # ═══════════════════════════════════════════
 
+def _char_units(text) -> float:
+    """估算文本宽度单位：中文 1 单位，西文/数字 0.5 单位。"""
+    return max(sum(1.0 if ord(ch) > 0x2E80 else 0.5 for ch in str(text)), 1.0)
+
+
+def _compute_col_widths(headers, rows, total_cm=TABLE_BODY_WIDTH_CM):
+    """按内容估算列宽：中文 1 单位、西文/数字 0.5 单位，归一化到正文区宽。"""
+    units = []
+    for j, h in enumerate(headers):
+        u = _char_units(h)
+        for row in rows:
+            if j < len(row):
+                u = max(u, _char_units(row[j]))
+        units.append(u)
+    total = sum(units) or len(units)
+    widths = [u / total * total_cm for u in units]
+    widths = [max(TABLE_COL_MIN_CM, min(TABLE_COL_MAX_CM, w)) for w in widths]
+    s = sum(widths)
+    if s:
+        widths = [w / s * total_cm for w in widths]
+    return widths
+
+
+def _shade_cell(cell, fill):
+    """为单元格添加底纹。"""
+    tcPr = cell._tc.get_or_add_tcPr()
+    shd = tcPr.find(qn("w:shd"))
+    if shd is None:
+        shd = parse_xml(f'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" w:fill="{fill}"/>')
+        tcPr.append(shd)
+    else:
+        shd.set(qn("w:fill"), fill)
+
+
 def build_table(doc: Document, headers: list[str], rows: list[list[str]],
                 col_widths: list[float] | None = None):
-    """构建标准格式表格。
-
-    col_widths: 列宽列表（厘米），为空则自动均分。
-    """
+    """构建标准格式表格：内容分配列宽、表头底纹、12pt、长短列对齐。"""
     table = doc.add_table(rows=len(rows) + 1, cols=len(headers))
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    widths = col_widths or _compute_col_widths(headers, rows)
 
     # 表头
     for j, h in enumerate(headers):
         cell = table.cell(0, j)
+        cell.width = Cm(widths[j])
         cell.text = h
         for p in cell.paragraphs:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+            p.paragraph_format.line_spacing = Pt(LINE_SPACING_TABLE)
             for r in p.runs:
-                r.font.name = FONT_SONGTI
-                r.font.size = Pt(10.5)
+                r.font.name = FONT_FANGSONG
+                r.font.size = Pt(SIZE_TABLE)
                 r.bold = True
-                _set_east_asian_font_in_run(r, FONT_SONGTI)
+                _set_east_asian_font_in_run(r, FONT_FANGSONG)
+        _shade_cell(cell, "D9D9D9")
 
     # 数据行
     for i, row in enumerate(rows):
@@ -486,20 +523,20 @@ def build_table(doc: Document, headers: list[str], rows: list[list[str]],
             if j >= len(headers):
                 break
             cell = table.cell(i + 1, j)
+            cell.width = Cm(widths[j])
             cell.text = str(val) if val is not None else ""
+            col_units = max(_char_units(headers[j]),
+                            max((_char_units(r[j]) for r in rows), default=1.0))
+            align = (WD_ALIGN_PARAGRAPH.CENTER if col_units <= 6
+                     else WD_ALIGN_PARAGRAPH.LEFT)
             for p in cell.paragraphs:
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.alignment = align
+                p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+                p.paragraph_format.line_spacing = Pt(LINE_SPACING_TABLE)
                 for r in p.runs:
                     r.font.name = FONT_FANGSONG
-                    r.font.size = Pt(10.5)
+                    r.font.size = Pt(SIZE_TABLE)
                     _set_east_asian_font_in_run(r, FONT_FANGSONG)
-
-    # 列宽
-    if col_widths:
-        for j, width in enumerate(col_widths):
-            if j < len(headers):
-                for row in table.rows:
-                    row.cells[j].width = Cm(width)
 
     return table
 
@@ -554,35 +591,15 @@ def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1, 
             rows = element.find_all("tr")
             if not rows:
                 continue
-            # 确定列数
-            max_cols = 0
-            for row in rows:
-                cols = len(row.find_all(["th", "td"]))
-                max_cols = max(max_cols, cols)
-            if max_cols == 0:
+
+            def _cells(row_el):
+                return [c.get_text().strip() for c in row_el.find_all(["th", "td"])]
+
+            headers = _cells(rows[0])
+            if not headers:
                 continue
-
-            table = doc.add_table(rows=len(rows), cols=max_cols)
-            table.style = "Table Grid"
-            table.alignment = WD_TABLE_ALIGNMENT.CENTER
-
-            for i, row in enumerate(rows):
-                cells = row.find_all(["th", "td"])
-                for j, cell in enumerate(cells):
-                    if j >= max_cols:
-                        break
-                    doc_cell = table.cell(i, j)
-                    doc_cell.text = cell.get_text().strip()
-                    is_header = cell.name == "th" or i == 0
-                    for cp in doc_cell.paragraphs:
-                        cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        for cr in cp.runs:
-                            cr.font.name = FONT_SONGTI if is_header else FONT_FANGSONG
-                            cr.font.size = Pt(10.5)
-                            if is_header:
-                                cr.bold = True
-                            _set_east_asian_font_in_run(cr, FONT_SONGTI if is_header else FONT_FANGSONG)
-
+            data_rows = [_cells(r) for r in rows[1:]]
+            build_table(doc, headers, data_rows)
             doc.add_paragraph("")
 
         elif tag in ("ul", "ol"):
