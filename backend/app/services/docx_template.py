@@ -383,6 +383,8 @@ def _set_east_asian_font_in_run(run, font_name):
 def add_toc(doc: Document):
     """插入目录页：黑体 18pt 标题 + TOC 域（Word/WPS 打开后 F9 刷新）。"""
     p = doc.add_paragraph("目　　录", style=STYLE_TOC_TITLE)
+    # 目录页必须独立成页：批准页内容不足一页时，标题也从新页开始。
+    p.paragraph_format.page_break_before = True
     p.paragraph_format.space_after = Pt(24)
     toc_p = doc.add_paragraph()
     fld = OxmlElement("w:fldSimple")

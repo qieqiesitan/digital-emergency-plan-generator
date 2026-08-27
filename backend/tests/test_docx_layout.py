@@ -249,6 +249,23 @@ def test_first_level_section_uses_page_break_before(no_playwright):
         assert h.paragraph_format.page_break_before is True
 
 
+def test_toc_starts_on_new_page(no_playwright):
+    """回归：目录页必须独立成页——"目　　录"标题段设 page_break_before。
+    只查 body 段落（页眉不在 doc.paragraphs），并跳过 F9 占位文字段。"""
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=_sample_sections(),
+    )
+    toc_titles = [
+        p for p in doc.paragraphs
+        if "目" in p.text and "录" in p.text and "F9" not in p.text
+    ]
+    assert toc_titles, "未找到目录标题段"
+    for p in toc_titles:
+        assert p.paragraph_format.page_break_before is True
+
+
 def _placeholder_png() -> bytes:
     import io
     from PIL import Image
