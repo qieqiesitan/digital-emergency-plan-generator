@@ -187,6 +187,23 @@ def test_ol_gaps_reindexed_continuously():
     assert texts == ["1. A", "2. B", "3. C"]
 
 
+def test_ol_long_item_also_numbered():
+    # 长条目此前被转正文（无编号），但 enumerate 序号仍占用位置，
+    # 导致 [长条目, 短, 短] 渲染为 [无编号, 2. 短B, 3. 短C] 跳号。
+    # 修复后 ol 所有条目一律编号：长条目用正文样式但保留 "N. " 前缀，编号连续。
+    doc = Document()
+    long_text = "这是一个非常长的有序列表项内容，它超过三十个字符，应当带编号但用正文样式渲染"
+    html_to_docx_content(doc, f"<ol><li>{long_text}</li><li>短B</li><li>短C</li></ol>")
+    texts = [p.text for p in doc.paragraphs]
+    assert texts == [f"1. {long_text}", "2. 短B", "3. 短C"]
+    # 长条目：正文样式（首行缩进 Pt(32)）但带编号
+    assert doc.paragraphs[0].paragraph_format.first_line_indent == Pt(32)
+    # 短条目：列表样式（左缩进 1.0cm / 首行缩进 -0.5cm）
+    # （python-docx 存 twips 有 ≤1twip 量化误差，用容差断言）
+    assert doc.paragraphs[1].paragraph_format.left_indent == pytest.approx(Cm(1.0), abs=Cm(0.01))
+    assert doc.paragraphs[1].paragraph_format.first_line_indent == pytest.approx(Cm(-0.5), abs=Cm(0.01))
+
+
 def test_build_table_column_widths_not_even():
     doc = Document()
     tbl = build_table(

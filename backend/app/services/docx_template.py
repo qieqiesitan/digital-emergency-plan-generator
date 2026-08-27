@@ -697,23 +697,28 @@ def html_to_docx_content(doc: Document, html_content: str, base_level: int = 1, 
                 text = li.get_text().strip()
                 if not text:
                     continue
-                if len(text) <= LI_TEXT_THRESHOLD:
-                    if tag == "ul":
+                if tag == "ul":
+                    # ul 现状不动：短条目用 List Bullet，长条目转正文。
+                    if len(text) <= LI_TEXT_THRESHOLD:
                         p = doc.add_paragraph(text, style="List Bullet")
+                        p.paragraph_format.left_indent = Cm(1.0)
+                        p.paragraph_format.first_line_indent = Cm(-0.5)
                     else:
-                        # ol 手动编号：每列表独立从 1 开始，避免 List Number
-                        # 样式共享同一编号序列导致跨章节连续累计（89、90 等）；
-                        # 并忽略 li 文本自带的跳号编号前缀（如 "4. 内容"），
-                        # 一律按 enumerate 顺序强制重编号，保证 1、2、3…连续。
-                        clean = re.sub(r"^\s*\d+\s*[.、．)]\s*", "", text)
-                        text = f"{i}. {clean}"
-                        p = doc.add_paragraph(text)
-                    p.paragraph_format.left_indent = Cm(1.0)
-                    p.paragraph_format.first_line_indent = Cm(-0.5)
+                        p = doc.add_paragraph()
+                        p.paragraph_format.first_line_indent = Pt(FIRST_INDENT_NORMAL)
+                        _add_inline_runs(p, li)
                 else:
-                    p = doc.add_paragraph()
-                    p.paragraph_format.first_line_indent = Pt(FIRST_INDENT_NORMAL)
-                    _add_inline_runs(p, li)
+                    # ol 所有条目一律编号：忽略 li 文本自带的跳号编号前缀
+                    # （如 "4. 内容"），一律按 enumerate 顺序强制重编号，
+                    # 保证 1、2、3…连续；长条目也保留编号（正文样式），避免
+                    # 长条目占用 1 号位导致后续短条目从 2 开始跳号。
+                    clean = re.sub(r"^\s*\d+\s*[.、．)]\s*", "", text)
+                    p = doc.add_paragraph(f"{i}. {clean}")
+                    if len(text) <= LI_TEXT_THRESHOLD:
+                        p.paragraph_format.left_indent = Cm(1.0)
+                        p.paragraph_format.first_line_indent = Cm(-0.5)
+                    else:
+                        p.paragraph_format.first_line_indent = Pt(FIRST_INDENT_NORMAL)
 
         elif tag == "blockquote":
             p = doc.add_paragraph()
