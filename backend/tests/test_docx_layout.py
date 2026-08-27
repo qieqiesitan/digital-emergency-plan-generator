@@ -98,3 +98,24 @@ def test_page_setup_a4_and_unified_margins(no_playwright):
         assert sec.bottom_margin == pytest.approx(Cm(3.5), abs=Cm(0.01))
         assert sec.left_margin == pytest.approx(Cm(2.8), abs=Cm(0.01))
         assert sec.right_margin == pytest.approx(Cm(2.6), abs=Cm(0.01))
+
+
+def test_cover_doc_title_derived_from_plan_title(no_playwright):
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=_sample_sections(),
+    )
+    texts = [p.text for p in doc.paragraphs if p.text.strip()]
+    assert "综合应急预案" in texts
+    assert "测试公司-综合应急预案" not in texts
+    # 计划原断言无法区分封面标题与正文大标题（正文恒为"综合应急预案"），
+    # 补一条断言确保封面不再使用硬编码的"生产安全事故应急预案"。
+    assert "生产安全事故应急预案" not in texts
+
+
+def test_no_debug_print_in_source():
+    import inspect
+    import app.services.docx_template as m
+    src = inspect.getsource(m)
+    assert "generate_plan_docx CALLED" not in src

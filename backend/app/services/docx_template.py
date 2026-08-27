@@ -768,8 +768,6 @@ def generate_plan_docx(
         enterprise_info: 企业附加信息
         mermaid_pngs: Mermaid 流程图 PNG 字节缓存 {hash: bytes}
     """
-    import builtins
-    builtins.print("!!! generate_plan_docx CALLED !!!", flush=True)
     doc = Document()
 
     # 1) 注册所有样式
@@ -786,11 +784,18 @@ def generate_plan_docx(
     type_names = {"comprehensive": "综合应急预案", "special": "专项应急预案", "onsite": "现场处置方案"}
     body_title = type_names.get(plan_type, "应急预案")
 
+    # 封面标题：plan_title 去掉企业名前缀，避免重复
+    doc_title = plan_title or ""
+    if doc_title.startswith(company_name):
+        doc_title = doc_title[len(company_name):].lstrip("-— ")
+    if not doc_title:
+        doc_title = body_title
+
     build_cover(doc,
                 plan_number=plan_number,
                 version_number=version_number,
                 company_name=company_name,
-                doc_title="生产安全事故应急预案",
+                doc_title=doc_title,
                 signature_company=company_name)
 
     # 3) 签署页
