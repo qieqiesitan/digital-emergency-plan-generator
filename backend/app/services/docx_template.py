@@ -168,7 +168,7 @@ def register_all_styles(doc: Document):
     _define_style(doc, STYLE_BODY_TITLE, font_name=FONT_SONGTI,
                   font_size=SIZE_BODY_TITLE, bold=True,
                   alignment=WD_ALIGN_PARAGRAPH.CENTER,
-                  space_before=Pt(24), space_after=Pt(12))
+                  space_before=24, space_after=12)
     _set_east_asian_font(doc.styles[STYLE_BODY_TITLE], FONT_SONGTI)
 
     # ── 标题 1-6：黑体/楷体/仿宋 ──
@@ -183,7 +183,7 @@ def register_all_styles(doc: Document):
     for name, font_name, before in headings:
         st = _define_style(doc, name, font_name=font_name, font_size=SIZE_HEADING,
                            bold=True, first_line_indent=FIRST_INDENT_HEADING,
-                           space_before=Pt(before), space_after=Pt(0))
+                           space_before=before, space_after=0)
         _set_east_asian_font(st, font_name)
 
     # ── 正文 ──

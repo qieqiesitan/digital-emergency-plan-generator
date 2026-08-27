@@ -60,6 +60,20 @@ def test_style_constants():
     assert TABLE_BODY_WIDTH_CM == 15.6
 
 
+def test_style_spacing_uses_bare_pt_values():
+    """回归：space_before/space_after 传裸数值，避免 Pt() 双重包裹
+    （Pt(Pt(28)) 会写出 ~7,112,000 twips 的天文间距，导致 Word 丢弃标题段）。"""
+    doc = Document()
+    register_all_styles(doc)
+
+    assert doc.styles["Heading 1"].paragraph_format.space_before == \
+        pytest.approx(Pt(28), abs=Pt(0.1))
+    assert doc.styles["Body Title"].paragraph_format.space_before == \
+        pytest.approx(Pt(24), abs=Pt(0.1))
+    assert doc.styles["Heading 2"].paragraph_format.space_before == \
+        pytest.approx(Pt(6), abs=Pt(0.1))
+
+
 @pytest.fixture
 def no_playwright(monkeypatch):
     """generate_plan_docx 内部会用 Playwright 渲染图；测试环境不启动浏览器。"""
