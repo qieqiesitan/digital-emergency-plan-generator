@@ -916,7 +916,12 @@ def generate_plan_docx(
         heading_level = min(level + 1, 6)
         num = sec_numbers.get(idx, "")
         numbered_title = f"{num} {title}" if num else title
-        add_heading(doc, numbered_title, heading_level)
+        heading = add_heading(doc, numbered_title, heading_level)
+        # 一级章节分页由标题段 page_break_before 承担：
+        # 测试样例 level 0 与生产数据 level 1 均表示顶级章节，故用 <= 1。
+        # 相比循环末尾手动 add_page_break，可避免内容恰好满页时产生空白页。
+        if section_level <= 1:
+            heading.paragraph_format.page_break_before = True
 
         # 质量证据高亮：正文中出现的片段包 <span background-color:yellow>（_add_inline_runs 转 Word 高亮）
         for ev in (quality_evidence or {}).get(section.get("section_key", ""), []):
@@ -1076,9 +1081,8 @@ def generate_plan_docx(
             _browser.close()
             _pw.stop()
 
-        # 仅大章节(level==1)之间分页，小节(level>=2)连续，末尾不换页
-        if section_level == 1:
-            doc.add_page_break()
+        # 一级章节分页已由标题段 page_break_before 承担（见上方标题写入处），
+        # 避免满页时手动分页产生空白页；小节(level>=2)连续排版，末尾不换页。
 
     return doc
 

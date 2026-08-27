@@ -220,3 +220,16 @@ def test_header_footer_text_and_first_page(no_playwright):
     assert "综合应急预案" in sec.header.paragraphs[0].text
     assert "第" in sec.footer.paragraphs[0].text
     assert "共" in sec.footer.paragraphs[0].text
+
+
+def test_first_level_section_uses_page_break_before(no_playwright):
+    doc = generate_plan_docx(
+        company_name="测试公司", plan_title="测试公司-综合应急预案",
+        plan_type="comprehensive", plan_number="ZH-001", version_number="V1",
+        sections=_sample_sections(),
+    )
+    headings = [p for p in doc.paragraphs if p.text.strip().startswith("1 ") or
+                p.text.strip().startswith("2 ")]
+    assert headings
+    for h in headings:
+        assert h.paragraph_format.page_break_before is True
