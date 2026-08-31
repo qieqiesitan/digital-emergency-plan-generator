@@ -1,6 +1,7 @@
 """Chat dispatch — 全覆盖系统 API 操作函数。"""
 
 import json
+import logging
 from uuid import uuid4
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,8 @@ from app.services.plan_generation_service import start_batch_generation
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
+
+logger = logging.getLogger(__name__)
 
 # 聊天触发的后台生成失败章节记录（供 get_generation_progress 返回；后续后台生成可写入）
 _failed_sections: dict[str, list] = {}
@@ -596,16 +599,46 @@ async def _search_regulations(db, user, args):
 # -- 法规条文检索(聊天助手引用用) --
 
 async def _search_regulation_articles(db, user, args):
-    """法规条文检索 -- 图谱关键词搜索 + 文件加载原文。供聊天助手回答法规问题时使用。
-
-    流程: graph.list_nodes(keyword=query) -> 加载 texts/*.md 条文 -> 关键词子串匹配。
-    """
+    """法规条文检索：向量语义优先，图谱关键词+子串兜底。"""
     query = args.get("query", "")
     if not query:
         return {"error": "请提供 query"}
 
     top_k = _parse_int(args.get("top_k", 8)) or 8
     top_k = max(3, min(top_k, 15))
+    try:
+        store = get_vector_store()
+        hits = store.search_articles(query, top_k=top_k)
+        if hits:
+            graph = get_graph()
+            articles = []
+            for hit in hits:
+                meta = hit.get("metadata") or {}
+                reg_id = meta.get("regulation_id", "")
+                node = graph.get_node(reg_id) if reg_id else None
+                if not node or node.get("status") == "abolished":
+                    continue
+                articles.append({
+                    "article_text": hit.get("text", ""),
+                    "article_number": meta.get("article_number", ""),
+                    "regulation_full_name": node.get("full_name", node.get("title", "")),
+                    "regulation_code": node.get("code", ""),
+                    "status": node.get("status", ""),
+                    "similarity_score": round(1 - float(hit.get("distance", 0)), 4),
+                })
+            if articles:
+                return {"articles": articles[:top_k], "count": len(articles[:top_k]),
+                        "source": "vector"}
+    except Exception as e:
+        logger.warning("向量法规检索失败，回退关键词: %s", e)
+    return await _regulation_keyword_fallback(query, top_k)
+
+
+async def _regulation_keyword_fallback(query: str, top_k: int) -> dict:
+    """图谱关键词搜索 + 文件加载原文。供聊天助手回答法规问题时使用。
+
+    流程: graph.list_nodes(keyword=query) -> 加载 texts/*.md 条文 -> 关键词子串匹配。
+    """
 
     import os, re as _re
 
@@ -652,7 +685,8 @@ async def _search_regulation_articles(db, user, args):
                         break
 
     if not nodes:
-        return {"articles": [], "count": 0, "message": "法规库中暂未找到与您问题直接相关的法规。"}
+        return {"articles": [], "count": 0, "source": "graph_fallback",
+                "message": "法规库中暂未找到与您问题直接相关的法规。"}
 
     texts_dir = os.path.join(os.path.dirname(__file__), "..", "regulations", "data", "texts")
     keywords = [kw.strip() for kw in query.split() if len(kw.strip()) >= 2]
@@ -729,6 +763,7 @@ async def _search_regulation_articles(db, user, args):
         return {
             "articles": [],
             "count": 0,
+            "source": "graph_fallback",
             "message": "法规库中暂未找到与该问题直接相关的条文。以下是与关键词匹配的法规列表供参考：",
             "matched_regulations": [
                 {"id": n.get("id"), "full_name": n.get("full_name", n.get("title", "")),
@@ -737,7 +772,7 @@ async def _search_regulation_articles(db, user, args):
             ],
         }
 
-    return {"articles": articles, "count": len(articles)}
+    return {"articles": articles, "count": len(articles), "source": "graph_fallback"}
 
 # ── AI 配置 ──
 
