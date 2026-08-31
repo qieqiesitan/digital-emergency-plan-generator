@@ -25,6 +25,17 @@ from app.routers.export import generate_plan_docx as generate_plan_docx_func
 # 聊天触发的后台生成失败章节记录（供 get_generation_progress 返回；后续后台生成可写入）
 _failed_sections: dict[str, list] = {}
 
+# 聊天工具描述使用中文类型名（综合应急预案/专项应急预案/现场处置方案），
+# 模板表 plan_type 为英文枚举——兼容映射，避免模板查找失败导致章节未初始化
+PLAN_TYPE_ALIASES = {
+    "综合应急预案": "comprehensive",
+    "综合": "comprehensive",
+    "专项应急预案": "special",
+    "专项": "special",
+    "现场处置方案": "onsite",
+    "现场": "onsite",
+}
+
 # ── dispatch ──
 
 def _parse_date(val):
@@ -459,7 +470,8 @@ async def _get_plan(db, user, args):
 async def _create_plan(db, user, args):
     ent_id = args.get("enterprise_id", "")
     title = args.get("title", "")
-    plan_type = args.get("plan_type", "comprehensive")
+    raw_plan_type = args.get("plan_type", "comprehensive")
+    plan_type = PLAN_TYPE_ALIASES.get(raw_plan_type, raw_plan_type)
     if not ent_id or not title:
         return {"error": "请提供 enterprise_id 和 title"}
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()

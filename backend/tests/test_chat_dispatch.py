@@ -1,6 +1,6 @@
 """chat_dispatch 收尾回归测试。"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.chat_dispatch import (
     _delegate_generic,
@@ -57,6 +57,29 @@ async def test_delete_plan_missing_id():
 async def test_dispatch_unknown_function():
     out = await dispatch(AsyncMock(), MagicMock(id="u1"), "no_such_fn", {})
     assert "未知操作" in out
+
+
+@pytest.mark.asyncio
+async def test_create_plan_maps_chinese_plan_type():
+    """聊天工具传中文 plan_type（综合应急预案）应映射为模板表英文枚举。"""
+    from app.services.chat_dispatch import _create_plan
+    db = AsyncMock()
+    ent = MagicMock(id="e1", name="企业A", user_id="u1")
+    tmpl = MagicMock(plan_type="comprehensive",
+                     structure=[{"key": "sec_1", "title": "总则"}])
+    result = MagicMock()
+    result.scalar_one_or_none.side_effect = [ent, tmpl]
+    db.execute.return_value = result
+    created = []
+    db.add = MagicMock(side_effect=created.append)
+    with patch("app.routers.plans._create_sections_from_template") as mock_create:
+        out = await _create_plan(
+            db, MagicMock(id="u1"),
+            {"enterprise_id": "e1", "title": "综合预案", "plan_type": "综合应急预案"},
+        )
+    assert out["verified"] is True
+    assert created[0].plan_type == "comprehensive"
+    mock_create.assert_called_once()
 
 
 def test_enterprise_response_dedup_fields():
