@@ -1,6 +1,6 @@
 """Chat AI 助手 — SSE 流式端点 + 对话持久化。"""
 
-import json, logging, re, time
+import json, logging, re
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, desc
@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 CHAT_CONTEXT_BUDGET = 8000
+
+READ_TOOL_NAMES = frozenset({
+    "get_dashboard", "list_enterprises", "get_enterprise", "list_risk_sources",
+    "list_resources", "list_plans", "get_plan", "list_templates",
+    "list_risk_assessments", "get_risk_assessment", "list_resource_investigations",
+    "get_resource_investigation", "get_regulation_stats", "list_regulations",
+    "search_regulations", "search_regulation_articles", "get_ai_config",
+    "get_generation_progress",
+})
 
 CHAT_TOOLS = [
     {"type": "function", "function": {"name": "get_dashboard", "description": "获取仪表盘统计概览：企业数、预案数(含已完成/生成中)、风险事件数、应急资源数", "parameters": {"type": "object", "properties": {}, "required": []}}},
@@ -169,6 +178,44 @@ async def _record_tool_call(db, conv_id: str, round_no: int, fn_name: str, fn_ar
         status=status, duration_ms=duration_ms,
     ))
     await db.commit()
+
+
+def _safe_tool_args(tc) -> dict:
+    try:
+        return json.loads(tc.get("function", {}).get("arguments", "{}"))
+    except json.JSONDecodeError:
+        return {}
+
+
+async def _run_tool_isolated(fn_name: str, fn_args: dict, user_id: str) -> str:
+    """独立 session 执行只读工具（AsyncSession 不支持并发共享）。"""
+    from app.models.user import User
+    async with async_session() as sdb:
+        user = await sdb.get(User, user_id)
+        return await dispatch(sdb, user, fn_name, fn_args)
+
+
+async def _execute_pending_tools(pending_tool_calls, db, current_user, round_num, conv_id):
+    """读工具并行（独立 session），写工具串行（共享请求 db）。返回按原顺序的 [(tc, result_str)]。"""
+    reads, writes = [], []
+    for tc in pending_tool_calls:
+        fn_name = tc.get("function", {}).get("name", "")
+        (reads if fn_name in READ_TOOL_NAMES else writes).append(tc)
+
+    results: list = []
+    if reads:
+        outs = await asyncio.gather(*[
+            _run_tool_isolated(tc["function"]["name"], _safe_tool_args(tc), current_user.id)
+            for tc in reads
+        ])
+        results.extend(zip(reads, outs))
+    for tc in writes:
+        fn_name = tc["function"]["name"]
+        result_str = await dispatch(db, current_user, fn_name, _safe_tool_args(tc))
+        results.append((tc, result_str))
+
+    by_id = {tc["id"]: (tc, out) for tc, out in results}
+    return [by_id[tc["id"]] for tc in pending_tool_calls]
 
 
 async def _load_history_rows(db, conv_id: str):
@@ -361,27 +408,23 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         for round_num in range(1, MAX_ROUNDS + 1):
             results = []
 
-            for tc in pending_tool_calls:
-                func = tc.get("function", {})
-                fn_name = func.get("name", "")
+            tool_results = await _execute_pending_tools(
+                pending_tool_calls, db, current_user, round_num, conv_id)
+            for tc, result_str in tool_results:
+                fn_name = tc.get("function", {}).get("name", "")
                 tc_id = tc.get("id", "")
-                try:
-                    fn_args = json.loads(func.get("arguments", "{}"))
-                except json.JSONDecodeError:
-                    fn_args = {}
-                yield sse_line({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
-                t0 = time.monotonic()
-                result_str = await dispatch(db, current_user, fn_name, fn_args)
-                duration_ms = int((time.monotonic() - t0) * 1000)
+                fn_args = _safe_tool_args(tc)
                 result_obj = json.loads(result_str)
                 is_err = isinstance(result_obj, dict) and "error" in result_obj
+                yield sse_line({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
+                # 打点：并行路径下每条工具的精确时长未单独采集，暂记 0（计划允许简化）
                 try:
                     await _record_tool_call(db, conv_id, round_num, fn_name, fn_args,
-                                            result_str, "error" if is_err else "success", duration_ms)
+                                            result_str, "error" if is_err else "success", 0)
                 except Exception:
                     logger.exception("记录工具调用失败（不影响主流程）")
                 yield sse_line({"type": "tool_step", "name": fn_name, "status": "error" if is_err else "success",
-                                "duration_ms": duration_ms})
+                                "duration_ms": 0})
                 trace.append({"round_no": round_num, "fn_name": fn_name, "result": result_str})
 
                 # 报告生成特殊处理
