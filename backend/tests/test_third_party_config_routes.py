@@ -151,7 +151,8 @@ def test_admin_put_updates_config_then_get_shows_new_mask(client, store):
 
     stored = asyncio.run(tpc.get_third_party_config("third_party.qcc.api_key"))
     assert stored == second
-    assert store["third_party.qcc.api_key"].updated_by == "管理员A"
+    # updated_by 语义为「用户 id」（与 hazard_management created_by=current_user.id 一致）
+    assert store["third_party.qcc.api_key"].updated_by == "u1"
 
     resp_get = client.get("/system/third-party-config")
     qcc = next(item for item in resp_get.json()["data"] if item["key"] == "third_party.qcc.api_key")
@@ -159,6 +160,15 @@ def test_admin_put_updates_config_then_get_shows_new_mask(client, store):
     assert qcc["masked_value"] == mask_secret(second)
     assert first not in resp_get.text
     assert second not in resp_get.text
+
+
+def test_put_records_updated_by_user_id(client, store):
+    resp = client.put(
+        "/system/third-party-config",
+        json=[{"key": "third_party.qcc.endpoint", "value": "https://example.com/api"}],
+    )
+    assert resp.status_code == 200
+    assert store["third_party.qcc.endpoint"].updated_by == "u1"
 
 
 def test_admin_put_string_type_stored_and_displayed(client, store):
@@ -197,6 +207,81 @@ def test_put_unknown_key_rejected(client):
         json=[{"key": "third_party.unknown.key", "value": "x"}],
     )
     assert resp.status_code == 422
+
+
+def test_put_batch_unknown_key_rejects_whole_batch_no_changes(client, store):
+    """混合批量部分失败：任一 key 非法 → 422，且无任何项生效。"""
+    asyncio.run(tpc.set_third_party_config("third_party.qcc.api_key", "original"))
+    resp = client.put(
+        "/system/third-party-config",
+        json=[
+            {"key": "third_party.qcc.api_key", "value": "should-not-apply"},
+            {"key": "third_party.unknown.key", "value": "x"},
+        ],
+    )
+    assert resp.status_code == 422
+    assert asyncio.run(tpc.get_third_party_config("third_party.qcc.api_key")) == "original"
+
+
+def test_put_batch_unknown_key_does_not_create_any_items(client, store):
+    """混合批量部分失败：列表中的合法 key 也不得被创建。"""
+    resp = client.put(
+        "/system/third-party-config",
+        json=[
+            {"key": "third_party.amap.api_key", "value": "new-value"},
+            {"key": "third_party.bogus.key", "value": "x"},
+        ],
+    )
+    assert resp.status_code == 422
+    assert "third_party.amap.api_key" not in store
+
+
+def test_put_batch_whitespace_value_rejects_whole_batch_no_changes(client, store):
+    """混合批量部分失败：任一 value strip 后为空 → 422，且无任何项生效。"""
+    asyncio.run(tpc.set_third_party_config("third_party.qcc.endpoint", "https://old.example.com"))
+    resp = client.put(
+        "/system/third-party-config",
+        json=[
+            {"key": "third_party.qcc.endpoint", "value": "https://new.example.com"},
+            {"key": "third_party.amap.api_key", "value": "   "},
+        ],
+    )
+    assert resp.status_code == 422
+    assert asyncio.run(tpc.get_third_party_config("third_party.qcc.endpoint")) == "https://old.example.com"
+    assert "third_party.amap.api_key" not in store
+
+
+def test_put_duplicate_keys_last_wins_written_once(client, store):
+    """同 key 重复项：去重（后写覆盖前写，只写一次）。"""
+    resp = client.put(
+        "/system/third-party-config",
+        json=[
+            {"key": "third_party.qcc.api_key", "value": "first"},
+            {"key": "third_party.qcc.api_key", "value": "second"},
+        ],
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"] == ["third_party.qcc.api_key"]
+    assert asyncio.run(tpc.get_third_party_config("third_party.qcc.api_key")) == "second"
+    assert store["third_party.qcc.api_key"].updated_by == "u1"
+
+
+def test_put_value_too_long_rejected(client):
+    resp = client.put(
+        "/system/third-party-config",
+        json=[{"key": "third_party.qcc.api_key", "value": "x" * 2001}],
+    )
+    assert resp.status_code == 422
+
+
+def test_put_value_at_max_length_accepted(client, store):
+    value = "x" * 2000
+    resp = client.put(
+        "/system/third-party-config",
+        json=[{"key": "third_party.qcc.api_key", "value": value}],
+    )
+    assert resp.status_code == 200
+    assert asyncio.run(tpc.get_third_party_config("third_party.qcc.api_key")) == value
 
 
 def test_put_logs_do_not_contain_value(client, caplog):

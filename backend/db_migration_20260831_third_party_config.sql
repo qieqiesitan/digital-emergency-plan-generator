@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS third_party_config (
     config_value TEXT NOT NULL,
     config_type  VARCHAR(16) NOT NULL DEFAULT 'secret',
     description  VARCHAR(512),
-    updated_by   VARCHAR(64),
+    updated_by   VARCHAR(64),  -- 更新人用户 id（users.id 的 UUID 字符串，36 字符）
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
