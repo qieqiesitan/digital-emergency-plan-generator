@@ -78,6 +78,10 @@ async def import_seed_configs() -> None:
     """启动导入：对每个 key，DB 缺失且 env 非空 → 写入；空 env 跳过。"""
     for config_key, (env_var, _) in KEY_SPEC.items():
         env_value = os.environ.get(env_var, "").strip()
+        # 与 get_third_party_config 相同的 env→settings 兜底：.env-only 直跑时
+        # 进程环境无该变量，但 pydantic settings 已从 .env 加载，仍需参与 seed。
+        if env_value == "":
+            env_value = getattr(settings, env_var, "").strip()
         if env_value == "":
             continue
         async with async_session() as session:

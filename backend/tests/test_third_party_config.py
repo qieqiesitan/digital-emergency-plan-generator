@@ -221,6 +221,17 @@ async def test_import_seed_configs_does_not_overwrite_db(fake_session, monkeypat
 
 
 @pytest.mark.asyncio
+async def test_import_seed_configs_falls_back_to_settings_when_env_missing(fake_session, monkeypatch):
+    """进程环境缺 QCC_API_KEY 但 settings（.env 加载）有值 → seed 落库（任务 7 并入项）。"""
+    monkeypatch.setattr(tpc.settings, "QCC_API_KEY", "settings-secret")
+    await tpc.import_seed_configs()
+    # 直接断言 seed 真实落库（get 本身带 settings 兜底，无法区分来源）。
+    assert "third_party.qcc.api_key" in fake_session
+    stored = fake_session["third_party.qcc.api_key"]
+    assert decrypt_secret(stored.config_value) == "settings-secret"
+
+
+@pytest.mark.asyncio
 async def test_concurrent_set_same_key_no_integrity_error(monkeypatch, store):
     # 还原真实竞态：两事务先汇合（都读到"行不存在"），再各自写入同一主键；
     # 旧 check-then-insert 实现会因后提交方唯一键冲突抛 IntegrityError。
