@@ -74,6 +74,12 @@ CHAT_TOOLS = [
      "description": "查询预案AI生成进度（聊天内触发的后台生成）。当用户询问生成进度或是否完成时调用",
      "parameters": {"type": "object", "properties": {"plan_id": {"type": "string", "description": "预案ID(必填)"}},
                     "required": ["plan_id"]}}},
+    {"type": "function", "function": {"name": "query_enterprise_knowledge",
+     "description": "基于企业画像（风险分级管控、评估报告、应急资源）语义问答。用户询问某企业风险状况、管控措施、资源配备时使用",
+     "parameters": {"type": "object",
+                    "properties": {"enterprise_id": {"type": "string", "description": "企业ID(必填)"},
+                                   "question": {"type": "string", "description": "问题(必填)"}},
+                    "required": ["enterprise_id", "question"]}}},
 ]
 
 CHAT_SYSTEM_PROMPT = """你是数字化应急预案自动生成系统的AI助手。核心能力：查询创建修改删除企业和预案、智能添加企业（autofill_enterprise自动查工商数据校准全称）、查看风险分级管控和应急资源、查看评估报告和调查报告、搜索法规库、导出Word、生成图文报告。重要规则：用户要求任何分析报告、概览、总结时，必须调用 generate_report 工具（主题如系统概览、企业分析、法规库报告、风险分布等），禁止直接用函数返回的数据自行拼凑报告。用户说「添加XX公司」优先用autofill_enterprise。删除前先确认。回复简洁专业用中文。每次操作后汇报verified验证状态。

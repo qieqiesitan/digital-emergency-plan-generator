@@ -2,6 +2,7 @@
 
 import json
 import logging
+import asyncio
 from uuid import uuid4
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,11 +20,37 @@ from app.services.floor_plan_storage_service import remove_enterprise_uploads
 from app.services.risk_context_builder import build_risk_management_context
 from app.services.risk_stats_service import count_user_risk_events
 from app.services.plan_generation_service import start_batch_generation
+from app.services.enterprise_knowledge_service import EnterpriseKnowledgeStore
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
 
 logger = logging.getLogger(__name__)
+
+
+def _schedule_enterprise_index_rebuild(enterprise_id: str) -> None:
+    """企业画像相关写操作提交后异步重建索引（不阻塞主流程）。"""
+    if not enterprise_id:
+        return
+    try:
+        from app.database import async_session
+        from app.services.enterprise_knowledge_service import build_enterprise_index
+
+        async def _rebuild():
+            try:
+                async with async_session() as session:
+                    await build_enterprise_index(enterprise_id, session)
+            except Exception as e:  # 索引重建失败不影响主流程
+                logger.warning("企业画像索引重建失败 enterprise=%s: %s", enterprise_id, e)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning("无运行中事件循环，跳过企业画像索引重建 enterprise=%s", enterprise_id)
+            return
+        loop.create_task(_rebuild())
+    except Exception as e:
+        logger.warning("企业画像索引重建调度失败: %s", e)
 
 # 聊天触发的后台生成失败章节记录（供 get_generation_progress 返回；后续后台生成可写入）
 _failed_sections: dict[str, list] = {}
@@ -139,6 +166,8 @@ async def _generic_create(db, user, args, cfg):
     entity = model(**kwargs)
     db.add(entity)
     await db.commit()
+    if cfg.get("rebuild_enterprise_index") and getattr(entity, "enterprise_id", None):
+        _schedule_enterprise_index_rebuild(entity.enterprise_id)
     return {"id": entity.id, "name": getattr(entity, "name", ""), "message": f"{cfg['name_cn']}创建成功", "verified": True}
 
 
@@ -158,6 +187,8 @@ async def _generic_update(db, user, args, cfg):
         if f in args and args[f] is not None:
             setattr(entity, f, args[f])
     await db.commit()
+    if cfg.get("rebuild_enterprise_index") and getattr(entity, "enterprise_id", None):
+        _schedule_enterprise_index_rebuild(entity.enterprise_id)
     return {"id": entity.id, "name": getattr(entity, "name", ""), "message": f"{cfg['name_cn']}更新成功", "verified": True}
 
 
@@ -215,6 +246,7 @@ _RES_CFG.update({
     "create_fields": ["enterprise_id", "name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
     "update_fields": ["name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
     "order_by": "id",
+    "rebuild_enterprise_index": True,
 })
 
 _ENT_CFG = {
@@ -1001,6 +1033,32 @@ async def _get_generation_progress(db, user, args):
 
 
 
+# ── 企业画像问答 ──
+
+async def _query_enterprise_knowledge(db, user, args):
+    """基于企业画像（风险/评估/资源）语义问答。"""
+    ent_id = args.get("enterprise_id", "")
+    question = args.get("question", "")
+    if not ent_id or not question:
+        return {"error": "请提供 enterprise_id 和 question"}
+    ent = (await db.execute(select(Enterprise).where(
+        Enterprise.id == ent_id, Enterprise.user_id == user.id))).scalar_one_or_none()
+    if not ent:
+        return {"error": "企业不存在或无权访问", "verified": False}
+    try:
+        hits = EnterpriseKnowledgeStore().search(ent_id, question, top_k=6)
+    except Exception as e:
+        logger.warning("企业画像检索失败: %s", e)
+        hits = []
+    if not hits:
+        return {"enterprise_id": ent_id, "hits": [],
+                "message": "该企业暂无画像数据（请先完成风险辨识或生成评估报告）", "verified": True}
+    return {"enterprise_id": ent_id, "hits": [{"text": h["text"][:500],
+                                               "similarity": round(1 - float(h["distance"]), 4)}
+                                              for h in hits],
+            "message": "已检索到相关画像片段", "verified": True}
+
+
 # ── 函数注册表 ──
 
 _FUNCTIONS = {
@@ -1034,4 +1092,5 @@ _FUNCTIONS = {
     "generate_report": _generate_report,
     "generate_plan_content": _generate_plan_content,
     "get_generation_progress": _get_generation_progress,
+    "query_enterprise_knowledge": _query_enterprise_knowledge,
 }
