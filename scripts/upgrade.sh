@@ -62,6 +62,8 @@ else
     exit 1
   fi
   mkdir -p "$GATEWAY_STATIC_DIR"
+  # 注意：仅复制不清理旧文件，避免误删网关目录中其他内容；
+  # 若需移除新版本已删除的旧静态资源，请人工清理目标目录后再复制。
   cp -r "$ROOT/frontend/dist/"* "$GATEWAY_STATIC_DIR/"
   echo "    已复制 frontend/dist/* 到 $GATEWAY_STATIC_DIR"
 fi

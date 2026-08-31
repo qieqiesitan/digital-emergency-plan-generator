@@ -181,6 +181,8 @@ tar xzf emergency-plan-migration-<版本>-upgrade.tar.gz -C . --strip-components
 - [ ] 已确认网关静态目录路径（`frontend/dist` 需复制到网关挂载的 html 目录）；
 - [ ] 已确认站点 URL / API URL（用于第 6 步自动验证）；
 - [ ] 升级脚本会强制备份，但建议提前自行 `./scripts/backup.sh` 再确认一次；
+- [ ] 旧栈需保持运行中：backup.sh 依赖 compose postgres 容器在线执行 pg_dump；
+      若已停止需先 `docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d postgres` 再升级；
 - [ ] 服务器磁盘空间：需容纳新后端镜像构建与 `backups/` 增量。
 
 ## 11. 常见问题
