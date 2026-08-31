@@ -30,7 +30,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=DIST_DIR, **kwargs)
 
     def do_GET(self):
-        if self.path.startswith("/api/") or self.path.startswith("/uploads/"):
+        if (
+            self.path.startswith("/api/")
+            or self.path.startswith("/uploads/")
+            or self.path.startswith("/signs/")
+        ):
             self._proxy()
         else:
             self._serve_static()
