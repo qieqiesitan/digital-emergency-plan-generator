@@ -1,6 +1,6 @@
 """Chat AI 助手 — SSE 流式端点 + 对话持久化。"""
 
-import json, logging, re
+import json, logging, re, time
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, desc
@@ -157,6 +157,18 @@ async def _save_messages(user_id: str, conv_id: str, user_msg: str, assistant_ms
                     content=(item.get("result") or "")[:4000],
                 ))
         await db.commit()
+
+
+async def _record_tool_call(db, conv_id: str, round_no: int, fn_name: str, fn_args: dict,
+                            result: str, status: str, duration_ms: int) -> None:
+    """写入一条工具执行记录（进度持久化用）。"""
+    from app.models.chat_tool_call import ChatToolCall
+    db.add(ChatToolCall(
+        conversation_id=conv_id, round_no=round_no, fn_name=fn_name,
+        fn_args=fn_args or {}, result=(result or "")[:4000],
+        status=status, duration_ms=duration_ms,
+    ))
+    await db.commit()
 
 
 async def _load_history_rows(db, conv_id: str):
@@ -339,8 +351,18 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 except json.JSONDecodeError:
                     fn_args = {}
                 yield sse_line({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
+                t0 = time.monotonic()
                 result_str = await dispatch(db, current_user, fn_name, fn_args)
+                duration_ms = int((time.monotonic() - t0) * 1000)
                 result_obj = json.loads(result_str)
+                is_err = isinstance(result_obj, dict) and "error" in result_obj
+                try:
+                    await _record_tool_call(db, conv_id, round_num, fn_name, fn_args,
+                                            result_str, "error" if is_err else "success", duration_ms)
+                except Exception:
+                    logger.exception("记录工具调用失败（不影响主流程）")
+                yield sse_line({"type": "tool_step", "name": fn_name, "status": "error" if is_err else "success",
+                                "duration_ms": duration_ms})
                 trace.append({"round_no": round_num, "fn_name": fn_name, "result": result_str})
 
                 # 报告生成特殊处理
