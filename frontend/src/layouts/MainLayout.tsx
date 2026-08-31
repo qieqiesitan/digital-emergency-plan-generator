@@ -17,6 +17,7 @@ import {
   BookOutlined,
   DatabaseOutlined,
   FileProtectOutlined,
+  GlobalOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import FloatingChat from "@/components/common/FloatingChat";
@@ -34,6 +35,7 @@ const MENU_MAP: Record<string, string> = {
   "/settings/prompts": "menu:prompts",
   "/settings/profile": "menu:profile",
   "/settings/ai-config": "menu:ai_config",
+  "/settings/third-party-config": "menu:third_party_config",
   "/settings/regulations": "menu:regulations",
   "/settings/data-dicts": "menu:data_dicts",
 };
@@ -79,6 +81,7 @@ export function MainLayout() {
   const settingsChildren = [
     ...(hasMenu("/settings/profile") ? [{ key: "/settings/profile", icon: <UserOutlined />, label: "个人资料" }] : []),
     ...(hasMenu("/settings/ai-config") ? [{ key: "/settings/ai-config", icon: <RobotOutlined />, label: "AI 配置" }] : []),
+    ...(hasMenu("/settings/third-party-config") ? [{ key: "/settings/third-party-config", icon: <GlobalOutlined />, label: "第三方接口配置" }] : []),
     ...(proMode && hasMenu("/settings/regulations") ? [{ key: "/settings/regulations", icon: <BookOutlined />, label: "法规库管理" }] : []),
   ];
 

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, useLocation, useParams } from "react-router-dom";
 import { APP_BASE } from "@/utils/platform";
 import { AuthLayout } from "@/layouts/AuthLayout";
@@ -53,6 +54,9 @@ import PublicHazardReportPage from "@/pages/Hazard/PublicHazardReportPage";
 import PublicHazardPage from "@/pages/Hazard/PublicHazardPage";
 import ChatPage from "@/pages/Chat";
 import OnboardingPage from "@/pages/Onboarding/OnboardingPage";
+
+// eslint-disable-next-line react-refresh/only-export-components -- 本文件同时导出 createRouter 工厂，属既有结构
+const ThirdPartyConfigPage = lazy(() => import("@/pages/Settings/ThirdPartyConfigPage"));
 
 // eslint-disable-next-line react-refresh/only-export-components -- 本文件同时导出 createRouter 工厂，属既有结构
 function MobileRedirect() {
@@ -141,6 +145,14 @@ const contentRoutes = [
   { path: "/plans/:id/preview", element: <ExportPreviewPage /> },
   { path: "/settings/profile", element: <ProfilePage /> },
   { path: "/settings/ai-config", element: <AIConfigPage /> },
+  {
+    path: "/settings/third-party-config",
+    element: (
+      <Suspense fallback={<div style={{ padding: 48, textAlign: "center" }}>加载中...</div>}>
+        <ThirdPartyConfigPage />
+      </Suspense>
+    ),
+  },
   { path: "/settings/users", element: <UserManagePage /> },
   { path: "/settings/roles", element: <RoleManagePage /> },
   { path: "/settings/system", element: <SystemConfigPage /> },
