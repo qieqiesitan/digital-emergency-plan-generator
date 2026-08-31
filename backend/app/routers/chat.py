@@ -93,6 +93,15 @@ async def _collect_llm(messages: list, ai_config: AIConfig) -> str:
     return await llm_collect_all(messages, ai_config, timeout=180)
 
 
+async def _generate_report_text(system_prompt: str, prompt: str, ai_config):
+    """生成报告：system_prompt 非空时作为 system 消息传入。"""
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+    return await _collect_llm(messages, ai_config)
+
+
 async def _render_mermaid_blocks(md_text: str) -> str:
     """提取 Markdown 中的 Mermaid 代码块，渲染为 SVG。"""
     pattern = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
@@ -338,7 +347,8 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 if result_obj.get("type") == "report_prompt":
                     yield sse_line({"type": "progress", "message": result_obj.get("message", "正在生成报告...")})
                     try:
-                        full_text = await _collect_llm([{"role": "user", "content": result_obj["prompt"]}], ai_config)
+                        full_text = await _generate_report_text(
+                            result_obj.get("system_prompt", ""), result_obj["prompt"], ai_config)
                         html = await _md_to_html(full_text)
                         final_text = full_text
                         yield sse_line({"type": "chunk", "content": html, "html": True})
