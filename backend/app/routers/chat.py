@@ -20,6 +20,8 @@ import asyncio
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
+CHAT_CONTEXT_BUDGET = 8000
+
 CHAT_TOOLS = [
     {"type": "function", "function": {"name": "get_dashboard", "description": "获取仪表盘统计概览：企业数、预案数(含已完成/生成中)、风险事件数、应急资源数", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "autofill_enterprise", "description": "智能添加企业：根据简称自动查询工商数据，校准为完整公司名称，同步填充信用代码、法人、行业、地址、注册资本等信息", "parameters": {"type": "object", "properties": {"name": {"type": "string", "description": "企业名称或简称(必填)"}}, "required": ["name"]}}},
@@ -191,6 +193,32 @@ def _rebuild_messages_from_rows(rows, user_message: str) -> list:
         i += 1
     msgs.append({"role": "user", "content": user_message})
     return msgs
+
+
+def _estimate_tokens(messages: list) -> int:
+    total = 0
+    for m in messages:
+        text = m.get("content") or ""
+        total += len(text) // 2 + 4
+    return total
+
+
+def truncate_by_token_budget(messages: list, budget: int = CHAT_CONTEXT_BUDGET) -> list:
+    """超预算时：保留系统提示 + 最近 30% 轮次，中间轮压缩为一条历史摘要。"""
+    if _estimate_tokens(messages) <= budget:
+        return messages
+    system = messages[0] if messages and messages[0]["role"] == "system" else None
+    rest = messages[1:] if system else messages
+    keep_last = rest[-max(1, int(len(rest) * 0.3)):]
+    middle = rest[:-max(1, int(len(rest) * 0.3))]
+    parts = []
+    for m in middle:
+        text = (m.get("content") or "").strip()
+        if text:
+            parts.append(text[:300])
+    summary = {"role": "system", "content": "【历史摘要】" + "；".join(parts[-10:])}
+    result = ([system] if system else []) + [summary] + keep_last
+    return result
 
 
 # ─── CRUD 端点 ───
