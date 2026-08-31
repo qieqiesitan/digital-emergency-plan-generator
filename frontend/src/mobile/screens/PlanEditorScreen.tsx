@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MoreHorizontal, Sparkles, Download,
   GitBranch, Loader2, ArrowLeft, Check,
-  AlertTriangle, Save,
+  AlertTriangle, Save, ClipboardCheck,
 } from "lucide-react";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
@@ -18,8 +18,9 @@ import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
 import AIGenerationSheet from "@/mobile/components/plan/AIGenerationSheet";
 import type { ChapterNode } from "@/mobile/components/plan/ChapterTree";
-import { getPlan, createVersion } from "@/services/planService";
+import { getPlan, createVersion, fetchPlanReview, applyPlanReview } from "@/services/planService";
 import { listSections, updateSection, autofillSection } from "@/services/planService";
+import type { PlanReviewIssue, PlanReviewResult } from "@/services/planService";
 import { generateBatchBackground, getGenerationStatus } from "@/services/generationService";
 import { useAppStore } from "@/mobile/store/appStore";
 import { useDraftStore } from "@/mobile/store/draftStore";
@@ -46,6 +47,10 @@ export default function PlanEditorScreen() {
   } | null>(null);
   const [batchSheetOpen, setBatchSheetOpen] = useState(false);
   const [failedSections, setFailedSections] = useState<Array<{ section_key: string; title: string }>>([]);
+  const [reviewSheetOpen, setReviewSheetOpen] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewResult, setReviewResult] = useState<PlanReviewResult | null>(null);
+  const [applyReviewLoading, setApplyReviewLoading] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -339,6 +344,69 @@ export default function PlanEditorScreen() {
     runBatchGeneration(keys);
   }, [failedSections, runBatchGeneration]);
 
+  // ========== AI 审查（结果展示 + 应用修订） ==========
+  const handleOpenReview = useCallback(async () => {
+    if (!planId) return;
+    setReviewLoading(true);
+    try {
+      const data = await fetchPlanReview(planId);
+      setReviewResult(data);
+      setReviewSheetOpen(true);
+    } catch (e: any) {
+      showToast?.({ type: "error", message: e?.message || "获取审查结果失败" });
+    } finally {
+      setReviewLoading(false);
+    }
+  }, [planId, showToast]);
+
+  const handleApplyReview = useCallback(async () => {
+    if (!planId) return;
+    setApplyReviewLoading(true);
+    try {
+      const r = await applyPlanReview(planId, "llm");
+      showToast?.({ type: "success", message: `已应用 ${r.applied.length} 个章节的修订` });
+      setReviewSheetOpen(false);
+      setReviewResult(null);
+      queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plan", planId] });
+    } catch (e: any) {
+      showToast?.({ type: "error", message: e?.message || "应用修订失败" });
+    } finally {
+      setApplyReviewLoading(false);
+    }
+  }, [planId, showToast, queryClient]);
+
+  const reviewGroups = useMemo(() => {
+    if (!reviewResult) return [];
+    const map = new Map<string, {
+      section_key: string;
+      section_title: string;
+      issues: PlanReviewIssue[];
+      warnings: PlanReviewIssue[];
+    }>();
+    reviewResult.issues.forEach((it) => {
+      const g = map.get(it.section_key) || {
+        section_key: it.section_key,
+        section_title: it.section_title || it.section_key,
+        issues: [],
+        warnings: [],
+      };
+      g.issues.push(it);
+      map.set(it.section_key, g);
+    });
+    reviewResult.warnings.forEach((it) => {
+      const g = map.get(it.section_key) || {
+        section_key: it.section_key,
+        section_title: it.section_title || it.section_key,
+        issues: [],
+        warnings: [],
+      };
+      g.warnings.push(it);
+      map.set(it.section_key, g);
+    });
+    return Array.from(map.values());
+  }, [reviewResult]);
+
   // 文本格式化
   const wrapSelection = (wrapper: string, endWrapper?: string) => {
     const ta = textareaRef.current;
@@ -498,6 +566,14 @@ export default function PlanEditorScreen() {
               </button>
               <div className="w-px h-6 bg-neutral-200" />
               <button
+                className="w-14 h-14 flex items-center justify-center text-primary-600"
+                onClick={handleOpenReview}
+                disabled={reviewLoading}
+              >
+                {reviewLoading ? <Loader2 size={22} className="animate-spin" /> : <ClipboardCheck size={22} />}
+              </button>
+              <div className="w-px h-6 bg-neutral-200" />
+              <button
                 className="w-14 h-14 flex items-center justify-center text-neutral-600"
                 onClick={() => navigate(`/m/plans/${planId}/preview`)}
               >
@@ -529,6 +605,62 @@ export default function PlanEditorScreen() {
               chapters={batchChapters}
               onGenerate={(selectedKeys) => handleBatchGenerate(selectedKeys)}
             />
+            <BottomSheet open={reviewSheetOpen} onClose={() => setReviewSheetOpen(false)} height="70%">
+              <div className="px-md py-sm">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="text-h3 font-semibold text-neutral-900">AI 审查结果</span>
+                  <button className="text-caption text-neutral-500" onClick={() => setReviewSheetOpen(false)}>
+                    关闭
+                  </button>
+                </div>
+                {!reviewResult ? (
+                  <div className="py-lg text-center text-neutral-400">暂无审查结果</div>
+                ) : reviewResult.issues.length === 0 && reviewResult.warnings.length === 0 ? (
+                  <div className="py-lg text-center text-green-600">✓ 未发现问题，预案质量良好</div>
+                ) : (
+                  <div className="flex flex-col gap-sm">
+                    {reviewGroups.map((g) => (
+                      <div key={g.section_key} className="rounded-md border border-neutral-100 p-sm">
+                        <div className="text-body-sm font-semibold text-neutral-800 mb-xs">{g.section_title}</div>
+                        {g.issues.map((it, i) => (
+                          <div key={`issue-${i}`} className="text-body-sm text-red-600 flex gap-xs">
+                            <span>•</span>
+                            <span className="flex-1">{it.issue}</span>
+                          </div>
+                        ))}
+                        {g.warnings.map((it, i) => (
+                          <div key={`warning-${i}`} className="text-body-sm text-amber-600 flex gap-xs">
+                            <span>•</span>
+                            <span className="flex-1">
+                              {it.warning}
+                              {it.evidence ? `（${it.evidence}）` : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {reviewResult && reviewResult.issues.length > 0 && (
+                  <button
+                    className="mt-md w-full h-11 rounded-md bg-primary-600 text-white text-body-sm font-medium disabled:opacity-50"
+                    disabled={applyReviewLoading}
+                    onClick={handleApplyReview}
+                  >
+                    {applyReviewLoading ? "修订中…" : "应用修订（LLM）"}
+                  </button>
+                )}
+                <button
+                  className="mt-sm w-full h-11 rounded-md border border-neutral-200 text-neutral-600 text-body-sm font-medium"
+                  onClick={() => { setReviewSheetOpen(false); navigate(`/m/plans/${planId}/versions`); }}
+                >
+                  回退（版本历史）
+                </button>
+                <div className="mt-xs text-caption text-neutral-400 text-center">
+                  应用修订前会自动保存版本快照，可在版本历史中回退。
+                </div>
+              </div>
+            </BottomSheet>
           </>
         ) : (
           <div className="flex-1 flex flex-col">

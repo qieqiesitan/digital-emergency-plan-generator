@@ -3,10 +3,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Input, Button, Space, Badge, message, Progress, Alert, Tag } from "antd";
 import Modal from "antd/es/modal";
-import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined } from "@ant-design/icons";
+import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined, AuditOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPlan, updatePlan, createVersion, regenerateMissingDiagrams } from "@/services/planService";
+import { getPlan, updatePlan, createVersion, regenerateMissingDiagrams, fetchPlanReview, applyPlanReview } from "@/services/planService";
 import { listSections, updateSection, autofillSection } from "@/services/planService";
+import type { PlanReviewIssue, PlanReviewResult } from "@/services/planService";
 import { generateBatchStream } from "@/services/generationService";
 import { validateExport } from "@/services/exportService";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -61,6 +62,8 @@ export default function PlanEditorPage() {
   const [advancedOverrides, setAdvancedOverrides] = useState<Record<string, unknown> | null>(null);
   const [styleMode, setStyleMode] = useState<"panel" | "advanced">("panel");
   const [styleModalOpen, setStyleModalOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewResult, setReviewResult] = useState<PlanReviewResult | null>(null);
   const [sampleMode, setSampleMode] = useState(() => {
     if (autoGenerate === "sample") return true;
     try { return sessionStorage.getItem(`plan_sample_mode_${id}`) === "1"; } catch { return false; }
@@ -113,6 +116,59 @@ export default function PlanEditorPage() {
     },
     onError: () => message.error("重新生成附图失败"),
   });
+
+  const reviewMut = useMutation({
+    mutationFn: () => fetchPlanReview(id!),
+    onSuccess: (data) => {
+      setReviewResult(data);
+      setReviewOpen(true);
+    },
+    onError: () => message.error("获取审查结果失败"),
+  });
+
+  const applyReviewMut = useMutation({
+    mutationFn: () => applyPlanReview(id!, "llm"),
+    onSuccess: (r) => {
+      message.success(`已应用 ${r.applied.length} 个章节的修订`);
+      setReviewOpen(false);
+      setReviewResult(null);
+      queryClient.invalidateQueries({ queryKey: ["planSections", id] });
+      queryClient.invalidateQueries({ queryKey: ["plan", id] });
+      queryClient.invalidateQueries({ queryKey: ["versions", id] });
+    },
+    onError: () => message.error("应用修订失败"),
+  });
+
+  const reviewGroups = useMemo(() => {
+    if (!reviewResult) return [];
+    const map = new Map<string, {
+      section_key: string;
+      section_title: string;
+      issues: PlanReviewIssue[];
+      warnings: PlanReviewIssue[];
+    }>();
+    reviewResult.issues.forEach((it) => {
+      const g = map.get(it.section_key) || {
+        section_key: it.section_key,
+        section_title: it.section_title || it.section_key,
+        issues: [],
+        warnings: [],
+      };
+      g.issues.push(it);
+      map.set(it.section_key, g);
+    });
+    reviewResult.warnings.forEach((it) => {
+      const g = map.get(it.section_key) || {
+        section_key: it.section_key,
+        section_title: it.section_title || it.section_key,
+        issues: [],
+        warnings: [],
+      };
+      g.warnings.push(it);
+      map.set(it.section_key, g);
+    });
+    return Array.from(map.values());
+  }, [reviewResult]);
 
   const saveMutation = useMutation({
     mutationFn: ({ key, content }: { key: string; content: string }) =>
@@ -371,6 +427,9 @@ export default function PlanEditorPage() {
               >
                 {isGenerating ? "后台生成中..." : "一键生成全部"}
               </Button>
+            <Button icon={<AuditOutlined />} onClick={() => reviewMut.mutate()} loading={reviewMut.isPending}>
+              AI 审查
+            </Button>
             <Button icon={<HistoryOutlined />} onClick={() => navigate(`/plans/${id}/versions`)}>
               版本历史
             </Button>
@@ -569,6 +628,54 @@ export default function PlanEditorPage() {
             defaultSystemPrompt="你是一位持有国家注册安全工程师资格的应急预案编制专家..."
             onChange={(ao) => { setAdvancedOverrides(ao); updatePlan(id!, { style_preference: { ...stylePreference, mode: "advanced" }, advanced_prompt_overrides: ao } as any).catch(() => {}); }}
             onExit={() => setStyleMode("panel")} />
+        )}
+      </Modal>
+      <Modal
+        title="AI 审查结果"
+        open={reviewOpen}
+        onCancel={() => setReviewOpen(false)}
+        width={640}
+        footer={[
+          <Button key="rollback" onClick={() => { setReviewOpen(false); navigate(`/plans/${id}/versions`); }}>
+            回退（版本历史）
+          </Button>,
+          <Button
+            key="apply"
+            type="primary"
+            loading={applyReviewMut.isPending}
+            disabled={isGenerating || !reviewResult || reviewResult.issues.length === 0}
+            onClick={() => applyReviewMut.mutate()}
+          >
+            应用修订（LLM）
+          </Button>,
+        ]}
+      >
+        {!reviewResult ? (
+          <div style={{ textAlign: "center", padding: 24, color: "#999" }}>暂无审查结果</div>
+        ) : reviewResult.issues.length === 0 && reviewResult.warnings.length === 0 ? (
+          <Alert type="success" showIcon message="未发现问题，预案质量良好" />
+        ) : (
+          <>
+            {reviewGroups.map((g) => (
+              <div key={g.section_key} style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{g.section_title}</div>
+                {g.issues.map((it, i) => (
+                  <div key={`issue-${i}`} style={{ color: "#cf1322", marginBottom: 4 }}>
+                    • {it.issue}
+                  </div>
+                ))}
+                {g.warnings.map((it, i) => (
+                  <div key={`warning-${i}`} style={{ color: "#d46b08", marginBottom: 4 }}>
+                    • {it.warning}
+                    {it.evidence ? `（${it.evidence}）` : ""}
+                  </div>
+                ))}
+              </div>
+            ))}
+            <div style={{ fontSize: 12, color: "#999", marginTop: 8 }}>
+              应用修订前会自动保存版本快照，可在「版本历史」中回退。
+            </div>
+          </>
         )}
       </Modal>
     </div>

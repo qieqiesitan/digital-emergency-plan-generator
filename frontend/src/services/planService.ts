@@ -119,3 +119,43 @@ export async function compareVersions(planId: string, versionA: number, versionB
 export async function rollbackVersion(planId: string, versionId: string): Promise<void> {
   await api.post(`/plans/${planId}/versions/${versionId}/rollback`);
 }
+
+// ── AI Review ──
+
+export interface PlanReviewIssue {
+  section_key: string;
+  section_title: string;
+  issue?: string;
+  warning?: string;
+  evidence?: string;
+}
+
+export interface PlanReviewResult {
+  plan_id: string;
+  title: string;
+  issues: PlanReviewIssue[];
+  warnings: PlanReviewIssue[];
+}
+
+export interface PlanReviewApplyResult {
+  plan_id: string;
+  applied: string[];
+  snapshot_version: number;
+}
+
+export async function fetchPlanReview(planId: string): Promise<PlanReviewResult> {
+  const res = await api.get<ApiResponse<PlanReviewResult>>(`/plans/${planId}/review`);
+  return res.data.data;
+}
+
+export async function applyPlanReview(
+  planId: string,
+  mode: "auto" | "llm",
+  sectionKeys?: string[]
+): Promise<PlanReviewApplyResult> {
+  const res = await api.post<ApiResponse<PlanReviewApplyResult>>(`/plans/${planId}/review/apply`, {
+    mode,
+    section_keys: sectionKeys ?? null,
+  });
+  return res.data.data;
+}
