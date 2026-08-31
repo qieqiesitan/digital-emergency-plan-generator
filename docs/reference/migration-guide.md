@@ -41,8 +41,9 @@
 backend 启动时迁移运行器自动处理（`backend/app/services/migration_runner.py`）：
 
 - 启动时确保 `schema_migrations` 表存在，以 `script_name` 记录已应用脚本；
-- 首次基线：`schema_migrations` 无任何记录时（无论库中是否有业务数据），
-  默认将全部捆绑脚本记为 baseline（只记录不执行，适配由 db-init 建表的新库）；
+- 首次基线：`schema_migrations` 无任何记录时（如从旧版本升级上来的既有库），
+  仅将升级前版本已含的基线脚本（`BASELINE_MIGRATIONS`，即 0.2.0 已捆绑脚本）记为
+  baseline（只记录不执行——其变更在既有库中已存在），**本版本新增脚本自动按序应用**；
 - 增量应用：已有记录时，按文件名排序仅应用未记录脚本；每个脚本一个事务，
   语句与记录同事务提交，失败整体回滚且不记录；
 - 串行化：固定 key 的 `pg_advisory_lock`，多实例并发启动不会重复执行；

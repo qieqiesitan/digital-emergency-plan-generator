@@ -5,11 +5,12 @@
 2) 在锁内执行 Base.metadata.create_all（幂等，补建缺失表，避免并发启动竞态）；
 3) 确保 schema_migrations 表存在（CREATE TABLE IF NOT EXISTS）；
 4) 读取已记录 script_name 集合；
-5) 无任何记录且 MIGRATE_FRESH != 1 → 全部捆绑脚本写为 baseline（只记录不执行）；
+5) 无任何记录且 MIGRATE_FRESH != 1 → 仅把 BASELINE_MIGRATIONS（升级前版本已含的
+   基线脚本）记为已应用（不执行），随后按序应用不在基线中的新脚本；
    MIGRATE_FRESH = 1 → 全部执行后记录；
 6) 已有记录 → 按文件名排序仅应用未记录脚本：每个脚本一个事务，成功才插入记录，
    失败时日志含 script_name 并包装异常上抛（main.py 捕获后 sys.exit(1) fail-fast）；
-7) finally 释放 advisory lock。
+7) finally 先回滚（失败时事务处于 aborted 状态，否则 unlock 会失败）再释放 advisory lock。
 
 脚本目录 = backend/（相对 worktree backend 目录），匹配 db_migration_*.sql。
 历史脚本允许自带 BEGIN;/COMMIT; 包裹（如 db_migration_accident_types_2025.sql），
@@ -32,6 +33,35 @@ logger = logging.getLogger(__name__)
 MIGRATION_LOCK_KEY = 0x4D494752
 MIGRATE_FRESH_ENV = "MIGRATE_FRESH"
 SCRIPT_GLOB = "db_migration_*.sql"
+
+# 基线迁移：升级前版本（0.2.0）已捆绑的 db_migration_*.sql 文件名。
+# 无 schema_migrations 记录的既有库升级时，仅这些脚本记为已应用（不执行——
+# 其变更已存在于既有库中），其余捆绑脚本（如权限点、数据清理等新迁移）按序应用。
+BASELINE_MIGRATIONS: frozenset[str] = frozenset(
+    {
+        "db_migration_accident_types_2025.sql",
+        "db_migration_add_style_preference.sql",
+        "db_migration_ai_config_system.sql",
+        "db_migration_clear_fake_org_members.sql",
+        "db_migration_data_dicts.sql",
+        "db_migration_data_dicts_permission.sql",
+        "db_migration_enterprise_members_unbound.sql",
+        "db_migration_enterprise_org.sql",
+        "db_migration_hazard_management.sql",
+        "db_migration_password_reset.sql",
+        "db_migration_plan_diagram_svgs.sql",
+        "db_migration_plan_number.sql",
+        "db_migration_plan_section_metadata.sql",
+        "db_migration_prompt_templates_cleanup.sql",
+        "db_migration_report_versions.sql",
+        "db_migration_risk_control_enhancement.sql",
+        "db_migration_risk_event_chemical.sql",
+        "db_migration_risk_mapping_workbench.sql",
+        "db_migration_risk_notice_card.sql",
+        "db_migration_risk_overhaul.sql",
+        "db_migration_risk_source_consolidation.sql",
+    }
+)
 
 
 def migration_script_dir() -> Path:
@@ -152,7 +182,12 @@ async def _apply_script(conn, script: Path) -> None:
 
 
 async def run_migrations() -> None:
-    """应用未记录的 db_migration_*.sql 脚本，成功/失败都在 finally 释放 advisory lock。"""
+    """应用未记录的 db_migration_*.sql 脚本，成功/失败都在 finally 释放 advisory lock。
+
+    无任何记录且 MIGRATE_FRESH != 1（如从 0.2.0 升级上来的既有库）时：
+    仅把 BASELINE_MIGRATIONS 中存在的脚本记为已应用（不执行），
+    其余新脚本按序应用（每脚本一事务、成功才记录）。
+    """
     conn = await engine.connect()
     lock_acquired = False
     try:
@@ -171,11 +206,13 @@ async def run_migrations() -> None:
         await conn.commit()
         scripts = list_migration_scripts()
         if not applied and os.environ.get(MIGRATE_FRESH_ENV, "").strip() != "1":
-            # 首次部署（无任何记录）：全部捆绑脚本写为 baseline（不执行），一次事务记录。
+            # 既有库首次升级（无任何记录）：仅基线脚本（升级前版本已含）记为已应用
+            # （不执行——变更已存在于既有库）；新脚本落入下方公共循环按序应用。
             async with conn.begin():
                 for script in scripts:
-                    await _record_script(conn, script.name)
-            return
+                    if script.name in BASELINE_MIGRATIONS:
+                        await _record_script(conn, script.name)
+                        applied.add(script.name)
         for script in scripts:
             if script.name in applied:
                 continue
@@ -190,6 +227,9 @@ async def run_migrations() -> None:
     finally:
         try:
             if lock_acquired:
+                # 失败路径（如 create_all 抛错）下事务处于 aborted 状态，
+                # 必须先回滚再释放 advisory lock，否则 unlock 本身会失败。
+                await conn.rollback()
                 await conn.execute(
                     text("SELECT pg_advisory_unlock(:lock_key)"),
                     {"lock_key": MIGRATION_LOCK_KEY},

@@ -170,7 +170,10 @@ tar xzf emergency-plan-migration-<版本>-upgrade.tar.gz -C . --strip-components
 
 - backend 启动时迁移运行器基于 `schema_migrations` 表自动应用增量迁移：
   已有记录跳过、新增 `db_migration_*.sql` 逐脚本单事务执行（失败整体回滚且不记录）、
-  空库且无记录时默认将全部捆绑脚本记为 baseline（只记录不执行）。
+  无记录时（如从旧版本升级上来的既有库）仅将升级前版本已含的基线脚本记为
+  baseline（只记录不执行——其变更在既有库中已存在），**本版本新增迁移自动按序应用**。
+- 0.2.0 → 0.3.0 升级：首次启动会自动应用本版本新增迁移（含权限点与数据清理），
+  无需手工执行 SQL。
 - 逃生口：**空库**需执行全部捆绑迁移时，设置 backend 进程环境变量 `MIGRATE_FRESH=1`
   （compose 已从 `.env` 透传，见 `.env.example` 说明）。
 - 失败处理（fail-fast）：迁移失败 → 事务回滚不记录 → backend 进程以非 0 退出

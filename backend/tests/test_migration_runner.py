@@ -3,11 +3,12 @@
 覆盖任务 7 规格五条行为 + 语句拆分 + main.py 启动接线回归守护：
 - create_all 在 advisory lock 内执行（幂等补建缺失表，并发启动无竞态）；
 - 脚本按文件名排序扫描；
-- 首次（无记录）→ 全部记为 baseline、不执行（MIGRATE_FRESH=1 时全部执行并记录）；
+- 首次（无记录）→ 仅基线脚本（BASELINE_MIGRATIONS）记录不执行、新脚本按序应用
+  （MIGRATE_FRESH=1 时全部执行并记录）；
 - 已有记录 → 仅应用未记录脚本、每个脚本一个事务、成功才记录；
 - 已记录脚本跳过；
 - advisory lock 获取失败 → 不执行任何脚本并抛出；
-- finally 释放 advisory lock；
+- finally 先回滚（create_all 失败等 aborted 事务）再释放 advisory lock；
 - 脚本执行失败 → 日志含 script_name、异常信息含脚本名、不记录并向上抛；
 - main.py 启动流程真实调用 run_migrations（防 ImportError 守卫残留）。
 """
@@ -63,16 +64,24 @@ class _FakeConn:
     - 其它 → 记入 executed（脚本内容语句）。
     """
 
-    def __init__(self, applied_names=(), fail_lock=False, fail_statement=None):
+    def __init__(
+        self,
+        applied_names=(),
+        fail_lock=False,
+        fail_statement=None,
+        fail_create_all=False,
+    ):
         self.applied = set(applied_names)
         self.calls = []  # (sql_text, params)
         self.records = []
         self.executed = []
         self.begin_entered = 0
         self.commits = 0
+        self.rollbacks = 0
         self.closed = False
         self.fail_lock = fail_lock
         self.fail_statement = fail_statement
+        self.fail_create_all = fail_create_all
         self.create_all_calls = 0
 
     async def execute(self, stmt, params=None):
@@ -102,10 +111,16 @@ class _FakeConn:
         # 不执行 fn，保持 runner 单测为纯逻辑测试。
         self.create_all_calls += 1
         self.calls.append(("create_all", None))
+        if self.fail_create_all:
+            raise RuntimeError("create_all failed")
         return None
 
     async def commit(self):
         self.commits += 1
+
+    async def rollback(self):
+        self.rollbacks += 1
+        self.calls.append(("rollback", None))
 
     async def close(self):
         self.closed = True
@@ -170,12 +185,18 @@ def test_list_migration_scripts_sorted_by_filename(script_dir):
 
 
 # ---------------------------------------------------------------------------
-# 2) 首次（无记录）→ 全部 baseline、不执行
+# 2) 首次（无记录）→ 基线脚本只记录不执行，新脚本按序应用
 
 
 @pytest.mark.asyncio
-async def test_first_run_baselines_all_scripts_without_executing(monkeypatch, script_dir):
+async def test_first_run_baselines_only_pre_upgrade_scripts(monkeypatch, script_dir):
     _write_scripts(script_dir)
+    # 模拟升级前版本（0.2.0）已含 a/b 两个基线脚本，c 为本版本新增
+    monkeypatch.setattr(
+        mr,
+        "BASELINE_MIGRATIONS",
+        frozenset({"db_migration_a.sql", "db_migration_b.sql"}),
+    )
     conn = _FakeConn()
     _install_fresh(monkeypatch, conn)
 
@@ -186,9 +207,43 @@ async def test_first_run_baselines_all_scripts_without_executing(monkeypatch, sc
         "db_migration_b.sql",
         "db_migration_c.sql",
     ]
-    assert conn.executed == []
-    assert conn.begin_entered == 1  # 全部 baseline 一次事务
+    # 基线脚本只记录不执行；新脚本 c 被执行
+    assert conn.executed == ["CREATE TABLE gamma (id int)"]
+    assert conn.begin_entered == 2  # 基线一次事务 + c 一个事务
     assert conn.closed is True
+
+
+@pytest.mark.asyncio
+async def test_first_run_applies_new_scripts_each_in_own_transaction(monkeypatch, script_dir):
+    """升级场景：基线脚本记录后，多个新脚本各自单事务执行并记录。"""
+    _write_scripts(
+        script_dir,
+        ("db_migration_b.sql", "db_migration_c.sql"),
+    )
+    # b 为基线（0.2.0 已有），c/d 为本版本新增（如 third_party_config、dedupe）
+    monkeypatch.setattr(
+        mr,
+        "BASELINE_MIGRATIONS",
+        frozenset({"db_migration_b.sql"}),
+    )
+    (script_dir / "db_migration_d.sql").write_text(
+        "CREATE TABLE delta (id int);", encoding="utf-8"
+    )
+    conn = _FakeConn()
+    _install_fresh(monkeypatch, conn)
+
+    await mr.run_migrations()
+
+    assert sorted(conn.records) == [
+        "db_migration_b.sql",
+        "db_migration_c.sql",
+        "db_migration_d.sql",
+    ]
+    assert conn.executed == [
+        "CREATE TABLE gamma (id int)",
+        "CREATE TABLE delta (id int)",
+    ]
+    assert conn.begin_entered == 3  # 基线一次事务 + c/d 各一个事务
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +361,13 @@ async def test_lock_released_after_successful_run(monkeypatch, script_dir):
 @pytest.mark.asyncio
 async def test_create_all_runs_once_inside_lock(monkeypatch, script_dir):
     _write_scripts(script_dir)
+    monkeypatch.setattr(
+        mr,
+        "BASELINE_MIGRATIONS",
+        frozenset(
+            {"db_migration_a.sql", "db_migration_b.sql", "db_migration_c.sql"}
+        ),
+    )
     conn = _FakeConn()
     _install_fresh(monkeypatch, conn)
 
@@ -333,6 +395,50 @@ async def test_create_all_runs_before_scripts_under_fresh(monkeypatch, script_di
     script_index = next(i for i, (sql, _) in enumerate(conn.calls) if "CREATE TABLE alpha" in sql)
     assert create_index < script_index
     assert conn.executed == ["CREATE TABLE alpha (id int)"]
+
+
+# ---------------------------------------------------------------------------
+# 7.6) create_all 失败 → 异常上抛，且 unlock 前已回滚（aborted 事务）
+
+
+@pytest.mark.asyncio
+async def test_create_all_failure_rolls_back_before_unlock(monkeypatch, script_dir):
+    _write_scripts(script_dir, names=("db_migration_a.sql",))
+    conn = _FakeConn(fail_create_all=True)
+    _install_fresh(monkeypatch, conn)
+
+    with pytest.raises(RuntimeError, match="create_all failed"):
+        await mr.run_migrations()
+
+    assert conn.create_all_calls == 1
+    assert conn.records == []
+    assert conn.executed == []
+    # unlock 前必须已 rollback
+    rollback_index = next(
+        i for i, (sql, _) in enumerate(conn.calls) if sql == "rollback"
+    )
+    unlock_index = next(
+        i
+        for i, (sql, _) in enumerate(conn.calls)
+        if "pg_advisory_unlock" in sql
+    )
+    assert rollback_index < unlock_index
+    assert conn.closed is True
+
+
+# ---------------------------------------------------------------------------
+# 7.7) BASELINE_MIGRATIONS 守卫：与 0.2.0（升级前）捆绑脚本一一对应
+
+
+def test_baseline_migrations_match_pre_upgrade_scripts():
+    """守卫：基线集合 ⊆ 当前捆绑脚本，且差集恰为本版本（0.3.0）新增迁移。"""
+    bundled = {p.name for p in mr.list_migration_scripts()}
+    baseline = set(mr.BASELINE_MIGRATIONS)
+    assert baseline <= bundled
+    assert bundled - baseline == {
+        "db_migration_20260831_prompt_template_dedupe.sql",
+        "db_migration_20260831_third_party_config.sql",
+    }
 
 
 # ---------------------------------------------------------------------------
