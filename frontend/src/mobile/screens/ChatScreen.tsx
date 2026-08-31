@@ -12,8 +12,10 @@ import {
   fetchConversations,
   createConversation,
   fetchMessages,
+  fetchToolCalls,
   type ChatMessage,
   type ChatSSEEvent,
+  type ToolCallStep,
 } from "@/services/chatService";
 
 interface DisplayMessage {
@@ -31,6 +33,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [toolSteps, setToolSteps] = useState<ToolCallStep[]>([]);
 
   const listRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -47,12 +50,16 @@ export default function ChatScreen() {
           setConvId(conv.id);
           const msgs = await fetchMessages(conv.id);
           if (cancelled) return;
+          const filtered = msgs.filter((m) => m.role !== "tool" && !(m.role === "assistant" && !m.content));
           setMessages(
-            msgs.map((m) => ({
+            filtered.map((m) => ({
               role: m.role === "assistant" ? "assistant" : "user",
               content: m.content,
             }))
           );
+          const steps = await fetchToolCalls(conv.id).catch(() => []);
+          if (cancelled) return;
+          setToolSteps(steps.map((s) => ({ ...s })));
         } else {
           const conv = await createConversation();
           if (cancelled) return;
@@ -104,8 +111,21 @@ export default function ChatScreen() {
       history,
       convId,
       (event: ChatSSEEvent) => {
-        if (event.type === "chunk" || event.type === "progress") {
-          buf += event.content || event.message || "";
+        if (event.type === "chunk") {
+          buf += event.content || "";
+        }
+        if (event.type === "tool_step") {
+          setToolSteps((prev) => [
+            ...prev,
+            {
+              id: `${Date.now()}-${event.name}`,
+              round_no: 1,
+              fn_name: event.name || "",
+              status: event.status === "error" ? "error" : "success",
+              duration_ms: event.duration_ms ?? null,
+              created_at: new Date().toISOString(),
+            },
+          ]);
         }
         if (event.type === "error") {
           buf += `\n❌ ${event.message || "生成失败"}`;
@@ -198,6 +218,24 @@ export default function ChatScreen() {
                   wordBreak: "break-word",
                 }}
               >
+                {m.role === "assistant" && toolSteps.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                    {toolSteps.map((s) => (
+                      <span
+                        key={s.id}
+                        style={{
+                          fontSize: 10,
+                          padding: "1px 8px",
+                          borderRadius: 10,
+                          background: s.status === "error" ? "#fff2f0" : "#f6ffed",
+                          color: s.status === "error" ? "#cf1322" : "#389e0d",
+                        }}
+                      >
+                        {s.status === "error" ? "✗" : "✓"} {s.fn_name} {s.duration_ms != null ? `${s.duration_ms}ms` : ""}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {m.loading ? (
                   <span className="flex items-center gap-xs text-neutral-400">
                     <Spinner size="sm" /> 思考中…

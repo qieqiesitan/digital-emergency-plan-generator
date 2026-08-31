@@ -8,9 +8,11 @@ import {
   createConversation,
   deleteConversation,
   fetchMessages,
+  fetchToolCalls,
   type ChatMessage,
   type ChatSSEEvent,
   type Conversation,
+  type ToolCallStep,
 } from "@/services/chatService";
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
@@ -38,6 +40,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [convLoading, setConvLoading] = useState(false);
+  const [toolSteps, setToolSteps] = useState<ToolCallStep[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -61,14 +64,18 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
     setConvLoading(true);
     try {
       const msgs = await fetchMessages(convId);
-      const display: DisplayMessage[] = msgs.map((m) => ({
+      const filtered = msgs.filter((m) => m.role !== "tool" && !(m.role === "assistant" && !m.content));
+      const display: DisplayMessage[] = filtered.map((m) => ({
         role: m.role as DisplayMessage["role"],
         content: m.content,
+        name: m.name || undefined,
       }));
       setMessages(display);
+      const steps = await fetchToolCalls(convId).catch(() => []);
+      setToolSteps(steps.map((s) => ({ ...s })));
       // 构建 history（最近10轮）
       const chatMsgs: ChatMessage[] = [];
-      for (const m of msgs) {
+      for (const m of filtered) {
         chatMsgs.push({ role: m.role as ChatMessage["role"], content: m.content });
       }
       setHistory(chatMsgs.slice(-20)); // 保留最近10轮（20条）
@@ -87,6 +94,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
       setActiveConvId(conv.id);
       setMessages([]);
       setHistory([]);
+      setToolSteps([]);
     } catch {
       message.error("创建对话失败");
     }
@@ -101,6 +109,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
         setActiveConvId(null);
         setMessages([]);
         setHistory([]);
+        setToolSteps([]);
       }
     } catch {
       message.error("删除对话失败");
@@ -143,6 +152,19 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
             break;
           case "error":
             contentBuf += `\n❌ ${event.message}`;
+            break;
+          case "tool_step":
+            setToolSteps((prev) => [
+              ...prev,
+              {
+                id: `${Date.now()}-${event.name}`,
+                round_no: 1,
+                fn_name: event.name || "",
+                status: event.status === "error" ? "error" : "success",
+                duration_ms: event.duration_ms ?? null,
+                created_at: new Date().toISOString(),
+              },
+            ]);
             break;
         }
         setMessages((prev) => {
@@ -320,6 +342,24 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                     overflow: "hidden",
                   }}
                 >
+                  {msg.role === "assistant" && toolSteps.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                      {toolSteps.map((s) => (
+                        <span
+                          key={s.id}
+                          style={{
+                            fontSize: 11,
+                            padding: "1px 8px",
+                            borderRadius: 10,
+                            background: s.status === "error" ? "#fff2f0" : "#f6ffed",
+                            color: s.status === "error" ? "#cf1322" : "#389e0d",
+                          }}
+                        >
+                          {s.status === "error" ? "✗" : "✓"} {s.fn_name} {s.duration_ms != null ? `${s.duration_ms}ms` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {msg.loading ? (
                     <Spin size="small" />
                   ) : msg.role === "user" ? (
@@ -475,6 +515,24 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                       overflow: "hidden",
                     }}
                   >
+                    {msg.role === "assistant" && toolSteps.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                        {toolSteps.map((s) => (
+                          <span
+                            key={s.id}
+                            style={{
+                              fontSize: 11,
+                              padding: "1px 8px",
+                              borderRadius: 10,
+                              background: s.status === "error" ? "#fff2f0" : "#f6ffed",
+                              color: s.status === "error" ? "#cf1322" : "#389e0d",
+                            }}
+                          >
+                            {s.status === "error" ? "✗" : "✓"} {s.fn_name} {s.duration_ms != null ? `${s.duration_ms}ms` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {msg.loading ? (
                       <Spin size="small" />
                     ) : msg.role === "user" ? (

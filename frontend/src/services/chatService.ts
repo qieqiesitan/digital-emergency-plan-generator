@@ -6,13 +6,24 @@ export interface ChatMessage {
   name?: string | null;
 }
 
+export interface ToolCallStep {
+  id: string;
+  round_no: number;
+  fn_name: string;
+  status: "running" | "success" | "error";
+  duration_ms: number | null;
+  created_at: string;
+}
+
 export interface ChatSSEEvent {
-  type: "progress" | "chunk" | "function_result" | "error" | "done" | "conv_id";
+  type: "progress" | "chunk" | "function_result" | "tool_step" | "error" | "done" | "conv_id";
   message?: string;
   content?: string;
   html?: boolean;
   name?: string;
   result?: string;
+  status?: "success" | "error";
+  duration_ms?: number;
 }
 
 export interface Conversation {
@@ -26,6 +37,7 @@ export interface MessageResponse {
   id: string;
   role: string;
   content: string;
+  name?: string | null;
   created_at: string;
 }
 
@@ -119,5 +131,11 @@ export async function deleteConversation(id: string): Promise<void> {
 export async function fetchMessages(convId: string): Promise<MessageResponse[]> {
   const res = await fetch(`${getApiBaseUrl()}/chat/conversations/${convId}/messages`, { headers: headers() });
   if (!res.ok) throw new Error("获取消息失败");
+  return res.json();
+}
+
+export async function fetchToolCalls(convId: string): Promise<ToolCallStep[]> {
+  const res = await fetch(`${getApiBaseUrl()}/chat/conversations/${convId}/tool-calls`, { headers: headers() });
+  if (!res.ok) throw new Error("获取工具步骤失败");
   return res.json();
 }
