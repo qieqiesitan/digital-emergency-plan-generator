@@ -17,9 +17,13 @@ from app.services.enterprise_cleanup_service import delete_enterprise_complete
 from app.services.floor_plan_storage_service import remove_enterprise_uploads
 from app.services.risk_context_builder import build_risk_management_context
 from app.services.risk_stats_service import count_user_risk_events
+from app.services.plan_generation_service import start_batch_generation
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
+
+# 聊天触发的后台生成失败章节记录（供 get_generation_progress 返回；后续后台生成可写入）
+_failed_sections: dict[str, list] = {}
 
 # ── dispatch ──
 
@@ -863,7 +867,7 @@ async def _generate_report(db, user, args):
 # ── 预案内容生成 ──
 
 async def _generate_plan_content(db, user, args):
-    """触发 AI 批量生成预案所有空章节。返回触发状态，由前端生成页执行实际生成。"""
+    """聊天触发后台批量生成。"""
     plan_id = args.get("plan_id", "")
     if not plan_id:
         return {"error": "请提供 plan_id"}
@@ -871,27 +875,34 @@ async def _generate_plan_content(db, user, args):
         select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == user.id)
     )).scalar_one_or_none()
     if not p:
-        return {"error": "预案不存在"}
-    if p.status == "generating":
-        return {"message": "预案正在生成中，请稍候", "status": "generating", "verified": True}
+        return {"error": "预案不存在", "verified": False}
+    out = await start_batch_generation(plan_id, db, user, keys=None, background=True)
+    out["plan_id"] = plan_id
+    out["verified"] = out.get("started", False)
+    return out
 
-    empty_sections = [s for s in (p.sections or []) if not s.content or not s.content.strip()]
-    total = len(p.sections or [])
-    if not empty_sections:
-        return {"message": f"预案「{p.title}」共{total}个章节，均已填写完成", "verified": True}
 
-    # 标记为 generating，前端会自动检测并触发实际生成 API
-    p.status = "generating"
-    await db.commit()
-
+async def _get_generation_progress(db, user, args):
+    """查询聊天触发的后台生成进度。"""
+    plan_id = args.get("plan_id", "")
+    if not plan_id:
+        return {"error": "请提供 plan_id"}
+    p = (await db.execute(
+        select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == user.id)
+    )).scalar_one_or_none()
+    if not p:
+        return {"error": "预案不存在", "verified": False}
+    failed = _failed_sections.get(plan_id, [])
+    sections = p.sections or []
+    filled = sum(1 for s in sections if s.content and s.content.strip())
     return {
-        "message": f"预案「{p.title}」共{total}个章节，{len(empty_sections)}个空章节已标记为生成中状态。请在前端预案编辑页点击「批量生成」按钮触发实际AI生成，或在本对话中回复「确定开始生成」继续。",
-        "plan_id": plan_id,
-        "status": "generating",
-        "total_sections": total,
-        "empty_count": len(empty_sections),
+        "plan_id": plan_id, "title": p.title,
+        "status": p.status, "filled_sections": filled, "total_sections": len(sections),
+        "failed_sections": failed,
+        "message": ("生成完成" if p.status == "completed"
+                    else "正在生成中" if p.status == "generating"
+                    else "未在生成"),
         "verified": True,
-        "action_required": "请在前端页面点击「批量生成」按钮，或回复「确定开始生成」开始AI内容生成",
     }
 
 
@@ -928,4 +939,5 @@ _FUNCTIONS = {
     "export_plan_docx": _export_plan_docx,
     "generate_report": _generate_report,
     "generate_plan_content": _generate_plan_content,
+    "get_generation_progress": _get_generation_progress,
 }
