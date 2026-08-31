@@ -123,7 +123,67 @@ cp /home/sxby/nginx/conf/root_domain.conf ~/backups/root_domain.conf.$(date +%Y%
 # 旧版本包回退：解压旧 tar.gz，重新执行 4-6 节
 ```
 
-## 10. 常见问题
+## 10. 升级（增量升级包）
+
+### 10.1 安装包 vs 升级包
+
+| 维度 | 安装包（全量） | 升级包（`--upgrade`） |
+| --- | --- | --- |
+| 适用场景 | 全新部署 / 整站恢复 | 已有部署只更新系统、不触碰数据 |
+| 内容 | backend + frontend/dist + deploy/ + 手册 + db-init/（如提供）+ model-cache/（如提供）+ .env.example | backend（git 跟踪内容，含全部 `db_migration_*.sql`）+ frontend/dist + deploy/ + docs/ + scripts/（白名单）+ .env.example + 包根 `VERSION` + `CHANGELOG.md` |
+| 不含 | — | db-init/、model-cache/、backend/uploads、backend/exports |
+| 产物命名 | `emergency-plan-migration-<版本>.tar.gz` | `emergency-plan-migration-<版本>-upgrade.tar.gz` |
+
+原则：**升级包只更新代码与配置，不覆盖公司服务器数据**。`backend/uploads`、`backend/exports`
+（compose 挂载的运行时数据）、`backups/`、`model-cache/`、`.env` 与 postgres 数据卷 `pgdata`
+均不在升级包内，解压覆盖部署目录后原样保留。
+
+### 10.2 upgrade.sh 用法
+
+```bash
+用法: ./scripts/upgrade.sh <版本号> [网关静态目录] [站点URL] [API URL]
+```
+
+步骤：
+
+```bash
+# 1) 在服务器部署目录解压升级包覆盖旧代码（strip 顶层包目录名）
+cd <部署根目录>                       # 例如 /home/sxby/emergency-plan-migration
+tar xzf emergency-plan-migration-<版本>-upgrade.tar.gz -C . --strip-components=1
+
+# 2) 执行升级脚本
+./scripts/upgrade.sh <版本号> [网关静态目录] [站点URL] [API URL]
+```
+
+脚本行为：
+
+1. 校验包根 `VERSION` 文件存在且与参数一致；
+2. `./scripts/backup.sh` 强制备份数据库（失败即中止，不进入替换阶段）；
+3. 确认 backend 代码已替换（解压时完成），保留 `.env`、数据卷、`backups/`、`uploads/`、`exports/`、`model-cache/`；
+4. 传入网关静态目录则自动 `cp -r frontend/dist/*` 到该目录；缺省则打印「请人工更新网关静态目录」；
+5. `docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d --build`；
+6. 传入站点/API URL 则自动执行 `./scripts/deploy-check.sh`；缺省交互式询问，仍缺失则跳过并提示手动验证。
+
+### 10.3 迁移自动应用与失败处理
+
+- backend 启动时迁移运行器基于 `schema_migrations` 表自动应用增量迁移：
+  已有记录跳过、新增 `db_migration_*.sql` 逐脚本单事务执行（失败整体回滚且不记录）、
+  空库且无记录时默认将全部捆绑脚本记为 baseline（只记录不执行）。
+- 逃生口：**空库**需执行全部捆绑迁移时，设置 backend 进程环境变量 `MIGRATE_FRESH=1`
+  （compose 已从 `.env` 透传，见 `.env.example` 说明）。
+- 失败处理（fail-fast）：迁移失败 → 事务回滚不记录 → backend 进程以非 0 退出
+  （容器重启循环、日志可见、数据安全）；升级脚本在替换前强制 `backup.sh`，
+  若部署验证失败，用 `backups/` 最新备份回滚数据库。
+
+### 10.4 升级前检查清单
+
+- [ ] 已确认目标版本号，且与升级包内 `VERSION` 文件一致；
+- [ ] 已确认网关静态目录路径（`frontend/dist` 需复制到网关挂载的 html 目录）；
+- [ ] 已确认站点 URL / API URL（用于第 6 步自动验证）；
+- [ ] 升级脚本会强制备份，但建议提前自行 `./scripts/backup.sh` 再确认一次；
+- [ ] 服务器磁盘空间：需容纳新后端镜像构建与 `backups/` 增量。
+
+## 11. 常见问题
 
 - 页面白屏/资源 404 → 检查 `VITE_BASE_PATH` 与网关 location 是否一致，dist 是否复制到正确子目录
 - 登录后跳转 404 → 检查路由 basename（代码已支持，无需改）

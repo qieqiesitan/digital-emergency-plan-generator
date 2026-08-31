@@ -43,6 +43,8 @@ services:
       QCC_ENDPOINT: ${QCC_ENDPOINT:-https://agent.qcc.com/mcp/company/stream}
       QCC_API_KEY_FALLBACK: ${QCC_API_KEY_FALLBACK:-}
       AMAP_KEY: ${AMAP_KEY:-}
+      # 迁移逃生口：空库需执行全部捆绑迁移时置 1（透传自 .env，见 .env.example）
+      MIGRATE_FRESH: ${MIGRATE_FRESH:-}
     ports:
       - "8000:8000"
     healthcheck:
