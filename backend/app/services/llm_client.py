@@ -10,12 +10,10 @@ import logging
 from typing import AsyncGenerator
 
 import httpx
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
 from fastapi import HTTPException
 
-from app.config import settings
 from app.models.enterprise import AIConfig
+from app.services.secret_utils import decrypt_secret, encrypt_secret
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +43,10 @@ def _get_api_base(provider: str, base_url: str | None) -> str:
 
 def decrypt_api_key(hex_str: str) -> str:
     """解密加密的 API Key。"""
-    try:
-        key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-        cipher = AES.new(key, AES.MODE_ECB)
-        return unpad(cipher.decrypt(bytes.fromhex(hex_str)), 16).decode()
-    except Exception:
-        raise Exception("AI Key解密失败，请前往 设置→AI配置 重新输入API Key保存后重试")
+    return decrypt_secret(hex_str)
+
+
+encrypt_api_key = encrypt_secret
 
 
 async def llm_chat_completion(
