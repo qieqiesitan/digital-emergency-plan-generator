@@ -132,8 +132,12 @@ async def _md_to_html(md_text: str) -> str:
 # _sse → sse_line (移入 services/sse_utils.py)
 
 
-async def _save_messages(user_id: str, conv_id: str, user_msg: str, assistant_msg: str):
-    """保存一轮对话消息到 DB（使用独立 session）"""
+async def _save_messages(user_id: str, conv_id: str, user_msg: str, assistant_msg: str,
+                         tool_trace: list | None = None):
+    """保存一轮对话消息到 DB（使用独立 session）。
+
+    tool_trace: [{"round_no", "fn_name", "result"}]，按轮保存 assistant 占位 + tool 消息。
+    """
     async with async_session() as db:
         # 更新会话时间
         conv = await db.get(ChatConversation, conv_id)
@@ -145,6 +149,14 @@ async def _save_messages(user_id: str, conv_id: str, user_msg: str, assistant_ms
         # 保存消息
         db.add(ChatMessage(conversation_id=conv_id, role="user", content=user_msg))
         db.add(ChatMessage(conversation_id=conv_id, role="assistant", content=assistant_msg))
+        if tool_trace:
+            db.add(ChatMessage(conversation_id=conv_id, role="assistant", content=""))
+            for item in tool_trace:
+                db.add(ChatMessage(
+                    conversation_id=conv_id, role="tool",
+                    name=item.get("fn_name", ""),
+                    content=(item.get("result") or "")[:4000],
+                ))
         await db.commit()
 
 
@@ -242,6 +254,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         pending_tool_calls = first_tool_calls
         MAX_ROUNDS = 5
         final_text = ""
+        trace = []
 
         for round_num in range(1, MAX_ROUNDS + 1):
             results = []
@@ -257,6 +270,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 yield sse_line({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
                 result_str = await dispatch(db, current_user, fn_name, fn_args)
                 result_obj = json.loads(result_str)
+                trace.append({"round_no": round_num, "fn_name": fn_name, "result": result_str})
 
                 # 报告生成特殊处理
                 if result_obj.get("type") == "report_prompt":
@@ -271,7 +285,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                         yield sse_line({"type": "error", "message": str(e)})
                     yield sse_line({"type": "conv_id", "content": conv_id})
                     yield sse_line({"type": "done"})
-                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
                     return
 
                 yield sse_line({"type": "function_result", "name": fn_name, "result": result_str})
@@ -296,7 +310,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 yield sse_line({"type": "error", "message": str(e)})
                 yield sse_line({"type": "conv_id", "content": conv_id})
                 yield sse_line({"type": "done"})
-                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
                 return
 
             choice = next_resp.get("choices", [{}])[0]
@@ -315,7 +329,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                     yield sse_line({"type": "error", "message": str(e)})
                 yield sse_line({"type": "conv_id", "content": conv_id})
                 yield sse_line({"type": "done"})
-                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text))
+                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
                 return
 
             pending_tool_calls = next_tool_calls
@@ -324,6 +338,6 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         yield sse_line({"type": "error", "message": "操作轮数超过上限，请简化您的问题重试"})
         yield sse_line({"type": "conv_id", "content": conv_id})
         yield sse_line({"type": "done"})
-        asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限"))
+        asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限", tool_trace=trace))
 
     return StreamingResponse(agent_loop(), media_type="text/event-stream")
