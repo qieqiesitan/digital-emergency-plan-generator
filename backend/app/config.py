@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     QCC_API_KEY_FALLBACK: str = ""
     QCC_ENDPOINT: str = "https://agent.qcc.com/mcp/company/stream"
 
+    # 高德开放平台
+    AMAP_KEY: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 settings = Settings()

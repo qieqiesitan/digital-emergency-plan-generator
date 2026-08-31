@@ -4,6 +4,7 @@ import json, logging
 import httpx
 
 from app.config import settings
+from app.services.third_party_config import get_third_party_config
 
 logger = logging.getLogger("qcc_client")
 
@@ -16,20 +17,20 @@ async def get_company_info(search_key: str) -> dict:
     Tries keys in rotation: primary → fallback → primary → fallback.
     Stops on first success, or returns credits_exhausted after all attempts.
     """
-    if not settings.QCC_API_KEY:
+    api_key = await get_third_party_config("third_party.qcc.api_key")
+    if not api_key:
         return {"ok": False, "reason": "not_configured"}
 
+    fallback_key = await get_third_party_config("third_party.qcc.api_key_fallback")
     keys = []
 
     # ponytail: round-robin key rotation, each key tried at most twice
-    if settings.QCC_API_KEY:
-        keys.append(settings.QCC_API_KEY)
-    if settings.QCC_API_KEY_FALLBACK:
-        keys.append(settings.QCC_API_KEY_FALLBACK)
-    if settings.QCC_API_KEY:
-        keys.append(settings.QCC_API_KEY)  # retry primary
-    if settings.QCC_API_KEY_FALLBACK:
-        keys.append(settings.QCC_API_KEY_FALLBACK)  # retry fallback
+    keys.append(api_key)
+    if fallback_key:
+        keys.append(fallback_key)
+    keys.append(api_key)  # retry primary
+    if fallback_key:
+        keys.append(fallback_key)  # retry fallback
 
     last_reason = "not_configured"
     for i, key in enumerate(keys):

@@ -4,6 +4,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from app.config import settings
+from app.services.third_party_config import get_third_party_config
 
 logger = logging.getLogger("hmac_auth")
 
@@ -22,7 +23,9 @@ class HmacAuthMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/api/external"):
             return await call_next(request)
 
-        secret = settings.EXTERNAL_API_HMAC_SECRET
+        # 中间件为 async（BaseHTTPMiddleware.dispatch），可直接 await 配置查询；
+        # DB 有值优先，其次环境变量，最后回退 settings 默认（空）。
+        secret = await get_third_party_config("third_party.protego.hmac_secret") or settings.EXTERNAL_API_HMAC_SECRET
         if not secret:
             logger.warning("EXTERNAL_API_HMAC_SECRET not configured, rejecting external request")
             return JSONResponse({"detail": "External API not configured"}, status_code=503)

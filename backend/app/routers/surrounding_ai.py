@@ -13,6 +13,7 @@ from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
 from app.services.llm_client import llm_text_completion
 from app.services.prompt_cache import ensure_loaded
+from app.services.third_party_config import get_third_party_config
 
 router = APIRouter(prefix="/enterprises", tags=["Surrounding AI"])
 
@@ -20,8 +21,6 @@ router = APIRouter(prefix="/enterprises", tags=["Surrounding AI"])
 DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
 
 # ── Amap POI search ──
-
-AMAP_KEY = "78556e6e7d683bbda1b7d25e24cb412a"
 
 # ponytail: using keywords (text search) instead of type codes for broader coverage
 AMAP_POI_KEYWORDS = [
@@ -56,10 +55,13 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> int:
 
 
 async def _geocode_amap(address: str) -> tuple[float, float] | None:
+    key = await get_third_party_config("third_party.amap.api_key")
+    if not key:
+        return None
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get("https://restapi.amap.com/v3/geocode/geo", params={
-                "key": AMAP_KEY, "address": address, "output": "JSON",
+                "key": key, "address": address, "output": "JSON",
             })
             data = resp.json()
             if data.get("status") == "1" and data.get("geocodes"):
@@ -73,10 +75,13 @@ async def _geocode_amap(address: str) -> tuple[float, float] | None:
 
 async def _regeocode_amap(lng: float, lat: float) -> str:
     """Reverse geocode via Amap, returns traffic summary."""
+    key = await get_third_party_config("third_party.amap.api_key")
+    if not key:
+        return ""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get("https://restapi.amap.com/v3/geocode/regeo", params={
-                "key": AMAP_KEY, "location": f"{lng},{lat}",
+                "key": key, "location": f"{lng},{lat}",
                 "radius": 1000, "extensions": "base", "output": "JSON",
             })
             data = resp.json()
@@ -105,9 +110,12 @@ async def _regeocode_amap(lng: float, lat: float) -> str:
 
 
 async def _amap_poi_search(lng: float, lat: float, keywords: str, radius: int = 5000) -> dict:
+    key = await get_third_party_config("third_party.amap.api_key")
+    if not key:
+        return {"status": "0", "info": "未配置高德 Key", "pois": []}
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get("https://restapi.amap.com/v3/place/around", params={
-            "key": AMAP_KEY, "location": f"{lng},{lat}", "radius": radius,
+            "key": key, "location": f"{lng},{lat}", "radius": radius,
             "keywords": keywords, "offset": 10, "output": "JSON",
         })
         return resp.json()
@@ -376,6 +384,9 @@ async def amap_search_surrounding(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
+    if not await get_third_party_config("third_party.amap.api_key"):
+        raise HTTPException(400, "未配置高德 Key，请联系管理员在第三方接口配置页配置")
+
     result = await db.execute(
         select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
     )

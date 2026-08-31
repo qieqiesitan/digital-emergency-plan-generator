@@ -42,6 +42,7 @@ services:
       QCC_API_KEY: ${QCC_API_KEY:-}
       QCC_ENDPOINT: ${QCC_ENDPOINT:-https://agent.qcc.com/mcp/company/stream}
       QCC_API_KEY_FALLBACK: ${QCC_API_KEY_FALLBACK:-}
+      AMAP_KEY: ${AMAP_KEY:-}
     ports:
       - "8000:8000"
     healthcheck:
