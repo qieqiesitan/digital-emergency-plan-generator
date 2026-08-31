@@ -5,8 +5,10 @@
 重复实现同一套逻辑。
 """
 
+import asyncio
 import json
 import logging
+import random
 from typing import AsyncGenerator
 
 import httpx
@@ -23,6 +25,9 @@ API_BASE_MAP: dict[str, str] = {
     "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "deepseek": "https://api.deepseek.com/v1",
 }
+
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+DEFAULT_MAX_RETRIES = 3
 
 
 class LLMError(Exception):
@@ -51,6 +56,29 @@ def decrypt_api_key(hex_str: str) -> str:
 
 
 encrypt_api_key = encrypt_secret
+
+
+async def _post_with_retry(base: str, payload: dict, headers: dict, timeout: int,
+                           max_retries: int = DEFAULT_MAX_RETRIES):
+    """POST chat/completions，对 429/5xx/网络错误指数退避重试；401/400 不重试。"""
+    for attempt in range(max_retries + 1):
+        client = httpx.AsyncClient(timeout=timeout)
+        try:
+            resp = await client.post(f"{base}/chat/completions", json=payload, headers=headers)
+        except (httpx.TransportError, httpx.TimeoutException) as e:
+            if attempt < max_retries:
+                await asyncio.sleep(min(8, 2 ** attempt) + random.uniform(0, 0.5))
+                continue
+            raise LLMError(0, str(e))
+        finally:
+            await client.aclose()
+        if resp.status_code == 200:
+            return resp.json()
+        if resp.status_code in RETRYABLE_STATUS and attempt < max_retries:
+            await asyncio.sleep(min(8, 2 ** attempt) + random.uniform(0, 0.5))
+            continue
+        raise LLMError(resp.status_code, resp.text)
+    raise LLMError(0, "LLM retry exhausted")
 
 
 async def llm_chat_completion(
@@ -101,15 +129,9 @@ async def llm_chat_completion(
         return _stream_response(base, payload, ai_config, timeout)
 
     # 非流式路径
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{base}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"},
-        )
-        if resp.status_code != 200:
-            raise LLMError(resp.status_code, resp.text)
-        return resp.json()
+    headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
+    return await _post_with_retry(base, payload, headers, timeout,
+                                  max_retries=payload_overrides.get("max_retries", DEFAULT_MAX_RETRIES) if payload_overrides else DEFAULT_MAX_RETRIES)
 
 
 async def _stream_response(
@@ -117,31 +139,41 @@ async def _stream_response(
     payload: dict,
     ai_config: AIConfig,
     timeout: int = 120,
+    max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> AsyncGenerator[str, None]:
-    """内部：流式响应处理。AsyncClient 在函数内部管理生命周期。"""
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream(
-            "POST",
-            f"{base}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"},
-        ) as resp:
-            if resp.status_code != 200:
-                err = await resp.aread()
-                raise LLMError(resp.status_code, err.decode("utf-8", errors="replace"))
-            async for line in resp.aiter_lines():
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        return
-                    try:
-                        chunk = json.loads(data)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            yield content
-                    except json.JSONDecodeError:
-                        pass
+    """内部：流式响应处理（建连/首响应前可重试，中途断流不重试）。"""
+    headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
+    for attempt in range(max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream("POST", f"{base}/chat/completions",
+                                         json=payload, headers=headers) as resp:
+                    if resp.status_code != 200:
+                        err = await resp.aread()
+                        if resp.status_code in RETRYABLE_STATUS and attempt < max_retries:
+                            await asyncio.sleep(min(8, 2 ** attempt) + random.uniform(0, 0.5))
+                            continue
+                        raise LLMError(resp.status_code, err.decode("utf-8", errors="replace"))
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            if data == "[DONE]":
+                                return
+                            try:
+                                chunk = json.loads(data)
+                                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                                content = delta.get("content", "")
+                                if content:
+                                    yield content
+                            except json.JSONDecodeError:
+                                pass
+                    return
+        except (httpx.TransportError, httpx.TimeoutException) as e:
+            if attempt < max_retries:
+                await asyncio.sleep(min(8, 2 ** attempt) + random.uniform(0, 0.5))
+                continue
+            raise LLMError(0, str(e))
+    raise LLMError(0, "LLM retry exhausted")
 
 
 async def llm_collect_all(
