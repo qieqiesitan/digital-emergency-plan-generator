@@ -10,9 +10,7 @@
 - main.py 启动流程真实调用 run_migrations（防 ImportError 守卫残留）。
 """
 
-import os
 import re
-from pathlib import Path
 
 import pytest
 
@@ -339,6 +337,12 @@ INSERT INTO t2 (v) VALUES ('--not a comment; /* nor this */');
     assert stmts[3] == "INSERT INTO t2 (v) VALUES ('--not a comment; /* nor this */')"
 
 
+def test_split_sql_statements_raises_on_unclosed_block_comment():
+    """未闭合 /* 块注释 → 抛错而非静默截断剩余 SQL。"""
+    with pytest.raises(ValueError, match="块注释未闭合"):
+        mr._split_sql_statements("SELECT 1; /* never closed")
+
+
 def test_split_sql_statements_handles_all_bundled_scripts():
     """守卫：全部捆绑 db_migration_*.sql 都能拆出可执行语句（美元引用/注释/BEGIN/COMMIT）。"""
     for script in mr.list_migration_scripts():
@@ -352,21 +356,12 @@ def test_split_sql_statements_handles_all_bundled_scripts():
 
 
 @pytest.mark.asyncio
-async def test_apply_script_skips_begin_commit_wrappers(monkeypatch):
-    script = Path("db_migration_wrapped.sql")
-    monkeypatch.setattr(
-        mr,
-        "migration_script_dir",
-        lambda: Path(__file__).resolve().parents[1],
-    )
-    script_path = Path(__file__).resolve().parents[1] / script.name
+async def test_apply_script_skips_begin_commit_wrappers(tmp_path):
+    script_path = tmp_path / "db_migration_wrapped.sql"
     script_path.write_text("BEGIN;\nCREATE TABLE wrapped (id int);\nCOMMIT;\n", encoding="utf-8")
-    try:
-        conn = _FakeConn()
-        await mr._apply_script(conn, script_path)
-        assert conn.executed == ["CREATE TABLE wrapped (id int)"]
-    finally:
-        script_path.unlink(missing_ok=True)
+    conn = _FakeConn()
+    await mr._apply_script(conn, script_path)
+    assert conn.executed == ["CREATE TABLE wrapped (id int)"]
 
 
 # ---------------------------------------------------------------------------

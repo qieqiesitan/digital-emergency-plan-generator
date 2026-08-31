@@ -93,9 +93,11 @@ def _split_sql_statements(sql: str) -> list[str]:
             i = n if end == -1 else end
             continue
         if ch == "/" and nxt == "*":
-            # 块注释
+            # 块注释；未闭合直接抛错，拒绝静默截断剩余 SQL。
             end = sql.find("*/", i + 2)
-            i = n if end == -1 else end + 2
+            if end == -1:
+                raise ValueError("SQL 块注释未闭合（缺少 */）")
+            i = end + 2
             continue
         if ch == ";":
             stmt = "".join(current).strip()

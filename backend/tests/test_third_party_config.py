@@ -232,6 +232,31 @@ async def test_import_seed_configs_falls_back_to_settings_when_env_missing(fake_
 
 
 @pytest.mark.asyncio
+async def test_import_seed_configs_skips_settings_class_default(fake_session, monkeypatch):
+    """无任何 env/.env：settings 字段命中声明默认值（QCC_ENDPOINT 内置 URL）→ 不写入 DB。"""
+    default = tpc.settings.model_fields["QCC_ENDPOINT"].default
+    monkeypatch.setattr(tpc.settings, "QCC_ENDPOINT", default)
+    await tpc.import_seed_configs()
+    assert "third_party.qcc.endpoint" not in fake_session
+
+
+@pytest.mark.asyncio
+async def test_get_ignores_settings_class_default(fake_session, monkeypatch):
+    """无 env/.env 且 settings 字段 = 声明默认值 → get 不返回类默认值。"""
+    default = tpc.settings.model_fields["QCC_ENDPOINT"].default
+    monkeypatch.setattr(tpc.settings, "QCC_ENDPOINT", default)
+    assert await tpc.get_third_party_config("third_party.qcc.endpoint") is None
+
+
+@pytest.mark.asyncio
+async def test_import_seed_configs_writes_settings_non_default(fake_session, monkeypatch):
+    """.env 显式配置（非类默认值）经 settings 兜底仍写入 DB。"""
+    monkeypatch.setattr(tpc.settings, "QCC_ENDPOINT", "https://custom.example.com/stream")
+    await tpc.import_seed_configs()
+    assert "third_party.qcc.endpoint" in fake_session
+
+
+@pytest.mark.asyncio
 async def test_concurrent_set_same_key_no_integrity_error(monkeypatch, store):
     # 还原真实竞态：两事务先汇合（都读到"行不存在"），再各自写入同一主键；
     # 旧 check-then-insert 实现会因后提交方唯一键冲突抛 IntegrityError。

@@ -26,6 +26,26 @@ def _config_type(config_key: str) -> str:
     return KEY_SPEC.get(config_key, ("", "string"))[1]
 
 
+def _effective_env_value(env_var: str) -> str:
+    """统一 env→settings 兜底取值：进程 env 非空优先；否则回退 pydantic settings。
+
+    仅 .env + uvicorn 直跑场景：进程环境无该变量，但 settings 已在模块导入时从
+    .env 加载，仍需参与读取/seed。settings 字段值若等于「字段声明默认值」（如
+    QCC_ENDPOINT 内置 URL），说明用户并未配置，返回空串，避免把类默认值当配置。
+    """
+    value = os.environ.get(env_var, "").strip()
+    if value:
+        return value
+    field = settings.model_fields.get(env_var)
+    if field is None:
+        return ""
+    value = str(getattr(settings, env_var, "") or "").strip()
+    default = field.default
+    if default is not None and value == default:
+        return ""
+    return value
+
+
 async def get_third_party_config(config_key: str) -> str | None:
     """读取配置：DB 有值 → 返回（secret 解密）；否则 env 非空 → 返回；否则 None。"""
     async with async_session() as session:
@@ -37,12 +57,8 @@ async def get_third_party_config(config_key: str) -> str | None:
 
     env_var = KEY_SPEC.get(config_key, ("", ""))[0]
     if env_var:
-        env_value = os.environ.get(env_var, "").strip()
-        # 仅 .env + uvicorn 直跑场景：进程环境无该变量时，回退 pydantic settings
-        # （settings 已在模块导入时从 .env 加载），避免 AMAP_KEY/QCC 等配置不生效。
-        if env_value == "":
-            env_value = getattr(settings, env_var, "").strip()
-        if env_value != "":
+        env_value = _effective_env_value(env_var)
+        if env_value:
             return env_value
     return None
 
@@ -77,11 +93,8 @@ async def set_third_party_config(
 async def import_seed_configs() -> None:
     """启动导入：对每个 key，DB 缺失且 env 非空 → 写入；空 env 跳过。"""
     for config_key, (env_var, _) in KEY_SPEC.items():
-        env_value = os.environ.get(env_var, "").strip()
-        # 与 get_third_party_config 相同的 env→settings 兜底：.env-only 直跑时
-        # 进程环境无该变量，但 pydantic settings 已从 .env 加载，仍需参与 seed。
-        if env_value == "":
-            env_value = getattr(settings, env_var, "").strip()
+        # 与 get_third_party_config 相同的 env→settings 兜底（含类默认值跳过）。
+        env_value = _effective_env_value(env_var)
         if env_value == "":
             continue
         async with async_session() as session:
