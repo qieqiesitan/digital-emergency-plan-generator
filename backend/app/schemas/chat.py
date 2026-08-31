@@ -25,4 +25,5 @@ class MessageResponse(BaseModel):
     id: str
     role: str
     content: str
+    name: str | None = None
     created_at: datetime

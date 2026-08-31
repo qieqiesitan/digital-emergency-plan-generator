@@ -3,6 +3,13 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 from app.routers.chat import _save_messages
+from app.schemas.chat import MessageResponse
+
+
+def test_message_response_has_name():
+    m = MessageResponse(id="1", role="tool", content="x", name="list_enterprises",
+                        created_at="2026-08-31T00:00:00")
+    assert m.name == "list_enterprises"
 
 
 @pytest.mark.asyncio
