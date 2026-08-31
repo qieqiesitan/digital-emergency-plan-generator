@@ -843,6 +843,47 @@ async def _export_plan_docx(db, user, args):
 
 # ── 图文报告生成 ──
 
+async def _collect_risk_distribution(db, user, args=None):
+    """风险源按等级分布（跨企业汇总）。"""
+    ents = (await db.execute(select(Enterprise).where(
+        Enterprise.user_id == user.id).limit(50))).scalars().all()
+    dist: dict[str, int] = {}
+    for ent in ents:
+        ctx = await build_risk_management_context(ent.id, db)
+        for rs in ctx.get("risk_sources", []):
+            lvl = rs.get("risk_level") or "未分级"
+            dist[lvl] = dist.get(lvl, 0) + 1
+    return dist
+
+
+async def _collect_resource_coverage(db, user, args=None):
+    """应急资源按类别统计。"""
+    rows = (await db.execute(
+        select(EmergencyResource).join(Enterprise)
+        .where(Enterprise.user_id == user.id))).scalars().all()
+    dist: dict[str, int] = {}
+    for r in rows:
+        cat = r.category or "未分类"
+        dist[cat] = dist.get(cat, 0) + 1
+    return dist
+
+
+async def _collect_regulation_compliance(db, user, args=None):
+    """法规库统计 + 用户预案引用概况（轻量）。"""
+    stats = await _get_regulation_stats(db, user, {})
+    plans = (await db.execute(select(PlanProject).where(
+        PlanProject.user_id == user.id))).scalars().all()
+    return {"regulation_stats": stats, "plan_total": len(plans)}
+
+
+# 报告主题 → 额外采集器：命中主题时把采集数据并入 data_context，未命中回退既有逻辑
+REPORT_EXTRA_COLLECTORS = {
+    "风险分布": _collect_risk_distribution,
+    "资源覆盖": _collect_resource_coverage,
+    "法规合规": _collect_regulation_compliance,
+}
+
+
 async def _generate_report(db, user, args):
     """生成图文并茂的分析报告（Markdown + Mermaid 图表）。
 
@@ -857,11 +898,17 @@ async def _generate_report(db, user, args):
     plans = await _list_plans(db, user, {})
     enterprises = await _list_enterprises(db, user, {})
 
-    data_context = json.dumps({
-        "dashboard": dash,
-        "recent_plans": plans.get("plans", [])[:5],
-        "enterprises": enterprises.get("enterprises", [])[:5],
-    }, ensure_ascii=False, indent=2)
+    collector = REPORT_EXTRA_COLLECTORS.get(topic)
+    if collector:
+        extra = await collector(db, user, {})
+        data_context = json.dumps({"dashboard": dash, "extra": extra},
+                                  ensure_ascii=False, indent=2)
+    else:
+        data_context = json.dumps({
+            "dashboard": dash,
+            "recent_plans": plans.get("plans", [])[:5],
+            "enterprises": enterprises.get("enterprises", [])[:5],
+        }, ensure_ascii=False, indent=2)
 
     prompt = f"""请根据以下系统数据，生成一份「{topic}」的专业分析报告。
 
