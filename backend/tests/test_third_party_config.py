@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql.dml import Insert as PgInsert
 from sqlalchemy.exc import IntegrityError
 
 import app.services.third_party_config as tpc
+from app.database import Base
 from app.models.third_party_config import ThirdPartyConfig
 from app.services.llm_client import decrypt_api_key
 from app.services.secret_utils import decrypt_secret
@@ -250,3 +251,9 @@ def test_llm_decrypt_api_key_keeps_ai_message():
     with pytest.raises(Exception) as exc:
         decrypt_api_key("not-hex")
     assert "AI Key解密失败" in str(exc.value)
+
+
+def test_startup_models_registered_in_metadata():
+    """启动接线守护：create_all 必须建 third_party_config 与 schema_migrations 表。"""
+    assert 'third_party_config' in Base.metadata.tables
+    assert 'schema_migrations' in Base.metadata.tables

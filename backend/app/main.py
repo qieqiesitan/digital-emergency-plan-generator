@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid as uuid_lib
 from contextlib import asynccontextmanager
 import logging
@@ -31,6 +32,22 @@ if DEPLOY_DIST:
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # 启动接线：先跑未应用的历史迁移，再导入第三方配置 seed。
+    # run_migrations 由任务 7（migration_runner）实现——落地前先用导入守卫
+    # 暂缓迁移调用（任务 7 应移除该守卫，改为直接调用并 fail-fast）。
+    run_migrations = None
+    try:
+        from app.services.migration_runner import run_migrations
+    except ImportError:
+        logger.warning("migration_runner 尚未实现（任务 7），本次启动跳过迁移步骤")
+    if run_migrations is not None:
+        try:
+            await run_migrations()
+        except Exception:
+            logging.critical("数据库迁移失败，服务中止启动", exc_info=True)
+            sys.exit(1)
+    from app.services.third_party_config import import_seed_configs
+    await import_seed_configs()
     # 任务 8：APScheduler 隐患定时扫描（每 5 分钟）。依赖缺失/启动异常仅告警降级，
     # 不阻塞服务启动（规格 §16）；外部 cron 可退化为调用 run_hazard_scans 的内部端点。
     scheduler = None
