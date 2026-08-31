@@ -54,8 +54,8 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> int:
     return int(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
 
 
-async def _geocode_amap(address: str) -> tuple[float, float] | None:
-    key = await get_third_party_config("third_party.amap.api_key")
+async def _geocode_amap(address: str, key: str) -> tuple[float, float] | None:
+    """正向地理编码。key 由调用方传入（单次取 key）；空 key 防御返回 None，不抛异常。"""
     if not key:
         return None
     try:
@@ -73,9 +73,8 @@ async def _geocode_amap(address: str) -> tuple[float, float] | None:
     return None
 
 
-async def _regeocode_amap(lng: float, lat: float) -> str:
-    """Reverse geocode via Amap, returns traffic summary."""
-    key = await get_third_party_config("third_party.amap.api_key")
+async def _regeocode_amap(lng: float, lat: float, key: str) -> str:
+    """Reverse geocode via Amap, returns traffic summary. 空 key 防御返回空串。"""
     if not key:
         return ""
     try:
@@ -109,8 +108,8 @@ async def _regeocode_amap(lng: float, lat: float) -> str:
         return ""
 
 
-async def _amap_poi_search(lng: float, lat: float, keywords: str, radius: int = 5000) -> dict:
-    key = await get_third_party_config("third_party.amap.api_key")
+async def _amap_poi_search(lng: float, lat: float, keywords: str, key: str, radius: int = 5000) -> dict:
+    """周边 POI 搜索。key 由调用方传入；空 key 防御返回未配置结构，不抛异常。"""
     if not key:
         return {"status": "0", "info": "未配置高德 Key", "pois": []}
     async with httpx.AsyncClient(timeout=10) as client:
@@ -384,7 +383,9 @@ async def amap_search_surrounding(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
-    if not await get_third_party_config("third_party.amap.api_key"):
+    # 单次取 key：整请求复用同一把 key（消除每请求最多 12 次独立 DB 会话），空 key → 400。
+    amap_key = await get_third_party_config("third_party.amap.api_key")
+    if not amap_key:
         raise HTTPException(400, "未配置高德 Key，请联系管理员在第三方接口配置页配置")
 
     result = await db.execute(
@@ -401,7 +402,7 @@ async def amap_search_surrounding(
     if has_gis:
         lng, lat = ent.gis_lng, ent.gis_lat
     elif ent.address:
-        geo = await _geocode_amap(ent.address)
+        geo = await _geocode_amap(ent.address, amap_key)
         if geo:
             lng, lat = geo
 
@@ -422,7 +423,7 @@ async def amap_search_surrounding(
 
     for keywords, category, target_type in keywords_to_search:
         try:
-            data = await _amap_poi_search(lng, lat, keywords, body.radius)
+            data = await _amap_poi_search(lng, lat, keywords, amap_key, body.radius)
             if data.get("status") != "1":
                 continue
             pois = data.get("pois", [])
@@ -460,7 +461,7 @@ async def amap_search_surrounding(
     sensitive_targets = [t for t in sensitive_targets if not (t["name"] in seen or seen.add(t["name"]))]
 
     # Generate traffic info from reverse geocode
-    traffic_info = await _regeocode_amap(lng, lat)
+    traffic_info = await _regeocode_amap(lng, lat, amap_key)
 
     surrounding = SurroundingInfo(
         nearby_units=[NearbyUnit(**u) for u in nearby_units],

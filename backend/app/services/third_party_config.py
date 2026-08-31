@@ -5,6 +5,7 @@ import os
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from app.config import settings
 from app.database import async_session
 from app.models.third_party_config import ThirdPartyConfig
 from app.services.secret_utils import decrypt_secret, encrypt_secret
@@ -37,6 +38,10 @@ async def get_third_party_config(config_key: str) -> str | None:
     env_var = KEY_SPEC.get(config_key, ("", ""))[0]
     if env_var:
         env_value = os.environ.get(env_var, "").strip()
+        # 仅 .env + uvicorn 直跑场景：进程环境无该变量时，回退 pydantic settings
+        # （settings 已在模块导入时从 .env 加载），避免 AMAP_KEY/QCC 等配置不生效。
+        if env_value == "":
+            env_value = getattr(settings, env_var, "").strip()
         if env_value != "":
             return env_value
     return None

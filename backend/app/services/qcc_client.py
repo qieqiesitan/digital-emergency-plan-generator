@@ -18,17 +18,20 @@ async def get_company_info(search_key: str) -> dict:
     Stops on first success, or returns credits_exhausted after all attempts.
     """
     api_key = await get_third_party_config("third_party.qcc.api_key")
-    if not api_key:
+    fallback_key = await get_third_party_config("third_party.qcc.api_key_fallback")
+    if not api_key and not fallback_key:
         return {"ok": False, "reason": "not_configured"}
 
-    fallback_key = await get_third_party_config("third_party.qcc.api_key_fallback")
     keys = []
 
     # ponytail: round-robin key rotation, each key tried at most twice
-    keys.append(api_key)
+    # 仅配置 fallback 时（primary 空），直接以 fallback 作为 keys 起点——「至少一个 key 即可用」。
+    if api_key:
+        keys.append(api_key)
     if fallback_key:
         keys.append(fallback_key)
-    keys.append(api_key)  # retry primary
+    if api_key:
+        keys.append(api_key)  # retry primary
     if fallback_key:
         keys.append(fallback_key)  # retry fallback
 

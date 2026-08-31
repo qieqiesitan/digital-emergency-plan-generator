@@ -25,7 +25,12 @@ class HmacAuthMiddleware(BaseHTTPMiddleware):
 
         # 中间件为 async（BaseHTTPMiddleware.dispatch），可直接 await 配置查询；
         # DB 有值优先，其次环境变量，最后回退 settings 默认（空）。
-        secret = await get_third_party_config("third_party.protego.hmac_secret") or settings.EXTERNAL_API_HMAC_SECRET
+        # 配置读取异常（DB 不可达/解密失败）时回退 env，保证 /api/external/* 不因读取故障 500。
+        try:
+            secret = await get_third_party_config("third_party.protego.hmac_secret") or settings.EXTERNAL_API_HMAC_SECRET
+        except Exception as exc:
+            logger.warning("Failed to read HMAC secret from config, falling back to env: %s", exc)
+            secret = settings.EXTERNAL_API_HMAC_SECRET
         if not secret:
             logger.warning("EXTERNAL_API_HMAC_SECRET not configured, rejecting external request")
             return JSONResponse({"detail": "External API not configured"}, status_code=503)
