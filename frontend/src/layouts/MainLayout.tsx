@@ -125,6 +125,7 @@ export function MainLayout() {
   const userMenuItems = [
     ...(hasMenu("/settings/profile") ? [{ key: "profile", icon: <UserOutlined />, label: "个人资料", onClick: () => navigate("/settings/profile") }] : []),
     ...(hasMenu("/settings/ai-config") ? [{ key: "ai-config", icon: <KeyOutlined />, label: "AI 配置", onClick: () => navigate("/settings/ai-config") }] : []),
+    ...(hasMenu("/settings/third-party-config") ? [{ key: "third-party-config", icon: <GlobalOutlined />, label: "第三方接口配置", onClick: () => navigate("/settings/third-party-config") }] : []),
     { type: "divider" as const },
     { key: "logout", icon: <LogoutOutlined />, label: "退出登录", onClick: logout },
   ];
