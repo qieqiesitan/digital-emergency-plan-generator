@@ -68,7 +68,7 @@ backend 启动时迁移运行器自动处理（`backend/app/services/migration_r
     docker exec -i emergency-plan-db pg_restore -U postgres -d emergency_plan \
       --clean --if-exists < backups/emergency_plan_<stamp>.dump
     # 回退旧代码：解压旧版本包覆盖部署目录，重新执行部署步骤
-    docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d
+    docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d --build
     ```
 
     注：upgrade.sh 的备份发生在代码替换之前，因此「最新备份」即失败升级
