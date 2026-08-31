@@ -49,6 +49,10 @@ class FakeAsyncClient:
     async def __aexit__(self, *exc):
         return False
 
+    async def aclose(self):
+        """llm_client._post_with_retry 在 finally 中关闭客户端。"""
+        self.calls.append(("aclose",))
+
     async def post(self, url, json=None, headers=None, **kw):
         self.calls.append(("post", url, json, headers))
         return self._response
