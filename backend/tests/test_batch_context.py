@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import HTTPException
 
-from app.routers.generation import _get_plan_or_404, _collect_batch_context
+from app.routers.generation import _get_plan_or_404
+from app.services.plan_generation_service import collect_batch_context
 
 
 @pytest.mark.asyncio
@@ -33,19 +34,20 @@ async def test_get_plan_or_404_returns_plan():
 @pytest.mark.asyncio
 async def test_collect_batch_context_requires_ai_config():
     db = AsyncMock()
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = None
-    db.execute.return_value = result
-    p = MagicMock(enterprise_id="e1")
-    with pytest.raises(HTTPException) as exc_info:
-        await _collect_batch_context("p1", p, MagicMock(), db, MagicMock(id="u1"))
+    plan_result = MagicMock()
+    plan_result.scalar_one_or_none.return_value = MagicMock(id="p1", enterprise_id="e1")
+    db.execute.return_value = plan_result
+    with patch("app.services.plan_generation_service.get_system_ai_config",
+               new=AsyncMock(return_value=None)):
+        with pytest.raises(HTTPException) as exc_info:
+            await collect_batch_context("p1", db)
     assert exc_info.value.status_code == 400
 
 
 @pytest.mark.asyncio
 @patch("app.routers.generation._enrich_with_reports",
        new=AsyncMock(side_effect=lambda data, eid, db: data))
-@patch("app.routers.generation.build_risk_management_context",
+@patch("app.services.plan_generation_service.build_risk_management_context",
        new=AsyncMock(return_value={}))
 async def test_collect_batch_context_filters_sections():
     db = AsyncMock()
@@ -55,18 +57,16 @@ async def test_collect_batch_context_filters_sections():
     sec1 = MagicMock(section_key="sec_1", title="总则")
     sec2 = MagicMock(section_key="sec_2", title="风险")
     db.execute = AsyncMock(side_effect=[
-        MagicMock(scalar_one_or_none=lambda: ai_cfg),          # AIConfig
+        MagicMock(scalar_one_or_none=lambda: MagicMock(id="p1", enterprise_id="e1")),  # PlanProject
         MagicMock(scalar_one_or_none=lambda: ent),             # Enterprise
         MagicMock(scalars=lambda: MagicMock(all=lambda: resources)),          # EmergencyResource
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),                  # HazardousChemical
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),                  # EnterpriseMember
         MagicMock(scalars=lambda: MagicMock(all=lambda: [sec1, sec2])),       # PlanSection
     ])
-    request = MagicMock()
-    request.json = AsyncMock(return_value={"section_keys": ["sec_1"]})
-    p = MagicMock(enterprise_id="e1")
-
-    _, got_ai, ent_data, target = await _collect_batch_context("p1", p, request, db, MagicMock(id="u1"))
+    with patch("app.services.plan_generation_service.get_system_ai_config",
+               new=AsyncMock(return_value=ai_cfg)):
+        _, got_ai, ent_data, target = await collect_batch_context("p1", db, keys=["sec_1"])
     assert got_ai is ai_cfg
     assert ent_data["name"] == ent.name
     assert [s.section_key for s in target] == ["sec_1"]
@@ -75,7 +75,7 @@ async def test_collect_batch_context_filters_sections():
 @pytest.mark.asyncio
 @patch("app.routers.generation._enrich_with_reports",
        new=AsyncMock(side_effect=lambda data, eid, db: data))
-@patch("app.routers.generation.build_risk_management_context",
+@patch("app.services.plan_generation_service.build_risk_management_context",
        new=AsyncMock(return_value={}))
 async def test_collect_batch_context_defaults_to_all_when_no_body():
     db = AsyncMock()
@@ -84,18 +84,16 @@ async def test_collect_batch_context_defaults_to_all_when_no_body():
     sec1 = MagicMock(section_key="sec_1", title="总则")
     sec2 = MagicMock(section_key="sec_2", title="风险")
     db.execute = AsyncMock(side_effect=[
-        MagicMock(scalar_one_or_none=lambda: ai_cfg),
+        MagicMock(scalar_one_or_none=lambda: MagicMock(id="p1", enterprise_id="e1")),  # PlanProject
         MagicMock(scalar_one_or_none=lambda: ent),
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),  # HazardousChemical
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),  # EnterpriseMember
         MagicMock(scalars=lambda: MagicMock(all=lambda: [sec1, sec2])),
     ])
-    request = MagicMock()
-    request.json = AsyncMock(side_effect=Exception("no body"))
-    p = MagicMock(enterprise_id="e1")
-
-    _, _, _, target = await _collect_batch_context("p1", p, request, db, MagicMock(id="u1"))
+    with patch("app.services.plan_generation_service.get_system_ai_config",
+               new=AsyncMock(return_value=ai_cfg)):
+        _, _, _, target = await collect_batch_context("p1", db, keys=None)
     assert [s.section_key for s in target] == ["sec_1", "sec_2"]
 
 
@@ -118,13 +116,14 @@ async def test_generate_batch_background_running_guard(monkeypatch):
 @pytest.mark.asyncio
 @patch("app.routers.generation._enrich_with_reports",
        new=AsyncMock(side_effect=lambda data, eid, db: data))
-@patch("app.routers.generation.build_risk_management_context",
+@patch("app.services.plan_generation_service.build_risk_management_context",
        new=AsyncMock(return_value={}))
 async def test_generate_batch_background_empty_sections():
     from app.routers import generation as gen
     db = AsyncMock()
     db.execute = AsyncMock(side_effect=[
         MagicMock(scalar_one_or_none=lambda: MagicMock(status="draft")),  # plan
+        MagicMock(scalar_one_or_none=lambda: MagicMock(status="draft")),  # service PlanProject
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # ai_config
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # enterprise
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),             # resources
@@ -141,7 +140,7 @@ async def test_generate_batch_background_empty_sections():
 @pytest.mark.asyncio
 @patch("app.routers.generation._enrich_with_reports",
        new=AsyncMock(side_effect=lambda data, eid, db: data))
-@patch("app.routers.generation.build_risk_management_context",
+@patch("app.services.plan_generation_service.build_risk_management_context",
        new=AsyncMock(return_value={}))
 async def test_generate_batch_sse_event_sequence(monkeypatch):
     from app.routers import generation as gen
@@ -152,9 +151,9 @@ async def test_generate_batch_sse_event_sequence(monkeypatch):
         await kwargs["on_section_done"]("sec_1", "总则", 1, 0)
         return {"completed": 1, "failed": 0, "failed_sections": []}
 
-    monkeypatch.setattr(gen, "_run_batch_generation", fake_run_batch_generation)
+    monkeypatch.setattr(gen, "run_batch_generation", fake_run_batch_generation)
     monkeypatch.setattr(
-        gen, "_finalize_batch_result",
+        gen, "finalize_batch_result",
         AsyncMock(return_value={"completed": 1, "failed": 0, "failed_sections": [], "version": 1}),
     )
 
@@ -174,6 +173,7 @@ async def test_generate_batch_sse_event_sequence(monkeypatch):
     sec1 = MagicMock(section_key="sec_1", title="总则")
     db.execute = AsyncMock(side_effect=[
         MagicMock(scalar_one_or_none=lambda: MagicMock(status="draft")),  # plan
+        MagicMock(scalar_one_or_none=lambda: MagicMock(status="draft")),  # service PlanProject
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # ai_config
         MagicMock(scalar_one_or_none=lambda: MagicMock()),                # enterprise
         MagicMock(scalars=lambda: MagicMock(all=lambda: [])),             # resources

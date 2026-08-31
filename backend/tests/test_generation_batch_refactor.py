@@ -49,7 +49,7 @@ def test_build_section_prompt_db_template_renders_previous_context(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_batch_generation_injects_previous_section_content():
     """批量生成时，后续章节的 prompt 应包含前面已生成章节的内容摘要。"""
-    from app.routers.generation import _run_batch_generation
+    from app.services.plan_generation_service import run_batch_generation
 
     bg_db = AsyncMock()
     sec1 = MagicMock()
@@ -66,7 +66,7 @@ async def test_run_batch_generation_injects_previous_section_content():
         captured.append(prompt)
         return "<p>第一章：总则正文内容，适用于所有生产安全事故。</p>"
 
-    out = await _run_batch_generation(
+    out = await run_batch_generation(
         bg_db=bg_db,
         plan_id="p1",
         section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
@@ -88,14 +88,14 @@ async def test_run_batch_generation_injects_previous_section_content():
 @pytest.mark.asyncio
 async def test_run_batch_generation_ensures_prompt_cache_loaded(monkeypatch):
     """批量生成必须先加载 prompt 模板缓存，否则数据库模板不生效、退回代码拼接。"""
-    from app.routers import generation as gen
+    import app.services.plan_generation_service as svc
 
     calls = {"n": 0}
 
     async def fake_ensure_loaded(*args, **kwargs):
         calls["n"] += 1
 
-    monkeypatch.setattr(gen, "ensure_loaded", fake_ensure_loaded)
+    monkeypatch.setattr(svc, "ensure_loaded", fake_ensure_loaded)
 
     bg_db = AsyncMock()
     sec1 = MagicMock()
@@ -107,7 +107,7 @@ async def test_run_batch_generation_ensures_prompt_cache_loaded(monkeypatch):
     async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
         return "<p>ok</p>"
 
-    await gen._run_batch_generation(
+    await svc.run_batch_generation(
         bg_db=bg_db,
         plan_id="p1",
         section_tuples=[("sec_1", "总则")],
@@ -159,7 +159,7 @@ def test_strip_section_heading_removes_plain_p_matching_title():
 
 @pytest.mark.asyncio
 async def test_run_batch_generation_collects_failures():
-    from app.routers.generation import _run_batch_generation
+    from app.services.plan_generation_service import run_batch_generation
 
     bg_db = AsyncMock()
     ai_config = MagicMock()
@@ -182,7 +182,7 @@ async def test_run_batch_generation_collects_failures():
             raise RuntimeError("boom")
         return "<p>ok</p>"
 
-    out = await _run_batch_generation(
+    out = await run_batch_generation(
         bg_db=bg_db,
         plan_id="p1",
         section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
@@ -217,6 +217,7 @@ def test_clear_generation_state_resets_active_flag(monkeypatch):
 async def test_run_batch_generation_section_number_toggle(monkeypatch):
     """background 原行为：use_section_number=False 时不传 section_number 编号提示。"""
     from app.routers import generation as gen
+    import app.services.plan_generation_service as svc
 
     bg_db = AsyncMock()
     sec1 = MagicMock()
@@ -237,7 +238,7 @@ async def test_run_batch_generation_section_number_toggle(monkeypatch):
         return "<p>ok</p>"
 
     monkeypatch.setattr(gen, "_build_section_prompt", fake_build)
-    out = await gen._run_batch_generation(
+    out = await svc.run_batch_generation(
         bg_db=bg_db,
         plan_id="p1",
         section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
@@ -253,7 +254,7 @@ async def test_run_batch_generation_section_number_toggle(monkeypatch):
     assert "section_number" not in captured["kwargs"]
 
     captured.clear()
-    out = await gen._run_batch_generation(
+    out = await svc.run_batch_generation(
         bg_db=bg_db,
         plan_id="p1",
         section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
@@ -275,6 +276,7 @@ async def test_run_batch_generation_section_number_toggle(monkeypatch):
 async def test_run_batch_generation_on_section_done_counts():
     """SSE 契约：每章完成后回调携带当前 completed/failed 计数。"""
     from app.routers import generation as gen
+    import app.services.plan_generation_service as svc
 
     bg_db = AsyncMock()
     secs = []
@@ -294,7 +296,7 @@ async def test_run_batch_generation_on_section_done_counts():
     async def on_section_done(section_key, section_title, completed, failed):
         done_events.append((section_key, completed, failed))
 
-    out = await gen._run_batch_generation(
+    out = await svc.run_batch_generation(
         bg_db=bg_db,
         plan_id="p1",
         section_tuples=[("sec_1", "总则"), ("sec_2", "风险")],
@@ -316,6 +318,7 @@ async def test_run_batch_generation_on_section_done_counts():
 async def test_run_batch_generation_cancel_not_counted_as_failure():
     """取消信号（_GenerationCancelled）应中断剩余章节且不计数失败。"""
     from app.routers import generation as gen
+    import app.services.plan_generation_service as svc
 
     bg_db = AsyncMock()
     secs = []
@@ -338,7 +341,7 @@ async def test_run_batch_generation_cancel_not_counted_as_failure():
             raise gen._GenerationCancelled()
 
     with pytest.raises(gen._GenerationCancelled):
-        await gen._run_batch_generation(
+        await svc.run_batch_generation(
             bg_db=bg_db,
             plan_id="p1",
             section_tuples=[("sec_1", "总则"), ("sec_2", "风险"), ("sec_3", "措施")],
@@ -359,6 +362,7 @@ async def test_run_batch_generation_cancel_not_counted_as_failure():
 async def test_finalize_batch_result_sets_status_and_snapshot():
     """收尾公共函数：状态判定 + 自动版本快照 + commit，两个端点复用。"""
     from app.routers import generation as gen
+    import app.services.plan_generation_service as svc
 
     bg_db = AsyncMock()
     bg_db.add = MagicMock()  # 真实 add 为同步方法，避免 AsyncMock 协程警告
@@ -377,7 +381,7 @@ async def test_finalize_batch_result_sets_status_and_snapshot():
     plan_result.scalar_one_or_none.return_value = p2
     bg_db.execute.side_effect = [sec_result, plan_result]
 
-    out = await gen._finalize_batch_result(
+    out = await svc.finalize_batch_result(
         bg_db, "p1", completed=1, failed=0, failed_sections=[],
     )
     assert p2.status == "completed"
