@@ -28,7 +28,7 @@ def decrypt_secret(hex_str: str) -> str:
         cipher = AES.new(_derive_key(), AES.MODE_ECB)
         return unpad(cipher.decrypt(bytes.fromhex(hex_str)), 16).decode()
     except Exception:
-        raise Exception("AI Key解密失败，请前往 设置→AI配置 重新输入API Key保存后重试")
+        raise Exception("配置解密失败，请重新配置")
 
 
 def mask_secret(value: str) -> str:

@@ -43,7 +43,11 @@ def _get_api_base(provider: str, base_url: str | None) -> str:
 
 def decrypt_api_key(hex_str: str) -> str:
     """解密加密的 API Key。"""
-    return decrypt_secret(hex_str)
+    try:
+        return decrypt_secret(hex_str)
+    except Exception:
+        # 保持 AI 场景原有 UX 文案；secret_utils 已改为通用解密失败提示。
+        raise Exception("AI Key解密失败，请前往 设置→AI配置 重新输入API Key保存后重试")
 
 
 encrypt_api_key = encrypt_secret
