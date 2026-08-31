@@ -185,6 +185,8 @@ tar xzf emergency-plan-migration-<版本>-upgrade.tar.gz -C . --strip-components
       若已停止需先 `docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d postgres` 再升级；
 - [ ] 服务器磁盘空间：需容纳新后端镜像构建与 `backups/` 增量。
 
+迁移规范详见 `docs/reference/migration-guide.md`。
+
 ## 11. 常见问题
 
 - 页面白屏/资源 404 → 检查 `VITE_BASE_PATH` 与网关 location 是否一致，dist 是否复制到正确子目录
