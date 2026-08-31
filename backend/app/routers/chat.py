@@ -288,6 +288,25 @@ async def list_messages(conv_id: str, current_user=Depends(get_current_user), db
     return [MessageResponse(id=m.id, role=m.role, content=m.content, created_at=m.created_at) for m in msgs]
 
 
+@router.get("/conversations/{conv_id}/tool-calls")
+async def list_tool_calls(conv_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    from app.models.chat_tool_call import ChatToolCall
+    conv = (await db.execute(
+        select(ChatConversation).where(ChatConversation.id == conv_id)
+    )).scalar_one_or_none()
+    if not conv or conv.user_id != current_user.id:
+        raise HTTPException(404, "对话不存在")
+    rows = (await db.execute(
+        select(ChatToolCall)
+        .where(ChatToolCall.conversation_id == conv_id)
+        .order_by(ChatToolCall.created_at, ChatToolCall.id)
+    )).scalars().all()
+    return [{
+        "id": r.id, "round_no": r.round_no, "fn_name": r.fn_name,
+        "status": r.status, "duration_ms": r.duration_ms, "created_at": r.created_at,
+    } for r in rows]
+
+
 # ─── 主聊天端点 ───
 
 @router.post("")
