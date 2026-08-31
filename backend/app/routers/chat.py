@@ -72,18 +72,6 @@ CHAT_SYSTEM_PROMPT = """你是数字化应急预案自动生成系统的AI助手
 5. 如果用户问的问题与法律法规无关（如系统操作、数据统计），不需要调用此工具，也不需要添加引用列表。"""
 
 
-def _build_tool_messages(history: list, user_message: str) -> list:
-    messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
-    for h in history:
-        role = h.role if h.role != "function" else "tool"
-        msg = {"role": role, "content": h.content or ""}
-        if h.name and h.role == "function":
-            msg["tool_call_id"] = h.name
-        messages.append(msg)
-    messages.append({"role": "user", "content": user_message})
-    return messages
-
-
 async def _call_llm(messages: list, ai_config: AIConfig) -> dict:
     return await llm_chat_completion(messages, ai_config, stream=False, timeout=60, tools=CHAT_TOOLS)
 
@@ -160,6 +148,51 @@ async def _save_messages(user_id: str, conv_id: str, user_msg: str, assistant_ms
         await db.commit()
 
 
+async def _load_history_rows(db, conv_id: str):
+    """按时间顺序加载会话全部历史消息行。"""
+    rows = (await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.conversation_id == conv_id)
+        .order_by(ChatMessage.created_at, ChatMessage.id)
+    )).scalars().all()
+    return rows
+
+
+def _rebuild_messages_from_rows(rows, user_message: str) -> list:
+    """DB 历史 → OpenAI messages。assistant(content="") + 连续 tool 行还原为 tool_calls。"""
+    msgs = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
+    i, n = 0, len(rows)
+    while i < n:
+        r = rows[i]
+        if r.role == "assistant" and not (r.content or ""):
+            tool_rows = []
+            j = i + 1
+            while j < n and rows[j].role == "tool":
+                tool_rows.append(rows[j])
+                j += 1
+            if tool_rows:
+                calls = []
+                for idx, tr in enumerate(tool_rows):
+                    calls.append({
+                        "id": f"call_{idx}",
+                        "type": "function",
+                        "function": {"name": tr.name or "", "arguments": "{}"},
+                    })
+                msgs.append({"role": "assistant", "content": None, "tool_calls": calls})
+                for idx, tr in enumerate(tool_rows):
+                    msgs.append({"role": "tool", "tool_call_id": f"call_{idx}",
+                                 "content": tr.content or ""})
+                i = j
+                continue
+            i += 1
+            continue  # 空 assistant 且无 tool 行 → 跳过占位
+        role = r.role if r.role != "function" else "tool"
+        msgs.append({"role": role, "content": r.content or ""})
+        i += 1
+    msgs.append({"role": "user", "content": user_message})
+    return msgs
+
+
 # ─── CRUD 端点 ───
 
 @router.get("/conversations", response_model=list[ConversationResponse])
@@ -224,7 +257,8 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         await db.refresh(conv)
         conv_id = conv.id
 
-    messages = _build_tool_messages(body.history, body.message)
+    rows = await _load_history_rows(db, conv_id)
+    messages = truncate_by_token_budget(_rebuild_messages_from_rows(rows, body.message))
 
     # 第一轮 LLM 调用
     try:
