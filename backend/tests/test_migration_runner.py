@@ -1,12 +1,14 @@
 """migration_runner 纯逻辑单测：mock DB 连接（不依赖真实 PG）。
 
 覆盖任务 7 规格五条行为 + 语句拆分 + main.py 启动接线回归守护：
+- create_all 在 advisory lock 内执行（幂等补建缺失表，并发启动无竞态）；
 - 脚本按文件名排序扫描；
 - 首次（无记录）→ 全部记为 baseline、不执行（MIGRATE_FRESH=1 时全部执行并记录）；
 - 已有记录 → 仅应用未记录脚本、每个脚本一个事务、成功才记录；
 - 已记录脚本跳过；
 - advisory lock 获取失败 → 不执行任何脚本并抛出；
 - finally 释放 advisory lock；
+- 脚本执行失败 → 日志含 script_name、异常信息含脚本名、不记录并向上抛；
 - main.py 启动流程真实调用 run_migrations（防 ImportError 守卫残留）。
 """
 
@@ -71,6 +73,7 @@ class _FakeConn:
         self.closed = False
         self.fail_lock = fail_lock
         self.fail_statement = fail_statement
+        self.create_all_calls = 0
 
     async def execute(self, stmt, params=None):
         sql = str(stmt)
@@ -93,6 +96,13 @@ class _FakeConn:
 
     def begin(self):
         return _FakeBegin(self)
+
+    async def run_sync(self, fn):
+        # 真实 Base.metadata.create_all 会连接真实 DB；fake 只记录调用次数与顺序，
+        # 不执行 fn，保持 runner 单测为纯逻辑测试。
+        self.create_all_calls += 1
+        self.calls.append(("create_all", None))
+        return None
 
     async def commit(self):
         self.commits += 1
@@ -290,7 +300,43 @@ async def test_lock_released_after_successful_run(monkeypatch, script_dir):
 
 
 # ---------------------------------------------------------------------------
-# 8) 脚本执行失败 → 该脚本不记录并向上抛（后续脚本不执行）
+# 7.5) create_all 在 advisory lock 内执行且仅一次（并发启动无竞态）
+
+
+@pytest.mark.asyncio
+async def test_create_all_runs_once_inside_lock(monkeypatch, script_dir):
+    _write_scripts(script_dir)
+    conn = _FakeConn()
+    _install_fresh(monkeypatch, conn)
+
+    await mr.run_migrations()
+
+    assert conn.create_all_calls == 1
+    # 顺序：advisory lock 先于 create_all；baseline 路径 create_all 后不执行脚本
+    lock_index = next(i for i, (sql, _) in enumerate(conn.calls) if "pg_advisory_lock" in sql)
+    create_index = next(i for i, (sql, _) in enumerate(conn.calls) if sql == "create_all")
+    assert lock_index < create_index
+    assert conn.executed == []
+
+
+@pytest.mark.asyncio
+async def test_create_all_runs_before_scripts_under_fresh(monkeypatch, script_dir):
+    _write_scripts(script_dir, names=("db_migration_a.sql",))
+    conn = _FakeConn()
+    _install_engine(monkeypatch, conn)
+    monkeypatch.setenv("MIGRATE_FRESH", "1")
+
+    await mr.run_migrations()
+
+    assert conn.create_all_calls == 1
+    create_index = next(i for i, (sql, _) in enumerate(conn.calls) if sql == "create_all")
+    script_index = next(i for i, (sql, _) in enumerate(conn.calls) if "CREATE TABLE alpha" in sql)
+    assert create_index < script_index
+    assert conn.executed == ["CREATE TABLE alpha (id int)"]
+
+
+# ---------------------------------------------------------------------------
+# 8) 脚本执行失败 → 日志/异常含 script_name、该脚本不记录并向上抛（后续脚本不执行）
 
 
 @pytest.mark.asyncio
@@ -302,7 +348,7 @@ async def test_script_failure_aborts_without_record(monkeypatch, script_dir):
     )
     _install_fresh(monkeypatch, conn)
 
-    with pytest.raises(RuntimeError, match="script statement failed"):
+    with pytest.raises(RuntimeError, match="迁移脚本执行失败: db_migration_c\\.sql"):
         await mr.run_migrations()
 
     # beta 成功已记录；gamma 失败未记录（事务回滚）
@@ -388,22 +434,6 @@ async def test_main_lifespan_calls_run_migrations(monkeypatch):
     async def _fake_import_seed_configs():
         called.append("import_seed_configs")
 
-    class _FakeRunSyncConn:
-        async def run_sync(self, fn):
-            return None
-
-    class _FakeBegin:
-        async def __aenter__(self):
-            return _FakeRunSyncConn()
-
-        async def __aexit__(self, *exc):
-            return False
-
-    class _FakeEngine:
-        def begin(self):
-            return _FakeBegin()
-
-    monkeypatch.setattr(main_mod, "engine", _FakeEngine())
     monkeypatch.setattr(main_mod, "run_migrations", _fake_run_migrations)
     import app.services.third_party_config as tpc_mod
 

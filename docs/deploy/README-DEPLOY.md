@@ -46,6 +46,8 @@ docker run --rm -v $PWD/frontend:/app -w /app \
 
 > 说明：`npm ci` 失败（lockfile 与 package.json 不同步等）时自动回退 `npm install`，保证干净环境可构建；lockfile 同步问题见项目技术债待办。
 
+> 注意：生产构建必须用 node:20 —— Node ≥ 24 会禁用 PWA，导致 `manifest.webmanifest` 缺失、deploy-check 第 4 项失败。
+
 产物在 `frontend/dist/`。npm 报 ECONNRESET 时先确认 registry 已切到 npmmirror。
 
 ## 4. 后端部署

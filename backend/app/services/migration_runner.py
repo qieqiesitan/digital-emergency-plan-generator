@@ -2,12 +2,14 @@
 
 流程（与计划任务 7 一致）：
 1) 同一连接上先 SELECT pg_advisory_lock(<固定整数 key>)，获取失败直接抛出（不执行任何脚本）；
-2) 确保 schema_migrations 表存在（CREATE TABLE IF NOT EXISTS）；
-3) 读取已记录 script_name 集合；
-4) 无任何记录且 MIGRATE_FRESH != 1 → 全部捆绑脚本写为 baseline（只记录不执行）；
+2) 在锁内执行 Base.metadata.create_all（幂等，补建缺失表，避免并发启动竞态）；
+3) 确保 schema_migrations 表存在（CREATE TABLE IF NOT EXISTS）；
+4) 读取已记录 script_name 集合；
+5) 无任何记录且 MIGRATE_FRESH != 1 → 全部捆绑脚本写为 baseline（只记录不执行）；
    MIGRATE_FRESH = 1 → 全部执行后记录；
-5) 已有记录 → 按文件名排序仅应用未记录脚本：每个脚本一个事务，成功才插入记录；
-6) finally 释放 advisory lock；异常向上抛（main.py 捕获后 sys.exit(1) fail-fast）。
+6) 已有记录 → 按文件名排序仅应用未记录脚本：每个脚本一个事务，成功才插入记录，
+   失败时日志含 script_name 并包装异常上抛（main.py 捕获后 sys.exit(1) fail-fast）；
+7) finally 释放 advisory lock。
 
 脚本目录 = backend/（相对 worktree backend 目录），匹配 db_migration_*.sql。
 历史脚本允许自带 BEGIN;/COMMIT; 包裹（如 db_migration_accident_types_2025.sql），
@@ -22,7 +24,7 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-from app.database import engine
+from app.database import Base, engine
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +163,8 @@ async def run_migrations() -> None:
         lock_acquired = True
         # 结束隐式事务：advisory lock 是会话级，跨事务保持，后续 conn.begin() 才可用。
         await conn.commit()
+        # 在锁内补建缺失表（checkfirst 幂等）：并发启动时只有一个实例执行 create_all。
+        await conn.run_sync(Base.metadata.create_all)
         await _ensure_schema_migrations(conn)
         await conn.commit()
         applied = await _load_applied_scripts(conn)
@@ -176,9 +180,13 @@ async def run_migrations() -> None:
             if script.name in applied:
                 continue
             # 每个脚本一个事务：脚本语句与记录同事务提交；失败整体回滚。
-            async with conn.begin():
-                await _apply_script(conn, script)
-                await _record_script(conn, script.name)
+            try:
+                async with conn.begin():
+                    await _apply_script(conn, script)
+                    await _record_script(conn, script.name)
+            except Exception as exc:
+                logger.error("迁移脚本执行失败: %s", script.name)
+                raise RuntimeError(f"迁移脚本执行失败: {script.name}") from exc
     finally:
         try:
             if lock_acquired:

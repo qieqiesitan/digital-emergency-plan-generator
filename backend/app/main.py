@@ -8,7 +8,7 @@ from fastapi import FastAPI, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
-from app.database import engine, Base, async_session
+from app.database import async_session
 from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, hazard_management, plans, sections, templates, versions, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, data_dicts, third_party_config
 from app.models.report_version import ResourceInvestigationVersion, RiskAssessmentVersion
 from app.models.risk_assessment import RiskAssessmentReport
@@ -31,9 +31,8 @@ if DEPLOY_DIST:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    # 启动接线：先跑未应用的历史迁移（失败 fail-fast 中止启动），再导入第三方配置 seed。
+    # 启动接线：迁移运行器在 advisory lock 内执行 create_all（幂等补建缺失表）
+    # 并应用未记录迁移（失败 fail-fast 中止启动），随后导入第三方配置 seed。
     try:
         await run_migrations()
     except Exception:
