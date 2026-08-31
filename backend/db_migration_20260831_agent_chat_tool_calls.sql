@@ -1,6 +1,10 @@
 -- 任务 8：chat_messages 增加 name 列（存储 role=tool 消息的函数名）
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS name VARCHAR(100);
 
+-- 验证修复：chat_messages 增加 seq 自增列（同一事务内多条消息 created_at 相同，
+-- 需按插入顺序排序，避免历史重建时 user/assistant/tool 顺序错乱）
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS seq BIGSERIAL;
+
 -- 任务 3：chat_tool_calls 表（工具执行轨迹记录，进度回放数据源）
 CREATE TABLE IF NOT EXISTS chat_tool_calls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

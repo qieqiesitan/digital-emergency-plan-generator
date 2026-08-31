@@ -236,7 +236,7 @@ async def _load_history_rows(db, conv_id: str):
     rows = (await db.execute(
         select(ChatMessage)
         .where(ChatMessage.conversation_id == conv_id)
-        .order_by(ChatMessage.created_at, ChatMessage.id)
+        .order_by(ChatMessage.seq)
     )).scalars().all()
     return rows
 
@@ -342,7 +342,7 @@ async def list_messages(conv_id: str, current_user=Depends(get_current_user), db
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.conversation_id == conv_id)
-        .order_by(ChatMessage.created_at)
+        .order_by(ChatMessage.seq)
     )
     msgs = result.scalars().all()
     return [MessageResponse(id=m.id, role=m.role, content=m.content, created_at=m.created_at) for m in msgs]
