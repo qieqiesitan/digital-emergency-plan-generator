@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 CHAT_CONTEXT_BUDGET = 8000
+MAX_ROUNDS = 8  # 模块级常量：agent_loop 多轮工具调用上限
+
+
+def _build_final_summary_prompt(completed: list, remaining: list) -> str:
+    """超轮数时引导 LLM 输出部分成功总结。"""
+    done = "、".join(completed) if completed else "无"
+    todo = "、".join(remaining) if remaining else "无"
+    return (f"这是最后一轮。请直接总结所有操作结果。每个操作必须说明成功与否（看verified字段）。"
+            f"已完成操作：{done}；未完成操作：{todo}。不要调用更多函数。")
 
 READ_TOOL_NAMES = frozenset({
     "get_dashboard", "list_enterprises", "get_enterprise", "list_risk_sources",
@@ -61,6 +70,10 @@ CHAT_TOOLS = [
     {"type": "function", "function": {"name": "generate_plan_content", "description": "为指定预案在后台逐章自动生成正文内容（AI生成），完成后用户可在预案编辑页查看各章节内容", "parameters": {"type": "object", "properties": {"plan_id": {"type": "string", "description": "预案ID(必填)"}}, "required": ["plan_id"]}}},
     {"type": "function", "function": {"name": "search_regulation_articles", "description": "语义检索法规条文原文。当用户询问安全生产、应急管理、消防、职业健康、特种设备、危化品等法律法规问题时，必须调用此工具查找相关法律条文的具体内容和出处。返回条文原文、所属法规全称、文号、条款号。注意：此工具返回的是具体条文，不是法规列表。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "用户问题的关键词或完整句子，用于匹配法规条文"}, "top_k": {"type": "integer", "description": "返回条数，默认8，范围3-15"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "generate_report", "description": "生成图文并茂的分析报告（Markdown格式，含Mermaid图表）。支持主题：系统概览、企业分析、预案进度、风险分布等。", "parameters": {"type": "object", "properties": {"topic": {"type": "string", "description": "报告主题，如系统概览、企业分析"}, "report_type": {"type": "string", "description": "报告类型: summary(概览)/analysis(分析)"}}, "required": ["topic"]}}},
+    {"type": "function", "function": {"name": "get_generation_progress",
+     "description": "查询预案AI生成进度（聊天内触发的后台生成）。当用户询问生成进度或是否完成时调用",
+     "parameters": {"type": "object", "properties": {"plan_id": {"type": "string", "description": "预案ID(必填)"}},
+                    "required": ["plan_id"]}}},
 ]
 
 CHAT_SYSTEM_PROMPT = """你是数字化应急预案自动生成系统的AI助手。核心能力：查询创建修改删除企业和预案、智能添加企业（autofill_enterprise自动查工商数据校准全称）、查看风险分级管控和应急资源、查看评估报告和调查报告、搜索法规库、导出Word、生成图文报告。重要规则：用户要求任何分析报告、概览、总结时，必须调用 generate_report 工具（主题如系统概览、企业分析、法规库报告、风险分布等），禁止直接用函数返回的数据自行拼凑报告。用户说「添加XX公司」优先用autofill_enterprise。删除前先确认。回复简洁专业用中文。每次操作后汇报verified验证状态。
@@ -397,11 +410,10 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
             asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, text_content))
         return StreamingResponse(text_gen(), media_type="text/event-stream")
 
-    # 多轮工具调用循环（最多5轮）
+    # 多轮工具调用循环（最多 MAX_ROUNDS 轮）
     async def agent_loop():
         current_msgs = list(messages)
         pending_tool_calls = first_tool_calls
-        MAX_ROUNDS = 5
         final_text = ""
         trace = []
 
@@ -490,10 +502,21 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
 
             pending_tool_calls = next_tool_calls
 
-        # 超过最大轮数
-        yield sse_line({"type": "error", "message": "操作轮数超过上限，请简化您的问题重试"})
+        # 超过最大轮数：部分成功汇报（不再报「请简化问题」）
+        done_names = [t["fn_name"] for t in trace]
+        remaining = [tc.get("function", {}).get("name", "") for tc in pending_tool_calls]
+        final_msgs = current_msgs + [{"role": "user",
+                                      "content": _build_final_summary_prompt(done_names, remaining)}]
+        try:
+            async for chunk in _call_llm_stream(final_msgs, ai_config):
+                final_text += chunk
+                yield sse_line({"type": "chunk", "content": chunk})
+        except Exception as e:
+            final_text = str(e)
+            yield sse_line({"type": "error", "message": str(e)})
         yield sse_line({"type": "conv_id", "content": conv_id})
         yield sse_line({"type": "done"})
-        asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, "操作轮数超过上限", tool_trace=trace))
+        asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
+        return
 
     return StreamingResponse(agent_loop(), media_type="text/event-stream")
