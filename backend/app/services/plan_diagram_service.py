@@ -89,14 +89,19 @@ def _to_view(x: float, y: float) -> tuple[float, float]:
 
 
 def build_evacuation_svg(floor_plan_url, zones, objects, resources) -> dict:
-    """厂区平面疏散图：底图（如有）+ 分区 + 风险点 + 疏散标注。"""
+    """厂区平面疏散图（单张）：底图（如有）+ 分区 + 风险点 + 疏散标注。"""
+    return _build_evacuation_svg(floor_plan_url, zones, objects, resources, title="厂区")
+
+
+def _build_evacuation_svg(floor_plan_url, zones, objects, resources, title: str = "厂区") -> dict:
+    """单张平面疏散 SVG；title 用于区分楼层（如「一层」「二层」）。"""
     has_geometry = bool(zones) or bool(objects)
     if not has_geometry:
         return make_placeholder("evacuation", "missing_floor_data")
 
     parts = ['<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700">',
              '<rect width="1000" height="700" fill="#fafafa"/>',
-             '<text x="500" y="30" text-anchor="middle" font-size="18" font-weight="bold">厂区平面疏散示意图</text>']
+             f'<text x="500" y="30" text-anchor="middle" font-size="18" font-weight="bold">{_esc(title)}平面疏散示意图</text>']
     if floor_plan_url:
         parts.append(f'<image href="{_esc(floor_plan_url)}" x="60" y="40" width="880" height="620" preserveAspectRatio="xMidYMid meet" opacity="0.35"/>')
 
@@ -133,3 +138,91 @@ def build_evacuation_svg(floor_plan_url, zones, objects, resources) -> dict:
 
     parts.append("</svg>")
     return {"key": "evacuation", "placeholder": False, "svg": "\n".join(parts)}
+
+
+def build_evacuation_svgs(floors, zones, objects, resources, fallback_floor_plan_url=None) -> dict:
+    """按楼层分组生成疏散示意图，每层一张独立 SVG（避免楼层叠加）。
+
+    floors: [{id, name, floor_plan_url, sort_order, is_default}, ...]
+    zones/objects 内元素可选带 floor_id；无 floor_id 的孤儿数据归入默认楼层。
+    单层（或无楼层信息）时保持 key="evacuation" 向后兼容；
+    多层时返回 {"evacuation_1": ..., "evacuation_2": ...}，按楼层排序。
+    """
+    zones = list(zones or [])
+    objects = list(objects or [])
+    resources = list(resources or [])
+    floors = list(floors or [])
+
+    has_geometry = bool(zones) or bool(objects)
+    if not has_geometry:
+        return {"evacuation": make_placeholder("evacuation", "missing_floor_data")}
+
+    floor_by_id = {f.get("id"): f for f in floors if isinstance(f, dict) and f.get("id")}
+
+    def _used_floor_ids():
+        seen, ids = set(), []
+        for z in zones:
+            fid = z.get("floor_id") if isinstance(z, dict) else None
+            if fid and fid not in seen:
+                seen.add(fid)
+                ids.append(fid)
+        for o in objects:
+            fid = o.get("floor_id") if isinstance(o, dict) else None
+            if fid and fid not in seen:
+                seen.add(fid)
+                ids.append(fid)
+        return ids
+
+    used_ids = _used_floor_ids()
+    groups = []
+
+    def _sort_key(fid):
+        fl = floor_by_id.get(fid) or {}
+        return (fl.get("sort_order") if isinstance(fl.get("sort_order"), int) else 0, str(fid))
+
+    if not used_ids:
+        groups.append({
+            "name": "厂区",
+            "floor_plan_url": fallback_floor_plan_url,
+            "zones": zones,
+            "objects": objects,
+        })
+    else:
+        for fid in sorted(used_ids, key=_sort_key):
+            fl = floor_by_id.get(fid) or {}
+            zs = [z for z in zones if (isinstance(z, dict) and z.get("floor_id") == fid)]
+            os_ = [o for o in objects if (isinstance(o, dict) and o.get("floor_id") == fid)]
+            if not zs and not os_:
+                continue
+            groups.append({
+                "name": fl.get("name") or "未知楼层",
+                "floor_plan_url": fl.get("floor_plan_url") or fallback_floor_plan_url,
+                "zones": zs,
+                "objects": os_,
+            })
+        # 未挂楼层的孤儿数据归入默认楼层，避免叠加到任意图上
+        orphan_zones = [z for z in zones if not (isinstance(z, dict) and z.get("floor_id"))]
+        orphan_objects = [o for o in objects if not (isinstance(o, dict) and o.get("floor_id"))]
+        if orphan_zones or orphan_objects:
+            default = next((f for f in floors if isinstance(f, dict) and f.get("is_default")), None)
+            default = default or (floors[0] if floors else None)
+            groups.append({
+                "name": (default or {}).get("name") or "默认楼层",
+                "floor_plan_url": (default or {}).get("floor_plan_url") or fallback_floor_plan_url,
+                "zones": orphan_zones,
+                "objects": orphan_objects,
+            })
+
+    result = {}
+    multi = len(groups) > 1
+    for idx, g in enumerate(groups, start=1):
+        key = "evacuation" if not multi else f"evacuation_{idx}"
+        result[key] = _build_evacuation_svg(
+            floor_plan_url=g["floor_plan_url"],
+            zones=g["zones"],
+            objects=g["objects"],
+            # 消防资源为厂区级（无楼层归属），只在第一张图标注避免重复
+            resources=resources if idx == 1 else [],
+            title=g["name"],
+        )
+    return result

@@ -12,7 +12,7 @@ def test_diagram_svgs_default():
 
 
 from app.services.plan_diagram_service import (
-    build_risk_matrix_svg, build_evacuation_svg, make_placeholder,
+    build_risk_matrix_svg, build_evacuation_svg, build_evacuation_svgs, make_placeholder,
 )
 
 
@@ -55,6 +55,90 @@ def test_build_evacuation_svg_with_points():
 def test_build_evacuation_svg_no_data():
     out = build_evacuation_svg(None, [], [], [])
     assert out["placeholder"] is True
+
+
+def _poly(points):
+    return {"version": 2, "polygons": [{"points": points}]}
+
+
+def test_build_evacuation_svgs_multi_floor_separates_floors():
+    out = build_evacuation_svgs(
+        floors=[
+            {"id": "f1", "name": "一层", "floor_plan_url": None, "sort_order": 0, "is_default": True},
+            {"id": "f2", "name": "二层", "floor_plan_url": None, "sort_order": 1, "is_default": False},
+        ],
+        zones=[
+            {"name": "一层生产区", "floor_id": "f1", "polygon": _poly([[10, 10], [90, 10], [90, 90], [10, 90]])},
+            {"name": "二层仓库区", "floor_id": "f2", "polygon": _poly([[10, 10], [90, 10], [90, 90], [10, 90]])},
+        ],
+        objects=[
+            {"name": "一层储罐", "floor_id": "f1", "location_x": 50, "location_y": 50},
+            {"name": "二层货架", "floor_id": "f2", "location_x": 30, "location_y": 30},
+        ],
+        resources=[],
+    )
+    assert set(out) == {"evacuation_1", "evacuation_2"}
+    assert "一层平面疏散示意图" in out["evacuation_1"]["svg"]
+    assert "二层平面疏散示意图" in out["evacuation_2"]["svg"]
+    assert "一层储罐" in out["evacuation_1"]["svg"]
+    assert "二层货架" not in out["evacuation_1"]["svg"]
+    assert "一层储罐" not in out["evacuation_2"]["svg"]
+    assert "二层货架" in out["evacuation_2"]["svg"]
+
+
+def test_build_evacuation_svgs_single_floor_keeps_evacuation_key():
+    out = build_evacuation_svgs(
+        floors=[{"id": "f1", "name": "一层", "floor_plan_url": None, "is_default": True}],
+        zones=[{"name": "生产区", "floor_id": "f1", "polygon": _poly([[10, 10], [90, 10], [90, 90], [10, 90]])}],
+        objects=[{"name": "储罐", "floor_id": "f1", "location_x": 50, "location_y": 50}],
+        resources=[],
+    )
+    assert list(out) == ["evacuation"]
+    assert out["evacuation"]["placeholder"] is False
+
+
+def test_build_evacuation_svgs_no_data_placeholder():
+    out = build_evacuation_svgs(floors=[], zones=[], objects=[], resources=[])
+    assert out["evacuation"]["placeholder"] is True
+
+
+def test_build_evacuation_svgs_orphan_data_goes_to_default_floor():
+    out = build_evacuation_svgs(
+        floors=[{"id": "f1", "name": "一层", "floor_plan_url": None, "is_default": True}],
+        zones=[{"name": "未分区", "polygon": _poly([[10, 10], [90, 10], [90, 90], [10, 90]])}],
+        objects=[{"name": "设备", "location_x": 50, "location_y": 50}],
+        resources=[],
+    )
+    assert out["evacuation"]["placeholder"] is False
+    assert "未分区" in out["evacuation"]["svg"]
+    assert "设备" in out["evacuation"]["svg"]
+
+
+def test_attach_diagrams_splits_evacuation_by_floor():
+    s = MagicMock()
+    s.section_key = "sec_3_3"
+    s.diagram_svgs = None
+    ent_data = {
+        "floors": [
+            {"id": "f1", "name": "一层", "floor_plan_url": None, "is_default": True},
+            {"id": "f2", "name": "二层", "floor_plan_url": None, "is_default": False},
+        ],
+        "zones": [
+            {"name": "一层A区", "floor_id": "f1", "polygon": _poly([[10, 10], [90, 10], [90, 90], [10, 90]])},
+            {"name": "二层B区", "floor_id": "f2", "polygon": _poly([[10, 10], [90, 10], [90, 90], [10, 90]])},
+        ],
+        "risk_objects": [
+            {"name": "一层设备", "floor_id": "f1", "location_x": 50, "location_y": 50},
+            {"name": "二层设备", "floor_id": "f2", "location_x": 30, "location_y": 30},
+        ],
+        "emergency_resources": [{"category": "消防", "name": "灭火器", "location": "东墙"}],
+    }
+    _attach_diagrams(s, "onsite", ent_data)
+    assert "evacuation" not in s.diagram_svgs
+    assert "evacuation_1" in s.diagram_svgs
+    assert "evacuation_2" in s.diagram_svgs
+    assert "一层设备" in s.diagram_svgs["evacuation_1"]["svg"]
+    assert "二层设备" in s.diagram_svgs["evacuation_2"]["svg"]
 
 
 def test_risk_matrix_svg_escapes_names():

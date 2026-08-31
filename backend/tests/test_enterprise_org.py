@@ -1,5 +1,6 @@
 import io
 import json
+from types import SimpleNamespace
 
 from openpyxl import load_workbook
 
@@ -27,6 +28,7 @@ from app.services.enterprise_org_service import (
     validate_org_tree,
 )
 from app.schemas.enterprise_org import OrgMember as OrgMemberSchema, OrgNode as OrgNodeSchema
+from app.routers.generation import _merge_org_members, _enrich_with_reports
 
 
 def test_org_member_preserves_extra_fields_in_dump():
@@ -36,10 +38,65 @@ def test_org_member_preserves_extra_fields_in_dump():
     assert dumped["phone"] == "13800000000"
 
 
+def test_merge_org_members_keeps_phone_dict_members():
+    org = [{"id": "d1", "type": "dept", "name": "生产部", "members": [{"name": "旧人"}]}]
+    members = [{"org_node_id": "d1", "name": "张三", "position": "部长", "phone": "13800000000"}]
+    out = _merge_org_members(org, members)
+    assert out[0]["members"] == [
+        {"name": "张三", "position": "部长", "phone": "13800000000", "email": None, "role": None}
+    ]
+
+
+def test_merge_org_members_keeps_phone_orm_members():
+    org = [{"id": "d1", "type": "team", "name": "救援组", "members": []}]
+    m = SimpleNamespace(
+        org_node_id="d1", name="李四", position="安全员",
+        phone="13900000000", email="lisi@example.com", role="team_leader",
+    )
+    out = _merge_org_members(org, [m])
+    assert out[0]["members"][0]["phone"] == "13900000000"
+    assert out[0]["members"][0]["email"] == "lisi@example.com"
+    assert out[0]["members"][0]["role"] == "team_leader"
+
+
+@pytest.mark.asyncio
+async def test_enrich_with_reports_includes_phone():
+    em = SimpleNamespace(
+        org_node_id="d1", name="", position="部长", role="team_leader",
+        phone="13800000000", email="wangwu@example.com",
+    )
+    user = SimpleNamespace(name="王五")
+    db = AsyncMock()
+    db.execute.side_effect = [
+        MagicMock(all=lambda: [(em, user)]),                        # member join user
+        MagicMock(scalar_one_or_none=lambda: None),                 # risk assessment
+        MagicMock(scalar_one_or_none=lambda: None),                 # resource investigation
+    ]
+    data = {"org_structure": [{"id": "d1", "type": "team", "name": "救援组", "members": []}]}
+    out = await _enrich_with_reports(data, "ent1", db)
+    assert out["org_structure"][0]["members"][0]["phone"] == "13800000000"
+    assert out["org_structure"][0]["members"][0]["email"] == "wangwu@example.com"
+
+
 def test_org_node_preserves_extra_fields_in_dump():
     node = OrgNodeSchema(id="d1", type="dept", name="生产部", description="厂级部门")
     dumped = node.model_dump()
     assert dumped["description"] == "厂级部门"
+
+
+def test_load_org_members_filters_disabled():
+    from app.routers.generation import _load_org_members
+    import asyncio
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [])))
+
+    async def run():
+        return await _load_org_members(db, "ent1")
+
+    asyncio.run(run())
+    sql = str(db.execute.call_args.args[0])
+    assert "enabled" in sql
+    assert "enabled IS true" in sql
 
 
 def test_enterprise_member_metadata():

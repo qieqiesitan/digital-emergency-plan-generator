@@ -13,7 +13,15 @@ from app.models.risk_management import RiskZone, RiskObject, RiskUnit, RiskEvent
 def _risk_source_item(zone: RiskZone, obj: RiskObject, unit: RiskUnit | None, event: RiskEvent) -> dict:
     params = event.method_params or {}
     measures = [
-        {"category": m.measure_category, "description": m.description}
+        {
+            "category": m.measure_category,
+            "measure_type": getattr(m, "measure_type", None),
+            "description": m.description,
+            "responsible_person": getattr(m, "responsible_person", None),
+            "deadline": str(m.deadline) if getattr(m, "deadline", None) else None,
+            "check_items": getattr(m, "check_items", None) or [],
+            "status": getattr(m, "status", None),
+        }
         for m in event.measures
     ]
     return {
@@ -30,6 +38,9 @@ def _risk_source_item(zone: RiskZone, obj: RiskObject, unit: RiskUnit | None, ev
         "triggers": event.trigger_conditions,
         "consequences": event.consequences,
         "chemical_id": event.chemical_id,
+        "inherent_risk_level": getattr(event, "inherent_risk_level", None),
+        "inherent_risk_score": getattr(event, "inherent_risk_score", None),
+        "control_level": getattr(event, "control_level", None),
         "likelihood": params.get("l", 3),
         "severity": params.get("s", 3),
         "control_measures": "；".join(m["description"] for m in measures),
@@ -71,6 +82,7 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
         select(RiskZone)
         .where(RiskZone.enterprise_id == enterprise_id)
         .options(
+            selectinload(RiskZone.floor),
             selectinload(RiskZone.objects)
             .selectinload(RiskObject.units)
             .selectinload(RiskUnit.events)
@@ -100,6 +112,24 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
         for zone in zones
         for obj in zone.objects
     )
+
+    # 从分区推导企业楼层列表（zones 的 floor 关系已 selectin 预加载；
+    # 无分区楼层可空，供疏散图按楼层分组使用）
+    floors = []
+    _seen_floor_ids = set()
+    for zone in zones:
+        fid = getattr(zone, "floor_id", None)
+        if not fid or fid in _seen_floor_ids:
+            continue
+        _seen_floor_ids.add(fid)
+        fl = getattr(zone, "floor", None)
+        floors.append({
+            "id": fid,
+            "name": (getattr(fl, "name", None) or zone.name),
+            "floor_plan_url": getattr(fl, "floor_plan_url", None),
+            "sort_order": getattr(fl, "sort_order", 0),
+            "is_default": getattr(fl, "is_default", False),
+        })
 
     return {
         "enterprise": {
@@ -147,6 +177,9 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
             {
                 "name": zone.name,
                 "polygon": zone.floor_plan_polygon,
+                "floor_id": getattr(zone, "floor_id", None),
+                "floor_name": getattr(getattr(zone, "floor", None), "name", None),
+                "floor_plan_url": getattr(getattr(zone, "floor", None), "floor_plan_url", None),
             }
             for zone in zones
         ],
@@ -155,8 +188,10 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
                 "name": obj.name,
                 "location_x": obj.location_x,
                 "location_y": obj.location_y,
+                "floor_id": getattr(obj, "floor_id", None) or getattr(zone, "floor_id", None),
             }
             for zone in zones
             for obj in zone.objects
         ],
+        "floors": floors,
     }

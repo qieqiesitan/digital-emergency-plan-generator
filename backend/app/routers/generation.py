@@ -302,6 +302,17 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
     num_hint = f"这是应急预案的第{section_number}个章节。\n" if section_number is not None else ""
 
     prompt = f"请撰写应急预案章节《{section_title}》的内容。\n\n"
+    if plan_type == "onsite" and section_key == "sec_3_4":
+        prompt += (
+            "本章只列明事故发生时需要使用的紧急联系电话清单，禁止扩展撰写应急队伍、"
+            "物资装备、培训演练等其他保障内容。\n"
+            "要求：\n"
+            "1. 用 Markdown 表格输出：序号、联系对象、姓名/单位、联系电话；表格前后用空行分隔。\n"
+            "2. 内部电话：从组织架构成员中提取已填写联系电话的成员（姓名、职务、电话），未填写的成员不列出。\n"
+            "3. 外部电话：火警119、急救120、公安报警110；物业消防控制室、属地应急管理部门、"
+            "附近医院如无电话写（待补充）。\n"
+            "4. 全部正文使用简体中文，禁止夹带英文单词（法规编号、型号等专业术语除外）。\n\n"
+        )
     if accident_type:
         prompt += f"【事故类型：{accident_type}】请围绕{accident_type}事故的特点、风险源、致灾机理、典型后果和针对性处置措施撰写以下内容，避免与其他事故类型的预案雷同。\n\n"
 
@@ -345,7 +356,7 @@ def _missing(v):
 def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
     """生成后处理：按章节写入数据图（风险矩阵/疏散图）或占位符。"""
     from app.services.plan_diagram_service import (
-        build_risk_matrix_svg, build_evacuation_svg,
+        build_risk_matrix_svg, build_evacuation_svgs,
     )
     # 复制后整体赋值：JSONB 列不检测原地变更，必须触发 SQLAlchemy 脏标记
     diagrams = dict(section.diagram_svgs or {})
@@ -356,12 +367,15 @@ def _attach_diagrams(section, plan_type: str, ent_data: dict) -> None:
             ent_data.get("risk_events", [])
         )
     elif key == "sec_3_3" and plan_type == "onsite":
-        diagrams["evacuation"] = build_evacuation_svg(
-            floor_plan_url=ent_data.get("floor_plan_url"),
+        # 旧版单图 key 残留清理（新逻辑按楼层拆分为 evacuation_1/2/...）
+        diagrams.pop("evacuation", None)
+        diagrams.update(build_evacuation_svgs(
+            floors=ent_data.get("floors", []),
             zones=ent_data.get("zones", []),
             objects=ent_data.get("risk_objects", []),
             resources=ent_data.get("emergency_resources", ent_data.get("resources", [])),
-        )
+            fallback_floor_plan_url=ent_data.get("floor_plan_url"),
+        ))
     section.diagram_svgs = diagrams
 
 
@@ -370,6 +384,7 @@ def _merge_org_members(org_structure: list, org_members: list | None) -> list:
 
     按成员 org_node_id 关联岗位节点：有关联的节点用真实成员替换；
     无关联的节点内嵌成员清空（成员表是唯一事实来源，避免旧内嵌虚构名带入预案）。
+     member 完整透传 name/position/phone/email（生成预案时 AI 需要手机号等联系方式）。
     org_members 为 None/空时原样返回（向后兼容无成员表数据的旧企业）。
     """
     if not org_members:
@@ -377,15 +392,25 @@ def _merge_org_members(org_structure: list, org_members: list | None) -> list:
     by_node: dict[str, list] = {}
     for m in org_members:
         if isinstance(m, dict):
-            node_id, name, position = m.get("org_node_id"), m.get("name"), m.get("position")
+            node_id = m.get("org_node_id")
+            member = {
+                "name": m.get("name"),
+                "position": m.get("position"),
+                "phone": m.get("phone"),
+                "email": m.get("email"),
+                "role": m.get("role"),
+            }
         else:
-            node_id, name, position = (
-                getattr(m, "org_node_id", None),
-                getattr(m, "name", None),
-                getattr(m, "position", None),
-            )
+            node_id = getattr(m, "org_node_id", None)
+            member = {
+                "name": getattr(m, "name", None),
+                "position": getattr(m, "position", None),
+                "phone": getattr(m, "phone", None),
+                "email": getattr(m, "email", None),
+                "role": getattr(m, "role", None),
+            }
         if node_id:
-            by_node.setdefault(node_id, []).append({"name": name, "position": position})
+            by_node.setdefault(node_id, []).append(member)
     merged = []
     for node in org_structure or []:
         if not isinstance(node, dict):
@@ -398,9 +423,12 @@ def _merge_org_members(org_structure: list, org_members: list | None) -> list:
 
 
 async def _load_org_members(db, enterprise_id: str) -> list:
-    """加载企业成员表（用户维护的真实成员，用于覆盖组织树内嵌成员）。"""
+    """加载企业成员表（仅启用成员，用于覆盖组织树内嵌成员）。"""
     rows = (await db.execute(
-        select(EnterpriseMember).where(EnterpriseMember.enterprise_id == enterprise_id)
+        select(EnterpriseMember).where(
+            EnterpriseMember.enterprise_id == enterprise_id,
+            EnterpriseMember.enabled.is_(True),
+        )
     )).scalars().all()
     return list(rows)
 
@@ -433,26 +461,44 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
         "registered_capital": enterprise.registered_capital,
 
         "phone": _missing(enterprise.phone),
+        "fax": _missing(enterprise.fax),
+        "postal_code": _missing(enterprise.postal_code),
 
         "land_area": enterprise.land_area,
 
         "building_area": enterprise.building_area,
+        "annual_capacity": _missing(enterprise.annual_capacity),
 
         "safety_officer": _missing(enterprise.safety_officer),
+        "safety_officer_phone": _missing(enterprise.safety_officer_phone),
+        "safety_staff_count": enterprise.safety_staff_count,
 
         "safety_standardization": _missing(enterprise.safety_standardization),
 
         "fire_approval": _missing(enterprise.fire_approval),
+        "fire_approval_date": str(enterprise.fire_approval_date) if enterprise.fire_approval_date else None,
 
         "main_products": _missing(enterprise.main_products),
 
         "hazardous_chemicals": _missing(enterprise.hazardous_chemicals),
 
         "special_equipment": _missing(enterprise.special_equipment),
+        "special_equipment_detail": _missing(enterprise.special_equipment_detail),
+        "main_equipment_list": _missing(enterprise.main_equipment_list),
+        "fire_protection_summary": _missing(enterprise.fire_protection_summary),
+        "natural_conditions": _missing(enterprise.natural_conditions),
 
         "chemicals": [
-            {"name": c.name, "cas_no": c.cas_no, "flash_point": c.flash_point,
-             "explosion_limit": c.explosion_limit, "location": c.location, "max_storage": c.max_storage}
+            {
+                "name": c.name, "cas_no": c.cas_no, "un_no": c.un_no,
+                "physical_state": c.physical_state, "flash_point": c.flash_point,
+                "explosion_limit": c.explosion_limit, "ignition_temp": c.ignition_temp,
+                "density": c.density, "boiling_point": c.boiling_point,
+                "health_hazard": c.health_hazard, "fire_hazard": c.fire_hazard,
+                "leak_response": c.leak_response, "storage_transport": c.storage_transport,
+                "first_aid": c.first_aid, "protective_measures": c.protective_measures,
+                "location": c.location, "max_storage": c.max_storage,
+            }
             for c in chemicals.values()
         ],
 
@@ -473,17 +519,35 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
                 "chemical": chemicals.get(rs.get("chemical_id")) and {
                     "name": chemicals[rs["chemical_id"]].name,
                     "cas_no": chemicals[rs["chemical_id"]].cas_no,
+                    "un_no": chemicals[rs["chemical_id"]].un_no,
+                    "physical_state": chemicals[rs["chemical_id"]].physical_state,
                     "flash_point": chemicals[rs["chemical_id"]].flash_point,
                     "explosion_limit": chemicals[rs["chemical_id"]].explosion_limit,
+                    "ignition_temp": chemicals[rs["chemical_id"]].ignition_temp,
+                    "density": chemicals[rs["chemical_id"]].density,
+                    "boiling_point": chemicals[rs["chemical_id"]].boiling_point,
+                    "health_hazard": chemicals[rs["chemical_id"]].health_hazard,
+                    "fire_hazard": chemicals[rs["chemical_id"]].fire_hazard,
+                    "leak_response": chemicals[rs["chemical_id"]].leak_response,
+                    "storage_transport": chemicals[rs["chemical_id"]].storage_transport,
+                    "first_aid": chemicals[rs["chemical_id"]].first_aid,
+                    "protective_measures": chemicals[rs["chemical_id"]].protective_measures,
                 },
             }
             for rs in risk_context.get("risk_sources", [])
         ],
 
-        "emergency_resources": [{"category": r.category, "name": r.name, "specification": r.specification, "quantity": r.quantity, "unit": r.unit, "location": r.location} for r in resources],
+        "emergency_resources": [{
+            "category": r.category, "name": r.name, "specification": r.specification,
+            "quantity": r.quantity, "unit": r.unit, "location": r.location,
+            "responsible_person": r.responsible_person, "contact_phone": r.contact_phone,
+            "is_external": r.is_external, "external_address": r.external_address,
+            "external_distance_km": r.external_distance_km,
+        } for r in resources],
         "risk_events": risk_context.get("risk_events", []),
         "zones": risk_context.get("zones", []),
         "risk_objects": risk_context.get("risk_objects", []),
+        "floors": risk_context.get("floors", []),
         "floor_plan_url": getattr(enterprise, "floor_plan_url", None),
         "risk_method_config": enterprise.risk_method_config,
         "last_plan_filing_date": str(enterprise.last_plan_filing_date) if enterprise.last_plan_filing_date else None,
@@ -513,6 +577,8 @@ async def _enrich_with_reports(enterprise_data: dict, enterprise_id: str, db: As
             "name": user.name or em.name or "",
             "position": em.position,
             "role": em.role,
+            "phone": em.phone,
+            "email": em.email,
         })
     for node in enterprise_data.get("org_structure") or []:
         if isinstance(node, dict) and not node.get("members"):
@@ -1114,42 +1180,70 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
                 yield sse_event("chunk", content=chunk_content)
 
-            s.content = md_to_html(full, normalize=True)
+            from app.database import async_session as _standalone_session
 
-            s.ai_generated = True
+            html_content = md_to_html(full, normalize=True)
 
-            s.mermaid_svgs = await _pre_render_mermaid_svgs(full)
-
-            _attach_diagrams(s, p.plan_type, ent_data)
-
-            all_sections = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id))).scalars().all()
-
-            if all(sec.content and sec.content.strip() for sec in all_sections):
-
-                p.status = "completed"
-
-            else:
-
-                p.status = "draft"
-
-            await db.commit()
+            async with _standalone_session() as _db2:
+                _s2 = (
+                    await _db2.execute(
+                        select(PlanSection).where(
+                            PlanSection.plan_project_id == plan_id,
+                            PlanSection.section_key == section_key,
+                        )
+                    )
+                ).scalars().first()
+                if _s2 is None:
+                    raise HTTPException(404, "章节不存在")
+                _s2.content = html_content
+                _s2.ai_generated = True
+                _s2.mermaid_svgs = await _pre_render_mermaid_svgs(full)
+                _attach_diagrams(_s2, p.plan_type, ent_data)
+                _all = (
+                    await _db2.execute(
+                        select(PlanSection).where(PlanSection.plan_project_id == plan_id)
+                    )
+                ).scalars().all()
+                _p2 = (
+                    await _db2.execute(select(PlanProject).where(PlanProject.id == plan_id))
+                ).scalar_one_or_none()
+                _p2.status = (
+                    "completed"
+                    if all(sec.content and sec.content.strip() for sec in _all)
+                    else "draft"
+                )
+                await _db2.commit()
 
             yield sse_event("done", message="生成完成")
             succeeded = True
 
         except Exception as e:
+            from app.database import async_session as _standalone_session2
 
-            p.status = "draft"
-
-            await db.commit()
+            async with _standalone_session2() as _db3:
+                _p3 = (
+                    await _db3.execute(select(PlanProject).where(PlanProject.id == plan_id))
+                ).scalar_one_or_none()
+                if _p3:
+                    _p3.status = "draft"
+                    await _db3.commit()
 
             yield sse_event("error", message=str(e))
         finally:
             # 客户端断连/取消时 CancelledError 不会被 except Exception 捕获，
             # 这里兜底恢复状态，避免预案永久停在 generating。
             if not succeeded and p.status == "generating":
-                p.status = "draft"
-                await db.commit()
+                from app.database import async_session as _standalone_session3
+
+                async with _standalone_session3() as _db4:
+                    _p4 = (
+                        await _db4.execute(
+                            select(PlanProject).where(PlanProject.id == plan_id)
+                        )
+                    ).scalar_one_or_none()
+                    if _p4 and _p4.status == "generating":
+                        _p4.status = "draft"
+                        await _db4.commit()
 
 
 

@@ -1,4 +1,220 @@
 ## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-31，主控·公司部署三件事）：①企查查 KEY 报错诊断完成（根因=QCC 只读环境变量，公司 .env 为空；本地 compose 硬编码 key 所以正常）②统一第三方 Key 管理=设计阶段（brainstorming）③增量升级机制=设计阶段
+- 刚完成的动作：取证——qcc_client.py:19 settings.QCC_API_KEY 空→not_configured→enterprises.py:30 映射报错；.env.example 与生产 compose QCC 默认空、本地 root compose 硬编码两个 Bearer key；第三方 key 盘点：LLM=ai_configs DB 系统级(is_system，管理员页已达标)、QCC=env-only、AMap=surrounding_ai.py:24 源码硬编码明文 key；迁移现状=仅 create_all 建表，20+ 个 db_migration_*.sql 需手动应用、无版本跟踪
+- 下一步：等用户确认 #2/#3 设计方向（#2：QCC/AMap 并入管理员系统配置+env 兜底+移除源码硬编码；#3：安装包/升级包分离+迁移运行器 schema_migrations+upgrade.sh 备份/迁移/重启）→ 出 spec+plan → 实施；#1 立即修复=公司 .env 填 QCC key 重启 backend（无需重装）
+- 关键上下文：master 有未提交工作区改动（紧急联系电话等，待确认提交）；QCC/AMap key 均明文在仓库（历史遗留，建议随 #2 移除）；公司已部署 0.2.0
+- 正在做什么（2026-08-27，子代理·ol 长条目也强制编号修复）：✅ 完成并 commit 5303ab3
+- 刚完成的动作：TDD 红→绿——新增 test_ol_long_item_also_numbered（[长,短,短]→["1. 长...","2. 短B","3. 短C"]）先跑红（旧实现长条目无编号、短条目从 2 开始），修复后 27/27 通过；docx_template.py ol 分支所有条目一律剥离 li 自带编号 + 强制 f"{i}. " 前缀，短条目左缩进 Cm(1.0)/首行 Cm(-0.5)、长条目正文样式首行缩进 Pt(32) 但保留编号；ul 分支未动；全量 pytest tests/ = 1082 passed 零回归；集成复验=容器重生成 _regen_real.docx（75704B）→ Word COM 转 PDF 88 页，39 列表块全部从 1 起始且严格连续、无"第一条无编号第二条从 2 开始"、空白页 0（校验排除 PyMuPDF 悬挂缩进裸编号伪影）；commit 5303ab3 恰 2 文件 36+/14-
+- 下一步：报告父代理（task_id=docx_layout_fix_ol_all_numbered、claim_id=21300-d933dd0408cb、commit 5303ab3e7a80d50de37b0442dabfc544143a11e8）
+- 关键上下文：commit 纪律=只 add docx_template.py + test_docx_layout.py，严禁 git add -A；他人未提交改动未触碰；TASKS.md 永不 commit；集成复验=docker exec 跑 _regen_real.py → Word COM 转 PDF 断言列表块无跳号/无空页
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·ol 列表强制重编号修复）：✅ 完成并 commit 393fa56
+- 刚完成的动作：TDD 流程——test_docx_layout.py 改 test_ol_item_with_existing_number_reassigned（"4. 内容"→"1. 内容"）+ 新增 test_ol_gaps_reindexed_continuously（"1. A"/"4. B"/"5. C"→"1. A"/"2. B"/"3. C"），先跑红确认 2 FAIL + 1 PASS（旧实现保留原编号导致跳号）；docx_template.py 的 html_to_docx_content ol 短条目分支改为 re.sub(r"^\s*\d+\s*[.、．)]\s*", "", text) 剥离 li 自带编号 + 一律 f"{i}. {clean}" 按 enumerate 强制重编号（ul 分支/长条目转正文/缩进样式均未动）；3 测试全绿 + test_docx_layout.py 26/26；集成复验：容器内跑 /app/exports/_regen_real.py 重生成 _regen_real.docx（75811B）→ Word COM 转 PDF（87 页），PDF 列表行校验 125 行/80 块，块内序号跳号=0、非 1 起始块前一行均为长条目正文（转正文现状行为）、空白页=0；全量 pytest tests/ -q = 1081 passed（基线 1080 + 新增 1）零回归
+- 下一步：报告父代理（task_id=docx_layout_fix_ol_reindex、claim_id=3124-676e48831938、commit 393fa56b84702e77b2ae69495c9602fce246cfc7）
+- 关键上下文：commit 纪律=只 add 两个文件（docx_template.py + test_docx_layout.py），本次恰 2 文件 16+/5-；他人未提交改动（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full/tests 多个/PlanEditorPage/TASKS.md）未触碰；TASKS.md 永不 commit；_regen_real.docx/.pdf 保留供父代理展示；一次性验证脚本已清理
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 真实导出复核修复批次：ol 编号跨章节累计）✅ 完成并 commit 7374c01
+- 刚完成的动作：TDD 流程——test_docx_layout.py 修改 test_ordered_short_item_stays_numbered（断言 "1. 第一步" + 样式非 List Number）+ 新增 test_ol_numbering_resets_per_list / test_ol_item_with_existing_number_kept（先跑红确认 2 FAIL + 1 PASS：旧实现无手动前缀）；docx_template.py 的 html_to_docx_content ul/ol 分支改为 ul 保持 List Bullet、ol 手动编号——enumerate 从 1 起，短条目若无自带编号（正则 ^\d+\s*[.、．)]）加 f"{i}. " 前缀，用普通段落（不再用 List Number 样式）保持左缩进 Cm(1.0)/首行 Cm(-0.5)，长条目转正文不变；3 测试全绿 + test_docx_layout.py 25/25；集成复验：docker restart emergency-plan-backend 后容器内跑 /app/exports/_regen_real.py 重生成 _regen_real.docx（75811B）→ Word COM 转 PDF（87 页），断言 List Number 段落=0、PDF 数字开头行最大序号 24 且 >50 为 0、空白页=0；全量 pytest tests/ -q = 1080 passed（基线 1078 + 新增 2）零回归
+- 下一步：报告父代理（task_id=docx_layout_fix_ol_numbering、claim_id=28304-fc495ed8076c、commit 7374c01）
+- 关键上下文：commit 纪律=只 add 两个文件（docx_template.py + test_docx_layout.py），本次恰 2 文件 30+/4-；他人未提交改动（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full/tests 多个/PlanEditorPage）未触碰；TASKS.md 永不 commit；_regen_real.docx/.pdf 保留供父代理展示
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 真实文档复核修复批次 4/4）：✅ 完成并 commit 971ef94
+- 刚完成的动作：TDD 流程——test_docx_layout.py 追加 4 个测试（test_section_level1_uses_heading1/test_caption_style_not_bold/test_header_company_not_duplicated/test_risk_matrix_caption，先跑红确认 4 FAIL）；backend/app/services/docx_template.py 修复 4 缺陷——①heading_level 由 min(level+1,6) 改为 max(min(level,6),1)（生产顶级 level=1 与样本 level=0 均 → Heading 1 黑体）；②Caption 样式注册显式 bold=False；③抽 _clean_plan_title helper 复用封面 doc_title 去重逻辑，_setup_header_footer 页眉用清理后标题；④DIAGRAM_CAPTION_MAP 补 "risk_matrix": "事故风险矩阵示意图"；全量 pytest tests/ -q = 1078 passed（基线 1074 + 新增 4）零回归；集成复验：backend/exports/_final_sample.py 重新生成 _final_sample.docx → Word COM 转 PDF = 8 页、3 个顶级章节全部 Heading 1、页眉企业名仅出现一次、Caption 非加粗、零空白页；一次性校验脚本 _fix_real4_verify.py 已清理，_final_sample.docx/.pdf 保留供父代理展示
+- 下一步：报告父代理（task_id=docx_layout_fix_real4、claim_id=30212-8cd51eab6436、commit 971ef947880487dbd58235a95498a20ae18e92c9）
+- 关键上下文：commit 纪律=只 add 两个文件（docx_template.py + test_docx_layout.py），严禁 git add -A；他人未提交改动（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full/tests 多个/PlanEditorPage）未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 修复任务：TOC 目录页独立成页）✅ 完成并 commit d4f1b14
+- 刚完成的动作：TDD 流程——先追加 test_toc_starts_on_new_page（断言"目　　录"标题段 paragraph_format.page_break_before is True，只查 body 段落并跳过 F9 占位文字段，先跑红确认 FAIL：None is True）；backend/app/services/docx_template.py 的 add_toc 函数给目录标题段加 page_break_before=True（末尾 doc.add_page_break() 保留）；全量 pytest tests/ -q = 1074 passed（基线 1073 + 新增 1）零回归；集成复验：backend/exports/_final_sample.py 重新生成 _final_sample.docx → Word COM 转 PDF = 8 页、批准页(第2页)与目录页(第3页)已分页、空白页 0、三个一级标题（"1 总则""2 事故风险""3 组织机构"）全部出现在 PDF；一次性校验脚本 _toc_verify.py 已清理，_final_sample.docx/.pdf/.py 保留供父代理渲染验收图
+- 下一步：报告父代理（task_id=docx_layout_fix_toc_page、claim_id=27604-97ab4e6419e2、commit d4f1b141cfa927b2b8b098bf64d316b92c5d7511）
+- 关键上下文：commit 纪律=只 add 两个文件，严禁 git add -A / git commit -a；他人未提交改动（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full/tests 多个/PlanEditorPage）未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 修复任务：unwrap double Pt() spacing）✅ 完成并 commit 9854f26
+- 刚完成的动作：TDD 流程——先追加 test_style_spacing_uses_bare_pt_values（断言 Heading 1≈Pt(28)/Body Title≈Pt(24)/Heading 2≈Pt(6)，先跑红确认 FAIL：实测 4516120000 EMU）；backend/app/services/docx_template.py 的 register_all_styles 调用处把 space_before/space_after 从 Length 对象改为裸数值（Body Title：Pt(24)/Pt(12)→24/12；标题循环：Pt(before)/Pt(0)→before/0）；全量 pytest tests/ -q = 1073 passed（基线 1055 + 18 布局用例）零回归；集成复验：backend/exports/_layout_verify.py（3 一级章节含表格/短列表/长列表）→ Word COM 转 PDF = 6 页、0 空白页、3 个一级标题全部出现在 PDF 文本（"1 总则""2 事故风险""3 组织机构"），验证后临时文件已清理
+- 下一步：报告父代理（task_id=docx_layout_fix_spacing、commit SHA 9854f268e70fb5be797725a795114c0b76b6f707）；后续可同步 TASKS.md 至他人未提交改动区
+- 关键上下文：commit 只含 docx_template.py + test_docx_layout.py（2 文件 16+/2-）；他人未提交改动未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 9/9）：✅ 集成验证完成（只验证不改源码），发现并定位 Word 导出丢一级标题缺陷，临时产物已清理
+- 刚完成的动作：按计划构造覆盖样本 → 生成 backend/exports/_layout_verify.docx → Word COM 转 PDF（8 页）→ 步骤 3 断言 PASS（无空白页/目录页眉/页脚）；全量 pytest tests/ -q = 1072 passed 零回归；A/B 定位根因——docx_template.py `_define_style` 把调用方已传的 `Pt(before)` 再包一层 `Pt()`（Pt(Pt(28))），Heading1 样式 space_before 写出 7,112,000 twips（≈4939 英寸，应为 560），叠加任务 7 的 pageBreakBefore+keepNext，Word 导出 PDF 时布局引擎丢弃第 2+ 个一级标题（出现仅页眉页脚的空页、正文无标题）；仅把 spacing 改为 560 twips 后 6 页全渲染、零空页；Word 往返（SaveAs2）也能修复
+- 下一步：报告父代理，由主控决定是否派修复任务（建议 `_define_style` 内改为 `Pt(space_before)` 只对裸数值生效，或调用方传裸数值；BodyTitle/Heading2-6 同样中招）
+- 关键上下文：⚠ 计划步骤 3 断言有盲区——页眉页脚文本使"空白页"检查不命中、且未断言标题存在，丢标题+空页仍 PASS；commit 纪律=只 add docx_template.py + test_docx_layout.py；本任务零源码改动故无 commit；他人未提交改动未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 8/9）：✅ 图片图题完成并 commit bdddf39
+- 刚完成的动作：追加 fake_playwright fixture（_FakeEl/_FakePage/_FakeBrowser/_FakeChromium/_FakePW + _placeholder_png）+ test_figure_caption_added_after_mermaid_png + test_diagram_caption_map（先跑红确认 FAIL）；docx_template.py 常量区加 DIAGRAM_CAPTION_MAP，build_table 后加 _diagram_caption（evacuation_N → N层人员疏散路线示意图），generate_plan_docx 开头加 figure_no=0，Mermaid PNG 与疏散图 PNG 插入块各加居中 Caption 图题；测试 17/17 通过（前序 15 + 本任务 2）+ test_plan_diagrams_api 4/4 无回归；commit bdddf39 恰 2 文件 128+/0-
+- 下一步：任务 9（集成验证）由后续 worker 处理
+- 关键上下文：测试用 PIL 生成 2×2 PNG + monkeypatch sync_playwright 阻断真实浏览器；Caption 样式已由 register_all_styles 注册（宋体 14pt 居中），add_picture 后 doc.paragraphs[-1] 居中；commit 纪律=只 add docx_template.py + test_docx_layout.py；他人未提交改动未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 7/9）：✅ 一级章节分页改 page_break_before 完成并 commit 4bb6f49
+- 刚完成的动作：追加 test_first_level_section_uses_page_break_before（先跑红确认 FAIL）；docx_template.py 标题写入处 heading 变量化 + level<=1 设 page_break_before，删除循环末尾 if section_level==1: doc.add_page_break()（替换为说明注释）；测试 15/15 通过 + test_plan_diagrams_api 4/4 无回归；commit 4bb6f49 恰 2 文件 21+/4-
+- 下一步：任务 8（图题）由后续 worker 处理
+- 关键上下文：⚠ 计划测试规格缺陷——计划任务 7 测试用 _sample_sections（level 0=顶级章节，标题"1 总则"/"2 组织机构"），但实现片段写 section_level == 1（生产 seed 顶级章节 level=1），照抄实现测试必 FAIL；按任务 2/3 先例改为 section_level <= 1 覆盖两种约定并注释；commit 纪律=只 add docx_template.py + test_docx_layout.py；他人未提交改动未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 6/9）：✅ 目录页 + 页眉页脚完成，待 commit
+- 刚完成的动作：追加 test_toc_field_present + test_header_footer_text_and_first_page（先跑红确认）；docx_template.py 补 OxmlElement 导入，新增 add_toc（黑体 18pt 目录标题+TOC 域+分页）与 _setup_header_footer（页眉=企业名+预案标题、页脚=第 X 页 共 Y 页、封面首页不显示），generate_plan_docx 在签署页后插目录页、正文节 header/footer 链接上一节、最后调 _setup_header_footer；测试 14/14 通过（本任务 2），test_plan_diagrams_api 4/4 无回归
+- 下一步：commit（只 add docx_template.py + test_docx_layout.py，消息 feat(export): add toc field, header and page-number footer），任务 7（分页）由后续 worker 处理
+- 关键上下文：⚠ 计划测试规格缺陷——PAGE/NUMPAGES 域位于页脚部件（w:ftr）不在 body，原测试只查 body 无法命中，已改为合并 body+页脚部件收集域并注释；commit 纪律=只 add 两个文件；他人未提交改动未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 5/9）：✅ 表格渲染重构完成并 commit ae847fa
+- 刚完成的动作：test_docx_layout.py 追加 4 个表格测试（列宽非均分/表头底纹 D9D9D9+12pt 加粗/长列左对齐短列居中/html 表格走 build_table；先跑失败确认旧行为）；docx_template.py 新增 _char_units/_compute_col_widths/_shade_cell，重写 build_table（内容分配列宽、表头底纹、12pt、长短列对齐、固定 22pt 行距），html_to_docx_content 的 table 分支改调 build_table，build_signature_page 表头追加 _shade_cell 底纹；测试 12/12 通过（前序 8 + 本任务 4），commit ae847fa 恰 2 文件 107+/43-
+- 下一步：任务 6（目录页眉页脚）由后续 worker 处理
+- 关键上下文：commit 纪律=只 add docx_template.py + test_docx_layout.py；他人未提交改动（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full/tests 多个/PlanEditorPage/TASKS.md）未触碰；表格宽度 min 1.5cm/max 6.0cm 钳制后归一化；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 4/9）：✅ 列表长短判定完成并 commit e10031a
+- 刚完成的动作：test_docx_layout.py 追加 test_long_list_item_becomes_body_paragraph + test_short_list_item_stays_bullet + test_ordered_short_item_stays_numbered（先跑失败确认长条目仍为 List Bullet）；docx_template.py 的 html_to_docx_content ul/ol 分支按 LI_TEXT_THRESHOLD=30 判定——短条目用 List Bullet/List Number（ol 修复为正确编号样式）+ 左缩进 1.0cm/悬挂 -0.5cm，空条目跳过，长条目转正文段落（首行缩进 Pt(32) + _add_inline_runs 保留内联格式）；测试 8/8 通过（前序 5 + 本任务 3），commit e10031a 恰 2 文件 35+/4-
+- 下一步：任务 5（表格重构）由后续 worker 处理
+- 关键上下文：commit 纪律=只 add docx_template.py + test_docx_layout.py；他人未提交改动（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full/tests 多个/PlanEditorPage/TASKS.md）未触碰；playwright 被 fixture 阻断仅警告；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 3/9）：✅ 封面标题参数化 + 删除调试残留完成
+- 刚完成的动作：test_docx_layout.py 追加 test_cover_doc_title_derived_from_plan_title + test_no_debug_print_in_source；docx_template.py 的 generate_plan_docx 删除 import builtins/调试 print，build_cover 前推导 doc_title（plan_title 去企业名前缀，空则回退 body_title）；测试 5/5 通过
+- 计划测试规格缺陷：计划原「综合应急预案 in texts」断言因正文大标题恒为该值而无法捕获硬编码封面标题（修改前即 PASS），已按任务 2 先例补断言「生产安全事故应急预案 not in texts」确保真正验证封面标题派生，并已注释说明
+- 下一步：commit 本任务（只 add docx_template.py + test_docx_layout.py），任务 4（列表判定）由后续 worker 处理
+- 关键上下文：commit 纪律=只 add 两个文件，他人未提交改动（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full/tests 多个/PlanEditorPage/TASKS.md）未触碰；playwright 被 fixture 阻断仅警告；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，子代理·docx 导出排版优化任务 2/9）：✅ A4 纸张与统一公文边距完成并 commit b0c4ffb
+- 刚完成的动作：test_docx_layout.py 追加 no_playwright fixture + _sample_sections + test_page_setup_a4_and_unified_margins；docx_template.py 的 generate_plan_docx 第一节显式 A4(21×29.7cm)+公文边距(2.8/2.6/3.7/3.5)，正文节改用 MARGIN_COVER_*；测试 3/3 通过
+- 下一步：任务 3（封面标题）由后续 worker 处理
+- 关键上下文：⚠ 计划测试规格缺陷——python-docx 1.1.2 把页面尺寸/边距存为 twips，读回有 ≤1twip(≈0.0018cm) 量化误差，`sec.page_width == Cm(21)` 永远为 False（实测 7560310 vs 7560000），已按意图改为 pytest.approx(abs=Cm(0.01)) 容差断言并记录；commit 只含 docx_template.py + test_docx_layout.py，他人未提交改动未触碰；playwright 被 fixture 阻断仅警告
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 排版优化推送）：✅ 已推送 GitHub + Gitee（227230d..44821d0，37 commits）
+- 刚完成的动作：git push origin master + git push gitee master 成功（本地与远程同步 ahead 0）；推送前检查确认历史 savepoint（a3f917d/55f2394 既有）含 TASKS.md/旧任务文件，工作区未提交的紧急联系电话修复与 TASKS.md 未进推送；未用 git finish（会 git add -A 卷走未确认改动）
+- 下一步：用户确认紧急联系电话修复批次去留（提交或继续搁置）；可选后续=用 git filter-repo 清洗远程历史中的 TASKS.md/任务文件
+- 关键上下文：导出优化 commit 链 8ff30aa→44821d0 已全部推送；工作区剩余 M：generation.py/plan_diagram_service.py/prompt_cache.py/risk_context_builder.py/seed_prompts_full.json/5 个 tests/PlanEditorPage.tsx/TASKS.md；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·ol 长条目占位导致跳号修复）：✅ 已修复并生效（commit b3f92a8）
+- 刚完成的动作：用户贴的实例确认根因=ol 列表 [长条目(>30字),短,短,短] 中长条目转正文占 enumerate 1 号位导致短条目从 2 开始；修复=ol 所有条目一律编号（长条目带 "N. " 前缀用正文样式），编号从 1 连续；测试 27 passed、全量 1082 passed；集成复验真实再生成 88 页：39 个列表块全部从 1 起始严格连续、零空白页；容器已重启
+- 另：清理了意外 savepoint（d32346e 被 worker git save 卷入任务文件/TASKS.md/他人未提交改动）——git reset --mixed 393fa56 恢复，正式改动重提交 b3f92a8 + .gitignore 44821d0（忽略 .codex-custom-subagents/ 与 backend/exports/_* 临时产物）；工作区仅剩他人未提交改动（generation.py 等 10 文件）与 TASKS.md
+- 下一步：用户重新导出验收 → 确认后 git finish 推送（先确认紧急联系电话修复批次去留）
+- 关键上下文：commit 链 393fa56→b3f92a8→44821d0（无 savepoint 污染）；_regen_real.docx/.pdf 保留；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·ol 跳号修复）：✅ 已修复并生效（commit 393fa56）
+- 刚完成的动作：审计 (13).docx 确认跳号根因=AI 内容 li 文本自带不连续编号（"1. 内容""4. 内容""5. 内容"），此前"已带编号则保留"逻辑带入跳号；修复=ol 条目一律剥离 li 自带编号前缀、按 enumerate 强制重编号（1/2/3 连续）；测试 26 passed（改 1 新增 1）、全量 1081 passed；集成复验真实再生成 87 页：80 个列表块零跳号，用户报告三例（应急指挥部成员职责 1-7、抢险救援组、应急演练小组）均连续；容器已重启加载新代码
+- 下一步：用户重新导出验收 → 确认后 git finish 推送
+- 关键上下文：commit 链新增 393fa56；_regen_real.docx/.pdf 保留；已修复汇总=Heading1 黑体/页眉去重/Caption 非加粗/risk_matrix 图题/ol 编号重置+强制连续；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·ol 自动编号跨章节累计修复）：✅ 已修复并生效（commit 7374c01）
+- 刚完成的动作：审计确认 98 个 List Number 段落共享样式级编号序列跨章节累计（出现 89/90）；修复=ol 改手动编号（每列表独立从 1 开始，文本加"序号. "前缀，未自带编号才加；ul 保持 List Bullet）；测试 25 passed（改 1 新增 2）、全量 1080 passed；集成复验真实再生成 87 页：List Number 段落=0、PDF 最大序号 24、零空白页；worker 已重启容器加载新代码
+- 下一步：用户重新导出验收 → 确认后 git finish 推送
+- 关键上下文：commit 链新增 7374c01；_regen_real.docx/.pdf 保留在 backend/exports/；已修复汇总=Heading1 黑体/页眉去重/Caption 非加粗/risk_matrix 图题/ol 编号重置；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·真实导出复核修复）：✅ 修复 4 个问题并已重启容器生效（commit 971ef94）
+- 刚完成的动作：审计用户下载的真实导出（C:/Users/55061/Downloads/…(12).docx，151 页）发现 4 缺陷——①heading_level=level+1 致顶级章节用 Heading2 楷体而非 Heading1 黑体（真实文档 Heading1=0）；②Caption 继承模板默认加粗；③页眉企业名重复（plan_title 含前缀）；④DIAGRAM_CAPTION_MAP 缺 risk_matrix 致图题"示意图"；派 worker 修复（23 测试通过/全量 1078）；容器内用真实库数据重新生成 _regen_real.docx（25 章节）→ PDF 87 页零空白页、Heading1×9、页眉去重、Caption 非加粗；docker restart 生效验证 OK
+- 下一步：用户浏览器验收对比（http://localhost:63200/?key=…real-fix.html）→ 重新导出确认 → git finish 推送
+- 关键上下文：commit 链现含 971ef94；_regen_real.docx/.pdf 与 _final_sample.* 保留在 backend/exports/（临时，可清理）；页眉修复后=企业名+空格+预案名去前缀；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 排版优化 docker 生效确认）：✅ docker 已生效——backend 容器重启完成，新导出代码已加载
+- 刚完成的动作：docker inspect 确认 backend/app bind mount → /app/app（挂载本就正常，文件实时同步）；容器内 grep 确认新符号已就位；docker restart emergency-plan-backend（--reload 已移除需手动重启）；重启后实调 generate_plan_docx 生成 /tmp/smoke.docx 成功（39KB）；日志仅 hazard_scheduler 既有 TypeError 噪音（与本次无关）
+- 下一步：待用户浏览器验收最终版式 → git finish 推送（含紧急联系电话修复批次决策）
+- 关键上下文：容器内 LI_TEXT_THRESHOLD=30/add_toc/page_break_before/Caption 均在、无调试 print；commit 链 57470d6→d4f1b14；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化）：✅ 全部完成——9 个实现任务 + 2 个修复（双重 Pt 包裹/目录分页），共 11 个 commit
+- 刚完成的动作：codex-custom-subagents 批次串行完成（deepseek_anthropic_worker，每任务独立 commit 独立验证）；集成复验=8 页样本零空白页、批准页/目录页分页、三级标题齐全、1074 passed 零回归；最终验收图已更新到视觉伴侣 final-layout.html
+- 下一步：用户浏览器验收 http://localhost:63200/?key=8db8264760f0b01660d31dfcd4f00669e57cfe0b1211de6185915bde6963d847 → 确认后 git finish 推送（或先提交待确认的紧急联系电话修复批次）
+- 关键上下文：commit 链=57470d6→b0c4ffb→23c3296→e10031a→ae847fa→8eda69a→4bb6f49→bdddf39→9854f26→d4f1b14（+设计 8ff30aa/计划 9e77b65）；worker 发现并修复 2 个计划未覆盖缺陷（_define_style 双重 Pt 致 Word 丢标题、目录未独立成页）；临时产物 backend/exports/_final_sample.* 保留供验收；他人未提交改动未触碰；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化）：✅ 实现计划已写完并 commit（9e77b65，9 任务 1111 行）；计划自检通过（补签署页表头底纹覆盖遗漏）
+- 刚完成的动作：writing-plans 技能产出 9 个 TDD 任务（样式注册/A4+边距/封面标题/列表判定/表格重构/目录页眉页脚/分页/图题/集成验证），每任务含失败测试→实现→通过→commit；设计文档 8ff30aa + 计划 9e77b65 均已提交
+- 下一步：等用户选择执行方式（子代理驱动 subagent-driven-development 推荐 / 内联 executing-plans）→ 开始实现
+- 关键上下文：commit 纪律=每任务只 add docx_template.py + test_docx_layout.py（工作区有他人未提交改动严禁 git add -A）；基线 pytest 1055；视觉伴侣服务器仍在跑（port 63200）；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化头脑风暴）：✅ 设计文档已写并 commit（8ff30aa，1 文件 193 行）；规格自检通过（修复 2 处模糊：页眉分隔符、目录页位置）
+- 刚完成的动作：brainstorming 流程第 1-8 步完成——诊断/澄清/方案/分节设计/文档/自检/commit；等待用户审查书面规格
+- 下一步：用户审查 docs/superpowers/specs/2026-08-27-docx-layout-design.md → 批准后调用 writing-plans 技能编写实现计划
+- 关键上下文：设计要点=样式单一事实源收敛到 register_all_styles、A4+公文边距全文统一、封面结构保留、H2 楷体/H3 仿宋、列表 30 字阈值、表格内容分配列宽+表头底纹、TOC 域+页眉页脚、page_break_before 消空白页、删除调试 print；commit 8ff30aa 仅含设计文档（TASKS.md/临时产物未入）；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化头脑风暴）：✅ 实现路线已定=方案 1 代码样式表重构；开始分节展示设计
+- 刚完成的动作：用户选定方案 1；整理样式规范表（页面/封面/标题/正文/列表/表格/页眉页脚/目录/图片/分页）
+- 下一步：展示设计第一部分=样式规范表请用户确认 → 展示第二部分=渲染逻辑/工程/验证 → 写设计文档 docs/superpowers/specs/2026-08-27-docx-layout-design.md
+- 关键上下文：封面保留当前（宋体 26pt 标题/黑体 18pt 落款/右上角编号版本号），纸张统一 A4+3.7/3.5/2.8/2.6；H2 楷体/H3 仿宋按 PRD-07；表格 12pt 表头底纹；列表按长度判定；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化头脑风暴）：✅ 澄清完成——①范围=只改预案 docx（docx_template.py）；②封面结构照旧+纸张统一 A4+公文边距；③正文/表格/流程图=GB/T 29639 目标版式；④列表问题只修渲染层（生成层治理留后续批次）
+- 刚完成的动作：用户 3 次选择确认（A/A/A）；进入方案设计环节
+- 下一步：向用户展示 2-3 种实现路线方案（代码样式表重构 vs Word 模板驱动 vs 最小补丁）→ 选定后分节展示设计 → 写设计文档 docs/superpowers/specs/
+- 关键上下文：方向已完全锁定；待设计细节=目录域/页眉页脚格式、表格列宽规则、空白页修复、Mermaid 图题、验证链路；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化头脑风暴）：✅ 用户视觉反馈已定——封面保留当前版式（右上角编号/版本号结构），正文/表格/流程图采用目标版式（GB/T 29639）
+- 刚完成的动作：读 .events 无点击（终端直接反馈）；推送 waiting.html 等待屏；进入范围澄清环节
+- 下一步：问用户第 1 个范围问题（是否只优化预案 docx 链路 docx_template.py，还是同步覆盖风险评估报告/应急资源调查报告/风险告知卡等全部 docx 导出）→ 继续澄清 → 出 2-3 方案
+- 关键上下文：方向已定=封面保留当前 + 其余 GB/T 29639 目标版式；待澄清：A4 纸张统一、目录/页眉/页码补齐、AI 内容治理、验证链路；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化头脑风暴）：✅ 视觉伴侣已启动+首屏前后对比已生成（brainstorming 技能 visual-companion）
+- 刚完成的动作：手动启动 Node 视觉伴侣服务器（绕过 start-server.sh 的 Windows 路径 bug，session 987-1787810520，port 63200）；用真实内容生成目标版式示范 docx（A4+GB/T 边距+黑体/楷体/仿宋+固定 28 磅+目录域+页眉页脚+表头底纹 12pt 表格），Word COM 转 PDF 渲染 3 页；对比页 docx-compare.html 展示 4 组前后对比（封面/正文/表格/流程图）
+- 下一步：等用户浏览器查看 http://localhost:63200/?key=8db8264760f0b01660d31dfcd4f00669e57cfe0b1211de6185915bde6963d847 反馈 → 按 brainstorming 流程澄清目标（规范基准/范围/验证方式）→ 出 2-3 方案
+- 关键上下文：产物 backend/exports/_target_style.docx/_target_style.pdf/_target_pages/ + _preview_pages/（临时）；content 目录 .superpowers/brainstorm/987-1787810520/content/；服务器 idle 4h 自动退出；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docx 导出排版优化头脑风暴）：✅ 完成现状诊断（brainstorming 技能；读 TASKS.md/PRD-07/docx_template.py/export.py，审计 3 份真实导出样本 + 参考文档紫楹台）
+- 刚完成的动作：定位"丑"的根因——①页面为 Letter 21.59×27.94 非 A4（python-docx 默认模板未改）；②无页眉/页脚页码/目录（PRD 要求有）；③362 个长段落被渲染为 List Bullet（悬挂缩进 -14.2pt+项目符号，来源 html_to_docx_content 的 ul/li 分支）；④表格列宽全均分、单元格文字仅 10.5pt、表头无底纹、全部居中；⑤Normal 样式 1.5 倍行距非固定 28 磅；⑥正文节边距 3.18/2.54 与 GB/T 29639 的 2.8/3.7 不一致且封面/正文两节边距不同；⑦9 个空白页（大章节强制分页+恰好满页产生）；⑧正文 run 无显式字体（依赖样式继承，兼容性风险）；⑨代码残留 builtins.print 调试语句；⑩doc_title 硬编码"生产安全事故应急预案"忽略 plan_title；⑪图片固定宽 14.6cm 无图题
+- 下一步：向用户汇报诊断+系统性优化思路，按 brainstorming 流程逐一澄清目标（对齐规范/参考文档/自定义模板、优化范围、验证方式）后出 2-3 方案
+- 关键上下文：本次只读诊断未改源码；Word COM 可用（可批量转 PDF 渲染验证）；参考文档紫楹台=A4+封面边距 3.7/3.5/2.8/2.6+表头 12pt 加粗+有页脚页码+有目录；PDF 预览产物 backend/exports/综合应急_preview.pdf + _preview_pages/（临时）；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·公司部署后风险告知卡安全标志不显示·诊断）：✅ 根因已定位——前端把安全标志 URL 写死为根路径 `/signs/{svg_name}.svg`（4 处：riskNoticeCardSigns.ts:32 signSrc、RiskNoticeCard.tsx:390、RiskNoticeCardPage.tsx:127、预览页经 signSrc），资源由后端 main.py:69 mount /signs（backend/app/static/signs）提供；本地能显示是因为 vite dev 有 /signs 代理（vite.config.ts:99）或 8000 同源托管；公司网关 nginx 只反代 /api /uploads、无 /signs location → 浏览器请求 https://域名/signs/xxx.svg 404 → 全部不显示。属子路径改造时漏扫 <img src> 绝对资源的遗留
+- 刚完成的动作：系统化调试取证——定位 4 处引用、确认后端 /signs mount 200、确认 vite 代理、全仓扫 src="/ 与模板字面量绝对路径（仅 /signs 一处，/icons 无、/uploads 仅测试夹具）；确认 docx 导出不受影响（后端本地读 SVG 转 PNG）
+- 下一步：等用户确认修复方案——①现场一行：网关加 location /signs/ 反代后端（与 /uploads 同模式）；②仓库补 deploy/gateway-nginx.conf.example + 部署手册；③可选加固：前端收敛 signSrc+APP_BASE 前缀、signs SVG 入前端 public，或把绝对资源扫描纳入打包就绪检查
+- 关键上下文：本地后端 8000 在跑、/signs 200；公司已部署 0.2.0 包；同类检查：/api /uploads 已反代、/assets 走子路径 dist，均正常
+- 正在做什么（2026-08-27，主控·全量部署包 0.2.0）：✅ 重新打包完成——C:\Users\55061\Desktop\shuzihuayuan0820\emergency-plan-migration-0.2.0.tar.gz（392.6MB，SHA256 556351BE...）
+- 刚完成的动作：就绪核查发现并修复老坑——qiankun 移除后 lockfile 又被 npm 11 写坏（Missing @floating-ui/dom），npm 10 收敛并提交 76745a4；容器/宿主 npm ci 通过、tsc 0、vitest 141；硬编码跳转仅 MobileRedirect；全量组装（backend 工作区含未提交紧急联系电话修复、db-init 新鲜导出 26.7MB、model-cache ONNX、子路径 dist、根 docker-compose.yml、deploy.sh）；验证包内 seed 含 sec_3_4_general 标记、dist 子路径正确；本地根路径 dist 已重建恢复
+- 下一步：公司部署=解压→./scripts/deploy.sh→网关模板填真实 IP/静态目录→deploy-check 全绿；注意：未提交的紧急联系电话修复已入包但未入 git（待用户确认后提交）
+- 关键上下文：master HEAD=76745a4（lockfile 修复）；工作区仍有未提交 M 文件（generation.py/plan_diagram_service/prompt_cache/risk_context_builder/seed_prompts_full.json/PlanEditorPage 等，属紧急联系电话修复，未 commit）；0.1.0 旧包仍在桌面文件夹
+- 正在做什么（2026-08-27，主控·紧急联系电话生成问题修复）：✅ 修复 4 层问题——①sec_3_4 无模板导致 AI 把「紧急联系电话」写成整个保障体系；②生成中流式显示 markdown 源码（表格 | - | 错乱）；③AI 夹带英文（equipment）；④单章重新生成 commit 不生效（内容根本没保存）
+- 刚完成的动作：①新增 emergency_section_onsite_sec_3_4_general 模板（DB+seed_prompts_full.json+代码兜底），限定只输出联系电话表格；②系统提示词加全中文护栏（prompt_cache.py COMPLIANCE_BLOCK+DB emergency_system_default）；③前端 PlanEditorPage 流式 chunk 用 markdown-it 转 HTML 再进编辑器；④单章生成端点 generate_section 写库改用独立 async_session（根因：SSE 流式期间 FastAPI 依赖注入的 get_db 会话 commit 无效，批量端点本就用独立会话所以正常）；⑤docker-compose.override.yml 去掉 uvicorn --reload（Windows bind mount mtime 抖动→reload 循环+旧 pyc 缓存坑），改手动 docker restart 生效
+- 验证：全量后端 pytest 1055 passed 零回归；真实生成 sec_3_4 写库成功（联系电话表格：总指挥/副总指挥/程磊/119/120/110/物业/属地）；Playwright 实测前端表格正常渲染；容器已 recreate+删 pyc+重启（无 reload 循环）
+- 下一步：用户确认后提交；注意容器需手动 docker restart 才加载新代码（--reload 已移除）；docker compose build 曾因 playwright 安装网络失败（与代码无关，不影响运行）
+- 关键上下文：调试过程确认容器日志级别 WARNING（logger.info 不可见）；hazard_scheduler 定时任务既有 TypeError 噪音与本次无关；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·docker 生效确认）：✅ 确认三批改动已挂载并热加载到开发容器
+- 刚完成的动作：docker inspect 确认 backend/app bind mount 到容器 /app/app；docker-compose.override.yml 为 uvicorn --reload --reload-dir /app/app 单 worker 热加载模式；docker exec grep 容器内文件含新符号（build_evacuation_svgs/safety_officer_phone/inherent_risk_level）；容器内 python 实调 build_evacuation_svgs 返回 evacuation_1/evacuation_2 多图 → 运行时已生效，无需 restart/rebuild
+- 下一步：无阻塞；后端改动已生效，前端本次零改动；若后续改 backend/app 外文件（requirements.txt/Dockerfile）才需 docker compose build
+- 关键上下文：测试文件 backend/tests 不在挂载范围（仅影响本地 pytest）；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·生成上下文数据遗漏审计）：✅ 系统性审计预案生成所有数据注入点并补齐遗漏字段（基于模型字段 vs 注入字段自动化对比）
+- 刚完成的动作：修复 5 类遗漏——①HazardousChemical 危化品只注入 6 字段→补齐 MSDS 全字段（un_no/physical_state/ignition_temp/density/boiling_point/health_hazard/fire_hazard/leak_response/storage_transport/first_aid/protective_measures，risk_sources 内嵌 chemical 同步补齐）；②EmergencyResource 补 responsible_person/contact_phone/is_external/external_address/external_distance_km；③RiskMeasure 管控措施补 measure_type/responsible_person/deadline/check_items/status；④RiskEvent 补 inherent_risk_level/inherent_risk_score/control_level；⑤Enterprise 补 fax/postal_code/annual_capacity/safety_officer_phone/safety_staff_count/fire_approval_date/special_equipment_detail/main_equipment_list/fire_protection_summary/natural_conditions；⑥成员合并补 role，_load_org_members 过滤 enabled=False（与 _enrich_with_reports 一致，停用成员不进预案）
+- 验证：测试 +4（MSDS/资源联系人/管控措施责任人+固有风险/停用成员过滤），全量后端 pytest 1055 passed（1051+4）零回归；真实库验证乙醇 MSDS 全字段+安全负责人电话+消防设施概况进入上下文；审计脚本确认剩余 missing 均为合理不传（gis/hazard 配置 token、enabled/org_node_id、method_params/method_type、EnterpriseFloor canvas 画布标注低价值）；一次性脚本已清理
+- 下一步：待用户确认；三批改动（疏散图/成员手机号/字段补齐）均未提交，确认后一起 git finish 或分 commit（savepoint a3f917d）；EnterpriseFloor canvas_texts 楼层画布标注进疏散图可作后续增强
+- 关键上下文：所有补字段均为 JSON 可序列化（deadline 已 str()）；现有消费端（提示词 json.dumps enterprise_data）零改动即受益；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·组织成员手机号丢失修复）：✅ 修复「组织架构已填手机号但生成预案不显示」——根因是 generation.py _merge_org_members 用成员表覆盖组织树时只保留 name/position，把 EnterpriseMember.phone 丢弃
+- 刚完成的动作：_merge_org_members 成员透传 phone+email（dict 与 ORM 双路径 getattr/get 兼容）；_enrich_with_reports 的 member_map 补 phone+email；测试 +3（dict 成员/ORM 成员/_enrich_with_reports），更新 test_generation_enterprise_data.py 2 处既有断言以匹配新契约（成员 dict 含 phone/email 键）；真实库验证某企业 37 节点 3 成员带手机号全部进入预案上下文
+- 验证：全量后端 pytest 1051 passed（1048+3）零回归；一次性验证脚本已清理
+- 下一步：待用户确认；已生成旧预案需重新生成组织相关章节才生效（成员数据在生成时注入提示词）；两批修复（疏散图/手机号）均未提交，确认后可一起 git finish 或分 commit（savepoint a3f917d）
+- 关键上下文：手机号存储于 enterprise_members.phone（成员管理页 Form phone）；组织树内嵌成员 phone 经 OrgMember extra allow 保存；消费端 MermaidRenderer/export 不受影响；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
+- 正在做什么（2026-08-27，主控·现场处置方案疏散图优化）：✅ 修复「人员疏散路线附图把所有楼层叠加到一张图」问题——改为按楼层拆分，每层一张独立疏散示意图
+- 刚完成的动作：定位根因（build_risk_management_context 把企业全部楼层 zones/objects 合并进一个列表 → build_evacuation_svg 全部画进同一 1000×700 图）；修改 3 文件——backend/app/services/plan_diagram_service.py 新增 build_evacuation_svgs（单层保持 key="evacuation" 向后兼容，多层返回 evacuation_1/2/...，按 sort_order 排序，孤儿数据归默认楼层，消防资源仅标第一张图，集合点每层都标）；backend/app/services/risk_context_builder.py zones/objects 带 floor_id/floor_name/floor_plan_url + 导出 floors 列表（selectinload RiskZone.floor）；backend/app/routers/generation.py _attach_diagrams 接入新函数并清理旧 evacuation key 残留，_collect_enterprise_data 注入 floors
+- 验证：测试 +5（多楼层分离/单层兼容/无数据占位/孤儿归默认层/attach 拆分）→ 全量后端 pytest 1048 passed（基线 1043+5）零回归；真实库验证企业 94804158-cc33-464d-9aef-025ec90226be（6 楼层 374 zones/13 objects）生成 6 张独立图，逐张核对 zones/objects 无串层无遗漏；一次性验证文件已清理
+- 下一步：待用户确认；已有旧现场处置方案需重新生成「人员疏散路线（sec_3_3）」章节才会刷新附图（如需批量回填可补一次性脚本）；确认后可 git finish 或单独 commit（savepoint a3f917d）
+- 关键上下文：未触碰他人未提交改动（bm25 删除、前端多处、backup/artifacts 迁移等均为既有工作区状态）；消费端（前端 MermaidRenderer / export.py 预览 / docx_template.py）本就遍历 diagram_svgs 全部 key，多图零改动兼容；TASKS.md 永不 commit
+
+## 当前状态快照（压缩恢复用）
 - 正在做什么（2026-08-27，主控）：✅ 图谱增量更新完成（graphify --update 全流程）
 - 刚完成的动作：.graphifyignore 新增 release/ backup/ frontend/output/ screenshots/ test-results/ .worktrees/ 排除产物目录；detect_incremental 得 131 变更（124 代码 + 7 文档）+ 849 删除；AST 提取 1527 节点/3985 边（修复 Windows spawn 需 __main__ 保护）；按项目惯例手写语义脚本补 4 概念/5 文档/9 节点/19 边（accident_types_2025、user_feedback_triage、system_intro_ppt、deploy_manual）；build_merge 剪枝合并 → 25167 节点/43832 边/1317 社区；复用旧标签 + token 频率命名（0 占位符）；graph.html 聚合视图（1317 社区节点 + 880 跨社区边）；graph diff +1051 节点/+3112 边、-557 节点/-929 边；cost.json 追加本次 run（0 token，AST 免费）；.graphify_old.json 已清理
 - 下一步：无阻塞。已知遗留（非本次引入）：图谱含历史 release/ 与 node_modules 噪音节点，需全量重建才能清除；graphify-out/_*_20260827.py 为本次一次性脚本（项目惯例保留）

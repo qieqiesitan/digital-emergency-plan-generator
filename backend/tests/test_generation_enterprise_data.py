@@ -134,7 +134,7 @@ def test_collect_enterprise_data_uses_member_table_to_override_org_members():
     data = _collect_enterprise_data(ent, {"risk_sources": []}, [], org_members=org_members)
     nodes = {n["id"]: n for n in data["org_structure"]}
     assert nodes["preset-headquarters-0"]["members"] == [
-        {"name": "刘昕野", "position": "总经理"}
+        {"name": "刘昕野", "position": "总经理", "phone": None, "email": None, "role": None}
     ]
     # 无成员表关联的节点：内嵌旧名（李四）必须被清空，而不是带入预案
     assert nodes["node-6"]["members"] == []
@@ -155,6 +155,145 @@ def test_collect_enterprise_data_accepts_orm_member_objects():
     m.name = "程磊"
     m.position = "项目经理"
     m.org_node_id = "node-6"
+    m.phone = "13800138000"
+    m.email = None
+    m.role = "team_leader"
     data = _collect_enterprise_data(ent, {"risk_sources": []}, [], org_members=[m])
     nodes = {n["id"]: n for n in data["org_structure"]}
-    assert nodes["node-6"]["members"] == [{"name": "程磊", "position": "项目经理"}]
+    assert nodes["node-6"]["members"] == [
+        {"name": "程磊", "position": "项目经理", "phone": "13800138000", "email": None, "role": "team_leader"}
+    ]
+
+
+def test_collect_enterprise_data_includes_chemical_msds_fields():
+    ent = MagicMock()
+    ent.name = "测试企业"
+    ent.address = ""
+    ent.industry = ""
+    ent.business_scope = ""
+    ent.employee_count = None
+    ent.building_overview = ""
+    ent.org_structure = []
+    ent.surrounding_info = {}
+    ent.legal_representative = ""
+    ent.credit_code = ""
+    ent.economic_type = ""
+    ent.established_date = None
+    ent.registered_capital = None
+    ent.phone = ""
+    ent.fax = ""
+    ent.postal_code = ""
+    ent.land_area = None
+    ent.building_area = None
+    ent.annual_capacity = ""
+    ent.safety_officer = ""
+    ent.safety_officer_phone = ""
+    ent.safety_staff_count = None
+    ent.safety_standardization = ""
+    ent.fire_approval = ""
+    ent.fire_approval_date = None
+    ent.main_products = ""
+    ent.hazardous_chemicals = ""
+    ent.special_equipment = ""
+    ent.special_equipment_detail = ""
+    ent.main_equipment_list = ""
+    ent.fire_protection_summary = ""
+    ent.natural_conditions = ""
+    ent.floor_plan_url = None
+    ent.risk_method_config = {}
+    ent.last_plan_filing_date = None
+    ent.last_plan_filing_authority = ""
+
+    chem = MagicMock()
+    chem.name = "液氨"
+    chem.cas_no = "7664-41-7"
+    chem.un_no = "1005"
+    chem.physical_state = "气体"
+    chem.flash_point = "不易燃"
+    chem.explosion_limit = "15-28%"
+    chem.ignition_temp = "651°C"
+    chem.density = "0.68"
+    chem.boiling_point = "-33°C"
+    chem.health_hazard = "吸入有毒"
+    chem.fire_hazard = "遇火爆炸"
+    chem.leak_response = "喷水稀释"
+    chem.storage_transport = "阴凉通风"
+    chem.first_aid = "立即脱离现场"
+    chem.protective_measures = "佩戴防毒面具"
+    chem.location = "氨罐区"
+    chem.max_storage = "20吨"
+
+    data = _collect_enterprise_data(
+        ent, {"risk_sources": [], "risk_events": [], "zones": [], "risk_objects": [], "floors": []},
+        [], chemicals={"c1": chem},
+    )
+    c = data["chemicals"][0]
+    assert c["health_hazard"] == "吸入有毒"
+    assert c["first_aid"] == "立即脱离现场"
+    assert c["leak_response"] == "喷水稀释"
+    assert c["un_no"] == "1005"
+    assert c["protective_measures"] == "佩戴防毒面具"
+
+
+def test_collect_enterprise_data_includes_resource_contact_and_extended_fields():
+    ent = MagicMock()
+    ent.name = "测试企业"
+    ent.address = ""
+    ent.industry = ""
+    ent.business_scope = ""
+    ent.employee_count = None
+    ent.building_overview = ""
+    ent.org_structure = []
+    ent.surrounding_info = {}
+    ent.legal_representative = ""
+    ent.credit_code = ""
+    ent.economic_type = ""
+    ent.established_date = None
+    ent.registered_capital = None
+    ent.phone = ""
+    ent.fax = ""
+    ent.postal_code = ""
+    ent.land_area = None
+    ent.building_area = None
+    ent.annual_capacity = ""
+    ent.safety_officer = ""
+    ent.safety_officer_phone = "13800138000"
+    ent.safety_staff_count = 5
+    ent.safety_standardization = ""
+    ent.fire_approval = ""
+    ent.fire_approval_date = None
+    ent.main_products = ""
+    ent.hazardous_chemicals = ""
+    ent.special_equipment = ""
+    ent.special_equipment_detail = "锅炉2台"
+    ent.main_equipment_list = "反应釜"
+    ent.fire_protection_summary = "室内消火栓"
+    ent.natural_conditions = "平原"
+    ent.floor_plan_url = None
+    ent.risk_method_config = {}
+    ent.last_plan_filing_date = None
+    ent.last_plan_filing_authority = ""
+
+    res = MagicMock()
+    res.category = "消防"
+    res.name = "灭火器"
+    res.specification = "MFZ/ABC4"
+    res.quantity = 10
+    res.unit = "具"
+    res.location = "东墙"
+    res.responsible_person = "张工"
+    res.contact_phone = "13900139000"
+    res.is_external = False
+    res.external_address = None
+    res.external_distance_km = None
+
+    data = _collect_enterprise_data(
+        ent, {"risk_sources": [], "risk_events": [], "zones": [], "risk_objects": [], "floors": []},
+        [res],
+    )
+    assert data["emergency_resources"][0]["responsible_person"] == "张工"
+    assert data["emergency_resources"][0]["contact_phone"] == "13900139000"
+    assert data["safety_officer_phone"] == "13800138000"
+    assert data["safety_staff_count"] == 5
+    assert data["special_equipment_detail"] == "锅炉2台"
+    assert data["fire_protection_summary"] == "室内消火栓"

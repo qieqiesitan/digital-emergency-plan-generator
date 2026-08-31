@@ -16,9 +16,19 @@ import RichTextEditor from "@/components/plan/RichTextEditor";
 import AIGenerateButton from "@/components/plan/AIGenerateButton";
 import { StylePanel, DEFAULT_STYLE } from "@/components/plan/StylePanel";
 import { AdvancedStylePanel } from "@/components/plan/AdvancedStylePanel";
+import MarkdownIt from "markdown-it";
 import type { StylePreference } from "@/components/plan/StylePanel";
 import type { PlanSection, SectionTemplate } from "@/types/plan";
 import type { SSEEvent } from "@/types/plan";
+
+// 流式生成期间把 AI 输出的 Markdown 转成 HTML 再进编辑器，
+// 避免编辑器直接显示 Markdown 源码（如表格的 | --- | 分隔符）。
+const streamMd = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true,
+  breaks: true,
+});
 
 function findTemplate(key: string, templates: SectionTemplate[]): SectionTemplate | null {
   for (const t of templates) {
@@ -243,7 +253,7 @@ export default function PlanEditorPage() {
               genContentRef.current[event.section_key] = (genContentRef.current[event.section_key] || "") + event.content;
               // Update editor if this section is currently viewed (using ref for StrictMode safety)
               if (selectedKeyRef.current === event.section_key) {
-                setEditingContent(genContentRef.current[event.section_key]);
+                setEditingContent(streamMd.render(genContentRef.current[event.section_key]));
               }
             }
             break;
@@ -298,7 +308,7 @@ export default function PlanEditorPage() {
 
 
   const handleAIContentChunk = useCallback((fullText: string) => {
-    setEditingContent(fullText);
+    setEditingContent(streamMd.render(fullText));
   }, []);
 
   const handleAIGenerateComplete = useCallback(
