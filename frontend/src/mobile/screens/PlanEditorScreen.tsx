@@ -22,6 +22,7 @@ import { getPlan, createVersion, fetchPlanReview, applyPlanReview } from "@/serv
 import { listSections, updateSection, autofillSection } from "@/services/planService";
 import type { PlanReviewIssue, PlanReviewResult } from "@/services/planService";
 import { generateBatchBackground, getGenerationStatus } from "@/services/generationService";
+import { sseFetch } from "@/services/sseFetch";
 import { useAppStore } from "@/mobile/store/appStore";
 import { useDraftStore } from "@/mobile/store/draftStore";
 
@@ -283,7 +284,7 @@ export default function PlanEditorScreen() {
   }, []);
 
   // ========== AI 生成（真实 SSE 流式） ==========
-  const handleAIGenerate = useCallback(async () => {
+  const handleAIGenerate = useCallback(() => {
     if (!planId || !selectedChapter) return;
     abortRef.current?.abort();
     abortRef.current = new AbortController();
@@ -293,73 +294,49 @@ export default function PlanEditorScreen() {
     setGenProgressMsg(`AI 正在撰写"${selectedChapter.title}"…`);
     setGenerationBanner({ status: "generating", message: `AI 正在撰写"${selectedChapter.title}"…` });
 
-    const token = localStorage.getItem("access_token");
+    const targetPlanId = planId;
+    const targetChapterKey = selectedChapter.key;
+    const startContent = localContent;
+    let accumulated = startContent;
 
-    try {
-      const response = await fetch(`/api/v1/plans/${planId}/generate/${selectedChapter.key}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        signal: abortRef.current.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error("生成请求失败");
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("无法读取响应流");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let accumulated = localContent;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const jsonStr = line.replace(/^(?:data: )+/, "");
-              const event = JSON.parse(jsonStr);
-
-              if (event.type === "progress" || event.type === "chapter_start") {
-                setGenProgressMsg(event.message ?? event.chapter ?? "");
-                setGenProgressPct(Math.min(95, (event.current ?? 0) / Math.max(1, event.total ?? 1) * 100));
-              } else {
-                const chunk = event.content ?? event.token ?? event.chunk ?? "";
-                if (chunk) {
-                  accumulated += chunk;
-                  setLocalContent(accumulated);
-                }
-              }
-            } catch { /* skip */ }
+    void sseFetch({
+      path: `/plans/${targetPlanId}/generate/${targetChapterKey}`,
+      method: "POST",
+      body: { custom_instruction: null },
+      signal: abortRef.current.signal,
+      errorMessage: "生成请求失败",
+      onData: (data) => {
+        try {
+          const event = JSON.parse(data);
+          if (event.type === "progress" || event.type === "chapter_start") {
+            setGenProgressMsg(event.message ?? event.chapter ?? "");
+            setGenProgressPct(Math.min(95, (event.current ?? 0) / Math.max(1, event.total ?? 1) * 100));
+          } else {
+            const chunk = event.content ?? event.token ?? event.chunk ?? "";
+            if (chunk) {
+              accumulated += chunk;
+              setLocalContent(accumulated);
+            }
           }
-        }
-      }
-
-      setGenerating(false);
-      setGenProgressPct(100);
-      setGenerationBanner({ status: "done", message: "✓ 生成完成" });
-      autoSave(accumulated);
-      setTimeout(() => setGenerationBanner(null), 2000);
-    } catch (err: any) {
-      if (err.name === "AbortError") {
-        setGenerationBanner({ status: "cancelled", message: "已取消，已保留已生成内容" });
+        } catch { /* skip malformed events */ }
+      },
+      onComplete: () => {
+        setGenerating(false);
+        setGenProgressPct(100);
+        setGenerationBanner({ status: "done", message: "✓ 生成完成" });
+        autoSave(accumulated);
         setTimeout(() => setGenerationBanner(null), 2000);
-        return;
-      }
+      },
+      onError: (message) => {
+        setGenerating(false);
+        setGenerationBanner(null);
+        showToast?.({ type: "error", message: message || "生成失败" });
+      },
+    }).catch((err: any) => {
       setGenerating(false);
       setGenerationBanner(null);
-      showToast?.({ type: "error", message: err.message ?? "生成失败" });
-    }
+      showToast?.({ type: "error", message: err?.message ?? "生成失败" });
+    });
   }, [planId, selectedChapter, localContent, autoSave, showToast]);
 
   const handleCancelGeneration = () => {

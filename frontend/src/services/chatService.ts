@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/utils/platform";
+import { sseFetch } from "./sseFetch";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "function";
@@ -52,54 +53,28 @@ export function sendChatMessage(
   onComplete: (convId?: string) => void,
 ): AbortController {
   const controller = new AbortController();
-  const token = localStorage.getItem("access_token");
+  let finalConvId: string | undefined;
 
-  fetch(`${getApiBaseUrl()}/chat`, {
+  sseFetch({
+    path: "/chat",
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ message, history, conversation_id: conversationId }),
+    body: { message, history, conversation_id: conversationId },
     signal: controller.signal,
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ detail: "请求失败" }));
-        onError(err.detail || err.message || "请求失败");
-        return;
-      }
-      const reader = response.body?.getReader();
-      if (!reader) { onError("无法读取响应流"); return; }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let finalConvId: string | undefined;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) { onComplete(finalConvId); break; }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const event: ChatSSEEvent = JSON.parse(line.slice(6));
-              if (event.type === "conv_id" && event.content) {
-                finalConvId = event.content;
-              }
-              onEvent(event);
-            } catch { /* skip */ }
-          }
+    errorMessage: "请求失败",
+    onData: (data) => {
+      try {
+        const event: ChatSSEEvent = JSON.parse(data);
+        if (event.type === "conv_id" && event.content) {
+          finalConvId = event.content;
         }
+        onEvent(event);
+      } catch {
+        // skip malformed events
       }
-    })
-    .catch((err) => {
-      if (err.name !== "AbortError") {
-        onError(err.message || "网络错误");
-      }
-    });
+    },
+    onComplete: () => onComplete(finalConvId),
+    onError,
+  });
 
   return controller;
 }

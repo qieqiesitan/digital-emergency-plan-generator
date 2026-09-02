@@ -1,4 +1,5 @@
 import type { SSEEvent, GenerateBatchRequest } from "@/types/plan";
+import { sseFetch, apiJsonFetch } from "./sseFetch";
 
 export function generateSectionStream(
   planId: string,
@@ -9,55 +10,23 @@ export function generateSectionStream(
   customInstruction?: string
 ): AbortController {
   const controller = new AbortController();
-  const token = localStorage.getItem("access_token");
 
-  fetch(`/api/v1/plans/${planId}/generate/${sectionKey}`, {
+  sseFetch({
+    path: `/plans/${planId}/generate/${sectionKey}`,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ custom_instruction: customInstruction || null }),
+    body: { custom_instruction: customInstruction || null },
     signal: controller.signal,
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: "生成请求失败" }));
-        onError(err.message || err.detail || "生成请求失败");
-        return;
+    errorMessage: "生成请求失败",
+    onData: (data) => {
+      try {
+        onEvent(JSON.parse(data) as SSEEvent);
+      } catch {
+        // skip malformed events
       }
-
-      const reader = response.body?.getReader();
-      if (!reader) { onError("无法读取响应流"); return; }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) { onComplete(); break; }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const jsonStr = line.replace(/^(?:data: )+/, ""); const event: SSEEvent = JSON.parse(jsonStr);
-              onEvent(event);
-            } catch {
-              // skip malformed events
-            }
-          }
-        }
-      }
-    })
-    .catch((err) => {
-      if (err.name !== "AbortError") {
-        onError(err.message || "网络错误");
-      }
-    });
+    },
+    onComplete,
+    onError,
+  });
 
   return controller;
 }
@@ -70,51 +39,25 @@ export function generateBatchStream(
   onComplete: () => void
 ): AbortController {
   const controller = new AbortController();
-  const token = localStorage.getItem("access_token");
 
   const body: GenerateBatchRequest = { section_keys: sectionKeys };
 
-  fetch(`/api/v1/plans/${planId}/generate/batch`, {
+  sseFetch({
+    path: `/plans/${planId}/generate/batch`,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
+    body,
     signal: controller.signal,
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        onError("批量生成请求失败");
-        return;
+    errorMessage: "批量生成请求失败",
+    onData: (data) => {
+      try {
+        onEvent(JSON.parse(data) as SSEEvent);
+      } catch {
+        // skip malformed events
       }
-      const reader = response.body?.getReader();
-      if (!reader) { onError("无法读取响应流"); return; }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) { onComplete(); break; }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const jsonStr = line.replace(/^(?:data: )+/, ""); const event: SSEEvent = JSON.parse(jsonStr);
-              onEvent(event);
-            } catch { /* skip */ }
-          }
-        }
-      }
-    })
-    .catch((err) => {
-      if (err.name !== "AbortError") {
-        onError(err.message || "网络错误");
-      }
-    });
+    },
+    onComplete,
+    onError,
+  });
 
   return controller;
 }
@@ -124,38 +67,28 @@ export async function generateBatchBackground(
   planId: string,
   sectionKeys: string[] | null
 ): Promise<{ code: number; message: string; failed_sections?: Array<{ section_key: string; title: string }> }> {
-  const token = localStorage.getItem("access_token");
   const body: GenerateBatchRequest = { section_keys: sectionKeys };
-  const res = await fetch(`/api/v1/plans/${planId}/generate/batch/background`, {
+  return apiJsonFetch<{ code: number; message: string; failed_sections?: Array<{ section_key: string; title: string }> }>({
+    path: `/plans/${planId}/generate/batch/background`,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
+    body,
+    errorMessage: "后台生成请求失败",
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: "请求失败" }));
-    throw new Error(err.message || err.detail || "后台生成请求失败");
-  }
-  return res.json();
 }
 
 export async function getGenerationStatus(
   planId: string
 ): Promise<{ code: number; data: { generating: boolean; failed_sections: Array<{ section_key: string; title: string }> } }> {
-  const token = localStorage.getItem("access_token");
-  const res = await fetch(`/api/v1/plans/${planId}/generate/status`, {
-    headers: { Authorization: `Bearer ${token}` },
+  return apiJsonFetch<{ code: number; data: { generating: boolean; failed_sections: Array<{ section_key: string; title: string }> } }>({
+    path: `/plans/${planId}/generate/status`,
+    errorMessage: "查询生成状态失败",
   });
-  if (!res.ok) throw new Error("查询生成状态失败");
-  return res.json();
 }
 export async function stopGeneration(planId: string): Promise<void> {
-  const token = localStorage.getItem("access_token");
-  await fetch(`/api/v1/plans/${planId}/generate/stop`, {
+  await apiJsonFetch({
+    path: `/plans/${planId}/generate/stop`,
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    errorMessage: "停止生成失败",
   });
 }
 
@@ -171,54 +104,28 @@ export function regenerateSelectionStream(
   customInstruction: string | null = null
 ): AbortController {
   const controller = new AbortController();
-  const token = localStorage.getItem("access_token");
 
-  fetch(`/api/v1/plans/${planId}/sections/${sectionKey}/regenerate`, {
+  sseFetch({
+    path: `/plans/${planId}/sections/${sectionKey}/regenerate`,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
+    body: {
       selected_text: selectedText,
       surrounding_context_before: contextBefore,
       surrounding_context_after: contextAfter,
       custom_instruction: customInstruction,
-    }),
+    },
     signal: controller.signal,
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: "请求失败" }));
-        onError(err.message || err.detail || "请求失败");
-        return;
+    errorMessage: "请求失败",
+    onData: (data) => {
+      try {
+        onEvent(JSON.parse(data) as SSEEvent);
+      } catch {
+        // skip malformed events
       }
-      const reader = response.body?.getReader();
-      if (!reader) { onError("无法读取响应流"); return; }
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) { onComplete(); break; }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const jsonStr = line.replace(/^(?:data: )+/, "");
-              const event: SSEEvent = JSON.parse(jsonStr);
-              onEvent(event);
-            } catch { /* skip */ }
-          }
-        }
-      }
-    })
-    .catch((err) => {
-      if (err.name !== "AbortError") {
-        onError(err.message || "网络错误");
-      }
-    });
+    },
+    onComplete,
+    onError,
+  });
 
   return controller;
 }
