@@ -19,7 +19,7 @@ from app.services.enterprise_cleanup_service import delete_enterprise_complete
 from app.services.floor_plan_storage_service import remove_enterprise_uploads
 from app.services.risk_context_builder import build_risk_management_context
 from app.services.risk_stats_service import count_user_risk_events
-from app.services.plan_generation_service import start_batch_generation
+from app.services.plan_generation_service import start_batch_generation, get_failed_sections
 from app.services.enterprise_knowledge_service import EnterpriseKnowledgeStore
 from app.regulations import get_graph, get_vector_store
 import os
@@ -51,9 +51,6 @@ def _schedule_enterprise_index_rebuild(enterprise_id: str) -> None:
         loop.create_task(_rebuild())
     except Exception as e:
         logger.warning("企业画像索引重建调度失败: %s", e)
-
-# 聊天触发的后台生成失败章节记录（供 get_generation_progress 返回；后续后台生成可写入）
-_failed_sections: dict[str, list] = {}
 
 # 聊天工具描述使用中文类型名（综合应急预案/专项应急预案/现场处置方案），
 # 模板表 plan_type 为英文枚举——兼容映射，避免模板查找失败导致章节未初始化
@@ -1049,7 +1046,8 @@ async def _get_generation_progress(db, user, args):
     )).scalar_one_or_none()
     if not p:
         return {"error": "预案不存在", "verified": False}
-    failed = _failed_sections.get(plan_id, [])
+    # B4：失败章节由 plan_generation_service._run_background 写入，此处统一查询 service
+    failed = get_failed_sections(plan_id)
     sections = p.sections or []
     filled = sum(1 for s in sections if s.content and s.content.strip())
     return {
@@ -1125,3 +1123,4 @@ _FUNCTIONS = {
     "get_generation_progress": _get_generation_progress,
     "query_enterprise_knowledge": _query_enterprise_knowledge,
 }
+
