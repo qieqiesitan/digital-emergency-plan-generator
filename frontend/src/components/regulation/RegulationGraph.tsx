@@ -407,7 +407,7 @@ export function RegulationGraph() {
                       const otherNode = nodes.find((n) => n.id === other);
                       return (
                         <div key={i} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                          <Tag color={EDGE_COLORS[e.relation] || "default"} style={{ fontSize: 10, lineHeight: "16px" }}>
+                          <Tag color={EDGE_COLORS[e.relation] || "default"} style={{ fontSize: 12, lineHeight: "16px" }}>
                             {e.relation}
                           </Tag>
                           <Text ellipsis style={{ maxWidth: 180 }}>

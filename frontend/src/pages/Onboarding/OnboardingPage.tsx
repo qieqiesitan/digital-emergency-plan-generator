@@ -164,7 +164,7 @@ export default function OnboardingPage() {
             {(importedByStep[s.key] || []).length > 0 && (
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: 12,
                   background: "#e6f4ff",
                   borderRadius: 4,
                   padding: "0 4px",
@@ -177,7 +177,7 @@ export default function OnboardingPage() {
             {s.optional && (
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: 12,
                   background: "#fff7e6",
                   borderRadius: 4,
                   padding: "0 4px",

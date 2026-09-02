@@ -305,7 +305,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                   <CloseOutlined
                     onClick={(e) => e.stopPropagation()}
                     style={{
-                      fontSize: 10,
+                      fontSize: 12,
                       padding: 2,
                       borderRadius: "50%",
                       color: activeConvId === c.id ? "rgba(255,255,255,0.7)" : "#999",
@@ -369,7 +369,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                         <span
                           key={s.id}
                           style={{
-                            fontSize: 11,
+                            fontSize: 12,
                             padding: "1px 8px",
                             borderRadius: 10,
                             background: s.status === "error" ? "#fff2f0" : "#f6ffed",
@@ -460,7 +460,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  <MessageOutlined style={{ marginRight: 6, fontSize: 11 }} />
+                  <MessageOutlined style={{ marginRight: 6, fontSize: 12 }} />
                   {c.title}
                 </Text>
               </div>
@@ -543,7 +543,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                           <span
                             key={s.id}
                             style={{
-                              fontSize: 11,
+                              fontSize: 12,
                               padding: "1px 8px",
                               borderRadius: 10,
                               background: s.status === "error" ? "#fff2f0" : "#f6ffed",

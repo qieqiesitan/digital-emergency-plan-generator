@@ -210,7 +210,7 @@ export default function RiskOverviewStats({ zones, mode = "current" }: Props) {
             }}
           >
             <div style={{ fontSize: 20, fontWeight: 700, color: "#1677ff", lineHeight: "28px" }}>{item.value}</div>
-            <div style={{ fontSize: 11, color: "#999", lineHeight: "18px" }}>{item.label}</div>
+            <div style={{ fontSize: 12, color: "#999", lineHeight: "18px" }}>{item.label}</div>
           </div>
         ))}
       </div>

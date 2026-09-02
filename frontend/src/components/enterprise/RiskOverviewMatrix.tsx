@@ -113,7 +113,7 @@ export default function RiskOverviewMatrix({ zones, onEventFilter, mode = "curre
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "auto", padding: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexShrink: 0 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>LS 风险矩阵</span>
-        <span style={{ fontSize: 11, color: "#999" }}>（点击单元格筛选）</span>
+        <span style={{ fontSize: 12, color: "#999" }}>（点击单元格筛选）</span>
       </div>
       <div style={{ overflowX: "auto", flex: 1 }}>
         <div

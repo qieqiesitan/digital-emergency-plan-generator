@@ -55,7 +55,7 @@ const RNC_CSS = `
 }
 .rnc-qr-text {
   color: #999;
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 2px;
 }
 .rnc-qr-img {
@@ -122,7 +122,7 @@ const RNC_CSS = `
   background: #fff;
   border-radius: 2px;
   color: #434343;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0;
   margin-left: 6px;
@@ -160,7 +160,7 @@ const RNC_CSS = `
 }
 .rnc-sign-name {
   color: #333;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.3;
   margin-top: 2px;
 }

@@ -18,7 +18,7 @@ export default function ModulePageShell({ title, en, groups }: Props) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Button type="link" onClick={() => navigate(`/enterprises/${id}`)}>← 返回企业驾驶舱</Button>
           <span style={{ fontSize: 16, fontWeight: 700 }}>{title}</span>
-          {en && <span style={{ fontSize: 9, color: "#8a94a6", letterSpacing: 2 }}>{en}</span>}
+          {en && <span style={{ fontSize: 12, color: "#8a94a6", letterSpacing: 2 }}>{en}</span>}
         </div>
       </div>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>

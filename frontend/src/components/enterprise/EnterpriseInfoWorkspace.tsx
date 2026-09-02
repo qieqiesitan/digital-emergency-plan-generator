@@ -285,7 +285,7 @@ export default function EnterpriseInfoWorkspace({
                     .join(" · ") || "信息待补充"}
                 </div>
                 {item.source && (
-                  <div style={{ color: "#999", fontSize: 11 }}>来源：{String(item.source)}</div>
+                  <div style={{ color: "#999", fontSize: 12 }}>来源：{String(item.source)}</div>
                 )}
               </div>
             )}

@@ -234,7 +234,7 @@ export default function EnterpriseDictConfigPage() {
       render: (_: unknown, record) => (
         <div style={{ lineHeight: 1.4 }}>
           <div style={{ fontWeight: 500 }}>{record.label || record.code}</div>
-          <div style={{ fontSize: 11, color: "#999" }}>{record.code}</div>
+          <div style={{ fontSize: 12, color: "#999" }}>{record.code}</div>
         </div>
       ),
     },
@@ -368,7 +368,7 @@ export default function EnterpriseDictConfigPage() {
             >
               <div style={{ textAlign: "left", lineHeight: 1.3 }}>
                 <div>{dictTypeLabel(type)}</div>
-                <div style={{ fontSize: 10, opacity: 0.65 }}>{type}</div>
+                <div style={{ fontSize: 12, opacity: 0.65 }}>{type}</div>
               </div>
             </Button>
           ))}
@@ -447,7 +447,7 @@ export default function EnterpriseDictConfigPage() {
               }}
             >
               当前值含义：{formatValueSummary(drawer.source.value)}
-              <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
                 如需修改，在下方的 JSON 中调整对应字段；系统默认条目需先「覆盖并编辑」。
               </div>
             </div>

@@ -162,7 +162,7 @@ function MatrixThumbnail({ config }: { config: MethodConfig }) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 9,
+                  fontSize: 10,
                   color: "#fff",
                   fontWeight: 600,
                 }}

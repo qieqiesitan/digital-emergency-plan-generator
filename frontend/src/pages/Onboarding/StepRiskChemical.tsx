@@ -241,7 +241,7 @@ export default function StepRiskChemical({
             <span style={{ color: "#999", fontSize: 12 }}>{item.cas_no ? `CAS ${String(item.cas_no)}` : ""}</span>
             <div style={{ color: "#666", fontSize: 12 }}>{item.location ? String(item.location) : "位置待补充"}</div>
             {item.source && (
-              <div style={{ color: "#999", fontSize: 11 }}>来源：{String(item.source)}</div>
+              <div style={{ color: "#999", fontSize: 12 }}>来源：{String(item.source)}</div>
             )}
           </div>
         )}

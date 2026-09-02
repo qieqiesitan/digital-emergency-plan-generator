@@ -273,12 +273,12 @@ export default function ResourceInvestigationTab({ enterpriseId }: Props) {
             {ch.title}
           </div>
           {status === "generating" && (
-            <div style={{ fontSize: 11, color: "#1677ff", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "#1677ff", marginTop: 2 }}>
               正在生成... <LoadingDots />
             </div>
           )}
           {status === "completed" && genContentRef.current[ch.key] && (
-            <div style={{ fontSize: 11, color: "#52c41a", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "#52c41a", marginTop: 2 }}>
               {(genContentRef.current[ch.key] || "").length} 字
             </div>
           )}

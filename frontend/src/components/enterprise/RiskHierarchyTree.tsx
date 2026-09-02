@@ -145,7 +145,7 @@ function TitleRow({
       {isDefaultFloor && (
         <Tag
           color="blue"
-          style={{ margin: 0, fontSize: 11, lineHeight: "18px" }}
+          style={{ margin: 0, fontSize: 12, lineHeight: "18px" }}
         >
           默认
         </Tag>
@@ -153,7 +153,7 @@ function TitleRow({
       {typeof zoneCount === "number" && (
         <span
           style={{
-            fontSize: 11,
+            fontSize: 12,
             color: "#8c8c8c",
             background: "#f5f5f5",
             borderRadius: 10,
@@ -168,7 +168,7 @@ function TitleRow({
       {riskLevel && (
         <Tag
           color={RISK_LEVEL_COLORS[riskLevel] || "#d9d9d9"}
-          style={{ margin: 0, fontSize: 11, lineHeight: "18px" }}
+          style={{ margin: 0, fontSize: 12, lineHeight: "18px" }}
         >
           {riskLevel}
         </Tag>
@@ -176,7 +176,7 @@ function TitleRow({
       {childCount > 0 && (
         <span
           style={{
-            fontSize: 11,
+            fontSize: 12,
             color: "#8c8c8c",
             background: "#f5f5f5",
             borderRadius: 10,

@@ -136,14 +136,14 @@ export default function RiskMatrixHeatmap({ highlights, compact }: RiskMatrixHea
                 >
                   <span>{r}</span>
                   {!compact && (
-                    <span style={{ fontSize: 9, opacity: 0.8 }}>
+                    <span style={{ fontSize: 10, opacity: 0.8 }}>
                       {getRiskLabel(r)}
                     </span>
                   )}
                   {label && (
                     <span
                       style={{
-                        fontSize: 8,
+                        fontSize: 10,
                         position: "absolute",
                         bottom: 2,
                         color: r >= 15 ? "#fff" : "#000",

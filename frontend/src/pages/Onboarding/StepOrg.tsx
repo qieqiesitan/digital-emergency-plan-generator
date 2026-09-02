@@ -314,7 +314,7 @@ export default function StepOrg({
               >
                 <b>{g.group_name}</b>
                 {g.source && (
-                  <div style={{ color: "#999", fontSize: 11 }}>来源：{g.source}</div>
+                  <div style={{ color: "#999", fontSize: 12 }}>来源：{g.source}</div>
                 )}
                 <div style={{ color: "#666", fontSize: 12, margin: "4px 0" }}>
                   {g.responsibilities}

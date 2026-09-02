@@ -25,7 +25,7 @@ export default function ModuleSideNav({ groups }: { groups: SideNavGroup[] }) {
     >
       {groups.map((g) => (
         <div key={g.label}>
-          <div style={{ fontSize: 10, color: "#9aa4b4", padding: "8px 12px 3px", letterSpacing: 1 }}>{g.label}</div>
+          <div style={{ fontSize: 12, color: "#9aa4b4", padding: "8px 12px 3px", letterSpacing: 1 }}>{g.label}</div>
           {g.items.map((it) => {
             const active = it.matchSearch
               ? location.pathname === it.to.split("?")[0] && location.search.includes(it.matchSearch)
