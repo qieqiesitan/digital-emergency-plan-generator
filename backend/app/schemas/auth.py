@@ -1,9 +1,10 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 class RegisterRequest(BaseModel):
     email: str
-    password: str
-    password_confirm: str
+    # 安全加固（S9）：注册/重置密码统一最小长度校验
+    password: str = Field(min_length=6)
+    password_confirm: str = Field(min_length=6)
     name: str
 
     @field_validator("password_confirm")
@@ -36,4 +37,4 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    new_password: str
+    new_password: str = Field(min_length=6)

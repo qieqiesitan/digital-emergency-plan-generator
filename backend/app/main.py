@@ -8,6 +8,7 @@ from fastapi import FastAPI, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
+from app.config import settings
 from app.database import async_session
 from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, hazard_management, plans, sections, templates, versions, review, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, data_dicts, third_party_config
 from app.models.report_version import ResourceInvestigationVersion, RiskAssessmentVersion
@@ -66,7 +67,28 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Digital Emergency Plan Generator", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(HmacAuthMiddleware)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+def _resolve_cors_origins(raw: str | None = None) -> list[str]:
+    """从 CORS_ORIGINS（逗号分隔）解析 CORS 白名单；未配置时回退本地开发源。"""
+    if raw is None:
+        raw = settings.CORS_ORIGINS or ""
+    raw = raw.strip()
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return ["http://localhost:5173", "http://localhost:8082"]
+
+
+# 安全加固（S5）：allow_credentials=True 与 allow_origins=["*"] 组合非法且危险，
+# 故显式配置通配符时强制关闭 credentials。
+CORS_ORIGINS = _resolve_cors_origins()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials="*" not in CORS_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 if os.path.isdir(FRONTEND_DIST):
