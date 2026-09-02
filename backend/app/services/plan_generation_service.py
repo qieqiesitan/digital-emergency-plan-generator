@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
@@ -58,9 +58,14 @@ async def start_batch_generation(plan_id, db, current_user, keys=None, backgroun
     empty = [s for s in target_sections if not s.content or not s.content.strip()]
     if not empty:
         return {"started": False, "message": f"预案「{p.title}」章节均已填写完成"}
-    if p.status == "generating":
+    # B24：原子置位（status != 'generating' 才允许抢占），rowcount=0 说明并发请求已置位
+    result = await db.execute(
+        update(PlanProject)
+        .where(PlanProject.id == plan_id, PlanProject.status != "generating")
+        .values(status="generating")
+    )
+    if result.rowcount == 0:
         return {"started": False, "message": "预案正在生成中，请稍候", "status": "generating"}
-    p.status = "generating"
     await db.commit()
     section_tuples = [(s.section_key, s.title) for s in empty]
     if not background:
@@ -93,6 +98,17 @@ async def _run_background(plan_id, plan_type, accident_type, style_preference,
             logger.info("聊天触发批量生成完成 plan=%s %s", plan_id, result)
     except Exception:
         logger.exception("聊天触发批量生成失败 plan=%s", plan_id)
+        # B5：异常时回滚 status，避免预案永久卡在 generating
+        try:
+            async with async_session() as rollback_db:
+                p_rollback = (await rollback_db.execute(
+                    select(PlanProject).where(PlanProject.id == plan_id)
+                )).scalar_one_or_none()
+                if p_rollback and p_rollback.status == "generating":
+                    p_rollback.status = "draft"
+                    await rollback_db.commit()
+        except Exception as rollback_e:
+            logger.error(f"Failed to reset plan status after failure: {rollback_e}")
     finally:
         _background_tasks.pop(plan_id, None)
 
