@@ -107,3 +107,5 @@ backups/
 /frontend/trace401.mjs
 /frontend/shot_sidebar.mjs
 /frontend/shot_cockpit.mjs
+# 本地模型缓存（chroma ONNX 等，随 release 包分发，不入仓库）
+/model-cache/
