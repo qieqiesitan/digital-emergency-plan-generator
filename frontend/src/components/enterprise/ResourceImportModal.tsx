@@ -37,7 +37,8 @@ export default function ResourceImportModal({ enterpriseId, visible, onClose, on
     if (!fileList[0]?.originFileObj) return;
     setLoading(true);
     try {
-      const result = await previewResourceImport(enterpriseId, fileList[0].originFileObj as File);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const result = await previewResourceImport(enterpriseId, fileList[0].originFileObj as File, { skipGlobalError: true });
       setPreviewItems(result.items);
       setCurrentStep("preview");
     } catch {
@@ -55,7 +56,8 @@ export default function ResourceImportModal({ enterpriseId, visible, onClose, on
     }
     setImporting(true);
     try {
-      await batchCreateResources(enterpriseId, validItems);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      await batchCreateResources(enterpriseId, validItems, { skipGlobalError: true });
       message.success(`成功导入 ${validItems.length} 个应急资源`);
       onImported();
       resetAll();

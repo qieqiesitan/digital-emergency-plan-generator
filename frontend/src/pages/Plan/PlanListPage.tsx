@@ -53,7 +53,8 @@ export default function PlanListPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deletePlan,
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (id: string) => deletePlan(id, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("已删除");
       queryClient.invalidateQueries({ queryKey: ["plans"] });

@@ -19,7 +19,8 @@ export default function SurroundingInfoForm({ enterpriseId, surroundingInfo, vis
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: (d: SurroundingInfo) => updateSurrounding(enterpriseId, d),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (d: SurroundingInfo) => updateSurrounding(enterpriseId, d, { skipGlobalError: true }),
     onSuccess: () => { message.success("保存成功"); queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] }); onClose(); },
     onError: () => message.error("保存失败"),
   });

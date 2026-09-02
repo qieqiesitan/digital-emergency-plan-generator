@@ -13,7 +13,8 @@ export default function VersionListPage() {
   const { data: plan } = useQuery({ queryKey: ["plan", id], queryFn: () => getPlan(id!), enabled: !!id });
   const currentVersion = plan?.current_version ?? 0;
   const rollbackMut = useMutation({
-    mutationFn: (vid: string) => rollbackVersion(id!, vid),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (vid: string) => rollbackVersion(id!, vid, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("已回滚");
       queryClient.invalidateQueries({ queryKey: ["versions", id] });

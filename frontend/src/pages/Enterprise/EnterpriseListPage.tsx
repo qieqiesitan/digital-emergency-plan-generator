@@ -24,7 +24,8 @@ export default function EnterpriseListPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteEnterprise,
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (id: string) => deleteEnterprise(id, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("已删除");
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });

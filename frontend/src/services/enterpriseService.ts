@@ -1,4 +1,5 @@
 import api from "./api";
+import type { AxiosRequestConfig } from "axios";
 import type { ApiResponse, PaginatedResponse, PaginationParams } from "@/types/common";
 import type { Enterprise, EnterpriseCreate, EnterpriseUpdate, OrgGroup, SurroundingInfo } from "@/types/enterprise";
 
@@ -17,18 +18,18 @@ export async function getEnterprise(id: string): Promise<Enterprise> {
   return res.data.data;
 }
 
-export async function createEnterprise(data: EnterpriseCreate): Promise<Enterprise> {
-  const res = await api.post<ApiResponse<Enterprise>>("/enterprises", data);
+export async function createEnterprise(data: EnterpriseCreate, config?: AxiosRequestConfig): Promise<Enterprise> {
+  const res = await api.post<ApiResponse<Enterprise>>("/enterprises", data, config);
   return res.data.data;
 }
 
-export async function updateEnterprise(id: string, data: EnterpriseUpdate): Promise<Enterprise> {
-  const res = await api.put<ApiResponse<Enterprise>>(`/enterprises/${id}`, data);
+export async function updateEnterprise(id: string, data: EnterpriseUpdate, config?: AxiosRequestConfig): Promise<Enterprise> {
+  const res = await api.put<ApiResponse<Enterprise>>(`/enterprises/${id}`, data, config);
   return res.data.data;
 }
 
-export async function deleteEnterprise(id: string): Promise<void> {
-  await api.delete(`/enterprises/${id}`);
+export async function deleteEnterprise(id: string, config?: AxiosRequestConfig): Promise<void> {
+  await api.delete(`/enterprises/${id}`, config);
 }
 
 export async function getOrgStructure(id: string): Promise<OrgGroup[]> {
@@ -36,8 +37,8 @@ export async function getOrgStructure(id: string): Promise<OrgGroup[]> {
   return res.data.data;
 }
 
-export async function updateOrgStructure(id: string, data: OrgGroup[]): Promise<OrgGroup[]> {
-  const res = await api.put<ApiResponse<OrgGroup[]>>(`/enterprises/${id}/org-structure`, data);
+export async function updateOrgStructure(id: string, data: OrgGroup[], config?: AxiosRequestConfig): Promise<OrgGroup[]> {
+  const res = await api.put<ApiResponse<OrgGroup[]>>(`/enterprises/${id}/org-structure`, data, config);
   return res.data.data;
 }
 
@@ -46,8 +47,8 @@ export async function getSurrounding(id: string): Promise<SurroundingInfo> {
   return res.data.data;
 }
 
-export async function updateSurrounding(id: string, data: SurroundingInfo): Promise<SurroundingInfo> {
-  const res = await api.put<ApiResponse<SurroundingInfo>>(`/enterprises/${id}/surrounding`, data);
+export async function updateSurrounding(id: string, data: SurroundingInfo, config?: AxiosRequestConfig): Promise<SurroundingInfo> {
+  const res = await api.put<ApiResponse<SurroundingInfo>>(`/enterprises/${id}/surrounding`, data, config);
   return res.data.data;
 }
 
@@ -62,8 +63,8 @@ export interface AIQuestionsResponse {
   questions: AIQuestion[];
 }
 
-export async function getSurroundingAIQuestions(enterpriseId: string): Promise<AIQuestion[]> {
-  const res = await api.post<ApiResponse<AIQuestionsResponse>>(`/enterprises/${enterpriseId}/surrounding/ai/questions`);
+export async function getSurroundingAIQuestions(enterpriseId: string, config?: AxiosRequestConfig): Promise<AIQuestion[]> {
+  const res = await api.post<ApiResponse<AIQuestionsResponse>>(`/enterprises/${enterpriseId}/surrounding/ai/questions`, undefined, config);
   return res.data.data.questions;
 }
 
@@ -74,11 +75,12 @@ export interface AIGenerateSurroundingResponse {
 export async function generateSurroundingAI(
   enterpriseId: string,
   answers: { question_id: string; question: string; answer: string }[],
+  config?: AxiosRequestConfig,
 ): Promise<SurroundingInfo> {
   const res = await api.post<ApiResponse<AIGenerateSurroundingResponse>>(
     `/enterprises/${enterpriseId}/surrounding/ai/generate`,
     { answers },
-    { timeout: 180000 },
+    { timeout: 180000, ...config },
   );
   return res.data.data.surrounding;
 }
@@ -107,8 +109,8 @@ export interface AutofillResult {
   error?: string;
 }
 
-export async function autofillEnterprise(companyName: string): Promise<AutofillResult> {
-  const res = await api.post<ApiResponse<AutofillResult>>("/enterprises/autofill", { name: companyName });
+export async function autofillEnterprise(companyName: string, config?: AxiosRequestConfig): Promise<AutofillResult> {
+  const res = await api.post<ApiResponse<AutofillResult>>("/enterprises/autofill", { name: companyName }, config);
   return res.data.data;
 }
 
@@ -135,11 +137,12 @@ export interface AmapSearchResult {
 export async function searchAmapSurrounding(
   enterpriseId: string,
   params?: AmapSearchParams,
+  config?: AxiosRequestConfig,
 ): Promise<AmapSearchResult> {
   const res = await api.post<ApiResponse<AmapSearchResult>>(
     `/enterprises/${enterpriseId}/surrounding/amap-search`,
     params || {},
-    { timeout: 30000 },
+    { timeout: 30000, ...config },
   );
   return res.data.data;
 }

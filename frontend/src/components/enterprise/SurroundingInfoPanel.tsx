@@ -44,7 +44,8 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
   const sensitiveTargets = surroundingInfo.sensitive_targets || [];
 
   const mutateSurrounding = useMutation({
-    mutationFn: (d: SurroundingInfo) => updateSurrounding(enterpriseId, d),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (d: SurroundingInfo) => updateSurrounding(enterpriseId, d, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("保存成功");
       queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] });
@@ -180,10 +181,11 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
     setAmapConfigOpen(false);
     setAmapSearching(true);
     try {
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
       const result = await searchAmapSurrounding(enterpriseId, {
         radius: amapRadius,
         types: amapSelectedTypes.join(","),
-      });
+      }, { skipGlobalError: true });
       setAmapResult(result.surrounding);
       setAmapSearchedAddress(result.searched_address);
       setAmapResultOpen(true);

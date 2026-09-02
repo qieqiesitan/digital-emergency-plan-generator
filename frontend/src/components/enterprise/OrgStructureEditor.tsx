@@ -25,7 +25,8 @@ export default function OrgStructureEditor({ enterpriseId, orgStructure, visible
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: (data: OrgGroup[]) => updateOrgStructure(enterpriseId, data),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (data: OrgGroup[]) => updateOrgStructure(enterpriseId, data, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("保存成功");
       queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] });

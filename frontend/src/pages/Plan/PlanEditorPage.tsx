@@ -121,7 +121,8 @@ export default function PlanEditorPage() {
   }, [sections]);
 
   const regenerateDiagramsMut = useMutation({
-    mutationFn: () => regenerateMissingDiagrams(id!),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: () => regenerateMissingDiagrams(id!, { skipGlobalError: true }),
     onSuccess: (r) => {
       message.success(`已重新生成 ${r.regenerated} 张附图`);
       queryClient.invalidateQueries({ queryKey: ["planSections", id] });
@@ -130,7 +131,8 @@ export default function PlanEditorPage() {
   });
 
   const reviewMut = useMutation({
-    mutationFn: () => fetchPlanReview(id!),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: () => fetchPlanReview(id!, { skipGlobalError: true }),
     onSuccess: (data) => {
       setReviewResult(data);
       setReviewOpen(true);
@@ -139,7 +141,8 @@ export default function PlanEditorPage() {
   });
 
   const applyReviewMut = useMutation({
-    mutationFn: () => applyPlanReview(id!, "llm"),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: () => applyPlanReview(id!, "llm", undefined, { skipGlobalError: true }),
     onSuccess: (r) => {
       message.success(`已应用 ${r.applied.length} 个章节的修订`);
       setReviewOpen(false);
@@ -184,7 +187,8 @@ export default function PlanEditorPage() {
 
   const saveMutation = useMutation({
     mutationFn: ({ key, content }: { key: string; content: string }) =>
-      updateSection(id!, key, { content }),
+      // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      updateSection(id!, key, { content }, { skipGlobalError: true }),
     onSuccess: () => {
       setSaveStatus("saved");
       queryClient.invalidateQueries({ queryKey: ["planSections", id] });
@@ -193,12 +197,14 @@ export default function PlanEditorPage() {
     onError: () => { setSaveStatus("error"); message.error("保存失败"); },
   });
   const saveVersionMut = useMutation({
-    mutationFn: () => createVersion(id!, "手动保存版本"),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: () => createVersion(id!, "手动保存版本", { skipGlobalError: true }),
     onSuccess: () => { message.success("版本已保存"); queryClient.invalidateQueries({ queryKey: ["versions", id] }); },
     onError: () => message.error("保存版本失败"),
   });
   const autofillMut = useMutation({
-    mutationFn: (key: string) => autofillSection(id!, key),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (key: string) => autofillSection(id!, key, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("自动填充完成");
       queryClient.invalidateQueries({ queryKey: ["planSections", id] });

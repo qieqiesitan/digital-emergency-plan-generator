@@ -1,4 +1,5 @@
 import api from "./api";
+import type { AxiosRequestConfig } from "axios";
 import type { ApiResponse, PaginatedResponse, PaginationParams } from "@/types/common";
 import type {
   PlanProject, PlanCreate, PlanUpdate, EnterprisePlanSummary,
@@ -24,22 +25,22 @@ export async function getPlan(id: string): Promise<PlanProject> {
   return res.data.data;
 }
 
-export async function createPlan(data: PlanCreate): Promise<PlanProject> {
-  const res = await api.post<ApiResponse<PlanProject>>("/plans", data);
+export async function createPlan(data: PlanCreate, config?: AxiosRequestConfig): Promise<PlanProject> {
+  const res = await api.post<ApiResponse<PlanProject>>("/plans", data, config);
   return res.data.data;
 }
 
-export async function updatePlan(id: string, data: PlanUpdate): Promise<PlanProject> {
-  const res = await api.put<ApiResponse<PlanProject>>(`/plans/${id}`, data);
+export async function updatePlan(id: string, data: PlanUpdate, config?: AxiosRequestConfig): Promise<PlanProject> {
+  const res = await api.put<ApiResponse<PlanProject>>(`/plans/${id}`, data, config);
   return res.data.data;
 }
 
-export async function deletePlan(id: string): Promise<void> {
-  await api.delete(`/plans/${id}`);
+export async function deletePlan(id: string, config?: AxiosRequestConfig): Promise<void> {
+  await api.delete(`/plans/${id}`, config);
 }
 
-export async function duplicatePlan(id: string): Promise<PlanProject> {
-  const res = await api.post<ApiResponse<PlanProject>>(`/plans/${id}/duplicate`);
+export async function duplicatePlan(id: string, config?: AxiosRequestConfig): Promise<PlanProject> {
+  const res = await api.post<ApiResponse<PlanProject>>(`/plans/${id}/duplicate`, undefined, config);
   return res.data.data;
 }
 
@@ -60,21 +61,24 @@ export async function getSection(planId: string, sectionKey: string): Promise<Pl
   return res.data.data;
 }
 
-export async function updateSection(planId: string, sectionKey: string, data: SectionUpdate): Promise<PlanSection> {
-  const res = await api.put<ApiResponse<PlanSection>>(`/plans/${planId}/sections/${sectionKey}`, data);
+export async function updateSection(planId: string, sectionKey: string, data: SectionUpdate, config?: AxiosRequestConfig): Promise<PlanSection> {
+  const res = await api.put<ApiResponse<PlanSection>>(`/plans/${planId}/sections/${sectionKey}`, data, config);
   return res.data.data;
 }
 
-export async function autofillSection(planId: string, sectionKey: string): Promise<PlanSection> {
-  const res = await api.post<ApiResponse<PlanSection>>(`/plans/${planId}/sections/${sectionKey}/autofill`);
+export async function autofillSection(planId: string, sectionKey: string, config?: AxiosRequestConfig): Promise<PlanSection> {
+  const res = await api.post<ApiResponse<PlanSection>>(`/plans/${planId}/sections/${sectionKey}/autofill`, undefined, config);
   return res.data.data;
 }
 
 export async function regenerateMissingDiagrams(
-  planId: string
+  planId: string,
+  config?: AxiosRequestConfig
 ): Promise<{ regenerated: number; skipped: number; placeholders_remaining: number }> {
   const res = await api.post<ApiResponse<{ regenerated: number; skipped: number; placeholders_remaining: number }>>(
-    `/plans/${planId}/diagrams/regenerate-missing`
+    `/plans/${planId}/diagrams/regenerate-missing`,
+    undefined,
+    config
   );
   return res.data.data;
 }
@@ -104,8 +108,8 @@ export async function getVersion(planId: string, versionId: string): Promise<Pla
   return res.data.data;
 }
 
-export async function createVersion(planId: string, description?: string): Promise<PlanVersion> {
-  const res = await api.post<ApiResponse<PlanVersion>>(`/plans/${planId}/versions`, { description });
+export async function createVersion(planId: string, description?: string, config?: AxiosRequestConfig): Promise<PlanVersion> {
+  const res = await api.post<ApiResponse<PlanVersion>>(`/plans/${planId}/versions`, { description }, config);
   return res.data.data;
 }
 
@@ -116,8 +120,8 @@ export async function compareVersions(planId: string, versionA: number, versionB
   return res.data.data;
 }
 
-export async function rollbackVersion(planId: string, versionId: string): Promise<void> {
-  await api.post(`/plans/${planId}/versions/${versionId}/rollback`);
+export async function rollbackVersion(planId: string, versionId: string, config?: AxiosRequestConfig): Promise<void> {
+  await api.post(`/plans/${planId}/versions/${versionId}/rollback`, undefined, config);
 }
 
 // ── AI Review ──
@@ -143,19 +147,20 @@ export interface PlanReviewApplyResult {
   snapshot_version: number;
 }
 
-export async function fetchPlanReview(planId: string): Promise<PlanReviewResult> {
-  const res = await api.get<ApiResponse<PlanReviewResult>>(`/plans/${planId}/review`);
+export async function fetchPlanReview(planId: string, config?: AxiosRequestConfig): Promise<PlanReviewResult> {
+  const res = await api.get<ApiResponse<PlanReviewResult>>(`/plans/${planId}/review`, config);
   return res.data.data;
 }
 
 export async function applyPlanReview(
   planId: string,
   mode: "auto" | "llm",
-  sectionKeys?: string[]
+  sectionKeys?: string[],
+  config?: AxiosRequestConfig
 ): Promise<PlanReviewApplyResult> {
   const res = await api.post<ApiResponse<PlanReviewApplyResult>>(`/plans/${planId}/review/apply`, {
     mode,
     section_keys: sectionKeys ?? null,
-  });
+  }, config);
   return res.data.data;
 }

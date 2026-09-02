@@ -42,7 +42,8 @@ export default function ResourceAIGenerateModal({ enterpriseId, visible, onClose
   const loadQuestions = async () => {
     setStep("loading-questions");
     try {
-      const qs = await getResourceAIQuestions(enterpriseId);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const qs = await getResourceAIQuestions(enterpriseId, { skipGlobalError: true });
       if (qs.length === 0) {
         message.error("未能生成调查问题，请重试");
         onClose();
@@ -74,7 +75,8 @@ export default function ResourceAIGenerateModal({ enterpriseId, visible, onClose
           answer: customSupplement.trim(),
         });
       }
-      const items = await generateResourcesAI(enterpriseId, answerList);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const items = await generateResourcesAI(enterpriseId, answerList, { skipGlobalError: true });
       if (items.length === 0) {
         message.warning("AI 未能生成应急资源，请补充更多信息后重试");
         setStep("answer");
@@ -112,7 +114,8 @@ export default function ResourceAIGenerateModal({ enterpriseId, visible, onClose
         external_distance_km: item.external_distance_km,
       }));
       console.log("[AI Generate] Sending batch create:", toImport.length, "items");
-      const result = await batchCreateResources(enterpriseId, toImport);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const result = await batchCreateResources(enterpriseId, toImport, { skipGlobalError: true });
       console.log("[AI Generate] Batch create result:", result.length, "created");
       message.success(`成功导入 ${toImport.length} 个应急资源`);
       onImported();

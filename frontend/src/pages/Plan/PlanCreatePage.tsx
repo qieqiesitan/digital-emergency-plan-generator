@@ -35,7 +35,8 @@ export default function PlanCreatePage() {
   });
 
   const mutation = useMutation({
-    mutationFn: createPlan,
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (data: Parameters<typeof createPlan>[0]) => createPlan(data, { skipGlobalError: true }),
     onSuccess: (data) => {
       message.success("预案创建成功");
       queryClient.invalidateQueries({ queryKey: ["plans"] });

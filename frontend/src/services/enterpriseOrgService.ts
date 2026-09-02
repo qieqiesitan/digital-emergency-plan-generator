@@ -1,4 +1,5 @@
 import api from "./api";
+import type { AxiosRequestConfig } from "axios";
 import type { ApiResponse } from "@/types/common";
 import type {
   BindableUser,
@@ -37,10 +38,12 @@ export const getOrgNodes = (enterpriseId: string) =>
     .then(r => r.data.data);
 
 /** 保存组织树节点（整树覆盖）。 */
-export const saveOrgNodes = (enterpriseId: string, nodes: OrgNode[]) =>
-  api
-    .put<ApiResponse<OrgNode[]>>(`/enterprises/${enterpriseId}/org/nodes`, { nodes })
-    .then(r => r.data.data);
+export const saveOrgNodes = (enterpriseId: string, nodes: OrgNode[], config?: AxiosRequestConfig) => {
+  const req = config
+    ? api.put<ApiResponse<OrgNode[]>>(`/enterprises/${enterpriseId}/org/nodes`, { nodes }, config)
+    : api.put<ApiResponse<OrgNode[]>>(`/enterprises/${enterpriseId}/org/nodes`, { nodes });
+  return req.then(r => r.data.data);
+};
 
 /** 成员列表。 */
 export const listMembers = (enterpriseId: string) =>
@@ -49,42 +52,51 @@ export const listMembers = (enterpriseId: string) =>
     .then(r => r.data.data);
 
 /** 按邮箱搜索可绑定为成员的已有账号。 */
-export const searchBindableUsers = (enterpriseId: string, email: string) =>
+export const searchBindableUsers = (enterpriseId: string, email: string, config?: AxiosRequestConfig) =>
   api
     .get<ApiResponse<BindableUser[]>>(`/enterprises/${enterpriseId}/org/members/search`, {
       params: { email },
+      ...config,
     })
     .then(r => r.data.data);
 
 /** 添加成员（默认仅登记人员信息；传 user_id 时绑定已有账号）。 */
-export const createMember = (enterpriseId: string, payload: MemberCreatePayload) =>
-  api
-    .post<ApiResponse<EnterpriseMember>>(`/enterprises/${enterpriseId}/org/members`, payload)
-    .then(r => r.data.data);
+export const createMember = (enterpriseId: string, payload: MemberCreatePayload, config?: AxiosRequestConfig) => {
+  const req = config
+    ? api.post<ApiResponse<EnterpriseMember>>(`/enterprises/${enterpriseId}/org/members`, payload, config)
+    : api.post<ApiResponse<EnterpriseMember>>(`/enterprises/${enterpriseId}/org/members`, payload);
+  return req.then(r => r.data.data);
+};
 
 /** 编辑成员（岗位/角色/组织节点/启用状态）。 */
 export const updateMember = (
   enterpriseId: string,
   memberId: string,
   patch: MemberUpdatePayload,
-) =>
-  api
-    .put<ApiResponse<EnterpriseMember>>(`/enterprises/${enterpriseId}/org/members/${memberId}`, patch)
-    .then(r => r.data.data);
+  config?: AxiosRequestConfig,
+) => {
+  const req = config
+    ? api.put<ApiResponse<EnterpriseMember>>(`/enterprises/${enterpriseId}/org/members/${memberId}`, patch, config)
+    : api.put<ApiResponse<EnterpriseMember>>(`/enterprises/${enterpriseId}/org/members/${memberId}`, patch);
+  return req.then(r => r.data.data);
+};
 
 /** 删除成员。 */
-export const deleteMember = (enterpriseId: string, memberId: string) =>
-  api
-    .delete<ApiResponse<null>>(`/enterprises/${enterpriseId}/org/members/${memberId}`)
-    .then(r => r.data.data);
+export const deleteMember = (enterpriseId: string, memberId: string, config?: AxiosRequestConfig) => {
+  const req = config
+    ? api.delete<ApiResponse<null>>(`/enterprises/${enterpriseId}/org/members/${memberId}`, config)
+    : api.delete<ApiResponse<null>>(`/enterprises/${enterpriseId}/org/members/${memberId}`);
+  return req.then(r => r.data.data);
+};
 
 /** Excel 批量导入成员。 */
-export const importMembers = (enterpriseId: string, file: File) => {
+export const importMembers = (enterpriseId: string, file: File, config?: AxiosRequestConfig) => {
   const fd = new FormData();
   fd.append("file", file);
-  return api
-    .post<ApiResponse<ImportResult>>(`/enterprises/${enterpriseId}/org/members/import`, fd)
-    .then(r => r.data.data);
+  const req = config
+    ? api.post<ApiResponse<ImportResult>>(`/enterprises/${enterpriseId}/org/members/import`, fd, config)
+    : api.post<ApiResponse<ImportResult>>(`/enterprises/${enterpriseId}/org/members/import`, fd);
+  return req.then(r => r.data.data);
 };
 
 /** AI 建议组织树（available=false 时降级，不阻塞手动维护）。 */
@@ -96,7 +108,8 @@ export const suggestOrgTree = (enterpriseId: string, extraRequirements = "") =>
     .then(r => r.data.data);
 
 /** 下载 Excel 成员导入模板（返回 blob 响应，DOM 下载由页面触发，与 exportControlList 惯例一致）。 */
-export const downloadMemberTemplate = (enterpriseId: string) =>
+export const downloadMemberTemplate = (enterpriseId: string, config?: AxiosRequestConfig) =>
   api.get(`/enterprises/${enterpriseId}/org/members/template`, {
     responseType: "blob",
+    ...config,
   });

@@ -75,7 +75,8 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await listChemicals(enterpriseId, { page_size: 200 });
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const res = await listChemicals(enterpriseId, { page_size: 200 }, { skipGlobalError: true });
       setData(res.data.items || []);
     } catch (err: any) {
       message.error(err?.response?.data?.detail || "加载失败");
@@ -102,7 +103,8 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteChemical(enterpriseId, id);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      await deleteChemical(enterpriseId, id, { skipGlobalError: true });
       message.success("已删除");
       fetchData();
     } catch (err: any) {
@@ -115,10 +117,12 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
       const values = await form.validateFields();
       setSubmitting(true);
       if (editing) {
-        await updateChemical(enterpriseId, editing.id, values as HazardousChemicalUpdate);
+        // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+        await updateChemical(enterpriseId, editing.id, values as HazardousChemicalUpdate, { skipGlobalError: true });
         message.success("已更新");
       } else {
-        await createChemical(enterpriseId, values as HazardousChemicalCreate);
+        // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+        await createChemical(enterpriseId, values as HazardousChemicalCreate, { skipGlobalError: true });
         message.success("已添加");
       }
       setModalOpen(false);

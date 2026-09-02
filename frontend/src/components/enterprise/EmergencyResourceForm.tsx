@@ -24,19 +24,22 @@ export default function EmergencyResourceForm({ enterpriseId }: { enterpriseId: 
   });
 
   const createMut = useMutation({
-    mutationFn: (d: EmergencyResourceCreate) => createResource(enterpriseId, d),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (d: EmergencyResourceCreate) => createResource(enterpriseId, d, { skipGlobalError: true }),
     onSuccess: () => { message.success("创建成功"); queryClient.invalidateQueries({ queryKey: ["resources", enterpriseId] }); setModalOpen(false); resetForm(); },
     onError: () => message.error("创建失败"),
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<EmergencyResourceCreate> }) => updateResource(enterpriseId, id, data),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: ({ id, data }: { id: string; data: Partial<EmergencyResourceCreate> }) => updateResource(enterpriseId, id, data, { skipGlobalError: true }),
     onSuccess: () => { message.success("更新成功"); queryClient.invalidateQueries({ queryKey: ["resources", enterpriseId] }); setModalOpen(false); resetForm(); },
     onError: () => message.error("更新失败"),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteResource(enterpriseId, id),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (id: string) => deleteResource(enterpriseId, id, { skipGlobalError: true }),
     onSuccess: () => { message.success("删除成功"); queryClient.invalidateQueries({ queryKey: ["resources", enterpriseId] }); },
     onError: () => message.error("删除失败"),
   });

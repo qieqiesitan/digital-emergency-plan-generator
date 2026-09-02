@@ -132,7 +132,8 @@ export default function EnterpriseDictConfigPage() {
 
   const createMut = useMutation({
     mutationFn: (payload: DataDictPayload) =>
-      createEnterpriseDict(enterpriseId, payload),
+      // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      createEnterpriseDict(enterpriseId, payload, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("已创建企业覆盖，可继续编辑");
       refetchAll();
@@ -143,7 +144,8 @@ export default function EnterpriseDictConfigPage() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<DataDictPayload> }) =>
-      updateEnterpriseDict(enterpriseId, id, patch),
+      // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      updateEnterpriseDict(enterpriseId, id, patch, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("保存成功");
       refetchAll();
@@ -153,7 +155,8 @@ export default function EnterpriseDictConfigPage() {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteEnterpriseDict(enterpriseId, id),
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (id: string) => deleteEnterpriseDict(enterpriseId, id, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("已删除企业条目，恢复系统默认");
       refetchAll();

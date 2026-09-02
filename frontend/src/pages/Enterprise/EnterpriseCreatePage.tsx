@@ -29,7 +29,8 @@ export default function EnterpriseCreatePage() {
   const uploadRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
-    mutationFn: createEnterprise,
+    // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+    mutationFn: (data: Parameters<typeof createEnterprise>[0]) => createEnterprise(data, { skipGlobalError: true }),
     onSuccess: (data) => {
       message.success("企业创建成功");
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });

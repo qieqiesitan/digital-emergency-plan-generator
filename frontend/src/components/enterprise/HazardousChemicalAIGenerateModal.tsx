@@ -41,7 +41,8 @@ export default function HazardousChemicalAIGenerateModal({ enterpriseId, visible
   const loadQuestions = async () => {
     setStep("loading-questions");
     try {
-      const qs = await getChemicalAIQuestions(enterpriseId);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const qs = await getChemicalAIQuestions(enterpriseId, { skipGlobalError: true });
       if (qs.length === 0) {
         message.error("未能生成调查问题，请重试");
         onClose();
@@ -73,7 +74,8 @@ export default function HazardousChemicalAIGenerateModal({ enterpriseId, visible
           answer: customSupplement.trim(),
         });
       }
-      const items = await generateChemicalsAI(enterpriseId, answerList);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const items = await generateChemicalsAI(enterpriseId, answerList, { skipGlobalError: true });
       if (items.length === 0) {
         message.warning("AI 未能生成化学品清单，请补充更多信息后重试");
         setStep("answer");
@@ -118,7 +120,8 @@ export default function HazardousChemicalAIGenerateModal({ enterpriseId, visible
         max_storage: item.max_storage,
       }));
       console.log("[AI Generate Chem] Sending batch create:", toImport.length, "items");
-      const result = await batchCreateChemicals(enterpriseId, toImport);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const result = await batchCreateChemicals(enterpriseId, toImport, { skipGlobalError: true });
       console.log("[AI Generate Chem] Batch create result:", result.length, "created");
       message.success(`成功导入 ${toImport.length} 种危险化学品`);
       onImported();

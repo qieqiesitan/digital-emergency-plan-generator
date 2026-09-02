@@ -347,7 +347,8 @@ export default function EnterpriseOrgPage() {
       return;
     }
     try {
-      await saveOrgNodes(enterpriseId, nodes);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      await saveOrgNodes(enterpriseId, nodes, { skipGlobalError: true });
       setLocalNodes(null);
       message.success("组织树已保存");
       refetchAll();
@@ -429,7 +430,8 @@ export default function EnterpriseOrgPage() {
     setSearching(true);
     setSelectedUser(null);
     try {
-      const result = await searchBindableUsers(enterpriseId, email);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const result = await searchBindableUsers(enterpriseId, email, { skipGlobalError: true });
       setSearchResults(result);
       if (!result.length) message.info("未找到匹配的账号（可能已是企业成员）");
     } catch (e) {
@@ -464,6 +466,7 @@ export default function EnterpriseOrgPage() {
     form.validateFields().then(async values => {
       try {
         if (memberModal.mode === "edit" && memberModal.member) {
+          // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
           await updateMember(enterpriseId, memberModal.member.id, {
             name: values.name ?? undefined,
             phone: values.phone || null,
@@ -471,7 +474,7 @@ export default function EnterpriseOrgPage() {
             position: values.position || null,
             role: values.role,
             enabled: values.enabled,
-          });
+          }, { skipGlobalError: true });
           message.success("成员已更新");
         } else {
           if (memberMode === "person") {
@@ -480,26 +483,28 @@ export default function EnterpriseOrgPage() {
               message.error("姓名必填");
               return;
             }
+            // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
             await createMember(enterpriseId, {
               name,
               phone: values.phone || null,
               org_node_id: values.org_node_id ?? null,
               position: values.position || null,
               role: values.role,
-            });
+            }, { skipGlobalError: true });
             message.success(`成员「${name}」已添加`);
           } else {
             if (!selectedUser) {
               message.error("请先按邮箱搜索并选择要绑定的账号");
               return;
             }
+            // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
             await createMember(enterpriseId, {
               user_id: selectedUser.id,
               name: selectedUser.name,
               org_node_id: values.org_node_id ?? null,
               position: values.position || null,
               role: values.role,
-            });
+            }, { skipGlobalError: true });
             message.success(`成员「${selectedUser.name}」已添加`);
           }
         }
@@ -514,7 +519,8 @@ export default function EnterpriseOrgPage() {
   const toggleMemberEnabled = useCallback(
     async (member: EnterpriseMember) => {
       try {
-        await updateMember(enterpriseId, member.id, { enabled: !member.enabled });
+        // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+        await updateMember(enterpriseId, member.id, { enabled: !member.enabled }, { skipGlobalError: true });
         message.success(member.enabled ? "已停用" : "已启用");
         refetchMembers();
       } catch (e) {
@@ -527,7 +533,8 @@ export default function EnterpriseOrgPage() {
   const handleDeleteMember = useCallback(
     async (member: EnterpriseMember) => {
       try {
-        await deleteMember(enterpriseId, member.id);
+        // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+        await deleteMember(enterpriseId, member.id, { skipGlobalError: true });
         message.success("成员已删除");
         refetchAll();
       } catch (e) {
@@ -541,7 +548,8 @@ export default function EnterpriseOrgPage() {
 
   const handleDownloadTemplate = useCallback(async () => {
     try {
-      const res = await downloadMemberTemplate(enterpriseId);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const res = await downloadMemberTemplate(enterpriseId, { skipGlobalError: true });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -558,7 +566,8 @@ export default function EnterpriseOrgPage() {
     async (file: File) => {
       setImporting(true);
       try {
-        const result = await importMembers(enterpriseId, file);
+        // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+        const result = await importMembers(enterpriseId, file, { skipGlobalError: true });
         if (result.errors.length) {
           modal.info({
             title: "导入完成",

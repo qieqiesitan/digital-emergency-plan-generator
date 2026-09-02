@@ -76,7 +76,8 @@ export default function EnterpriseInfoCards({
     }
     setAutofillLoading(true);
     try {
-      const result = await autofillEnterprise(name.trim());
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const result = await autofillEnterprise(name.trim(), { skipGlobalError: true });
       if (result.error) {
         message.warning(
           result.error === "not_found" ? "未找到该企业信息，请检查企业名称" : "查询失败，请手动填写",

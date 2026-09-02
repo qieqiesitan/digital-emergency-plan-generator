@@ -94,12 +94,13 @@ export default function EnterpriseInfoWorkspace({
   // 一次「保存」同时提交基本资料与 GIS/平面图，保存后停留当前页
   const handleSaved = async (values: Record<string, unknown>) => {
     try {
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
       await updateEnterprise(enterpriseId, {
         ...(values as EnterpriseUpdate),
         gis_lat: effectiveGis?.lat ?? null,
         gis_lng: effectiveGis?.lng ?? null,
         floor_plan_url: effectiveFloorPlan,
-      });
+      }, { skipGlobalError: true });
       refreshAll();
       message.success("企业信息已保存");
     } catch (e: unknown) {
@@ -151,7 +152,8 @@ export default function EnterpriseInfoWorkspace({
       return;
     }
     try {
-      await updateEnterprise(enterpriseId, patch);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      await updateEnterprise(enterpriseId, patch, { skipGlobalError: true });
       removeCandidate(item._key);
       refreshAll();
       message.success(`已采纳：${String(item.name || "企业信息")}`);

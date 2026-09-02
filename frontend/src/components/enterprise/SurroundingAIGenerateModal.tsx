@@ -71,7 +71,8 @@ export default function SurroundingAIGenerateModal({
   const loadQuestions = async () => {
     setStep("loading-questions");
     try {
-      const qs = await getSurroundingAIQuestions(enterpriseId);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const qs = await getSurroundingAIQuestions(enterpriseId, { skipGlobalError: true });
       if (qs.length === 0) {
         message.error("未能生成调查问题，请重试");
         onClose();
@@ -102,7 +103,8 @@ export default function SurroundingAIGenerateModal({
           answer: customSupplement.trim(),
         });
       }
-      const generated = await generateSurroundingAI(enterpriseId, answerList);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      const generated = await generateSurroundingAI(enterpriseId, answerList, { skipGlobalError: true });
 
       // Merge existing + generated with _key and _isNew markers
       const existingUnits: EditableNearby[] = (existingSurrounding.nearby_units || []).map(
@@ -141,7 +143,8 @@ export default function SurroundingAIGenerateModal({
         sensitive_targets: sensitiveTargets.map(({ _key, _isNew, ...rest }) => rest),
         traffic_info: trafficInfo,
       };
-      await updateSurrounding(enterpriseId, toSave);
+      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+      await updateSurrounding(enterpriseId, toSave, { skipGlobalError: true });
       message.success("周边环境已更新");
       onImported();
       resetAll();
