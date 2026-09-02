@@ -8,6 +8,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanVersion
 from app.routers.versions import _build_snapshot
+from app.services.agent.agents import LAYER_PARAMS
 from app.services.plan_review_service import review_plan
 
 router = APIRouter(prefix="/plans", tags=["Plan Review"])
@@ -67,7 +68,9 @@ async def _apply_llm_revision(section, issue_text, plan, ent_data, db) -> str | 
         f"【企业上下文】{str(ent_data)[:800]}\n"
         "直接输出修订后的章节 HTML："
     )
-    content = await _stream_llm(prompt, cfg, plan.plan_type)
+    content = await _stream_llm(
+        prompt, cfg, plan.plan_type, payload_overrides=LAYER_PARAMS["review"]
+    )
     if _revision_failure_reason(content):
         return None
     return content

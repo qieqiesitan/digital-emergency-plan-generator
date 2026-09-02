@@ -29,6 +29,7 @@ import logging
 
 import re
 
+from app.services.agent.agents import LAYER_PARAMS
 from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMError
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
@@ -683,13 +684,21 @@ def _embed_mermaid_svgs(html_content: str, svgs: dict[str, str]) -> str:
 
 
 
-async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*", style_preference=None, advanced_overrides=None):
+async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*",
+                             style_preference=None, advanced_overrides=None,
+                             payload_overrides=None):
     try:
         messages = [
             {"role": "system", "content": _build_system_prompt(plan_type, style_preference, advanced_overrides)},
             {"role": "user", "content": prompt},
         ]
-        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
+        if payload_overrides:
+            gen = await llm_chat_completion(
+                messages, ai_config, stream=True, timeout=120,
+                payload_overrides=payload_overrides,
+            )
+        else:
+            gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
         async for chunk in gen:
             yield chunk
     except HTTPException:
@@ -701,11 +710,19 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
         raise HTTPException(500, str(e))
 
 
-async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*", style_preference=None, advanced_overrides=None) -> str:
+async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*",
+                      style_preference=None, advanced_overrides=None,
+                      payload_overrides=None) -> str:
     messages = [
         {"role": "system", "content": _build_system_prompt(plan_type, style_preference, advanced_overrides)},
         {"role": "user", "content": prompt},
     ]
+    if payload_overrides:
+        data = await llm_chat_completion(
+            messages, ai_config, stream=False, timeout=120,
+            payload_overrides=payload_overrides,
+        )
+        return data.get("choices", [{}])[0].get("message", {}).get("content", "")
     return await llm_collect_all(messages, ai_config, timeout=120)
 
 
@@ -753,7 +770,10 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     key = section_key_holder.get("key")
                     title = section_key_holder.get("title", key)
                     try:
-                        async for chunk in _stream_llm_chunks(prompt, cfg, pt, sp, ao):
+                        async for chunk in _stream_llm_chunks(
+                            prompt, cfg, pt, sp, ao,
+                            payload_overrides=LAYER_PARAMS["generate"],
+                        ):
                             full += chunk
                             await event_queue.put(sse_event("chunk", content=chunk, section_key=key))
                         return full
@@ -1022,7 +1042,10 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             full = ""
 
-            async for chunk_content in _stream_llm_chunks(prompt, ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides):
+            async for chunk_content in _stream_llm_chunks(
+                prompt, ai_config, p.plan_type, p.style_preference,
+                p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
+            ):
 
                 full += chunk_content
 
@@ -1166,7 +1189,10 @@ async def regenerate_selection(
         try:
             yield sse_event("progress", message=f"正在重生成「{s.title}」选中段落...")
 
-            async for chunk_content in _stream_llm_chunks(user_prompt, ai_config, p.plan_type, p.style_preference, p.advanced_prompt_overrides):
+            async for chunk_content in _stream_llm_chunks(
+                user_prompt, ai_config, p.plan_type, p.style_preference,
+                p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
+            ):
                 yield sse_event("chunk", content=chunk_content)
 
             p.status = "draft"
@@ -1239,7 +1265,8 @@ async def generate_preview(
             full = ""
             async for chunk in _stream_llm_chunks(
                 prompt, ai_config, p.plan_type,
-                p.style_preference, p.advanced_prompt_overrides
+                p.style_preference, p.advanced_prompt_overrides,
+                payload_overrides=LAYER_PARAMS["generate"],
             ):
                 full += chunk
                 yield sse_event("chunk", content=chunk)

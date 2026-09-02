@@ -67,3 +67,14 @@ class AgentRegistry:
 
     def names(self) -> list[str]:
         return list(self._agents)
+
+
+# 任务分层参数（同一模型，不同任务用不同温度/长度；D3 不引入多模型）。
+# 调用侧在既有 LLM 调用点按任务选择对应分层字典，作为 payload_overrides 浅合并覆盖。
+LAYER_PARAMS = {
+    "assistant": {"temperature": 0.5},
+    "generate": {"temperature": 0.7, "max_tokens": 4096},
+    "review": {"temperature": 0.2, "max_tokens": 2048},
+    "regulation": {"temperature": 0.3, "max_tokens": 1024},
+    "report": {"temperature": 0.5, "max_tokens": 4096},
+}

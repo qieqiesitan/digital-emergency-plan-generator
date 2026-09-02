@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import async_session
 from app.models.enterprise import PlanProject, PlanSection, Enterprise, EmergencyResource, PlanVersion
 from app.models.hazardous_chemicals import HazardousChemical
+from app.services.agent.agents import LAYER_PARAMS
 from app.services.ai_config_service import get_system_ai_config
 from app.services.risk_context_builder import build_risk_management_context
 from app.services.markdown_utils import md_to_html
@@ -184,7 +185,10 @@ async def run_batch_generation(
                 prompt_kwargs["section_number"] = i + 1
             prompt_text = _build_section_prompt(section_title, ent_data, **prompt_kwargs)
             if stream_fn is None:
-                full = await _stream_llm(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
+                full = await _stream_llm(
+                    prompt_text, ai_config, plan_type, style_preference,
+                    advanced_overrides, payload_overrides=LAYER_PARAMS["generate"],
+                )
             else:
                 full = await stream_fn(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
             s.content = md_to_html(full, normalize=True)
