@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getControlList, exportControlList, listZones } from "@/services/riskManagementService";
 import type { ControlListRow } from "@/services/riskManagementService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
+import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 
@@ -66,6 +67,7 @@ export default function RiskControlListPage() {
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const hasFilters = Object.keys(filters).length > 0;
 
   const patchFilters = (patch: Partial<ListFilters>) => {
     setFilters(f => ({ ...f, ...patch }));
@@ -182,7 +184,24 @@ export default function RiskControlListPage() {
         dataSource={items}
         columns={columns}
         scroll={{ x: 1220 }}
-        locale={{ emptyText: isError ? "加载失败，请稍后重试" : "暂无管控清单数据" }}
+        locale={{
+          emptyText: isError ? (
+            "加载失败，请稍后重试"
+          ) : (
+            <AppEmpty
+              title={hasFilters ? "未找到匹配的风险点" : "暂无管控清单数据"}
+              description={
+                hasFilters
+                  ? "请调整筛选条件后重试"
+                  : "风险点尚未创建，管控清单暂无数据"
+              }
+              actionLabel={hasFilters ? undefined : "去添加风险点"}
+              onAction={
+                hasFilters ? undefined : () => navigate(`/enterprises/${enterpriseId}/risk-management`)
+              }
+            />
+          ),
+        }}
         pagination={{
           current: page,
           pageSize,

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Col, Row, Input, Select, Button, Space, Spin, Empty } from "antd";
+import { Card, Col, Row, Input, Select, Button, Space, Spin } from "antd";
 import { Segmented, Table, Progress } from "antd";
 import type { TableColumnsType } from "antd";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getEnterprisePlanSummary, listPlans } from "@/services/planService";
+import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 import { fromNow } from "@/utils/formatters";
 import { PLAN_TYPE_LABELS, PRESET_INDUSTRIES } from "@/utils/constants";
@@ -123,7 +124,18 @@ function PlanListTable({
         style: { cursor: "pointer" },
         onClick: () => navigate(`/plans/${record.id}/edit${record.enterprise_id ? `?enterprise_id=${record.enterprise_id}` : ""}`),
       })}
-      locale={{ emptyText: "暂无预案" }}
+      locale={{
+        emptyText: (
+          <AppEmpty
+            title={listSearch ? "未找到匹配预案" : "暂无预案"}
+            description={
+              listSearch ? "请调整搜索关键词后重试" : "创建第一份应急预案，开始数字化预案管理"
+            }
+            actionLabel={listSearch ? undefined : "新建预案"}
+            onAction={listSearch ? undefined : () => navigate("/plans/new")}
+          />
+        ),
+      }}
     />
   );
 }
@@ -231,11 +243,16 @@ export default function PlanCardsPage() {
           <Spin size="large" />
         </div>
       ) : filtered.length === 0 ? (
-        <Empty description={
-          allItems.length === 0
-            ? "暂无企业，请先创建企业"
-            : "未找到匹配企业"
-        } />
+        <AppEmpty
+          title={allItems.length === 0 ? "暂无企业" : "未找到匹配企业"}
+          description={
+            allItems.length === 0
+              ? "请先创建企业，再为企业编写应急预案"
+              : "请调整搜索关键词或行业筛选"
+          }
+          actionLabel={allItems.length === 0 ? "创建第一个企业" : undefined}
+          onAction={allItems.length === 0 ? () => navigate("/enterprises/new") : undefined}
+        />
       ) : (
         <Row gutter={[16, 16]}>
           {filtered.map((item) => (

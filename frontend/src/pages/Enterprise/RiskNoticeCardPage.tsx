@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getDownloadUrl } from "@/services/exportService";
 import { fetchCardSummaries, exportCards } from "@/services/riskNoticeCardService";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 import type { CardSummary } from "@/types/riskNoticeCard";
 
@@ -20,6 +21,7 @@ export default function RiskNoticeCardPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [filters, setFilters] = useState<{ level?: string; keyword?: string }>({});
   const [exporting, setExporting] = useState(false);
+  const hasFilters = !!(filters.level || filters.keyword);
 
   const { data = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["risk-notice-cards", enterpriseId, filters],
@@ -245,7 +247,22 @@ export default function RiskNoticeCardPage() {
         }}
         pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
         locale={{
-          emptyText: isError ? "加载失败，请稍后重试" : "请先在风险管理中添加风险点",
+          emptyText: isError ? (
+            "加载失败，请稍后重试"
+          ) : (
+            <AppEmpty
+              title={hasFilters ? "未找到匹配的风险点" : "暂无风险告知卡"}
+              description={
+                hasFilters
+                  ? "请调整筛选条件后重试"
+                  : "风险告知卡基于风险点评估数据自动生成，请先在风险管理中添加风险点"
+              }
+              actionLabel={hasFilters ? undefined : "去风险管理"}
+              onAction={
+                hasFilters ? undefined : () => navigate(`/enterprises/${enterpriseId}/risk-management`)
+              }
+            />
+          ),
         }}
       />
 

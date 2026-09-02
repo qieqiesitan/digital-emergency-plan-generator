@@ -12,6 +12,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { getDashboard } from "@/services/dashboardService";
 import { listEnterprises } from "@/services/enterpriseService";
+import AppEmpty from "@/components/common/AppEmpty";
 import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
 import { fromNow } from "@/utils/formatters";
@@ -206,7 +207,16 @@ export default function DashboardPage() {
             />
           </List.Item>
         )}
-        locale={{ emptyText: "暂无预案" }}
+        locale={{
+          emptyText: (
+            <AppEmpty
+              title="暂无预案"
+              description="创建第一份应急预案后，最近编辑会显示在这里"
+              actionLabel="新建预案"
+              onAction={() => navigate("/plans/new")}
+            />
+          ),
+        }}
       />
 
       <Modal

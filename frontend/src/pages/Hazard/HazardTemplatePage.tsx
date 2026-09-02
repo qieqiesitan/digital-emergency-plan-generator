@@ -23,6 +23,7 @@ import {
 } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import AppEmpty from "@/components/common/AppEmpty";
 import AppIcon from "@/components/common/AppIcon";
 import {
   aiChecklistTemplate,
@@ -294,7 +295,16 @@ export default function HazardTemplatePage() {
         size="middle"
         loading={isLoading}
         pagination={{ pageSize: 10, showTotal: t => `共 ${t} 条` }}
-        locale={{ emptyText: "暂无模板，可新建或复制系统模板" }}
+        locale={{
+          emptyText: (
+            <AppEmpty
+              title="暂无模板"
+              description="可新建检查表模板，或复制系统模板后按需编辑"
+              actionLabel="新建模板"
+              onAction={openCreate}
+            />
+          ),
+        }}
         scroll={{ x: 760 }}
       />
 

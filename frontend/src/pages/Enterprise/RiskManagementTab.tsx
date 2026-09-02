@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { App as AntApp, Alert, Button, Spin, Empty, Space, Tag } from "antd";
+import { App as AntApp, Alert, Button, Spin, Space, Tag } from "antd";
 import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined, UnorderedListOutlined } from "@ant-design/icons";
+import AppEmpty from "@/components/common/AppEmpty";
 import AppIcon from "@/components/common/AppIcon";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure, getMigrationPreview } from "@/services/riskManagementService";
@@ -396,7 +397,17 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
             </>
           )}
         </Space>
-         {hierarchy.length === 0 ? <Empty description="暂无数据，请添加风险分区" /> : <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />}
+         {hierarchy.length === 0 ? (
+           <AppEmpty
+             title="暂无风险分区"
+             description="先添加分区与风险点，构建风险分级管控结构"
+             actionLabel="添加分区"
+             onAction={() => setForm({ type: "zone", open: true })}
+             style={{ padding: "24px 8px" }}
+           />
+         ) : (
+           <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />
+         )}
        </div>
  
        {/* RIGHT: Detail Panel */}

@@ -19,6 +19,7 @@ import type { TableColumnsType } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import AppEmpty from "@/components/common/AppEmpty";
 import AppIcon from "@/components/common/AppIcon";
 import {
   aiScheduleSuggestion,
@@ -399,7 +400,16 @@ export default function HazardPlanPage() {
         columns={columns}
         dataSource={plans}
         loading={isLoading}
-        locale={{ emptyText: "暂无排查计划" }}
+        locale={{
+          emptyText: (
+            <AppEmpty
+              title="暂无排查计划"
+              description="配置排查计划后，系统将按频次自动生成排查任务"
+              actionLabel="新建排查计划"
+              onAction={openCreate}
+            />
+          ),
+        }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
       />
 

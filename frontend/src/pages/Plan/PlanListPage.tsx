@@ -5,6 +5,7 @@ import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listPlans, deletePlan } from "@/services/planService";
 import { getEnterprise } from "@/services/enterpriseService";
+import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
@@ -70,6 +71,7 @@ export default function PlanListPage() {
   const total = data?.data.total || 0;
   const isGlobal = !enterprise_id;
   const entName = enterprise?.name || "";
+  const hasActiveFilters = search.trim() !== "" || typeFilter !== "all" || statusFilter !== "all";
 
   const columns = [
     {
@@ -205,7 +207,26 @@ export default function PlanListPage() {
           style: { cursor: "pointer" },
           onClick: () => navigate(`/plans/${record.id}/edit${enterprise_id ? `?enterprise_id=${enterprise_id}` : ""}`),
         })}
-        locale={{ emptyText: "暂无预案" }}
+        locale={{
+          emptyText: (
+            <AppEmpty
+              title={hasActiveFilters ? "未找到匹配预案" : "暂无预案"}
+              description={
+                hasActiveFilters
+                  ? "请调整筛选条件或清除搜索关键词"
+                  : isGlobal
+                    ? "创建第一份应急预案，开始数字化预案管理"
+                    : "为当前企业创建第一份应急预案"
+              }
+              actionLabel={hasActiveFilters ? undefined : "新建预案"}
+              onAction={
+                hasActiveFilters
+                  ? undefined
+                  : () => navigate(enterprise_id ? `/plans/new?enterprise_id=${enterprise_id}` : "/plans/new")
+              }
+            />
+          ),
+        }}
       />
 
       <ConfirmDeleteModal

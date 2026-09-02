@@ -32,6 +32,7 @@ import type {
   HazardInspectionTask,
   HazardTaskStatus,
 } from "@/types/hazard";
+import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 
 const TASK_STATUS_LABELS: Record<HazardTaskStatus, string> = {
@@ -184,6 +185,7 @@ export default function HazardTaskPage() {
         .map(m => ({ value: m.user_id, label: m.name || m.email || m.user_id })),
     [members],
   );
+  const hasFilters = Object.keys(filters).length > 0;
 
   const openDetail = (task: HazardInspectionTask) => {
     setDetailTaskId(task.id);
@@ -432,7 +434,22 @@ export default function HazardTaskPage() {
         columns={columns}
         dataSource={tasks}
         loading={isLoading}
-        locale={{ emptyText: "暂无排查任务" }}
+        locale={{
+          emptyText: (
+            <AppEmpty
+              title={hasFilters ? "未找到匹配任务" : "暂无排查任务"}
+              description={
+                hasFilters
+                  ? "请调整筛选条件或点击「重置」"
+                  : "排查任务由排查计划按频次自动生成，请先配置排查计划"
+              }
+              actionLabel={hasFilters ? undefined : "去配置排查计划"}
+              onAction={
+                hasFilters ? undefined : () => navigate(`/enterprises/${enterpriseId}/hazard/plans`)
+              }
+            />
+          ),
+        }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
       />
 
