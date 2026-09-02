@@ -17,7 +17,7 @@ from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
 
 router = APIRouter(prefix="/enterprises", tags=["Hazardous Chemicals"])
 
-# ?? AI helpers ??
+# --- AI helpers ---
 async def _get_enterprise(enterprise_id: str, user_id: str, db: AsyncSession) -> Enterprise:
     result = await db.execute(
         select(Enterprise).where(
@@ -27,11 +27,11 @@ async def _get_enterprise(enterprise_id: str, user_id: str, db: AsyncSession) ->
     )
     ent = result.scalar_one_or_none()
     if not ent:
-        raise HTTPException(404, "?????")
+        raise HTTPException(404, "企业不存在")
     return ent
 
 
-# ?? List ??
+# --- List ---
 @router.get("/{enterprise_id}/chemicals", response_model=PaginatedResponse[HazardousChemicalResponse])
 async def list_chemicals(
     enterprise_id: str,
@@ -68,7 +68,7 @@ async def list_chemicals(
     )
 
 
-# ?? Get one ??
+# --- Get one ---
 @router.get("/{enterprise_id}/chemicals/{chemical_id}", response_model=ApiResponse[HazardousChemicalResponse])
 async def get_chemical(
     enterprise_id: str,
@@ -86,12 +86,12 @@ async def get_chemical(
     )
     chemical = result.scalar_one_or_none()
     if not chemical:
-        raise HTTPException(404, "??????????")
+        raise HTTPException(404, "危化品不存在")
 
     return ApiResponse(data=HazardousChemicalResponse.model_validate(chemical))
 
 
-# ?? Create ??
+# --- Create ---
 @router.post("/{enterprise_id}/chemicals", response_model=ApiResponse[HazardousChemicalResponse], status_code=201)
 async def create_chemical(
     enterprise_id: str,
@@ -112,7 +112,7 @@ async def create_chemical(
     return ApiResponse(data=HazardousChemicalResponse.model_validate(chemical))
 
 
-# ?? Update ??
+# --- Update ---
 @router.put("/{enterprise_id}/chemicals/{chemical_id}", response_model=ApiResponse[HazardousChemicalResponse])
 async def update_chemical(
     enterprise_id: str,
@@ -131,7 +131,7 @@ async def update_chemical(
     )
     chemical = result.scalar_one_or_none()
     if not chemical:
-        raise HTTPException(404, "??????????")
+        raise HTTPException(404, "危化品不存在")
 
     update_data = body.model_dump(exclude_unset=True, exclude_none=False)
     for key, value in update_data.items():
@@ -143,7 +143,7 @@ async def update_chemical(
     return ApiResponse(data=HazardousChemicalResponse.model_validate(chemical))
 
 
-# ?? Delete ??
+# --- Delete ---
 @router.delete("/{enterprise_id}/chemicals/{chemical_id}", response_model=ApiResponse[None])
 async def delete_chemical(
     enterprise_id: str,
@@ -161,7 +161,7 @@ async def delete_chemical(
     )
     chemical = result.scalar_one_or_none()
     if not chemical:
-        raise HTTPException(404, "??????????")
+        raise HTTPException(404, "危化品不存在")
 
     await db.delete(chemical)
     await db.commit()
@@ -169,7 +169,7 @@ async def delete_chemical(
     return ApiResponse(data=None)
 
 
-# ?? AI question generation ??
+# --- AI question generation ---
 class AIQuestionItem(BaseModel):
     id: str
     question: str
@@ -191,39 +191,38 @@ async def get_chemical_ai_questions(
     if not ai_config:
         raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
-    # ???????
+    # 查询该企业已有的危化品，用于去重
     existing = (await db.execute(
         select(HazardousChemical).where(HazardousChemical.enterprise_id == enterprise_id)
     )).scalars().all()
     existing_names = [c.name for c in existing]
     existing_summary = ""
     if existing_names:
-        existing_summary = "\n??????????????????????\n"
+        existing_summary = "\n该企业已录入的危化品（请避免重复提问）：\n"
         for c in existing:
-            existing_summary += f"- {c.name}?CAS: {c.cas_no or '?'}?????: {c.location or '???'}?\n"
+            existing_summary += f"- {c.name}（CAS：{c.cas_no or '未知'}，位置：{c.location or '未指定'}）\n"
 
     system_prompt = (
-        "?????????????????????????????"
-        "???????????2015?????????????(GB 12268-2012)?"
-        "????????????????????????????"
-        "???????????????????"
+        "你是一位持有国家注册安全工程师资格的专业应急预案专家，熟悉《危险化学品目录（2015版）》和危险货物分类标准（GB 12268-2012）。"
+        "你的任务是提出针对性问题以帮助识别企业尚未录入的危化品，"
+        "必须严格避免对已录入危化品重复提问。"
     )
-    user_prompt = f"""???????????? 3~5 ?????????????????????????
+    user_prompt = f"""请根据以下企业信息，提出 3~5 个针对性问题以辅助识别该企业可能使用、储存的危化品。
 
-????????????????????????????????????????????????????
+问题应结合该企业的行业特点、生产工艺和建筑概况，使用简体中文。
 
-**?????????????????**
+**重要：已录入的危化品不要重复提问，问题应聚焦于尚未覆盖的危化品领域。**
 
-?????
-- ???{ent.name}
-- ???{ent.industry or "??"}
-- ?????{ent.business_scope or "??"}
-- ??/?????{ent.building_overview or "??"}
-- ?????{ent.employee_count or "??"}
+企业信息：
+- 名称：{ent.name}
+- 行业：{ent.industry or "未知"}
+- 经营范围：{ent.business_scope or "未知"}
+- 建筑/厂区概况：{ent.building_overview or "未知"}
+- 员工人数：{ent.employee_count or "未知"}
 {existing_summary}
 
-?? JSON ?????{{"questions": [{{"id": "q1", "question": "????"}}]}}
-??? JSON????????"""
+请以 JSON 格式输出，格式严格为：{{"questions": [{{"id": "q1", "question": "问题文本"}}]}}
+只输出 JSON，不要任何解释或额外文本。"""
 
     try:
         raw = await llm_text_completion(
@@ -242,12 +241,12 @@ async def get_chemical_ai_questions(
     except HTTPException:
         raise
     except json.JSONDecodeError:
-        raise HTTPException(500, f"AI ??????: {raw[:200]}")
+        raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
     except Exception as e:
-        raise HTTPException(500, f"AI ????: {str(e)}")
+        raise HTTPException(500, f"AI 调用失败: {str(e)}")
 
 
-# ?? AI generate chemicals ??
+# --- AI generate chemicals ---
 class AIAnswerInput(BaseModel):
     question_id: str
     question: str
@@ -275,57 +274,55 @@ async def generate_chemicals_ai(
     if not ai_config:
         raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
-    # ?????????????
+    # 查询已有危化品，在生成时也做去重参考
     existing = (await db.execute(
         select(HazardousChemical).where(HazardousChemical.enterprise_id == enterprise_id)
     )).scalars().all()
     existing_names = [c.name for c in existing]
     existing_summary = ""
     if existing_names:
-        existing_summary = "\n?????????????????????\n" + "\n".join(f"- {n}" for n in existing_names)
+        existing_summary = "\n该企业已录入的危化品（严禁重复生成）：\n" + "\n".join(f"- {n}" for n in existing_names)
 
     qa_text = "\n".join(f"Q: {a.question}\nA: {a.answer}" for a in body.answers)
 
     system_prompt = (
-        "?????????????????????????????"
-        "???????????2015?????????????(GB 12268-2012)?"
-        "????????????????????????"
-        "?????????????????????????????????"
+        "你是一位持有国家注册安全工程师资格的专业应急预案专家，熟悉《危险化学品目录（2015版）》和危险货物分类标准（GB 12268-2012）。"
+        "严禁生成与已录入危化品名称相同或实质重复的危化品。"
     )
-    user_prompt = f"""???????????????????????????????
+    user_prompt = f"""请根据以下企业信息和用户回答，识别并列出该企业可能使用、储存的危化品。
 
-?????
-- ???{ent.name}
-- ???{ent.industry or "??"}
-- ?????{ent.business_scope or "??"}
-- ??/?????{ent.building_overview or "??"}
-- ?????{ent.employee_count or "??"}
+企业信息：
+- 名称：{ent.name}
+- 行业：{ent.industry or "未知"}
+- 经营范围：{ent.business_scope or "未知"}
+- 建筑/厂区概况：{ent.building_overview or "未知"}
+- 员工人数：{ent.employee_count or "未知"}
 {existing_summary}
 
-?????
+用户回答：
 {qa_text}
 
-????????????????????????? null??
-- name: ??????????????????
-- cas_no: CAS??????
-- un_no: UN??????
-- physical_state: ???????/??/???
-- flash_point: ???????????
-- explosion_limit: ?????????????
-- ignition_temp: ?????????
-- density: ???????
-- boiling_point: ???????
-- health_hazard: ??????
-- fire_hazard: ????????
-- leak_response: ????????
-- storage_transport: ?????????
-- first_aid: ????
-- protective_measures: ????
-- location: ??????????????
-- max_storage: ???????????
+请列出该企业可能使用、储存的危化品，无法确定的字段填 null：
+- name: 危化品名称（简明扼要，必须与已录入危化品名称不重复）
+- cas_no: CAS 编号（如已知）
+- un_no: UN 编号（如已知）
+- physical_state: 物理状态（气态/液态/固态）
+- flash_point: 闪点（如适用）
+- explosion_limit: 爆炸极限（如适用）
+- ignition_temp: 引燃温度（如适用）
+- density: 密度（如适用）
+- boiling_point: 沸点（如适用）
+- health_hazard: 健康危害
+- fire_hazard: 火灾危险性
+- leak_response: 泄漏应急处理
+- storage_transport: 储存运输注意事项
+- first_aid: 急救措施
+- protective_measures: 防护措施
+- location: 存放位置（根据企业信息推测）
+- max_storage: 最大储存量（如已知）
 
-?? JSON ???{{"items": [{{"name": "???", "cas_no": "8006-14-2", ...}}]}}
-??? JSON????????"""
+请以 JSON 格式输出：{{"items": [{{"name": "危化品名称", "cas_no": "8006-14-2", ...}}]}}
+只输出 JSON，不要任何解释。"""
 
     try:
         raw = await llm_text_completion(
@@ -344,12 +341,12 @@ async def generate_chemicals_ai(
     except HTTPException:
         raise
     except json.JSONDecodeError:
-        raise HTTPException(500, f"AI ??????: {raw[:200]}")
+        raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
     except Exception as e:
-        raise HTTPException(500, f"AI ????: {str(e)}")
+        raise HTTPException(500, f"AI 调用失败: {str(e)}")
 
 
-# ?? Batch create ??
+# --- Batch create ---
 class BatchCreateRequest(BaseModel):
     items: list[HazardousChemicalCreate]
 
@@ -364,7 +361,7 @@ async def batch_create_chemicals(
     await _get_enterprise(enterprise_id, current_user.id, db)
 
     if not body.items:
-        raise HTTPException(400, "?????????")
+        raise HTTPException(400, "至少需要一个危化品")
 
     created: list[HazardousChemical] = []
     for item in body.items:
