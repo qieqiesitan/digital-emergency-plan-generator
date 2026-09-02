@@ -27,9 +27,18 @@ const queryClient = new QueryClient({
 export default function App() {
   const router = useMemo(() => createRouter(), []);
 
+  // 设计令牌合一（A1-A3）：antd 为桌面端全局视觉基准，
+  // 主色/圆角/字体与 tailwind.config.ts（#1A56DB / 6px 圆角）对齐，消除双轨漂移。
+  const themeToken = {
+    colorPrimary: "#1A56DB",
+    borderRadius: 6,
+    fontFamily:
+      '-apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider locale={zhCN} theme={{ token: { colorPrimary: "#1677ff" } }}>
+      <ConfigProvider locale={zhCN} theme={{ token: themeToken }}>
         <AntApp>
           <AuthProvider>
             <EnterpriseProvider>

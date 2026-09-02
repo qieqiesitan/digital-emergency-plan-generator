@@ -4,6 +4,8 @@ export default {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // 视觉基准以 antd ConfigProvider token 为准（桌面端主入口 frontend/src/App.tsx）；
+      // 此处主色/圆角/字体保持与 antd token 一致，供 Tailwind 工具类引用时对齐。
       colors: {
         primary: {
           50: "#EFF6FF",
@@ -46,10 +48,8 @@ export default {
       },
       fontFamily: {
         sans: [
-          '"Inter"',
-          '"SF Pro Display"',
           "-apple-system",
-          "BlinkMacSystemFont",
+          '"Segoe UI"',
           '"PingFang SC"',
           '"Microsoft YaHei"',
           "sans-serif",
