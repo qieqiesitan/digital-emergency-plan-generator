@@ -1326,6 +1326,32 @@ async def _run_workflow(db, user, args):
     }
 
 
+async def _review_plan_tool(db, user, args):
+    """工作流/聊天调用的预案审查工具：返回审查 issues/warnings（复用 plan_review_service）。"""
+    plan_id = args.get("plan_id", "")
+    if not plan_id:
+        return {"error": "请提供 plan_id", "verified": False}
+    p = (await db.execute(
+        select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == user.id)
+    )).scalar_one_or_none()
+    if not p:
+        return {"error": "预案不存在或无权访问", "verified": False}
+    ent = (await db.execute(
+        select(Enterprise).where(Enterprise.id == p.enterprise_id)
+    )).scalar_one_or_none()
+    sections = (await db.execute(
+        select(PlanSection).where(PlanSection.plan_project_id == plan_id)
+        .order_by(PlanSection.sort_order)
+    )).scalars().all()
+    from app.services.plan_review_service import review_plan
+    result = review_plan(p, ent, sections)
+    return {
+        "plan_id": plan_id, "title": p.title,
+        "issues": result["issues"], "warnings": result["warnings"],
+        "issue_count": len(result["issues"]), "verified": True,
+    }
+
+
 async def _confirm_workflow_step(db, user, args):
     """确认工作流门控步骤（run 处于 paused 且 current_step=step_name 时放行继续）。"""
     run_id = args.get("run_id", "")
@@ -1454,6 +1480,7 @@ _FUNCTIONS = {
     "query_enterprise_knowledge": _query_enterprise_knowledge,
     "run_workflow": _run_workflow,
     "confirm_workflow_step": _confirm_workflow_step,
+    "review_plan": _review_plan_tool,
     "get_workflow_progress": _get_workflow_progress,
     "get_preferences": _get_preferences,
     "set_preferences": _set_preferences,

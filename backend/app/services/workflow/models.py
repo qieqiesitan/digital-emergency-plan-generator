@@ -8,6 +8,9 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+# 确保 users 表先注册到 Base（FK "users.id" 延迟解析需要 User 模型已映射；
+# 独立脚本/部分测试环境不会自动 import app.models.user）
+from app.models.user import User  # noqa: F401
 
 
 class WorkflowRun(Base):
