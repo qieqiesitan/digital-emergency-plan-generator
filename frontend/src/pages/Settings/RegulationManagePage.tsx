@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Tabs, Button, message, Space, Spin, Timeline, Modal } from "antd";
+import { Alert, Tabs, Button, message, Space, Spin, Timeline, Modal } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RegulationList } from "@/components/regulation/RegulationList";
@@ -18,7 +18,7 @@ export default function RegulationManagePage() {
   const [abolishTarget, setAbolishTarget] = useState<RegulationNode | null>(null);
   const [activeTab, setActiveTab] = useState("list");
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ["regulationStats"],
     queryFn: fetchStats,
     refetchInterval: 30000,
@@ -46,7 +46,30 @@ export default function RegulationManagePage() {
     });
   }
 
-  if (statsLoading) return <Spin style={{ display: "block", textAlign: "center", padding: 80 }} />;
+  if (statsLoading && !statsError) {
+    return <Spin style={{ display: "block", textAlign: "center", padding: 80 }} />;
+  }
+
+  const headerActions = (
+    <Space>
+      <Button icon={<ReloadOutlined />} loading={rebuildMut.isPending} onClick={handleRebuild}>一键重建索引</Button>
+    </Space>
+  );
+
+  if (statsError) {
+    return (
+      <div>
+        <PageHeader title="法规库管理">{headerActions}</PageHeader>
+        <Alert
+          type="error"
+          showIcon
+          message="法规库统计加载失败"
+          description="法规库索引未初始化或暂时不可用，可点击「重试」重新加载；若持续失败，请使用右上角「一键重建索引」恢复。"
+          action={<Button loading={statsLoading} onClick={() => refetchStats()}>重试</Button>}
+        />
+      </div>
+    );
+  }
 
   const actionLabels: Record<string, string> = { created: "新增入库", updated: "编辑更新", abolished: "标记废止", deleted: "删除", reindexed: "重建索引" };
 
@@ -57,9 +80,7 @@ export default function RegulationManagePage() {
   return (
     <div>
       <PageHeader title="法规库管理" subtitle={subtitle}>
-        <Space>
-          <Button icon={<ReloadOutlined />} loading={rebuildMut.isPending} onClick={handleRebuild}>一键重建索引</Button>
-        </Space>
+        {headerActions}
       </PageHeader>
 
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={[

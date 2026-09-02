@@ -161,9 +161,13 @@ async def list_regulations(
         page=page,
         page_size=page_size,
     )
-    # 附加索引状态
+    # 附加索引状态（ChromaDB collection 缺失/损坏时降级，不阻塞列表）
     vs = get_vector_store()
-    indexed_count = vs.collection_count() if vs else 0
+    try:
+        indexed_count = vs.collection_count() if vs else 0
+    except Exception as exc:
+        logger.warning("法规列表获取索引计数失败，降级 indexed_articles=0: %s", exc)
+        indexed_count = 0
     for item in result["items"]:
         item["indexed"] = True  # ponytail: 简化
     result["indexed_articles"] = indexed_count
@@ -538,7 +542,11 @@ async def stats(_: User = Depends(get_current_user)):
     graph = get_graph()
     vs = get_vector_store()
     s = graph.stats()
-    s["indexed_articles"] = vs.collection_count() if vs else 0
+    try:
+        s["indexed_articles"] = vs.collection_count() if vs else 0
+    except Exception as exc:
+        logger.error("法规库索引计数读取失败（索引未初始化或不可用）: %s", exc, exc_info=True)
+        raise HTTPException(503, "法规库索引未初始化或不可用") from exc
     return {"code": 0, "data": s}
 
 
