@@ -290,6 +290,46 @@ def _estimate_tokens(messages: list) -> int:
     return total
 
 
+def _repair_tool_call_boundaries(msgs: list) -> list:
+    """B7：截断后修正 tool_calls 配对边界，避免 OpenAI 400。
+
+    - 丢弃无对应 assistant 的孤儿 tool 消息（截断窗口以 tool 开头）
+    - 丢弃 tool 响应已被切掉的悬空 assistant(tool_calls)
+    - 完整 assistant(tool_calls)+tool 配对原样保留
+    """
+    out = []
+    i, n = 0, len(msgs)
+    while i < n:
+        m = msgs[i]
+        if m.get("role") == "tool":
+            i += 1
+            continue
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            pending = {tc.get("id") for tc in m["tool_calls"] if tc.get("id")}
+            if not pending:
+                out.append(m)
+                i += 1
+                continue
+            j = i + 1
+            seen = set()
+            while j < n and msgs[j].get("role") == "tool":
+                tid = msgs[j].get("tool_call_id")
+                if tid not in pending or tid in seen:
+                    break
+                seen.add(tid)
+                j += 1
+            if pending - seen:
+                # 有 tool 响应被切掉 → 整组丢弃
+                i = j
+                continue
+            out.extend(msgs[i:j])
+            i = j
+            continue
+        out.append(m)
+        i += 1
+    return out
+
+
 def truncate_by_token_budget(messages: list, budget: int = CHAT_CONTEXT_BUDGET) -> list:
     """超预算时：保留系统提示 + 最近 30% 轮次，中间轮压缩为一条历史摘要。"""
     if _estimate_tokens(messages) <= budget:
@@ -305,7 +345,7 @@ def truncate_by_token_budget(messages: list, budget: int = CHAT_CONTEXT_BUDGET) 
             parts.append(text[:300])
     summary = {"role": "system", "content": "【历史摘要】" + "；".join(parts[-10:])}
     result = ([system] if system else []) + [summary] + keep_last
-    return result
+    return _repair_tool_call_boundaries(result)
 
 
 # ─── CRUD 端点 ───
@@ -526,3 +566,4 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         return
 
     return StreamingResponse(agent_loop(), media_type="text/event-stream")
+
