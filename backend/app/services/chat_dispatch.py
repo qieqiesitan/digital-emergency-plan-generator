@@ -21,6 +21,9 @@ from app.services.risk_context_builder import build_risk_management_context
 from app.services.risk_stats_service import count_user_risk_events
 from app.services.plan_generation_service import start_batch_generation, get_failed_sections
 from app.services.enterprise_knowledge_service import EnterpriseKnowledgeStore
+from app.services.user_preference_service import get_preferences, set_preferences
+from app.services.workflow.models import WorkflowRun, WorkflowRunStep
+from app.services.workflow.runner import WorkflowRunner
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
@@ -1295,6 +1298,100 @@ async def _query_enterprise_knowledge(db, user, args):
             "message": "已检索到相关画像片段", "verified": True}
 
 
+# ── 端到端工作流 + 用户偏好工具（阶段3 任务6）──
+
+_WF_PREF_STRING_KEYS = frozenset({
+    "style_preference", "detail_level", "extra",
+})
+_WF_PREF_JSON_LIST_KEYS = frozenset({
+    "report_topics", "common_enterprise_ids",
+})
+
+
+async def _run_workflow(db, user, args):
+    """启动端到端工作流：经 WorkflowRunner.start_workflow 建 run + 步骤记录并后台执行。"""
+    workflow_name = args.get("workflow_name", "")
+    if not workflow_name:
+        return {"error": "请提供 workflow_name", "verified": False}
+    params = args.get("params") or {}
+    run = await WorkflowRunner(db).start_workflow(
+        user, workflow_name, params, background=True)
+    return {
+        "run_id": run.id,
+        "workflow_name": workflow_name,
+        "status": run.status,
+        "current_step": run.current_step,
+        "message": f"工作流 {workflow_name} 已启动，可用 get_workflow_progress 查询进度",
+        "verified": True,
+    }
+
+
+async def _get_workflow_progress(db, user, args):
+    """查询 workflow_runs 运行状态 + 步骤列表（归属校验）。"""
+    run_id = args.get("run_id", "")
+    if not run_id:
+        return {"error": "请提供 run_id", "verified": False}
+    run = (await db.execute(
+        select(WorkflowRun).where(
+            WorkflowRun.id == run_id, WorkflowRun.user_id == user.id)
+    )).scalar_one_or_none()
+    if not run:
+        return {"error": "工作流不存在或无权访问", "verified": False}
+    steps = (await db.execute(
+        select(WorkflowRunStep)
+        .where(WorkflowRunStep.run_id == run_id)
+        .order_by(WorkflowRunStep.step_name)
+    )).scalars().all()
+    return {
+        "run_id": run.id,
+        "workflow_name": run.workflow_name,
+        "status": run.status,
+        "current_step": run.current_step,
+        "steps": [{
+            "step_name": s.step_name,
+            "status": s.status,
+            "error": s.error,
+        } for s in steps],
+        "verified": True,
+    }
+
+
+async def _get_preferences(db, user, args):
+    """查看当前用户偏好（user_preference_service 缓存）。"""
+    prefs = await get_preferences(db, user.id)
+    return {"user_id": user.id, "preferences": prefs, "verified": True}
+
+
+async def _set_preferences(db, user, args):
+    """设置用户偏好：标量键存字符串；report_topics/common_enterprise_ids 存数组。"""
+    key = args.get("key", "")
+    value = args.get("value")
+    if not key:
+        return {"error": "请提供 key", "verified": False}
+    if value is None or value == "":
+        return {"error": "请提供 value", "verified": False}
+    if key in _WF_PREF_JSON_LIST_KEYS:
+        if isinstance(value, str):
+            try:
+                final_value = json.loads(value)
+            except json.JSONDecodeError:
+                return {"error": f"{key} 需为 JSON 数组（如 [\"风险分布\"]）", "verified": False}
+        else:
+            final_value = value
+        if not isinstance(final_value, list):
+            return {"error": f"{key} 需为数组（如 [\"风险分布\"]）", "verified": False}
+    elif key in _WF_PREF_STRING_KEYS:
+        if not isinstance(value, str):
+            return {"error": f"{key} 需为字符串", "verified": False}
+        final_value = value
+    else:
+        return {"error": "未知偏好键，可用：style_preference/detail_level/report_topics/common_enterprise_ids/extra",
+                "verified": False}
+    prefs = await set_preferences(db, user.id, {key: final_value})
+    await db.commit()
+    return {"message": f"偏好已更新：{key}", "preferences": prefs, "verified": True}
+
+
 # ── 函数注册表 ──
 
 _FUNCTIONS = {
@@ -1329,4 +1426,8 @@ _FUNCTIONS = {
     "generate_plan_content": _generate_plan_content,
     "get_generation_progress": _get_generation_progress,
     "query_enterprise_knowledge": _query_enterprise_knowledge,
+    "run_workflow": _run_workflow,
+    "get_workflow_progress": _get_workflow_progress,
+    "get_preferences": _get_preferences,
+    "set_preferences": _set_preferences,
 }

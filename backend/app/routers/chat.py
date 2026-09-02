@@ -13,6 +13,7 @@ from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import render_mermaid_svg
 from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
 from app.services.chat_dispatch import dispatch
+from app.services.user_preference_service import get_preferences, invalidate_cache
 from datetime import datetime, timezone
 from app.services.sse_utils import sse_line
 import asyncio
@@ -37,7 +38,7 @@ READ_TOOL_NAMES = frozenset({
     "list_risk_assessments", "get_risk_assessment", "list_resource_investigations",
     "get_resource_investigation", "get_regulation_stats", "list_regulations",
     "search_regulations", "search_regulation_articles", "get_ai_config",
-    "get_generation_progress",
+    "get_generation_progress", "get_workflow_progress", "get_preferences",
 })
 
 CHAT_TOOLS = [
@@ -80,6 +81,26 @@ CHAT_TOOLS = [
                     "properties": {"enterprise_id": {"type": "string", "description": "企业ID(必填)"},
                                    "question": {"type": "string", "description": "问题(必填)"}},
                     "required": ["enterprise_id", "question"]}}},
+    {"type": "function", "function": {"name": "run_workflow",
+     "description": "启动端到端工作流并在后台执行。可用模板：create_enterprise_plan（录入企业→创建预案→生成正文→导出Word）、regulatory_compliance（企业法规合规报告）。工作流在后台运行，用 get_workflow_progress 查询进度",
+     "parameters": {"type": "object",
+                    "properties": {"workflow_name": {"type": "string", "description": "工作流模板名（必填）"},
+                                   "params": {"type": "object", "description": "工作流参数，如 {'name': '公司名称'} 或 {'enterprise_id': '企业ID'}"}},
+                    "required": ["workflow_name"]}}},
+    {"type": "function", "function": {"name": "get_workflow_progress",
+     "description": "查询端到端工作流的运行进度与各步骤状态。用户询问「一键生成/工作流进度/到哪一步」时调用",
+     "parameters": {"type": "object",
+                    "properties": {"run_id": {"type": "string", "description": "工作流运行ID（必填）"}},
+                    "required": ["run_id"]}}},
+    {"type": "function", "function": {"name": "get_preferences",
+     "description": "查看当前用户已保存的个性化偏好（生成风格、详细程度、报告主题、常用企业等），便于生成内容遵循用户习惯",
+     "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "set_preferences",
+     "description": "保存当前用户的个性化偏好，后续对话与内容生成自动遵循。键：style_preference(practical实用/formal规范正式)、detail_level(concise简洁/detailed详细)、report_topics(JSON数组)、common_enterprise_ids(JSON数组)、extra(其他要求文本)",
+     "parameters": {"type": "object",
+                    "properties": {"key": {"type": "string", "description": "偏好键（必填）"},
+                                   "value": {"type": "string", "description": "偏好值（必填）；数组类键传 JSON 数组字符串"}},
+                    "required": ["key", "value"]}}},
 ]
 
 CHAT_SYSTEM_PROMPT = """你是数字化应急预案自动生成系统的AI助手。核心能力：查询创建修改删除企业和预案、智能添加企业（autofill_enterprise自动查工商数据校准全称）、查看风险分级管控和应急资源、查看评估报告和调查报告、搜索法规库、导出Word、生成图文报告。重要规则：用户要求任何分析报告、概览、总结时，必须调用 generate_report 工具（主题如系统概览、企业分析、法规库报告、风险分布等），禁止直接用函数返回的数据自行拼凑报告。用户说「添加XX公司」优先用autofill_enterprise。删除前先确认。回复简洁专业用中文。每次操作后汇报verified验证状态。
@@ -100,6 +121,51 @@ CHAT_SYSTEM_PROMPT = """你是数字化应急预案自动生成系统的AI助手
 4. 引用列表只包含实际在回答中用到的法规，不要为了凑数列出无关法规。如果工具返回的条文中没有明确的"第X条"编号，则只写法规名称和文号，不写条款号。
 
 5. 如果用户问的问题与法律法规无关（如系统操作、数据统计），不需要调用此工具，也不需要添加引用列表。"""
+
+
+# ── 用户偏好 → system prompt ──
+
+_PREF_SECTION_ORDER = (
+    "style_preference", "detail_level", "report_topics",
+    "common_enterprise_ids", "extra",
+)
+_PREF_CN_LABELS = {
+    "style_preference": "生成风格",
+    "detail_level": "详细程度",
+    "report_topics": "报告主题偏好",
+    "common_enterprise_ids": "常用企业（按ID）",
+    "extra": "其他偏好要求",
+}
+_PREF_VALUE_CN = {
+    "style_preference": {"practical": "实用为主", "formal": "规范正式"},
+    "detail_level": {"concise": "简洁", "detailed": "详细"},
+}
+
+
+def build_system_prompt_with_prefs(prefs: dict | None) -> str:
+    """在 CHAT_SYSTEM_PROMPT 末尾追加用户偏好段；无有效偏好时原样返回（保守）。
+
+    偏好与基础提示合并为同一条 system 消息：长对话截断逻辑保留第一条 system，
+    因此压缩后偏好提示仍然生效。
+    """
+    lines = []
+    for key in _PREF_SECTION_ORDER:
+        value = (prefs or {}).get(key)
+        if value is None or value == "" or value == [] or value == {}:
+            continue
+        label = _PREF_CN_LABELS.get(key, key)
+        if isinstance(value, list):
+            rendered = "、".join(str(v) for v in value)
+        elif isinstance(value, dict):
+            rendered = str(value)
+        else:
+            cn = (_PREF_VALUE_CN.get(key) or {}).get(str(value))
+            rendered = f"{value}（{cn}）" if cn else str(value)
+        lines.append(f"- {label}：{rendered}")
+    if not lines:
+        return CHAT_SYSTEM_PROMPT
+    section = "\n".join(lines)
+    return f"{CHAT_SYSTEM_PROMPT}\n\n【用户偏好 — 请遵守】\n{section}"
 
 
 async def _call_llm(messages: list, ai_config: AIConfig) -> dict:
@@ -452,8 +518,17 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         conv_id = conv.id
 
     rows, tool_rows = await _load_history_rows(db, conv_id)
-    messages = truncate_by_token_budget(
-        _rebuild_messages_from_rows(rows, body.message, tool_rows))
+    messages = _rebuild_messages_from_rows(rows, body.message, tool_rows)
+    # 偏好注入：_rebuild 后、截断前替换第一条 system 消息（截断保留 system，
+    # 保证长对话压缩后偏好段仍在）；无有效偏好时 build_* 原样返回基础提示。
+    try:
+        prefs = await get_preferences(db, current_user.id)
+        # chat 注入读最新值：读后清理进程内缓存，保证偏好写入后下一轮对话立即生效
+        invalidate_cache(current_user.id)
+        messages[0]["content"] = build_system_prompt_with_prefs(prefs)
+    except Exception:
+        logger.exception("用户偏好加载失败，回退默认 system prompt")
+    messages = truncate_by_token_budget(messages)
 
     # 第一轮 LLM 调用
     try:
