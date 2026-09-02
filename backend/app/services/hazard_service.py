@@ -14,9 +14,14 @@ AI 清单补全入口在生成函数内以 TODO 注释占位（任务 12 `ai/che
 weekdays 约定：周一=0 .. 周日=6（与 Python `date.weekday()` 一致），
 weekly/custom 计划仅在命中的星期生成任务。
 monthly 约定：每月 1 日生成（`MONTHLY_DEFAULT_DAY`）。
+
+时区约定（F2）：`due_at` 等写入 `DateTime(timezone=True)`（Postgres timestamptz）
+的列统一存 aware UTC 瞬时值；业务「当日 18:00」按 Asia/Shanghai（UTC+8，无夏令时）
+解释后转 UTC 落库（`cn_to_utc`）。naive 值仅出现在内存/旧调用中，一律视为
+Asia/Shanghai 业务本地时间转换，杜绝 naive/aware 混用比较（TypeError）。
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func, or_, select
@@ -34,6 +39,21 @@ from app.models.risk_management import RiskEvent, RiskMeasure, RiskObject
 # weekly/custom 计划按星期生成：周一=0 .. 周日=6（date.weekday() 同约定）
 MONTHLY_DEFAULT_DAY = 1  # monthly 计划默认每月 1 日生成
 DEFAULT_DUE_TIME = time(18, 0)  # 任务默认截止当日 18:00
+CN_TZ = timezone(timedelta(hours=8))  # Asia/Shanghai 固定 UTC+8（无夏令时）
+
+
+def cn_to_utc(value: datetime) -> datetime:
+    """统一为 aware UTC 后比较/赋值：naive 按 Asia/Shanghai 业务本地解释，aware 原样转 UTC。"""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=CN_TZ)
+    return value.astimezone(timezone.utc)
+
+
+def utc_to_cn(value: datetime) -> datetime:
+    """展示用：aware 瞬时值转 Asia/Shanghai 墙钟；naive 原样视为业务本地时间。"""
+    if value.tzinfo is not None:
+        value = value.astimezone(CN_TZ)
+    return value
 
 
 def _object_content(obj) -> str:
@@ -168,10 +188,9 @@ async def generate_tasks_for_plan(
                   已加入 db 待提交；title=「{计划名} · MM-DD」，status=pending，
                   responsible_user_id 取计划责任人，due_at 默认当日 18:00）
 
-    时区约定：due_at 取 naive 本地时间当日 18:00（Asia/Shanghai 业务自然日），
-    不携带 tzinfo，由应用层统一按本地时区解释——若改用 UTC 偏移会让截止
-    时刻在 8 小时边界漂移、与业务「当日 18:00」的直观约定不符；调度器按
-    同一 naive 约定比较 due_at，避免跨时区误判。
+    时区约定：due_at 取业务 Asia/Shanghai「当日 18:00」对应 aware UTC 瞬时
+    （`cn_to_utc`），与 DB timestamptz 列、调度器/路由比较（aware UTC）一致；
+    展示层如需墙钟再用 `utc_to_cn` 转换，杜绝 naive/aware 混用。
 
     主键顺序：先 db.add(task) 再 await db.flush() 生成 task.id（UUID default
     在 flush 时生效），随后以该 id 组装清单项，保证 items.task_id 非空。
@@ -182,8 +201,8 @@ async def generate_tasks_for_plan(
     if not _is_due(plan, on_date):
         return None
 
-    day_start = datetime.combine(on_date, time.min)
-    day_end = datetime.combine(on_date, time.max)
+    day_start = cn_to_utc(datetime.combine(on_date, time.min))
+    day_end = cn_to_utc(datetime.combine(on_date, time.max))
     # 防重：同一计划同一天已有任务则跳过（返回 None 标记已存在）
     exists = (await db.execute(
         select(HazardInspectionTask.id).where(
@@ -201,7 +220,7 @@ async def generate_tasks_for_plan(
         title=f"{plan.name} · {on_date.strftime('%m-%d')}",
         status="pending",
         responsible_user_id=getattr(plan, "responsible_user_id", None),
-        due_at=datetime.combine(on_date, DEFAULT_DUE_TIME),
+        due_at=cn_to_utc(datetime.combine(on_date, DEFAULT_DUE_TIME)),
     )
     db.add(task)
     await db.flush()  # 生成 task.id（default=lambda: str(uuid4()) 在 flush 时生效）

@@ -6,7 +6,7 @@
 任务超期（标记 overdue + 通知 + 防重），以及 run_hazard_scans 组合提交。
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -26,6 +26,7 @@ from app.services.hazard_scheduler import (
     scan_overdue_tasks,
     scan_upcoming_tasks,
 )
+from app.services.hazard_service import cn_to_utc, utc_to_cn
 
 
 # ── mock 工具（参照 tests/test_hazard_plan_api.py 的 _hazard_db 文本分发） ──
@@ -153,7 +154,7 @@ async def test_scan_due_plans_generates_daily_today():
     tasks = [o for o in db.added if isinstance(o, HazardInspectionTask)]
     assert len(tasks) == 1
     assert tasks[0].plan_id == "p1"
-    assert tasks[0].due_at == datetime(2026, 8, 15, 18, 0)
+    assert tasks[0].due_at == datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc)
 
 
 @pytest.mark.asyncio
@@ -243,7 +244,7 @@ async def test_scan_upcoming_tasks_creates_notification_in_window():
     assert n.user_id == "u1"
     assert n.record_id == "t1"
     assert "2026-08-15 18:00" in n.message and "完成排查" in n.message
-    assert task.reminder_notified_at == now
+    assert task.reminder_notified_at == datetime(2026, 8, 15, 9, 0, tzinfo=timezone.utc)
 
 
 @pytest.mark.asyncio
@@ -277,7 +278,7 @@ async def test_scan_overdue_tasks_marks_and_notifies():
     notified = await scan_overdue_tasks(db, now=now)
     assert notified == 1
     assert task.status == "overdue"
-    assert task.overdue_notified_at == now
+    assert task.overdue_notified_at == datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc)
     notifications = _notifications(db)
     assert len(notifications) == 1
     assert notifications[0].type == "overdue"
@@ -336,3 +337,52 @@ async def test_run_hazard_scans_generates_and_notifies():
     assert task.status == "overdue"
     db.commit.assert_awaited_once()
     assert REMINDER_HOURS == 2
+
+
+# ── ⑤ 业务时区约定（Asia/Shanghai naive → aware UTC） ──
+
+def test_cn_to_utc_treats_naive_as_asia_shanghai_local():
+    assert cn_to_utc(datetime(2026, 8, 15, 18, 0)) == datetime(
+        2026, 8, 15, 10, 0, tzinfo=timezone.utc
+    )
+
+
+def test_cn_to_utc_passes_aware_utc_through():
+    d = datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc)
+    assert cn_to_utc(d) == d
+
+
+def test_utc_to_cn_shows_asia_shanghai_wall_clock():
+    d = datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc)
+    assert utc_to_cn(d) == datetime(
+        2026, 8, 15, 18, 0, tzinfo=timezone(timedelta(hours=8))
+    )
+
+
+# ── ⑥ F2 回归：DB timestamptz 回读 aware vs naive now 混用不再 TypeError ──
+
+@pytest.mark.asyncio
+async def test_scan_upcoming_tasks_mixed_aware_due_at_naive_now():
+    """aware due_at（DB 回读，UTC 10:00 = 业务 18:00）配 naive now（17:00 本地）。"""
+    now = datetime(2026, 8, 15, 17, 0)
+    task = _task(due_at=datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc))
+    db = _db(tasks=[task])
+    notified = await scan_upcoming_tasks(db, now=now)
+    assert notified == 1
+    n = _notifications(db)[0]
+    assert n.type == "upcoming"
+    assert "2026-08-15 18:00" in n.message and "完成排查" in n.message
+    assert task.reminder_notified_at == datetime(2026, 8, 15, 9, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_scan_overdue_tasks_mixed_aware_due_at_naive_now():
+    """aware due_at（DB 回读，UTC 02:00 = 业务 10:00）配 naive now（18:00 本地）。"""
+    now = datetime(2026, 8, 15, 18, 0)
+    task = _task(due_at=datetime(2026, 8, 15, 2, 0, tzinfo=timezone.utc))
+    db = _db(tasks=[task])
+    notified = await scan_overdue_tasks(db, now=now)
+    assert notified == 1
+    assert task.status == "overdue"
+    assert task.overdue_notified_at == datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc)
+    assert _notifications(db)[0].type == "overdue"

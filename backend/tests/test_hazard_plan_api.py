@@ -13,7 +13,7 @@ FastAPI TestClient + dependency_overrides + SQL 文本分发 mock；async 服务
 - to-record：预填字段 / code 生成 / source 回填 / 仅 abnormal 可转
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -730,7 +730,9 @@ async def test_generate_daily_builds_items():
     task = await generate_tasks_for_plan(db, plan, on_date=date(2026, 8, 15))
     assert task is not None
     assert task.title == "生产车间日排查 · 08-15"
-    assert task.due_at == datetime(2026, 8, 15, 18, 0)
+    # F2：due_at 为 aware UTC（业务 Asia/Shanghai 18:00 = UTC 10:00），
+    # 与 DB timestamptz 列与调度器/路由比较保持同一时区基准
+    assert task.due_at == datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc)
     assert task.status == "pending"
     assert task.responsible_user_id == "u2"
     contents = [i.content for i in task.items]

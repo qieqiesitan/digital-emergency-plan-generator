@@ -12,15 +12,17 @@
 4. `scan_overdue_tasks`    pending/processing 任务已过 due_at → 标记 overdue +
                            `overdue_notified_at=now` + overdue 通知（规格 §6）。
 
-时区约定（与 `hazard_service.generate_tasks_for_plan` 一致）：`due_at` 为 naive
-本地时间（Asia/Shanghai 业务自然日），本模块的 `now` 默认取 `datetime.now()`
-（本地 naive），按同一约定比较，避免跨时区误判。
+时区约定（F2，与 `hazard_service` 一致）：DB `DateTime(timezone=True)`（Postgres
+timestamptz）回读为 aware UTC；本模块 `now` 统一取 aware UTC
+（`datetime.now(timezone.utc)`），比较/赋值前经 `cn_to_utc` 归一——naive 值
+（内存新对象/旧调用/测试）按 Asia/Shanghai 业务本地解释，杜绝
+naive/aware 混用 TypeError。面向用户的消息按 `utc_to_cn` 显示本地墙钟。
 
 提交责任：`run_hazard_scans` 末尾统一 `await db.commit()`（调度器作业场景需要落库）；
 单个扫描函数不提交，便于 mock db 测试直接断言 `db.added`。
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import logging
 from typing import Optional
 
@@ -35,7 +37,7 @@ from app.models.hazard_management import (
     HazardNotification,
     HazardRecord,
 )
-from app.services.hazard_service import generate_tasks_for_plan
+from app.services.hazard_service import cn_to_utc, generate_tasks_for_plan, utc_to_cn
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +89,8 @@ async def scan_overdue_records(
     接收人：rectification_user_id，为空则兜底企业主（enterprises.user_id）。
     deadline 未配置（None）的记录不参与扫描（SQL 层 IS NOT NULL 过滤 + 内存防御）。
     """
-    now = now or datetime.now()
-    today = now.date()
+    now = cn_to_utc(now or datetime.now(timezone.utc))
+    today = utc_to_cn(now).date()
     records = (await db.execute(
         select(HazardRecord).where(
             HazardRecord.status == "rectifying",
@@ -140,7 +142,7 @@ async def scan_upcoming_tasks(
     已写入的任务跳过（SQL 层 IS NULL 过滤 + 内存防御）。
     接收人：任务责任人 responsible_user_id，为空兜底企业主。
     """
-    now = now or datetime.now()
+    now = cn_to_utc(now or datetime.now(timezone.utc))
     window_start = now + timedelta(hours=REMINDER_HOURS)
     tasks = (await db.execute(
         select(HazardInspectionTask).where(
@@ -154,17 +156,19 @@ async def scan_upcoming_tasks(
     for task in tasks:
         if task.status not in TASK_ACTIVE_STATUSES or task.reminder_notified_at is not None:
             continue
-        if not (now < task.due_at <= now + timedelta(hours=REMINDER_HOURS)):
+        due_utc = cn_to_utc(task.due_at)
+        if not (now < due_utc <= now + timedelta(hours=REMINDER_HOURS)):
             continue  # 窗口外（已过 due_at 由 scan_overdue_tasks 处理）
         user_id = task.responsible_user_id or await _enterprise_owner_user_id(db, task.enterprise_id)
         if not user_id:
             continue
+        due_cn = utc_to_cn(due_utc)
         db.add(HazardNotification(
             enterprise_id=task.enterprise_id,
             user_id=user_id,
             record_id=task.id,  # §5.12 record_id 关联隐患单/任务（无 FK，允许任务 id）
             type="upcoming",
-            message=f"请在 {task.due_at:%Y-%m-%d %H:%M} 前完成排查：{task.title or '排查任务'}",
+            message=f"请在 {due_cn:%Y-%m-%d %H:%M} 前完成排查：{task.title or '排查任务'}",
         ))
         task.reminder_notified_at = now
         notified += 1
@@ -180,7 +184,7 @@ async def scan_overdue_tasks(
     规格 §6「超期：扫描标记 + 上级通知」：status 置 overdue（任务 status 值域合法值）、
     `overdue_notified_at=now` 防重（与记录超期是两类，记录不改 status）。
     """
-    now = now or datetime.now()
+    now = cn_to_utc(now or datetime.now(timezone.utc))
     tasks = (await db.execute(
         select(HazardInspectionTask).where(
             HazardInspectionTask.status.in_(TASK_ACTIVE_STATUSES),
@@ -192,7 +196,7 @@ async def scan_overdue_tasks(
     for task in tasks:
         if task.status not in TASK_ACTIVE_STATUSES or task.overdue_notified_at is not None:
             continue
-        if task.due_at >= now:
+        if cn_to_utc(task.due_at) >= now:
             continue
         task.status = "overdue"
         task.overdue_notified_at = now
@@ -215,8 +219,8 @@ async def run_hazard_scans(
     on_date: Optional[date] = None,
 ) -> dict:
     """调度器入口：顺序执行四个扫描并统一提交，返回各扫描计数。"""
-    now = now or datetime.now()
-    on_date = on_date or now.date()
+    now = cn_to_utc(now or datetime.now(timezone.utc))
+    on_date = on_date or utc_to_cn(now).date()
     result = {
         "generated": await scan_due_plans(db, on_date=on_date),
         "overdue_records": await scan_overdue_records(db, now=now),
