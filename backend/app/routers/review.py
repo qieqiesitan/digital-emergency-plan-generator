@@ -12,6 +12,22 @@ from app.services.plan_review_service import review_plan
 
 router = APIRouter(prefix="/plans", tags=["Plan Review"])
 
+_LLM_ERROR_MARKERS = ("AI调用失败", "调用失败", "生成失败", "接口异常", "服务不可用")
+
+
+def _revision_failure_reason(content: str | None) -> str | None:
+    """校验 LLM 修订内容：空/过短/错误标记/HTML 截断 → 返回失败原因；合法返回 None。"""
+    text = (content or "").strip()
+    if not text:
+        return "LLM 返回内容为空"
+    if len(text) < 30:
+        return "LLM 返回内容过短，疑似截断"
+    if any(marker in text for marker in _LLM_ERROR_MARKERS):
+        return "LLM 返回错误提示文案"
+    if text.count("<p>") != text.count("</p>"):
+        return "LLM 返回 HTML 标签未闭合，疑似截断"
+    return None
+
 
 class ReviewApplyRequest(BaseModel):
     mode: str = "auto"  # auto=仅规则修复；llm=含 LLM 重写
@@ -33,8 +49,11 @@ async def get_plan_review(plan_id: str, current_user=Depends(get_current_user),
     return {"plan_id": plan_id, "title": p.title, **result}
 
 
-async def _apply_llm_revision(section, issue_text, plan, ent_data, db) -> str:
-    """LLM 重写章节：构造修订提示词 → _stream_llm 流式收集 → 返回新 HTML 内容。"""
+async def _apply_llm_revision(section, issue_text, plan, ent_data, db) -> str | None:
+    """LLM 重写章节：构造修订提示词 → _stream_llm 流式收集 → 校验后返回新 HTML。
+
+    校验失败（空/过短/错误标记/HTML 截断）返回 None，调用方不写库。
+    """
     from app.routers.generation import _stream_llm
     from app.services.ai_config_service import get_system_ai_config
     cfg = await get_system_ai_config(db)
@@ -48,7 +67,10 @@ async def _apply_llm_revision(section, issue_text, plan, ent_data, db) -> str:
         f"【企业上下文】{str(ent_data)[:800]}\n"
         "直接输出修订后的章节 HTML："
     )
-    return await _stream_llm(prompt, cfg, plan.plan_type)
+    content = await _stream_llm(prompt, cfg, plan.plan_type)
+    if _revision_failure_reason(content):
+        return None
+    return content
 
 
 @router.post("/{plan_id}/review/apply")
@@ -79,6 +101,7 @@ async def apply_plan_review(plan_id: str, current_user=Depends(get_current_user)
             issue_map.setdefault(it["section_key"], []).append(it.get("issue", ""))
 
     applied = []
+    skipped = []
     if issue_map:
         # 修订前保存版本快照（可回退）
         snapshot = _build_snapshot(p, sections)
@@ -92,11 +115,23 @@ async def apply_plan_review(plan_id: str, current_user=Depends(get_current_user)
                 continue
             issue_text = "；".join(issue_map[s.section_key])
             if body.mode == "llm":
-                s.content = await _apply_llm_revision(s, issue_text, p, ent, db)
+                new_content = await _apply_llm_revision(s, issue_text, p, ent, db)
+                if new_content is None:
+                    skipped.append({
+                        "section_key": s.section_key,
+                        "reason": "LLM 修订未通过校验（空/过短/错误标记/HTML 截断），未应用",
+                    })
+                    continue
+                s.content = new_content
                 s.ai_generated = True
             else:
                 # auto 模式：占位符替换为明确标记（不编造）
                 s.content = (s.content or "").replace("（待补充）", "（待补充——请人工补充）")
             applied.append(s.section_key)
+        if not applied:
+            # 无任何章节应用成功：回滚快照/版本号与 content，返回明确错误
+            await db.rollback()
+            raise HTTPException(400, "LLM 修订全部校验失败，未应用任何章节")
         await db.commit()
-    return {"plan_id": plan_id, "applied": applied, "snapshot_version": p.current_version}
+    return {"plan_id": plan_id, "applied": applied, "skipped": skipped,
+            "snapshot_version": p.current_version}
