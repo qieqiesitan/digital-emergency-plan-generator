@@ -12,7 +12,12 @@ import "@/styles/global.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      // F4：服务端已返回 4xx/5xx 的错误不再自动重试（避免拦截器全局错误 toast 重复弹出），
+      // 仅网络/超时类无响应错误重试一次。
+      retry: (failureCount, error) => {
+        if (failureCount >= 1) return false;
+        return !(error as { response?: unknown })?.response;
+      },
       staleTime: 30000,
       refetchOnWindowFocus: false,
     },

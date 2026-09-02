@@ -8,7 +8,8 @@ export async function getExportPreview(planId: string): Promise<ExportPreview> {
 }
 
 export async function exportDocx(planId: string): Promise<Blob | ExportTask> {
-  const res = await api.post(`/plans/${planId}/export/docx`, {}, { responseType: "blob", timeout: 120000 });
+  // 导出页自行解析错误并 message.error；blob 响应体错误由调用方处理，跳过全局 toast
+  const res = await api.post(`/plans/${planId}/export/docx`, {}, { responseType: "blob", timeout: 120000, skipGlobalError: true });
   const ct = String(res.headers["content-type"] || "");
   if (ct.includes("application/vnd.openxmlformats") || ct.includes("application/octet-stream")) {
     return res.data as Blob;
@@ -20,7 +21,7 @@ export async function exportDocx(planId: string): Promise<Blob | ExportTask> {
     throw new Error(parsed.detail || parsed.message || ("Server error: " + text.slice(0, 200)));
   } catch (e: unknown) {
     if (e instanceof Error && !e.message.startsWith("Server error:")) throw e;
-    throw new Error("Server error: " + text.slice(0, 200));
+    throw new Error("Server error: " + text.slice(0, 200), { cause: e });
   }
 }
 

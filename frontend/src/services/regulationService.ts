@@ -59,7 +59,8 @@ export async function fetchRegulationGraph(): Promise<RegulationGraphData> {
 }
 
 export async function fetchStats(): Promise<RegulationStats> {
-  const res = await api.get("/regulations/stats/data");
+  // RegulationManagePage 自带失败态 Alert+重试（且 30s 自动轮询），跳过全局 toast 防刷屏
+  const res = await api.get("/regulations/stats/data", { skipGlobalError: true });
   return res.data.data;
 }
 
