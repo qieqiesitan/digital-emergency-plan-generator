@@ -3,12 +3,12 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Input, Button, Space, Badge, message, Progress, Alert, Tag } from "antd";
 import Modal from "antd/es/modal";
-import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined, AuditOutlined } from "@ant-design/icons";
+import { ExportOutlined, HistoryOutlined, ThunderboltOutlined, LoadingOutlined, SaveOutlined, SettingOutlined, FileSyncOutlined, AuditOutlined, StopOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPlan, updatePlan, createVersion, regenerateMissingDiagrams, fetchPlanReview, applyPlanReview } from "@/services/planService";
 import { listSections, updateSection, autofillSection } from "@/services/planService";
 import type { PlanReviewIssue, PlanReviewResult } from "@/services/planService";
-import { generateBatchStream } from "@/services/generationService";
+import { generateBatchStream, stopGeneration } from "@/services/generationService";
 import { validateExport } from "@/services/exportService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
@@ -361,6 +361,16 @@ export default function PlanEditorPage() {
     (window as any).__genController = controller;
   }, [id, sections, queryClient, saveMutation, isGenerating]);
 
+  const handleStopGeneration = useCallback(() => {
+    (window as any).__genController?.abort();
+    (window as any).__genController = null;
+    if (id) stopGeneration(id).catch(() => {});
+    setIsGenerating(false);
+    setGeneratingSections(new Set());
+    setBatchProgress({ current: 0, total: 0, message: "" });
+    message.info("已停止生成");
+  }, [id]);
+
 
 
   const handleAIContentChunk = useCallback((fullText: string) => {
@@ -427,6 +437,11 @@ export default function PlanEditorPage() {
               >
                 {isGenerating ? "后台生成中..." : "一键生成全部"}
               </Button>
+            {isGenerating && (
+              <Button danger icon={<StopOutlined />} onClick={handleStopGeneration}>
+                停止生成
+              </Button>
+            )}
             <Button icon={<AuditOutlined />} onClick={() => reviewMut.mutate()} loading={reviewMut.isPending}>
               AI 审查
             </Button>
@@ -619,7 +634,7 @@ export default function PlanEditorPage() {
         {styleMode === "panel" ? (
           <StylePanel value={stylePreference}
             onChange={(sp) => { setStylePreference(sp); updatePlan(id!, { style_preference: sp } as any).catch(() => {}); }}
-            onPreview={() => { const s = sections && sections[0]; if (s && id) { generateBatchStream(s.section_key, id!, undefined, (e: any) => {}, (err: string) => message.error(err)); setStyleModalOpen(false); } }}
+            onPreview={() => { const s = sections && sections[0]; if (s && id) { generateBatchStream(id!, [s.section_key], (e: any) => {}, (err: string) => message.error(err), () => {}); setStyleModalOpen(false); } }}
             onSwitchToAdvanced={() => setStyleMode("advanced")}
             showAdvanced />
         ) : (

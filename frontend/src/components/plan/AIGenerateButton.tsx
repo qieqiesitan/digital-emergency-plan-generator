@@ -157,7 +157,7 @@ export default function AIGenerateButton({
         <>
           <Button icon={<AppIcon name="ai" size={14} />} onClick={handleGenerate} disabled={disabled}>AI 生成</Button>
           {status === "error" && (
-            <Alert type="error" title={errorMsg} closable onClose={() => setStatus("idle")} style={{ marginTop: 8 }}
+            <Alert type="error" message={errorMsg} closable onClose={() => setStatus("idle")} style={{ marginTop: 8 }}
               action={<Button size="small" onClick={handleConfirm}>重试</Button>}
             />
           )}

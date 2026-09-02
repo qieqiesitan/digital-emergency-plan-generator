@@ -365,7 +365,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                   ) : msg.role === "user" ? (
                     <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>
                   ) : msg.html ? (
-                    <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                    <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content || "") }} />
                   ) : (
                     <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(md.render(msg.content || "")) }} />
                   )}
@@ -538,7 +538,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
                     ) : msg.role === "user" ? (
                       <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>
                     ) : msg.html ? (
-                      <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                      <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content || "") }} />
                     ) : (
                       <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(md.render(msg.content || "")) }} />
                     )}
