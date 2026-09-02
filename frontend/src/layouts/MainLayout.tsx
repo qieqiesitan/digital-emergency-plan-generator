@@ -22,23 +22,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import FloatingChat from "@/components/common/FloatingChat";
 import { stripAppBase } from "@/utils/platform";
+import { MENU_MAP } from "@/utils/menuMap";
 
 const { Header, Sider, Content } = Layout;
-
-const MENU_MAP: Record<string, string> = {
-  "/dashboard": "menu:dashboard",
-  "/enterprises": "menu:enterprises",
-  "/plans": "menu:plans",
-  "/settings/users": "menu:users",
-  "/settings/roles": "menu:roles",
-  "/settings/system": "menu:system_config",
-  "/settings/prompts": "menu:prompts",
-  "/settings/profile": "menu:profile",
-  "/settings/ai-config": "menu:ai_config",
-  "/settings/third-party-config": "menu:third_party_config",
-  "/settings/regulations": "menu:regulations",
-  "/settings/data-dicts": "menu:data_dicts",
-};
 
 const getStoredProMode = () => {
   try {

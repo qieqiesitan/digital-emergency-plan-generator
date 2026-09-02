@@ -3,6 +3,8 @@ import { APP_BASE } from "@/utils/platform";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { MainLayout } from "@/layouts/MainLayout";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { PermissionRoute } from "./PermissionRoute";
+import { MENU_MAP } from "@/utils/menuMap";
 import LoginPage from "@/pages/Login/LoginPage";
 import RegisterPage from "@/pages/Register/RegisterPage";
 import DashboardPage from "@/pages/Dashboard/DashboardPage";
@@ -151,6 +153,17 @@ const contentRoutes = [
   { path: "/settings/data-dicts", element: <DataDictManagePage /> },
 ];
 
+// 对 MENU_MAP 中收录的路由套用菜单权限守卫（如直接输入 /settings/users 等）
+const guardedContentRoutes = contentRoutes.map((route) => {
+  const path = "path" in route && typeof route.path === "string" ? route.path : "";
+  const required = MENU_MAP[path];
+  if (!required) return route;
+  return {
+    ...route,
+    element: <PermissionRoute required={required}>{route.element}</PermissionRoute>,
+  };
+});
+
 export function createRouter() {
   return createBrowserRouter([
     {
@@ -166,7 +179,7 @@ export function createRouter() {
           <MainLayout />
         </ProtectedRoute>
       ),
-      children: contentRoutes,
+      children: guardedContentRoutes,
     },
     // 公开只读页：无登录守卫（token 无效由后端返回 404）
     { path: "/r/:token", element: <PublicRiskNoticePage /> },

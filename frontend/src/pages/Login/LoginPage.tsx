@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Form, Input, Button, Alert, Card, Checkbox } from "antd";
+import { Form, Input, Button, Alert, Card, Checkbox, message } from "antd";
 import { MailOutlined, LockOutlined } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -47,9 +47,25 @@ export default function LoginPage() {
         <Form.Item name="password" rules={[{ required: true, message: "请输入密码" }]}>
           <Input.Password prefix={<LockOutlined />} placeholder="密码" />
         </Form.Item>
-        <Form.Item name="remember" valuePropName="checked">
-          <Checkbox>记住邮箱</Checkbox>
-        </Form.Item>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 24,
+          }}
+        >
+          <Form.Item name="remember" valuePropName="checked" noStyle>
+            <Checkbox>记住邮箱</Checkbox>
+          </Form.Item>
+          <Button
+            type="link"
+            style={{ padding: 0, height: "auto" }}
+            onClick={() => message.info("忘记密码？请联系管理员重置")}
+          >
+            忘记密码？
+          </Button>
+        </div>
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={loading} block>
             登录

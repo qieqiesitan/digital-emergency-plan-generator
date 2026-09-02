@@ -10,6 +10,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   menuPermissions: string[];
+  menuLoading: boolean;
   menuLoadFailed: boolean;
 }
 
@@ -29,19 +30,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: false,
     isLoading: true,
     menuPermissions: [],
+    menuLoading: false,
     menuLoadFailed: false,
   });
 
   const loadMenuPermissions = useCallback(async () => {
+    setState((prev) => ({ ...prev, menuLoading: true }));
     try {
       const menus = await fetchMyMenus();
-      setState((prev) => ({ ...prev, menuPermissions: menus, menuLoadFailed: false }));
+      setState((prev) => ({ ...prev, menuPermissions: menus, menuLoading: false, menuLoadFailed: false }));
     } catch {
       // 菜单权限加载失败：降级为核心菜单（工作台/企业/预案/个人资料），并标记提示
       console.warn("菜单权限加载失败，已降级为核心菜单");
       setState((prev) => ({
         ...prev,
         menuPermissions: ["menu:dashboard", "menu:enterprises", "menu:plans", "menu:profile"],
+        menuLoading: false,
         menuLoadFailed: true,
       }));
     }
@@ -52,13 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       userService.getProfile()
         .then((user) => {
-          setState((prev) => ({ ...prev, user, isAuthenticated: true, isLoading: false }));
+          setState((prev) => ({ ...prev, user, isAuthenticated: true, isLoading: false, menuLoading: true }));
           return loadMenuPermissions();
         })
         .catch(() => {
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
-          setState((prev) => ({ ...prev, user: null, isAuthenticated: false, isLoading: false }));
+          setState((prev) => ({ ...prev, user: null, isAuthenticated: false, isLoading: false, menuLoading: false }));
         });
     } else {
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -69,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handler = () => {
       // 登录过期（refresh 失败）时给出一次性友好提示，避免用户不明原因被登出
       message.warning("登录已过期，请重新登录");
-      setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [], menuLoadFailed: false });
+      setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [], menuLoading: false, menuLoadFailed: false });
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
     };
@@ -82,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("access_token", tokenResp.access_token);
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
-    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoadFailed: false });
+    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoading: true, menuLoadFailed: false });
     await loadMenuPermissions();
   }, []);
 
@@ -92,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("access_token", tokenResp.access_token);
     localStorage.setItem("refresh_token", tokenResp.refresh_token);
     const user = await userService.getProfile();
-    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoadFailed: false });
+    setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoading: true, menuLoadFailed: false });
     await loadMenuPermissions();
   }, []);
 
@@ -101,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.logout(refreshToken ?? undefined).catch(() => {});
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
-    setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [], menuLoadFailed: false });
+    setState({ user: null, isAuthenticated: false, isLoading: false, menuPermissions: [], menuLoading: false, menuLoadFailed: false });
   }, []);
 
   const updateProfile = useCallback(async (name: string) => {
