@@ -12,6 +12,16 @@ from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/enterprises", tags=["Enterprise Sub"])
 
+
+def _schedule_enterprise_index_rebuild(enterprise_id: str) -> None:
+    """企业画像相关写操作提交后异步重建索引（不阻塞主流程，复用 chat_dispatch 挂点）。"""
+    try:
+        from app.services.chat_dispatch import _schedule_enterprise_index_rebuild as _schedule
+        _schedule(enterprise_id)
+    except Exception:
+        pass
+
+
 def _cats_to_str(categories: list[str] | None) -> str:
     """Convert categories list to comma-separated string for DB storage."""
     if not categories:
@@ -74,6 +84,7 @@ async def create_risk_source(enterprise_id: str, data: RiskSourceCreate, current
     vals["categories"] = _cats_to_str(vals.get("categories"))
     r = RiskSource(enterprise_id=enterprise_id, **vals)
     db.add(r); await db.commit(); await db.refresh(r)
+    _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=RiskSourceResponse.model_validate(r))
 
 @router.put("/{enterprise_id}/risk-sources/{risk_id}", response_model=ApiResponse[RiskSourceResponse])
@@ -86,6 +97,7 @@ async def update_risk_source(enterprise_id: str, risk_id: str, data: RiskSourceU
         else:
             setattr(r, k, v)
     await db.commit(); await db.refresh(r)
+    _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=RiskSourceResponse.model_validate(r))
 
 @router.delete("/{enterprise_id}/risk-sources/{risk_id}")
@@ -93,6 +105,7 @@ async def delete_risk_source(enterprise_id: str, risk_id: str, current_user=Depe
     r = (await db.execute(select(RiskSource).where(RiskSource.id == risk_id, RiskSource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "����Դ������")
     await db.delete(r); await db.commit()
+    _schedule_enterprise_index_rebuild(enterprise_id)
     return {"code": 0, "message": "��ɾ��"}
 
 @router.get("/{enterprise_id}/resources", response_model=PaginatedResponse[EmergencyResourceResponse])
@@ -119,6 +132,7 @@ async def create_resource(enterprise_id: str, data: EmergencyResourceCreate, cur
     if not result.scalar_one_or_none(): raise HTTPException(404, "��ҵ������")
     r = EmergencyResource(enterprise_id=enterprise_id, **data.model_dump(exclude_none=True))
     db.add(r); await db.commit(); await db.refresh(r)
+    _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=EmergencyResourceResponse.model_validate(r))
 
 @router.put("/{enterprise_id}/resources/{resource_id}", response_model=ApiResponse[EmergencyResourceResponse])
@@ -127,6 +141,7 @@ async def update_resource(enterprise_id: str, resource_id: str, data: EmergencyR
     if not r: raise HTTPException(404, "Ӧ����Դ������")
     for k, v in data.model_dump(exclude_none=True).items(): setattr(r, k, v)
     await db.commit(); await db.refresh(r)
+    _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=EmergencyResourceResponse.model_validate(r))
 
 @router.delete("/{enterprise_id}/resources/{resource_id}")
@@ -134,4 +149,5 @@ async def delete_resource(enterprise_id: str, resource_id: str, current_user=Dep
     r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == resource_id, EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "Ӧ����Դ������")
     await db.delete(r); await db.commit()
+    _schedule_enterprise_index_rebuild(enterprise_id)
     return {"code": 0, "message": "��ɾ��"}

@@ -45,6 +45,10 @@ class EnterpriseKnowledgeStore:
         self._collection.add(ids=ids, documents=texts, metadatas=metas)
         return len(texts)
 
+    def delete_enterprise(self, enterprise_id: str) -> None:
+        """删除某企业全部向量（文本不足等场景清旧索引，防止与 DB 漂移）。"""
+        self._collection.delete(where={"enterprise_id": enterprise_id})
+
     def search(self, enterprise_id: str, question: str, top_k: int = 6) -> list[dict]:
         if self._collection.count() == 0:
             return []
@@ -95,5 +99,7 @@ async def build_enterprise_index(enterprise_id: str, db) -> int:
         [{"name": r.name, "category": r.category, "quantity": r.quantity, "unit": r.unit}
          for r in resources])]
     if not texts[0].strip() or len(texts[0]) < 20:
+        # 文本不足时删除旧向量，避免向量库残留过期画像
+        EnterpriseKnowledgeStore().delete_enterprise(enterprise_id)
         return 0
     return EnterpriseKnowledgeStore().index_enterprise(enterprise_id, texts)

@@ -212,8 +212,11 @@ async def _generic_delete(db, user, args, cfg):
     if not entity:
         return {"error": f"{cfg['name_cn']}不存在", "verified": False}
     name = getattr(entity, "name", "")
+    enterprise_id = getattr(entity, "enterprise_id", None)
     await db.delete(entity)
     await db.commit()
+    if cfg.get("rebuild_enterprise_index") and enterprise_id:
+        _schedule_enterprise_index_rebuild(enterprise_id)
     return {"message": f"{cfg['name_cn']}「{name}」已删除", "verified": True}
 
 

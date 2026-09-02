@@ -34,6 +34,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Risk Assessment"])
 
 
+def _schedule_enterprise_index_rebuild(enterprise_id: str) -> None:
+    """评估报告写库后异步重建企业画像索引（不阻塞主流程，复用 chat_dispatch 挂点）。"""
+    try:
+        from app.services.chat_dispatch import _schedule_enterprise_index_rebuild as _schedule
+        _schedule(enterprise_id)
+    except Exception:
+        pass
+
+
 @router.post("/{enterprise_id}/risk-assessment/skip")
 async def skip_risk_assessment(
     enterprise_id: str,
@@ -472,6 +481,7 @@ async def generate_risk_assessment(
         )
         db.add(report)
     await db.commit()
+    _schedule_enterprise_index_rebuild(enterprise_id)
 
     async def event_generator():
         full_content = ""
@@ -638,5 +648,6 @@ async def merge_risk_assessment(
         pass
     report.generated_at = datetime.now(timezone.utc)
     await db.commit()
+    _schedule_enterprise_index_rebuild(enterprise_id)
 
     return ApiResponse(data={"report_id": report.id, "title": report_title, "status": "completed"})
