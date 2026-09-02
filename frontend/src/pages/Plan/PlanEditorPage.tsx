@@ -11,6 +11,7 @@ import type { PlanReviewIssue, PlanReviewResult } from "@/services/planService";
 import { generateBatchStream, stopGeneration } from "@/services/generationService";
 import { validateExport } from "@/services/exportService";
 import { PageHeader } from "@/components/common/PageHeader";
+import AiNotConfiguredHint from "@/components/common/AiNotConfiguredHint";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
 import SectionTree from "@/components/plan/SectionTree";
 import RichTextEditor from "@/components/plan/RichTextEditor";
@@ -21,6 +22,7 @@ import MarkdownIt from "markdown-it";
 import type { StylePreference } from "@/components/plan/StylePanel";
 import type { PlanSection, SectionTemplate } from "@/types/plan";
 import type { SSEEvent } from "@/types/plan";
+import { isAiNotConfiguredError } from "@/utils/aiUnavailable";
 
 // 流式生成期间把 AI 输出的 Markdown 转成 HTML 再进编辑器，
 // 避免编辑器直接显示 Markdown 源码（如表格的 | --- | 分隔符）。
@@ -58,6 +60,7 @@ export default function PlanEditorPage() {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
   const [failedSections, setFailedSections] = useState<Array<{ section_key: string; title: string }>>([]);
+  const [aiUnavailable, setAiUnavailable] = useState(false);
   const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
   const [advancedOverrides, setAdvancedOverrides] = useState<Record<string, unknown> | null>(null);
   const [styleMode, setStyleMode] = useState<"panel" | "advanced">("panel");
@@ -79,6 +82,15 @@ export default function PlanEditorPage() {
     setSampleMode(v);
     try { sessionStorage.setItem(`plan_sample_mode_${id}`, v ? "1" : "0"); } catch { /* ignore */ }
   };
+
+  /** 生成请求失败统一落点：AI 未配置 → 页面级引导条；其余 → 轻提示 */
+  const reportGenerationError = useCallback((error: string) => {
+    if (isAiNotConfiguredError(error)) {
+      setAiUnavailable(true);
+    } else {
+      message.error(error || "生成失败，请重试");
+    }
+  }, []);
 
   const { data: plan, isLoading: planLoading } = useQuery({
     queryKey: ["plan", id],
@@ -273,6 +285,7 @@ export default function PlanEditorPage() {
     }
 
     setIsGenerating(true);
+    setAiUnavailable(false);
     setBatchProgress({ current: 0, total: keys ? keys.length : sections.length, message: "准备开始..." });
     genContentRef.current = {};
     selectedKeyRef.current = null;
@@ -342,7 +355,7 @@ export default function PlanEditorPage() {
           case "error":
             setIsGenerating(false);
             setGeneratingSections(new Set());
-            message.error(event.message || "生成出错");
+            reportGenerationError(event.message || "生成出错");
             break;
         }
       },
@@ -350,7 +363,7 @@ export default function PlanEditorPage() {
         setIsGenerating(false);
         setGeneratingSections(new Set());
         setBatchProgress({ current: 0, total: 0, message: "" });
-        message.error(error);
+        reportGenerationError(error);
       },
       () => {
         // Stream completed (final fallback)
@@ -359,7 +372,7 @@ export default function PlanEditorPage() {
 
     // Store controller for potential cancel
     (window as any).__genController = controller;
-  }, [id, sections, queryClient, saveMutation, isGenerating]);
+  }, [id, sections, queryClient, saveMutation, isGenerating, reportGenerationError]);
 
   const handleStopGeneration = useCallback(() => {
     (window as any).__genController?.abort();
@@ -457,6 +470,8 @@ export default function PlanEditorPage() {
           </Space>
         }
       />
+
+      {aiUnavailable && <AiNotConfiguredHint onClose={() => setAiUnavailable(false)} />}
 
       {sampleDone && sampleMode && (
         <div style={{ border: "1px solid #1677ff", borderRadius: 8, padding: 12, marginBottom: 12, background: "#f0f7ff" }}>
@@ -634,7 +649,7 @@ export default function PlanEditorPage() {
         {styleMode === "panel" ? (
           <StylePanel value={stylePreference}
             onChange={(sp) => { setStylePreference(sp); updatePlan(id!, { style_preference: sp } as any).catch(() => {}); }}
-            onPreview={() => { const s = sections && sections[0]; if (s && id) { generateBatchStream(id!, [s.section_key], (e: any) => {}, (err: string) => message.error(err), () => {}); setStyleModalOpen(false); } }}
+            onPreview={() => { const s = sections && sections[0]; if (s && id) { generateBatchStream(id!, [s.section_key], (e: any) => {}, (err: string) => reportGenerationError(err), () => {}); setStyleModalOpen(false); } }}
             onSwitchToAdvanced={() => setStyleMode("advanced")}
             showAdvanced />
         ) : (

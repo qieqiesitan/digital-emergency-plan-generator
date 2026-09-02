@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Input, Button, Typography, Spin, message, Popconfirm } from "antd";
 import { SendOutlined, PlusOutlined, DeleteOutlined, MessageOutlined, CloseOutlined } from "@ant-design/icons";
 import AppIcon from "@/components/common/AppIcon";
+import AiNotConfiguredHint from "@/components/common/AiNotConfiguredHint";
 import {
   sendChatMessage,
   fetchConversations,
@@ -16,6 +17,7 @@ import {
 } from "@/services/chatService";
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
+import { aiErrorDisplay } from "@/utils/aiUnavailable";
 const md = new MarkdownIt();
 
 const { Text, Paragraph } = Typography;
@@ -41,8 +43,10 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [convLoading, setConvLoading] = useState(false);
   const [toolSteps, setToolSteps] = useState<ToolCallStep[]>([]);
+  const [aiUnavailable, setAiUnavailable] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const streamFailedRef = useRef(false);
 
   // 加载对话列表
   const loadConversations = useCallback(async () => {
@@ -120,10 +124,29 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  /** 发送失败统一落点：AI 未配置 → 引导文案 + 提示条；其余 → 可见通用错误（不再兜底为"（无回复）"） */
+  const applyAssistantError = useCallback((err: string) => {
+    setLoading(false);
+    streamFailedRef.current = true;
+    const disp = aiErrorDisplay(err, "请求失败，请稍后重试");
+    if (disp.notConfigured) setAiUnavailable(true);
+    setMessages((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+      if (last && last.role === "assistant") {
+        last.content = disp.notConfigured ? disp.text : `❌ ${disp.text}`;
+        last.loading = false;
+      }
+      return next;
+    });
+  }, []);
+
   const handleSend = () => {
     const text = input.trim();
     if (!text || loading) return;
     setInput("");
+    setAiUnavailable(false);
+    streamFailedRef.current = false;
 
     const userMsg: DisplayMessage = { role: "user", content: text };
     const assistantMsg: DisplayMessage = { role: "assistant", content: "", loading: true };
@@ -150,9 +173,17 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
               contentBuf += event.content || "";
             }
             break;
-          case "error":
-            contentBuf += `\n❌ ${event.message}`;
+          case "error": {
+            streamFailedRef.current = true;
+            const disp = aiErrorDisplay(event.message, "请求失败，请稍后重试");
+            if (disp.notConfigured) {
+              setAiUnavailable(true);
+              contentBuf = disp.text;
+            } else {
+              contentBuf += `\n❌ ${disp.text}`;
+            }
             break;
+          }
           case "tool_step":
             setToolSteps((prev) => [
               ...prev,
@@ -178,21 +209,10 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
           return [...next];
         });
       },
-      (err) => {
-        setLoading(false);
-        setMessages((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last && last.role === "assistant") {
-            last.content = (last.content || "") + `\n❌ ${err}`;
-            last.loading = false;
-          }
-          return next;
-        });
-      },
+      (err) => applyAssistantError(err),
       (convId) => {
         setLoading(false);
-        const finalContent = contentBuf || "（无回复）";
+        const finalContent = contentBuf || (streamFailedRef.current ? "AI 回复失败，请稍后重试" : "（无回复）");
         setHistory((prev) => [
           ...prev,
           { role: "user", content: text },
@@ -235,6 +255,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   if (embedded) {
     return (
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        {aiUnavailable && <AiNotConfiguredHint onClose={() => setAiUnavailable(false)} />}
         {/* 对话选择 + 新建 */}
         <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
           <div
@@ -485,6 +506,7 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
           </div>
         ) : (
           <>
+            {aiUnavailable && <AiNotConfiguredHint onClose={() => setAiUnavailable(false)} />}
             <div
               ref={listRef}
               style={{

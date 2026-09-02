@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button, Alert, Modal, Form, Input, Tag, Typography } from "antd";
 import { LoadingOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import AppIcon from "@/components/common/AppIcon";
 import { generateSectionStream, stopGeneration, regenerateSelectionStream } from "@/services/generationService";
 import { getAIConfig } from "@/services/aiConfigService";
 import { getQuickPrompts } from "@/utils/quickPrompts";
+import { AI_CONFIG_ROUTE, AI_NOT_CONFIGURED_HINT, aiErrorDisplay } from "@/utils/aiUnavailable";
 import DiffPreviewModal from "./DiffPreviewModal";
 
 const { Text } = Typography;
@@ -32,6 +34,7 @@ export default function AIGenerateButton({
 }: AIGenerateButtonProps) {
   const [status, setStatus] = useState<GenStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [aiConfigError, setAiConfigError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
   const [diffOld, setDiffOld] = useState("");
@@ -39,6 +42,7 @@ export default function AIGenerateButton({
   const controllerRef = useRef<AbortController | null>(null);
   const fullTextRef = useRef("");
   const [form] = Form.useForm();
+  const navigate = useNavigate();
 
   const checkConfig = useCallback(async (): Promise<boolean> => {
     try {
@@ -46,7 +50,14 @@ export default function AIGenerateButton({
       if (!config) {
         Modal.warning({
           title: "AI 未配置",
-          content: "AI 生成功能暂不可用，请联系管理员配置 AI 模型后重试。",
+          content: (
+            <div>
+              <div>{AI_NOT_CONFIGURED_HINT}</div>
+              <Button type="primary" size="small" style={{ marginTop: 12 }} onClick={() => navigate(AI_CONFIG_ROUTE)}>
+                前往 AI 配置
+              </Button>
+            </div>
+          ),
           okText: "知道了",
         });
         return false;
@@ -55,6 +66,14 @@ export default function AIGenerateButton({
     } catch {
       return true;
     }
+  }, [navigate]);
+
+  /** 生成/重写失败统一落点：AI 未配置 → 引导文案 + 跳转；其余 → 通用错误（可重试） */
+  const applyGenError = useCallback((raw: string | undefined, fallback: string) => {
+    const disp = aiErrorDisplay(raw, fallback);
+    setStatus("error");
+    setErrorMsg(disp.text);
+    setAiConfigError(disp.notConfigured);
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -78,6 +97,7 @@ export default function AIGenerateButton({
       setModalOpen(false);
       setStatus("loading");
       setErrorMsg("");
+      setAiConfigError(false);
       fullTextRef.current = "";
 
       if (mode === "selection" && selectedText !== undefined) {
@@ -92,11 +112,10 @@ export default function AIGenerateButton({
               onGenerateComplete(fullTextRef.current || event.content || "");
               setTimeout(() => setStatus("idle"), 1500);
             } else if (event.type === "error") {
-              setStatus("error");
-              setErrorMsg(event.message || "AI 重写失败");
+              applyGenError(event.message, "AI 重写失败");
             }
           },
-          (error) => { setStatus("error"); setErrorMsg(error); },
+          (error) => applyGenError(error, "AI 重写失败"),
           () => {},
           instruction || null
         );
@@ -120,11 +139,10 @@ export default function AIGenerateButton({
               setStatus("done");
               setTimeout(() => setStatus("idle"), 1500);
             } else if (event.type === "error") {
-              setStatus("error");
-              setErrorMsg(event.message || "AI 生成失败");
+              applyGenError(event.message, "AI 生成失败");
             }
           },
-          (error) => { setStatus("error"); setErrorMsg(error); },
+          (error) => applyGenError(error, "AI 生成失败"),
           () => {},
           instruction || undefined
         );
@@ -132,7 +150,7 @@ export default function AIGenerateButton({
     } catch {
       // form validation failed, stay in modal
     }
-  }, [planId, sectionKey, contextBefore, contextAfter, selectedText, oldContent, mode, onContentChunk, onGenerateComplete, form]);
+  }, [planId, sectionKey, contextBefore, contextAfter, selectedText, oldContent, mode, onContentChunk, onGenerateComplete, form, applyGenError]);
 
   const handleStop = useCallback(() => {
     controllerRef.current?.abort();
@@ -157,8 +175,21 @@ export default function AIGenerateButton({
         <>
           <Button icon={<AppIcon name="ai" size={14} />} onClick={handleGenerate} disabled={disabled}>AI 生成</Button>
           {status === "error" && (
-            <Alert type="error" message={errorMsg} closable onClose={() => setStatus("idle")} style={{ marginTop: 8 }}
-              action={<Button size="small" onClick={handleConfirm}>重试</Button>}
+            <Alert
+              type={aiConfigError ? "warning" : "error"}
+              message={errorMsg}
+              closable
+              onClose={() => { setStatus("idle"); setAiConfigError(false); }}
+              style={{ marginTop: 8 }}
+              action={
+                aiConfigError ? (
+                  <Button size="small" type="primary" onClick={() => navigate(AI_CONFIG_ROUTE)}>
+                    前往 AI 配置
+                  </Button>
+                ) : (
+                  <Button size="small" onClick={handleConfirm}>重试</Button>
+                )
+              }
             />
           )}
           <Modal
