@@ -180,6 +180,11 @@ async def _generic_update(db, user, args, cfg):
     user_field = cfg.get("user_id_field", "")
     if user_field:
         query = query.where(getattr(model, user_field) == user.id)
+    elif cfg.get("enterprise_ownership"):
+        # 无 user_id 列的表（如应急资源）经 enterprise→user 链路校验归属
+        query = query.join(Enterprise, model.enterprise_id == Enterprise.id).where(
+            Enterprise.user_id == user.id
+        )
     entity = (await db.execute(query)).scalar_one_or_none()
     if not entity:
         return {"error": f"{cfg['name_cn']}不存在", "verified": False}
@@ -201,6 +206,11 @@ async def _generic_delete(db, user, args, cfg):
     user_field = cfg.get("user_id_field", "")
     if user_field:
         query = query.where(getattr(model, user_field) == user.id)
+    elif cfg.get("enterprise_ownership"):
+        # 无 user_id 列的表（如应急资源）经 enterprise→user 链路校验归属
+        query = query.join(Enterprise, model.enterprise_id == Enterprise.id).where(
+            Enterprise.user_id == user.id
+        )
     entity = (await db.execute(query)).scalar_one_or_none()
     if not entity:
         return {"error": f"{cfg['name_cn']}不存在", "verified": False}
@@ -247,6 +257,7 @@ _RES_CFG.update({
     "update_fields": ["name", "category", "specification", "quantity", "unit", "location", "responsible_person", "contact_phone"],
     "order_by": "id",
     "rebuild_enterprise_index": True,
+    "enterprise_ownership": True,
 })
 
 _ENT_CFG = {
@@ -541,10 +552,31 @@ async def _list_templates(db, user, args):
 
 # ── 风险评估报告 ──
 
+async def _verify_report_access(db, user, report_model, report_id):
+    """report → enterprise → user 归属校验；返回 (report, error_dict)。"""
+    if not report_id:
+        return None, {"error": "请提供 report_id"}
+    r = (await db.execute(select(report_model).where(report_model.id == report_id))).scalar_one_or_none()
+    if not r:
+        return None, {"error": "报告不存在或无权访问"}
+    owned = (await db.execute(select(Enterprise.id).where(
+        Enterprise.id == r.enterprise_id,
+        Enterprise.user_id == user.id,
+    ))).scalar_one_or_none()
+    if not owned:
+        return None, {"error": "报告不存在或无权访问"}
+    return r, None
+
+
 async def _list_risk_assessments(db, user, args):
     ent_id = args.get("enterprise_id", "")
     query = select(RiskAssessmentReport)
     if ent_id:
+        owned = (await db.execute(select(Enterprise.id).where(
+            Enterprise.id == ent_id, Enterprise.user_id == user.id
+        ))).scalar_one_or_none()
+        if not owned:
+            return {"error": "企业不存在或无权访问", "verified": False}
         query = query.where(RiskAssessmentReport.enterprise_id == ent_id)
     else:
         user_ent_ids = (await db.execute(select(Enterprise.id).where(Enterprise.user_id == user.id))).scalars().all()
@@ -554,12 +586,9 @@ async def _list_risk_assessments(db, user, args):
 
 
 async def _get_risk_assessment(db, user, args):
-    report_id = args.get("report_id", "")
-    if not report_id:
-        return {"error": "请提供 report_id"}
-    r = (await db.execute(select(RiskAssessmentReport).where(RiskAssessmentReport.id == report_id))).scalar_one_or_none()
-    if not r:
-        return {"error": "报告不存在"}
+    r, err = await _verify_report_access(db, user, RiskAssessmentReport, args.get("report_id", ""))
+    if err:
+        return err
     return {"id": r.id, "enterprise_id": r.enterprise_id, "status": r.status, "content": r.content[:3000] if r.content else "", "created_at": str(r.created_at)}
 
 
@@ -569,6 +598,11 @@ async def _list_resource_investigations(db, user, args):
     ent_id = args.get("enterprise_id", "")
     query = select(ResourceInvestigationReport)
     if ent_id:
+        owned = (await db.execute(select(Enterprise.id).where(
+            Enterprise.id == ent_id, Enterprise.user_id == user.id
+        ))).scalar_one_or_none()
+        if not owned:
+            return {"error": "企业不存在或无权访问", "verified": False}
         query = query.where(ResourceInvestigationReport.enterprise_id == ent_id)
     else:
         user_ent_ids = (await db.execute(select(Enterprise.id).where(Enterprise.user_id == user.id))).scalars().all()
@@ -578,12 +612,9 @@ async def _list_resource_investigations(db, user, args):
 
 
 async def _get_resource_investigation(db, user, args):
-    report_id = args.get("report_id", "")
-    if not report_id:
-        return {"error": "请提供 report_id"}
-    r = (await db.execute(select(ResourceInvestigationReport).where(ResourceInvestigationReport.id == report_id))).scalar_one_or_none()
-    if not r:
-        return {"error": "报告不存在"}
+    r, err = await _verify_report_access(db, user, ResourceInvestigationReport, args.get("report_id", ""))
+    if err:
+        return err
     return {"id": r.id, "enterprise_id": r.enterprise_id, "status": r.status, "content": r.content[:3000] if r.content else "", "created_at": str(r.created_at)}
 
 

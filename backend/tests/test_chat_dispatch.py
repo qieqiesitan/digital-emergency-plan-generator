@@ -156,3 +156,188 @@ async def test_create_plan_with_template(monkeypatch):
     assert out["id"] == added["obj"].id
     assert created["plan_id"] == out["id"]
     assert created["structure"] == tmpl.structure
+
+
+# ── IDOR 回归测试（体检报告 S6/S7）──
+
+
+@pytest.mark.asyncio
+async def test_res_cfg_enforces_enterprise_ownership():
+    """应急资源表无 user_id 列，_RES_CFG 必须通过 enterprise_ownership 做归属校验。"""
+    from app.services.chat_dispatch import _RES_CFG
+
+    assert _RES_CFG.get("enterprise_ownership") is True
+
+
+@pytest.mark.asyncio
+async def test_update_resource_checks_ownership_via_enterprise():
+    """他人应急资源的 update 必须走 enterprise→user 归属校验并返回 error。"""
+    from app.services.chat_dispatch import _update_resource
+
+    db = AsyncMock()
+    captured = {}
+
+    async def fake_execute(stmt, *a, **kw):
+        captured["stmt"] = stmt
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = None
+        return result
+
+    db.execute = fake_execute
+    out = await _update_resource(db, MagicMock(id="u1"), {"resource_id": "r1", "name": "越权改名"})
+    assert out == {"error": "应急资源不存在", "verified": False}
+    sql = str(captured["stmt"])
+    assert "emergency_resources" in sql
+    assert "enterprises" in sql
+    assert "user_id" in sql
+    assert "u1" in captured["stmt"].compile().params.values()
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_resource_checks_ownership_via_enterprise():
+    """他人应急资源的 delete 必须走 enterprise→user 归属校验并返回 error。"""
+    from app.services.chat_dispatch import _delete_resource
+
+    db = AsyncMock()
+    captured = {}
+
+    async def fake_execute(stmt, *a, **kw):
+        captured["stmt"] = stmt
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = None
+        return result
+
+    db.execute = fake_execute
+    out = await _delete_resource(db, MagicMock(id="u1"), {"resource_id": "r1"})
+    assert out == {"error": "应急资源不存在", "verified": False}
+    sql = str(captured["stmt"])
+    assert "emergency_resources" in sql
+    assert "enterprises" in sql
+    assert "user_id" in sql
+    assert "u1" in captured["stmt"].compile().params.values()
+    db.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_risk_assessment_rejects_other_users_report():
+    """读取他人企业评估报告必须按 enterprise→user 校验并返回 error。"""
+    from app.services.chat_dispatch import _get_risk_assessment
+
+    db = AsyncMock()
+    report = MagicMock(id="r1", enterprise_id="e1", status="draft",
+                       content="涉密正文", created_at="2026-09-02")
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=lambda: report),  # report 查询
+        MagicMock(scalar_one_or_none=lambda: None),    # enterprise 归属查询
+    ])
+    out = await _get_risk_assessment(db, MagicMock(id="u1"), {"report_id": "r1"})
+    assert out == {"error": "报告不存在或无权访问"}
+
+
+@pytest.mark.asyncio
+async def test_get_risk_assessment_returns_when_owned():
+    """本人企业下的评估报告可正常读取。"""
+    from app.services.chat_dispatch import _get_risk_assessment
+
+    db = AsyncMock()
+    report = MagicMock(id="r1", enterprise_id="e1", status="draft",
+                       content="正文", created_at="2026-09-02")
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=lambda: report),  # report 查询
+        MagicMock(scalar_one_or_none=lambda: "e1"),    # enterprise 归属查询命中
+    ])
+    out = await _get_risk_assessment(db, MagicMock(id="u1"), {"report_id": "r1"})
+    assert out["id"] == "r1"
+    assert out["content"] == "正文"
+
+
+@pytest.mark.asyncio
+async def test_get_resource_investigation_rejects_other_users_report():
+    """读取他人企业调查报告必须按 enterprise→user 校验并返回 error。"""
+    from app.services.chat_dispatch import _get_resource_investigation
+
+    db = AsyncMock()
+    report = MagicMock(id="r1", enterprise_id="e1", status="draft",
+                       content="涉密正文", created_at="2026-09-02")
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=lambda: report),  # report 查询
+        MagicMock(scalar_one_or_none=lambda: None),    # enterprise 归属查询
+    ])
+    out = await _get_resource_investigation(db, MagicMock(id="u1"), {"report_id": "r1"})
+    assert out == {"error": "报告不存在或无权访问"}
+
+
+@pytest.mark.asyncio
+async def test_get_resource_investigation_returns_when_owned():
+    """本人企业下的调查报告可正常读取。"""
+    from app.services.chat_dispatch import _get_resource_investigation
+
+    db = AsyncMock()
+    report = MagicMock(id="r1", enterprise_id="e1", status="draft",
+                       content="正文", created_at="2026-09-02")
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=lambda: report),  # report 查询
+        MagicMock(scalar_one_or_none=lambda: "e1"),    # enterprise 归属查询命中
+    ])
+    out = await _get_resource_investigation(db, MagicMock(id="u1"), {"report_id": "r1"})
+    assert out["id"] == "r1"
+    assert out["content"] == "正文"
+
+
+@pytest.mark.asyncio
+async def test_list_risk_assessments_rejects_unowned_enterprise():
+    """list 接口传他人 enterprise_id 必须返回 error。"""
+    from app.services.chat_dispatch import _list_risk_assessments
+
+    db = AsyncMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    db.execute.return_value = result
+    out = await _list_risk_assessments(db, MagicMock(id="u1"), {"enterprise_id": "e1"})
+    assert out == {"error": "企业不存在或无权访问", "verified": False}
+
+
+@pytest.mark.asyncio
+async def test_list_risk_assessments_allows_owned_enterprise():
+    """list 接口传本人 enterprise_id 正常返回列表。"""
+    from app.services.chat_dispatch import _list_risk_assessments
+
+    db = AsyncMock()
+    rows_result = MagicMock()
+    rows_result.scalars.return_value.all.return_value = []
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=lambda: "e1"),  # enterprise 归属查询命中
+        rows_result,                                  # 报告列表查询
+    ])
+    out = await _list_risk_assessments(db, MagicMock(id="u1"), {"enterprise_id": "e1"})
+    assert out == {"assessments": []}
+
+
+@pytest.mark.asyncio
+async def test_list_resource_investigations_rejects_unowned_enterprise():
+    """list 接口传他人 enterprise_id 必须返回 error。"""
+    from app.services.chat_dispatch import _list_resource_investigations
+
+    db = AsyncMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    db.execute.return_value = result
+    out = await _list_resource_investigations(db, MagicMock(id="u1"), {"enterprise_id": "e1"})
+    assert out == {"error": "企业不存在或无权访问", "verified": False}
+
+
+@pytest.mark.asyncio
+async def test_list_resource_investigations_allows_owned_enterprise():
+    """list 接口传本人 enterprise_id 正常返回列表。"""
+    from app.services.chat_dispatch import _list_resource_investigations
+
+    db = AsyncMock()
+    rows_result = MagicMock()
+    rows_result.scalars.return_value.all.return_value = []
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=lambda: "e1"),  # enterprise 归属查询命中
+        rows_result,                                  # 报告列表查询
+    ])
+    out = await _list_resource_investigations(db, MagicMock(id="u1"), {"enterprise_id": "e1"})
+    assert out == {"investigations": []}

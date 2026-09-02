@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.prompt import PromptTemplate
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 from app.schemas.common import ApiResponse
 from app.services.prompt_cache import invalidate_cache
 import logging
@@ -100,6 +100,7 @@ async def get_prompt(
 @router.post("", response_model=ApiResponse[dict])
 async def create_prompt(
     data: PromptCreate,
+    _=Depends(require_admin),
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -124,6 +125,7 @@ async def create_prompt(
 async def update_prompt(
     prompt_id: int,
     data: PromptUpdate,
+    _=Depends(require_admin),
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
