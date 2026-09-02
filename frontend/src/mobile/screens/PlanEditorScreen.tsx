@@ -27,13 +27,60 @@ import { useDraftStore } from "@/mobile/store/draftStore";
 
 type EditorMode = "navigate" | "edit";
 
+// B15 修复：保存失败时按 planId 将章节草稿持久化到 localStorage，
+// 进入章节时优先恢复（避免刷新/切回后丢失），保存成功后清除。
+const DRAFT_STORAGE_PREFIX = "plan_editor_draft:";
+
+interface StoredDraft {
+  content: string;
+  updatedAt: number;
+}
+
+function loadStoredDraft(planId: string, sectionKey: string): string | null {
+  try {
+    const raw = localStorage.getItem(`${DRAFT_STORAGE_PREFIX}${planId}`);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, StoredDraft>;
+    return map[sectionKey]?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function persistStoredDraft(planId: string, sectionKey: string, content: string): void {
+  try {
+    const raw = localStorage.getItem(`${DRAFT_STORAGE_PREFIX}${planId}`);
+    const map: Record<string, StoredDraft> = raw ? JSON.parse(raw) : {};
+    map[sectionKey] = { content, updatedAt: Date.now() };
+    localStorage.setItem(`${DRAFT_STORAGE_PREFIX}${planId}`, JSON.stringify(map));
+  } catch {
+    // localStorage 不可用（隐私模式/配额满）时忽略，仍有 toast 明确提示保存失败
+  }
+}
+
+function clearStoredDraft(planId: string, sectionKey: string): void {
+  try {
+    const raw = localStorage.getItem(`${DRAFT_STORAGE_PREFIX}${planId}`);
+    if (!raw) return;
+    const map = JSON.parse(raw) as Record<string, StoredDraft>;
+    delete map[sectionKey];
+    if (Object.keys(map).length === 0) {
+      localStorage.removeItem(`${DRAFT_STORAGE_PREFIX}${planId}`);
+    } else {
+      localStorage.setItem(`${DRAFT_STORAGE_PREFIX}${planId}`, JSON.stringify(map));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export default function PlanEditorScreen() {
   const { id: planId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { setKeyboard } = useAppStore();
-  const { addDraft } = useDraftStore();
+  const { addDraft, removeDraft } = useDraftStore();
 
   const [mode, setMode] = useState<EditorMode>("navigate");
   const [selectedChapter, setSelectedChapter] = useState<ChapterNode | null>(null);
@@ -51,6 +98,7 @@ export default function PlanEditorScreen() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewResult, setReviewResult] = useState<PlanReviewResult | null>(null);
   const [applyReviewLoading, setApplyReviewLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "dirty" | "saving" | "error">("saved");
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,24 +178,48 @@ export default function PlanEditorScreen() {
     return states;
   }, [sections]);
 
-  // 保存章节
+  // 保存章节（B15：不再静默吞错——失败时状态栏报错 + toast 提示，并把内容暂存为本地草稿）
   const saveMutation = useMutation({
     mutationFn: async (content: string) => {
       if (!planId || !selectedChapter) return;
-      try {
-        await updateSection(planId, selectedChapter.key, { content });
-        addDraft(planId, selectedChapter.key, content);
-      } catch {
+      await updateSection(planId, selectedChapter.key, { content });
+    },
+    onMutate: () => setSaveStatus("saving"),
+    onSuccess: () => {
+      setSaveStatus("saved");
+      if (planId && selectedChapter) {
+        clearStoredDraft(planId, selectedChapter.key);
+        removeDraft(planId, selectedChapter.key);
+      }
+      // B12：这里只刷新章节树状态，不把服务器值写回 localContent，
+      // 避免自动保存/生成期间的 refetch 覆盖正在编辑的内容。
+      queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
+    },
+    onError: (_error, content) => {
+      setSaveStatus("error");
+      if (planId && selectedChapter) {
+        persistStoredDraft(planId, selectedChapter.key, content);
         addDraft(planId, selectedChapter.key, content);
       }
+      showToast?.({ type: "error", message: "保存失败，内容已暂存为本地草稿" });
     },
+  });
+
+  // 保存版本快照（B2：此前引用了从未定义的 saveVersionMut，点击必崩）
+  const saveVersionMut = useMutation({
+    mutationFn: () => createVersion(planId!, "手动保存版本"),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
+      showToast?.({ type: "success", message: "版本已保存" });
+      queryClient.invalidateQueries({ queryKey: ["versions", planId] });
+    },
+    onError: () => {
+      showToast?.({ type: "error", message: "保存版本失败" });
     },
   });
 
   // 自动保存
   const autoSave = useCallback((content: string) => {
+    setSaveStatus("dirty");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveMutation.mutate(content);
@@ -158,12 +230,22 @@ export default function PlanEditorScreen() {
     setSelectedChapter(chapter);
     setMode("edit");
     const sec = sections.find(s => s.section_key === chapter.key);
-    setLocalContent(sec?.content ?? "");
+    const serverContent = sec?.content ?? "";
+    // B15/B12：有本地未保存草稿时优先恢复，避免服务器旧值覆盖正在编辑的内容
+    const draft = loadStoredDraft(planId!, chapter.key);
+    if (draft !== null && draft !== serverContent) {
+      setLocalContent(draft);
+      setSaveStatus("dirty");
+      showToast?.({ type: "info", message: "已恢复未保存的草稿" });
+    } else {
+      setLocalContent(serverContent);
+      setSaveStatus("saved");
+    }
     setToolbarVisible(true);
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 100);
-  }, [sections]);
+  }, [sections, planId, showToast]);
 
   const handleBackToNavigate = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -693,7 +775,15 @@ export default function PlanEditorScreen() {
             />
             <div className="h-7 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between px-md text-caption text-neutral-400">
               <span>字数：{localContent.length.toLocaleString()}</span>
-              <span>{saveMutation.isPending ? "保存中…" : "已自动保存"}</span>
+              <span className={saveStatus === "error" ? "text-red-500" : undefined}>
+                {saveStatus === "saving"
+                  ? "保存中…"
+                  : saveStatus === "dirty"
+                  ? "未保存"
+                  : saveStatus === "error"
+                  ? "保存失败"
+                  : "已自动保存"}
+              </span>
             </div>
           </div>
         )}
