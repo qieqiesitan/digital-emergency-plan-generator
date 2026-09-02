@@ -37,8 +37,6 @@ services:
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-abcdefghijklmnopqrstuvwxyz123456}
       EXPORT_DIR: /app/exports
-      EXTERNAL_API_HMAC_SECRET: ${EXTERNAL_API_HMAC_SECRET:-}
-      PROTEGO_CALLBACK_URL: ${PROTEGO_CALLBACK_URL:-}
       QCC_API_KEY: ${QCC_API_KEY:-}
       QCC_ENDPOINT: ${QCC_ENDPOINT:-https://agent.qcc.com/mcp/company/stream}
       QCC_API_KEY_FALLBACK: ${QCC_API_KEY_FALLBACK:-}

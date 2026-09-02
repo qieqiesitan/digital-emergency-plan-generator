@@ -439,6 +439,7 @@ def test_baseline_migrations_match_pre_upgrade_scripts():
         "db_migration_20260831_prompt_template_dedupe.sql",
         "db_migration_20260831_third_party_config.sql",
         "db_migration_20260831_agent_chat_tool_calls.sql",
+        "db_migration_20260902_drop_ywt_user_id.sql",
     }
 
 
