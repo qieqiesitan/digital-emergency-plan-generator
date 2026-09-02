@@ -238,37 +238,57 @@ async def _execute_pending_tools(pending_tool_calls, db, current_user, round_num
 
 
 async def _load_history_rows(db, conv_id: str):
-    """按时间顺序加载会话全部历史消息行。"""
+    """按时间顺序加载会话全部历史消息行 + 工具调用实参记录（B20）。"""
+    from app.models.chat_tool_call import ChatToolCall
     rows = (await db.execute(
         select(ChatMessage)
         .where(ChatMessage.conversation_id == conv_id)
         .order_by(ChatMessage.seq)
     )).scalars().all()
-    return rows
+    tool_rows = (await db.execute(
+        select(ChatToolCall)
+        .where(ChatToolCall.conversation_id == conv_id)
+        .order_by(ChatToolCall.created_at, ChatToolCall.id)
+    )).scalars().all()
+    return rows, tool_rows
 
 
-def _rebuild_messages_from_rows(rows, user_message: str) -> list:
-    """DB 历史 → OpenAI messages。assistant(content="") + 连续 tool 行还原为 tool_calls。"""
+def _rebuild_messages_from_rows(rows, user_message: str, tool_rows: list | None = None) -> list:
+    """DB 历史 → OpenAI messages。assistant(content="") + 连续 tool 行还原为 tool_calls。
+
+    tool_rows: 可选 ChatToolCall 记录（按执行顺序），用于补全 tool_call 的真实 arguments
+    （B20：避免历史重建把参数退化为 "{}"，长对话续轮决策质量下降）。
+    """
     msgs = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
+    args_queue = list(tool_rows or [])
     i, n = 0, len(rows)
     while i < n:
         r = rows[i]
         if r.role == "assistant" and not (r.content or ""):
-            tool_rows = []
+            tool_msgs = []
             j = i + 1
             while j < n and rows[j].role == "tool":
-                tool_rows.append(rows[j])
+                tool_msgs.append(rows[j])
                 j += 1
-            if tool_rows:
+            if tool_msgs:
                 calls = []
-                for idx, tr in enumerate(tool_rows):
+                for idx, tr in enumerate(tool_msgs):
+                    args_text = "{}"
+                    match_idx = next(
+                        (k for k, rec in enumerate(args_queue)
+                         if getattr(rec, "fn_name", None) == (tr.name or "")),
+                        None,
+                    )
+                    if match_idx is not None:
+                        rec = args_queue.pop(match_idx)
+                        args_text = json.dumps(rec.fn_args or {}, ensure_ascii=False)
                     calls.append({
                         "id": f"call_{idx}",
                         "type": "function",
-                        "function": {"name": tr.name or "", "arguments": "{}"},
+                        "function": {"name": tr.name or "", "arguments": args_text},
                     })
                 msgs.append({"role": "assistant", "content": None, "tool_calls": calls})
-                for idx, tr in enumerate(tool_rows):
+                for idx, tr in enumerate(tool_msgs):
                     msgs.append({"role": "tool", "tool_call_id": f"call_{idx}",
                                  "content": tr.content or ""})
                 i = j
@@ -431,8 +451,9 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         await db.refresh(conv)
         conv_id = conv.id
 
-    rows = await _load_history_rows(db, conv_id)
-    messages = truncate_by_token_budget(_rebuild_messages_from_rows(rows, body.message))
+    rows, tool_rows = await _load_history_rows(db, conv_id)
+    messages = truncate_by_token_budget(
+        _rebuild_messages_from_rows(rows, body.message, tool_rows))
 
     # 第一轮 LLM 调用
     try:
@@ -576,5 +597,6 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         return
 
     return StreamingResponse(agent_loop(), media_type="text/event-stream")
+
 
 
