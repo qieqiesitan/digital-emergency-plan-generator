@@ -249,4 +249,3 @@ async def finalize_batch_result(
         "failed_sections": failed_sections,
         "version": snapshot_version,
     }
-

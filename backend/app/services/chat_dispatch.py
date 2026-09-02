@@ -1123,4 +1123,3 @@ _FUNCTIONS = {
     "get_generation_progress": _get_generation_progress,
     "query_enterprise_knowledge": _query_enterprise_knowledge,
 }
-
