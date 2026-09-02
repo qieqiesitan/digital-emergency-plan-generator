@@ -661,8 +661,185 @@ async def _search_regulations(db, user, args):
     return {"results": [{"id": n.get("id"), "full_name": n.get("full_name", n.get("title", "")), "node_type": n.get("node_type"), "status": n.get("status")} for n in result.get("items", [])], "source": "graph_fallback"}
 # -- 法规条文检索(聊天助手引用用) --
 
+# 向量召回候选数：先宽召回（30），再按 query 关键词命中加权重排后截断回 top_k
+_REGULATION_RECALL_TOP_K = 30
+
+# 法规问答中常见的疑问词/语气助词/无信息动词（按长度降序剔除，避免短词破坏领域短语）
+_REG_QUERY_NOISE = (
+    "有什么规定和要求", "有没有规定", "有没有要求", "有什么规定", "有什么要求",
+    "有哪些规定", "有哪些要求", "有什么标准", "有什么条件", "有什么措施",
+    "有什么程序", "有什么内容", "有什么义务", "有什么责任", "有什么处罚",
+    "有何规定", "有何要求", "有什么", "有哪些", "什么样", "什么", "哪些",
+    "如何", "怎样", "怎么", "做什么", "怎么做", "怎么办", "应做什么",
+    "应怎么做", "要做什么", "需要做什么", "应当做", "应该做", "该怎么",
+    "怎样做", "如何做", "是否", "能不能", "可不可以",
+    "需不需要", "应不应该", "要不要", "是否需要", "应该", "应当", "需要",
+    "必须", "可否", "是否要", "应做好", "应做", "做好", "进行", "予以",
+    "依法", "以及", "或者", "吗", "呢", "啊", "吧", "了", "的",
+)
+
+# 2 字滑窗中的高频通用词：命中信息量低且会放大长表格/附录类噪声，不参与加权
+_REG_WINDOW_STOP = frozenset({
+    "安全", "生产", "作业", "单位", "企业", "管理", "规定", "要求", "标准",
+    "人员", "工作", "组织", "实施", "制定", "建立", "部门", "机构", "相关",
+    "有关", "以及", "或者", "进行", "应当", "必须", "其他", "内容", "情况",
+    "负责", "国家", "地方", "政府", "按照", "根据", "符合", "加强", "各级",
+})
+
+
+def _extract_regulation_keywords(query: str) -> list[str]:
+    """从法规问答中提取中文关键词（2+ 字）。
+
+    仓库未依赖 jieba：先剔除常见疑问词/助词，再按标点与连接词切分，
+    对剩余中文片段取 2-4 字滑窗去重 —— "储存距离""消防通道""备案"
+    "演练频次" 等短领域短语天然被保留。
+    """
+    import re
+
+    text = (query or "").strip().lower()
+    if not text:
+        return []
+    for noise in sorted(_REG_QUERY_NOISE, key=len, reverse=True):
+        text = text.replace(noise, "")
+    segments = [
+        s for s in re.split(
+            r"[a-z0-9\s，。、；：？！?！?（）()\[\]《》<>“”‘’\"'\-—_/…~·]+|[和与及或]",
+            text,
+        )
+        if s
+    ]
+    keywords: set[str] = set()
+    for seg in segments:
+        n = len(seg)
+        if n < 2:
+            continue
+        for wlen in range(2, min(4, n) + 1):
+            for i in range(n - wlen + 1):
+                word = seg[i:i + wlen]
+                if word.isalnum() and word not in _REG_WINDOW_STOP:
+                    keywords.add(word)
+    return sorted(keywords, key=lambda w: (-len(w), w))
+
+
+def _rerank_regulation_articles(query: str, candidates: list[dict]) -> list[dict]:
+    """向量召回候选按 query 关键词命中加权重排。
+
+    加权分 = Σ(min(关键词命中次数, 3) × 长度²)
+             + 关键词命中法规名/文号时的固定加分；
+    加权分相同时按向量相似度降序作为次级排序。
+    """
+    keywords = _extract_regulation_keywords(query)
+    if not keywords:
+        return sorted(
+            candidates,
+            key=lambda a: float(a.get("similarity_score", 0.0) or 0.0),
+            reverse=True,
+        )
+    scored = []
+    for article in candidates:
+        text_hay = (
+            ((article.get("article_text") or "") + "\n"
+             + (article.get("article_number") or ""))
+        ).lower()
+        name_hay = (
+            ((article.get("regulation_full_name") or "") + " "
+             + (article.get("regulation_code") or ""))
+        ).lower()
+        score = 0.0
+        for kw in keywords:
+            occ = text_hay.count(kw)
+            if occ:
+                score += min(occ, 3) * len(kw) * len(kw)
+            if kw in name_hay:
+                score += 10
+        scored.append((score, article))
+    scored.sort(
+        key=lambda pair: (
+            pair[0],
+            float(pair[1].get("similarity_score", 0.0) or 0.0),
+        ),
+        reverse=True,
+    )
+    return [article for _, article in scored]
+
+
+def _regulation_corpus_texts(store) -> list | None:
+    """读取已入库的全部条文文本（词面召回用）。失败返回 None，由调用方忽略。"""
+    col = getattr(store, "_collection", None)
+    if col is None:
+        return None
+    try:
+        data = col.get(include=["documents", "metadatas"])
+        docs = data.get("documents")
+        metas = data.get("metadatas")
+        if not isinstance(docs, list) or not isinstance(metas, list):
+            return None
+        return [(docs[i] or "", metas[i] or {}) for i in range(len(docs))]
+    except Exception:
+        return None
+
+
+def _corpus_lexical_matches(store, keywords: list[str]):
+    """全库词面匹配：返回 (命中条文列表, 关键词 df, 条文总数)。
+
+    向量语义对中文法规问句召回不稳定，直接按词面扫全库；
+    返回 None 表示词面召回不可用（如 mock/未初始化），调用方应忽略。
+    """
+    if not keywords:
+        return None
+    corpus = _regulation_corpus_texts(store)
+    if not corpus:
+        return None
+    df = {kw: 0 for kw in keywords}
+    matches = []
+    for text, meta in corpus:
+        hay = ((text or "") + "\n" + (meta.get("article_number") or "")).lower()
+        score = 0.0
+        for kw in keywords:
+            occ = hay.count(kw)
+            if occ:
+                score += min(occ, 3) * len(kw) * len(kw)
+                df[kw] += 1
+        if score > 0:
+            matches.append({"text": text, "metadata": meta, "distance": 1.0})
+    return matches, df, len(corpus)
+
+
+def _regulation_candidate_score(article: dict, keywords: list[str],
+                                df: dict | None, total: int) -> float:
+    """词面加权分（重排用）：IDF × 命中次数(上限3) × 长度² + 法规名加分。
+
+    有全库 df 时加入逆文档频率与文本长度归一化（抑制长表格/附录噪声）；
+    无 df（纯向量候选）退化为朴素命中加权。返回分数越大越相关。
+    """
+    import math
+
+    text_hay = (
+        ((article.get("article_text") or "") + "\n"
+         + (article.get("article_number") or ""))
+    ).lower()
+    score = 0.0
+    for kw in keywords:
+        occ = text_hay.count(kw)
+        if not occ:
+            continue
+        weight = len(kw) * len(kw)
+        if df:
+            kw_df = df.get(kw, 0) or 1
+            weight *= 1.0 + math.log(float(total + 1) / (kw_df + 1))
+        score += min(occ, 3) * weight
+    if df:
+        score /= (1.0 + len(text_hay) / 600.0)
+    name_hay = (
+        ((article.get("regulation_full_name") or "") + " "
+         + (article.get("regulation_code") or ""))
+    ).lower()
+    name_bonus = sum(12 for kw in keywords if kw in name_hay)
+    return score + min(name_bonus, 60)
+
+
 async def _search_regulation_articles(db, user, args):
-    """法规条文检索：向量语义优先，图谱关键词+子串兜底。"""
+    """法规条文检索：向量召回 + 词面召回 → 关键词相关度重排；图谱兜底。"""
     query = args.get("query", "")
     if not query:
         return {"error": "请提供 query"}
@@ -671,25 +848,52 @@ async def _search_regulation_articles(db, user, args):
     top_k = max(3, min(top_k, 15))
     try:
         store = get_vector_store()
-        hits = store.search_articles(query, top_k=top_k)
+        # 向量召回供重排挑选（先执行以完成 collection 初始化，最终仍截断回 top_k）
+        hits = list(store.search_articles(query, top_k=_REGULATION_RECALL_TOP_K) or [])
+        keywords = _extract_regulation_keywords(query)
+        # 词面召回：向量语义对中文问句召回不稳定，直接按关键词扫全库条文
+        lexical = _corpus_lexical_matches(store, keywords)
+        if lexical:
+            seen = {
+                ((h.get("metadata") or {}).get("regulation_id", ""),
+                 (h.get("metadata") or {}).get("article_number", ""))
+                for h in hits
+            }
+            for hit in lexical[0]:
+                meta = hit.get("metadata") or {}
+                key = (meta.get("regulation_id", ""), meta.get("article_number", ""))
+                if key in seen:
+                    continue
+                seen.add(key)
+                hits.append(hit)
         if hits:
             graph = get_graph()
-            articles = []
+            candidates = []
             for hit in hits:
                 meta = hit.get("metadata") or {}
                 reg_id = meta.get("regulation_id", "")
                 node = graph.get_node(reg_id) if reg_id else None
                 if not node or node.get("status") == "abolished":
                     continue
-                articles.append({
+                candidates.append({
                     "article_text": hit.get("text", ""),
                     "article_number": meta.get("article_number", ""),
                     "regulation_full_name": node.get("full_name", node.get("title", "")),
                     "regulation_code": node.get("code", ""),
                     "status": node.get("status", ""),
-                    "similarity_score": round(1 - float(hit.get("distance", 0)), 4),
+                    "similarity_score": round(1 - float(hit.get("distance", 1)), 4),
                 })
-            if articles:
+            if candidates:
+                df = lexical[1] if lexical else None
+                total = lexical[2] if lexical else 0
+                articles = sorted(
+                    candidates,
+                    key=lambda art: (
+                        _regulation_candidate_score(art, keywords, df, total),
+                        float(art.get("similarity_score", 0.0) or 0.0),
+                    ),
+                    reverse=True,
+                )
                 return {"articles": articles[:top_k], "count": len(articles[:top_k]),
                         "source": "vector"}
     except Exception as e:
