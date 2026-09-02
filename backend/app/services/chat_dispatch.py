@@ -1326,6 +1326,32 @@ async def _run_workflow(db, user, args):
     }
 
 
+async def _confirm_workflow_step(db, user, args):
+    """确认工作流门控步骤（run 处于 paused 且 current_step=step_name 时放行继续）。"""
+    run_id = args.get("run_id", "")
+    step_name = args.get("step_name", "")
+    if not run_id or not step_name:
+        return {"error": "请提供 run_id 和 step_name", "verified": False}
+    run_owned = (await db.execute(
+        select(WorkflowRun).where(
+            WorkflowRun.id == run_id, WorkflowRun.user_id == user.id)
+    )).scalar_one_or_none()
+    if not run_owned:
+        return {"error": "工作流不存在或无权访问", "verified": False}
+    try:
+        run = await WorkflowRunner(db).confirm_workflow_step(run_id, step_name)
+    except ValueError as e:
+        return {"error": str(e), "verified": False}
+    return {
+        "run_id": run.id,
+        "workflow_name": run.workflow_name,
+        "status": run.status,
+        "current_step": run.current_step,
+        "message": f"已确认步骤 {step_name}，工作流继续执行",
+        "verified": True,
+    }
+
+
 async def _get_workflow_progress(db, user, args):
     """查询 workflow_runs 运行状态 + 步骤列表（归属校验）。"""
     run_id = args.get("run_id", "")
@@ -1427,6 +1453,7 @@ _FUNCTIONS = {
     "get_generation_progress": _get_generation_progress,
     "query_enterprise_knowledge": _query_enterprise_knowledge,
     "run_workflow": _run_workflow,
+    "confirm_workflow_step": _confirm_workflow_step,
     "get_workflow_progress": _get_workflow_progress,
     "get_preferences": _get_preferences,
     "set_preferences": _set_preferences,

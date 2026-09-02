@@ -4,11 +4,40 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.chat_dispatch import (
     _FUNCTIONS,
+    _confirm_workflow_step,
     _get_preferences,
     _get_workflow_progress,
     _run_workflow,
     _set_preferences,
 )
+
+
+@pytest.mark.asyncio
+async def test_confirm_workflow_step_requires_ownership():
+    db = AsyncMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    db.execute.return_value = result
+    out = await _confirm_workflow_step(
+        db, MagicMock(id="u1"), {"run_id": "r1", "step_name": "generate_plan"})
+    assert "error" in out
+
+
+@pytest.mark.asyncio
+async def test_confirm_workflow_step_confirms_and_continues():
+    db = AsyncMock()
+    run = MagicMock(id="r1", user_id="u1", workflow_name="create_enterprise_plan",
+                    status="running", current_step=None)
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = run
+    db.execute.return_value = result
+    runner = AsyncMock()
+    runner.confirm_workflow_step.return_value = run
+    with patch("app.services.chat_dispatch.WorkflowRunner", return_value=runner):
+        out = await _confirm_workflow_step(
+            db, MagicMock(id="u1"), {"run_id": "r1", "step_name": "generate_plan"})
+    assert out["verified"] is True
+    runner.confirm_workflow_step.assert_awaited_once_with("r1", "generate_plan")
 
 
 def test_workflow_tools_registered_in_dispatch():

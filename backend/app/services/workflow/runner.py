@@ -140,19 +140,19 @@ class WorkflowRunner:
 
     async def confirm_workflow_step(self, run_id: str, step_name: str):
         """确认门控放行：run 须处于 paused 且 current_step=step_name，随后后台继续执行。"""
-        run = (await (await self._db.execute(
+        run = (await self._db.execute(
             select(WorkflowRun).where(WorkflowRun.id == run_id)
-        )).scalar_one_or_none())
+        )).scalar_one_or_none()
         if not run:
             raise ValueError(f"工作流不存在: {run_id}")
         if run.status != "paused" or run.current_step != step_name:
             raise ValueError(f"工作流 {run_id} 未在等待步骤 {step_name} 的确认")
-        rec = (await (await self._db.execute(
+        rec = (await self._db.execute(
             select(WorkflowRunStep).where(
                 WorkflowRunStep.run_id == run_id,
                 WorkflowRunStep.step_name == step_name,
             )
-        )).scalar_one_or_none())
+        )).scalar_one_or_none()
         if not rec:
             raise ValueError(f"步骤记录不存在: {run_id}/{step_name}")
         rec.status = "confirmed"
@@ -174,9 +174,9 @@ class WorkflowRunner:
         try:
             async with async_session() as bg_db:
                 bg_runner = WorkflowRunner(bg_db)
-                run = (await (await bg_db.execute(
+                run = (await bg_db.execute(
                     select(WorkflowRun).where(WorkflowRun.id == run_id)
-                )).scalar_one_or_none())
+                )).scalar_one_or_none()
                 if not run:
                     logger.warning("后台工作流不存在 run=%s", run_id)
                     return {}
@@ -185,13 +185,13 @@ class WorkflowRunner:
                     run.status = "failed"
                     await bg_db.commit()
                     return {}
-                user = (await (await bg_db.execute(
+                user = (await bg_db.execute(
                     select(User).where(User.id == run.user_id)
-                )).scalar_one_or_none())
-                step_rows = (await (await bg_db.execute(
+                )).scalar_one_or_none()
+                step_rows = (await bg_db.execute(
                     select(WorkflowRunStep).where(WorkflowRunStep.run_id == run_id)
                     .order_by(WorkflowRunStep.step_name)
-                ))).scalars().all()
+                )).scalars().all()
                 ctx = {"params": run.params or {}, "_user": user}
                 confirmed_steps = {}
                 pending_gates = set()

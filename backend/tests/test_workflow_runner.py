@@ -146,7 +146,7 @@ async def test_confirm_workflow_step_rejects_non_paused_run():
     db = AsyncMock()
     runner = WorkflowRunner(db)
     run = MagicMock(id="r1", status="running", current_step="generate_plan")
-    db.execute.return_value.scalar_one_or_none = AsyncMock(return_value=run)
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=run)
     with pytest.raises(ValueError, match="未在等待"):
         await runner.confirm_workflow_step("r1", "generate_plan")
 
@@ -157,7 +157,7 @@ async def test_confirm_workflow_step_marks_confirmed_and_resumes(monkeypatch):
     runner = WorkflowRunner(db)
     run = MagicMock(id="r1", status="paused", current_step="generate_plan")
     step_rec = MagicMock(step_name="generate_plan")
-    db.execute.return_value.scalar_one_or_none = AsyncMock(side_effect=[run, step_rec])
+    db.execute.return_value.scalar_one_or_none = MagicMock(side_effect=[run, step_rec])
     spawned = []
 
     def capture(coro):
