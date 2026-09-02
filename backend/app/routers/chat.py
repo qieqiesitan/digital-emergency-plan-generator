@@ -466,44 +466,54 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         for round_num in range(1, MAX_ROUNDS + 1):
             results = []
 
-            tool_results = await _execute_pending_tools(
-                pending_tool_calls, db, current_user, round_num, conv_id)
-            for tc, result_str in tool_results:
-                fn_name = tc.get("function", {}).get("name", "")
-                tc_id = tc.get("id", "")
-                fn_args = _safe_tool_args(tc)
-                result_obj = json.loads(result_str)
-                is_err = isinstance(result_obj, dict) and "error" in result_obj
-                yield sse_line({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
-                # 打点：并行路径下每条工具的精确时长未单独采集，暂记 0（计划允许简化）
-                try:
-                    await _record_tool_call(db, conv_id, round_num, fn_name, fn_args,
-                                            result_str, "error" if is_err else "success", 0)
-                except Exception:
-                    logger.exception("记录工具调用失败（不影响主流程）")
-                yield sse_line({"type": "tool_step", "name": fn_name, "status": "error" if is_err else "success",
-                                "duration_ms": 0})
-                trace.append({"round_no": round_num, "fn_name": fn_name, "result": result_str})
-
-                # 报告生成特殊处理
-                if result_obj.get("type") == "report_prompt":
-                    yield sse_line({"type": "progress", "message": result_obj.get("message", "正在生成报告...")})
+            # B8：工具执行与结果解析整体兜底——json.loads / result_obj.get / tc["id"]
+            # 等任一异常都不允许生成器崩溃，必须发出 error + conv_id + done 并保存已收集轨迹。
+            try:
+                tool_results = await _execute_pending_tools(
+                    pending_tool_calls, db, current_user, round_num, conv_id)
+                for tc, result_str in tool_results:
+                    fn_name = tc.get("function", {}).get("name", "")
+                    tc_id = tc.get("id", "")
+                    fn_args = _safe_tool_args(tc)
+                    result_obj = json.loads(result_str)
+                    is_err = isinstance(result_obj, dict) and "error" in result_obj
+                    yield sse_line({"type": "progress", "message": f"[第{round_num}轮] 正在执行: {fn_name}..."})
+                    # 打点：并行路径下每条工具的精确时长未单独采集，暂记 0（计划允许简化）
                     try:
-                        full_text = await _generate_report_text(
-                            result_obj.get("system_prompt", ""), result_obj["prompt"], ai_config)
-                        html = await _md_to_html(full_text)
-                        final_text = full_text
-                        yield sse_line({"type": "chunk", "content": html, "html": True})
-                    except Exception as e:
-                        final_text = str(e)
-                        yield sse_line({"type": "error", "message": str(e)})
-                    yield sse_line({"type": "conv_id", "content": conv_id})
-                    yield sse_line({"type": "done"})
-                    asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
-                    return
+                        await _record_tool_call(db, conv_id, round_num, fn_name, fn_args,
+                                                result_str, "error" if is_err else "success", 0)
+                    except Exception:
+                        logger.exception("记录工具调用失败（不影响主流程）")
+                    yield sse_line({"type": "tool_step", "name": fn_name, "status": "error" if is_err else "success",
+                                    "duration_ms": 0})
+                    trace.append({"round_no": round_num, "fn_name": fn_name, "result": result_str})
 
-                yield sse_line({"type": "function_result", "name": fn_name, "result": result_str})
-                results.append({"tc_id": tc_id, "name": fn_name, "result": result_str})
+                    # 报告生成特殊处理
+                    if result_obj.get("type") == "report_prompt":
+                        yield sse_line({"type": "progress", "message": result_obj.get("message", "正在生成报告...")})
+                        try:
+                            full_text = await _generate_report_text(
+                                result_obj.get("system_prompt", ""), result_obj["prompt"], ai_config)
+                            html = await _md_to_html(full_text)
+                            final_text = full_text
+                            yield sse_line({"type": "chunk", "content": html, "html": True})
+                        except Exception as e:
+                            final_text = str(e)
+                            yield sse_line({"type": "error", "message": str(e)})
+                        yield sse_line({"type": "conv_id", "content": conv_id})
+                        yield sse_line({"type": "done"})
+                        asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
+                        return
+
+                    yield sse_line({"type": "function_result", "name": fn_name, "result": result_str})
+                    results.append({"tc_id": tc_id, "name": fn_name, "result": result_str})
+            except Exception as e:
+                final_text = str(e)
+                yield sse_line({"type": "error", "message": str(e)})
+                yield sse_line({"type": "conv_id", "content": conv_id})
+                yield sse_line({"type": "done"})
+                asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
+                return
 
             # 构建上下文
             current_msgs.append({"role": "assistant", "content": None, "tool_calls": pending_tool_calls})
@@ -566,4 +576,5 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         return
 
     return StreamingResponse(agent_loop(), media_type="text/event-stream")
+
 
