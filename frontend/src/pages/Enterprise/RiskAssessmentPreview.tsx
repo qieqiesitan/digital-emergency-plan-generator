@@ -133,7 +133,7 @@ export default function RiskAssessmentPreview() {
   const startEdit = async () => {
     if (!id) return;
     try {
-      const report = await getRiskAssessment(id);
+      const report = await getRiskAssessment(id, { skipGlobalError: true });
       setDraft(report.content || "");
       setEditing(true);
     } catch (err) {
@@ -145,7 +145,7 @@ export default function RiskAssessmentPreview() {
     if (!id) return;
     setSaving(true);
     try {
-      await saveRiskAssessmentContent(id, draft);
+      await saveRiskAssessmentContent(id, draft, { skipGlobalError: true });
       message.success("报告正文已保存");
       setEditing(false);
       reloadPreview();
@@ -159,7 +159,7 @@ export default function RiskAssessmentPreview() {
   const handleSaveVersion = async () => {
     if (!id) return;
     try {
-      const v = await createRiskAssessmentVersion(id);
+      const v = await createRiskAssessmentVersion(id, { skipGlobalError: true });
       setCurrentVersion(v.version_number);
       message.success(`已保存版本 V${v.version_number}`);
     } catch (err) {
@@ -172,7 +172,7 @@ export default function RiskAssessmentPreview() {
     setVersionOpen(true);
     setVersionsLoading(true);
     try {
-      setVersions(await listRiskAssessmentVersions(id));
+      setVersions(await listRiskAssessmentVersions(id, { skipGlobalError: true }));
     } catch {
       message.error("加载版本列表失败");
     } finally {
@@ -189,11 +189,11 @@ export default function RiskAssessmentPreview() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await rollbackRiskAssessmentVersion(id, v.id);
+          await rollbackRiskAssessmentVersion(id, v.id, { skipGlobalError: true });
           message.success(`已回滚到 V${v.version_number}`);
           setCurrentVersion(v.version_number);
           reloadPreview();
-          setVersions(await listRiskAssessmentVersions(id));
+          setVersions(await listRiskAssessmentVersions(id, { skipGlobalError: true }));
         } catch (err) {
           message.error(err instanceof Error ? err.message : "回滚失败");
         }

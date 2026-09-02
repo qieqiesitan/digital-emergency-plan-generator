@@ -10,15 +10,18 @@ export function fetchRole(roleId: string): Promise<Role> {
 }
 
 export function createRole(data: RoleCreateRequest): Promise<Role> {
-  return api.post("/roles", data).then(r => r.data.data);
+  // RoleManagePage 创建 mutation 自带 message.error，跳过全局 toast 防双弹
+  return api.post("/roles", data, { skipGlobalError: true }).then(r => r.data.data);
 }
 
 export function updateRole(roleId: string, data: RoleUpdateRequest): Promise<Role> {
-  return api.put(`/roles/${roleId}`, data).then(r => r.data.data);
+  // RoleManagePage 更新 mutation 自带 message.error，跳过全局 toast 防双弹
+  return api.put(`/roles/${roleId}`, data, { skipGlobalError: true }).then(r => r.data.data);
 }
 
 export function deleteRole(roleId: string): Promise<void> {
-  return api.delete(`/roles/${roleId}`);
+  // RoleManagePage 删除 mutation 自带 message.error，跳过全局 toast 防双弹
+  return api.delete(`/roles/${roleId}`, { skipGlobalError: true });
 }
 
 export function fetchPermissions(): Promise<Permission[]> {

@@ -48,16 +48,19 @@ export async function fetchPrompt(id: number): Promise<PromptTemplate> {
 }
 
 export async function createPrompt(data: PromptCreate): Promise<PromptTemplate> {
-  const res = await api.post<ApiResponse<PromptTemplate>>("/prompts", data);
+  // PromptManagePage 创建 mutation 自带 message.error，跳过全局 toast 防双弹
+  const res = await api.post<ApiResponse<PromptTemplate>>("/prompts", data, { skipGlobalError: true });
   return res.data.data;
 }
 
 export async function updatePrompt(id: number, data: PromptUpdate): Promise<PromptTemplate> {
-  const res = await api.put<ApiResponse<PromptTemplate>>(`/prompts/${id}`, data);
+  // PromptManagePage 更新 mutation 自带 message.error，跳过全局 toast 防双弹
+  const res = await api.put<ApiResponse<PromptTemplate>>(`/prompts/${id}`, data, { skipGlobalError: true });
   return res.data.data;
 }
 
 export async function testPrompt(id: number, variables: Record<string, string>): Promise<PromptTestResult> {
-  const res = await api.post<ApiResponse<PromptTestResult>>(`/prompts/${id}/test`, { variables });
+  // PromptManagePage 测试请求失败自带 message.error，跳过全局 toast 防双弹
+  const res = await api.post<ApiResponse<PromptTestResult>>(`/prompts/${id}/test`, { variables }, { skipGlobalError: true });
   return res.data.data;
 }

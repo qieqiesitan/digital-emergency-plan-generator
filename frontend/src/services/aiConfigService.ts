@@ -12,7 +12,8 @@ export async function getAIConfig(): Promise<AIConfig | null> {
 }
 
 export async function updateAIConfig(data: AIConfigCreate | AIConfigUpdate): Promise<AIConfig> {
-  const res = await api.put<ApiResponse<AIConfig>>("/settings/ai-config", data);
+  // AIConfigPage 保存 mutation 自带 message.error，跳过全局 toast 防双弹
+  const res = await api.put<ApiResponse<AIConfig>>("/settings/ai-config", data, { skipGlobalError: true });
   return res.data.data;
 }
 
@@ -21,6 +22,7 @@ export async function deleteAIConfig(): Promise<void> {
 }
 
 export async function testAIConnection(data: AITestRequest): Promise<AITestResult> {
-  const res = await api.post<ApiResponse<AITestResult>>("/settings/ai-config/test", data);
+  // AIConfigPage 测试连接失败展示本地 Alert 状态，跳过全局 toast 防双弹
+  const res = await api.post<ApiResponse<AITestResult>>("/settings/ai-config/test", data, { skipGlobalError: true });
   return res.data.data;
 }

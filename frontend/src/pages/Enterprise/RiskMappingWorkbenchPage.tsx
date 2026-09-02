@@ -168,7 +168,7 @@ export default function RiskMappingWorkbenchPage() {
       texts: state.texts,
     };
     try {
-      const saved = await saveRiskMappingWorkbench(enterpriseId!, payload);
+      const saved = await saveRiskMappingWorkbench(enterpriseId!, payload, { skipGlobalError: true });
       setSnapshot({
         floors: state.floors.map(f => (f.id === saved.floor.id ? saved.floor : f)),
         currentFloorId: saved.floor.id,

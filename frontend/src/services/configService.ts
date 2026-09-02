@@ -31,14 +31,16 @@ export async function setConfig(
   type?: string,
   description?: string
 ): Promise<SystemConfig> {
+  // SystemConfigPage 保存 mutation 自带 message.error，跳过全局 toast 防双弹
   const res = await api.put<ApiResponse<SystemConfig>>(`/configs/${key}`, {
     value,
     type,
     description,
-  });
+  }, { skipGlobalError: true });
   return res.data.data;
 }
 
 export async function deleteConfig(key: string): Promise<void> {
-  await api.delete(`/configs/${key}`);
+  // SystemConfigPage 删除 mutation 自带 message.error，跳过全局 toast 防双弹
+  await api.delete(`/configs/${key}`, { skipGlobalError: true });
 }

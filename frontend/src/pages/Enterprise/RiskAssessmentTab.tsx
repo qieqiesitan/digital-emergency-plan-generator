@@ -205,7 +205,7 @@ export default function RiskAssessmentTab({ enterpriseId }: Props) {
     try {
       setEditing(false);
       setLoading(true);
-      await mergeRiskAssessment(enterpriseId, chapters);
+      await mergeRiskAssessment(enterpriseId, chapters, { skipGlobalError: true });
       message.success("报告合并完成");
       await loadReport();
       queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId, "risk-assessment"] });

@@ -95,6 +95,7 @@ describe("hazardService records", () => {
         hazard_type: "equipment",
         location: "3 号车间",
       },
+      { skipGlobalError: true },
     );
   });
 
@@ -105,24 +106,28 @@ describe("hazardService records", () => {
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/records/r1/grade",
       { level: "major", grading_basis: "判定依据" },
+      { skipGlobalError: true },
     );
 
     await rectifyRecord("e1", "r1", { content: "已整改", reviewer_user_id: "u3" });
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/records/r1/rectify",
       { content: "已整改", reviewer_user_id: "u3" },
+      { skipGlobalError: true },
     );
 
     await reviewRecord("e1", "r1", { result: "pass", comment: "合格" });
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/records/r1/review",
       { result: "pass", comment: "合格" },
+      { skipGlobalError: true },
     );
 
     await closeRecord("e1", "r1", { comment: "销号" });
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/records/r1/close",
       { comment: "销号" },
+      { skipGlobalError: true },
     );
   });
 
@@ -132,6 +137,7 @@ describe("hazardService records", () => {
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/records/r1/approve",
       {},
+      { skipGlobalError: true },
     );
   });
 });
@@ -149,6 +155,7 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/plans",
       { name: "专项", category: "special", frequency: "monthly", zone_ids: ["z1"] },
+      { skipGlobalError: true },
     );
 
     apiMock.put.mockResolvedValue(envelope({ id: "p2", name: "专项改" }));
@@ -156,11 +163,12 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
     expect(apiMock.put).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/plans/p2",
       { name: "专项改" },
+      { skipGlobalError: true },
     );
 
     apiMock.delete.mockResolvedValue({ data: { code: 0 } });
     await deleteHazardPlan("e1", "p2");
-    expect(apiMock.delete).toHaveBeenCalledWith("/enterprises/e1/hazard-inspection/plans/p2");
+    expect(apiMock.delete).toHaveBeenCalledWith("/enterprises/e1/hazard-inspection/plans/p2", { skipGlobalError: true });
   });
 
   it("tasks 列表透传筛选参数、提交核对、一键转隐患 URL 正确", async () => {
@@ -176,6 +184,7 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
     expect(apiMock.put).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/tasks/t1",
       { items: [{ item_id: "i1", result: "normal" }] },
+      { skipGlobalError: true },
     );
 
     apiMock.post.mockResolvedValue(envelope({ id: "r1", source_type: "inspection" }));
@@ -183,6 +192,7 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/tasks/t1/to-record",
       { item_id: "i1", title: "异常项" },
+      { skipGlobalError: true },
     );
   });
 
@@ -192,10 +202,15 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/templates",
       { name: "日常检查表", category: "daily", items: [{ content: "检查配电箱" }] },
+      { skipGlobalError: true },
     );
 
     await copyHazardTemplate("e1", "tpl0");
-    expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/hazard-inspection/templates/tpl0/copy");
+    expect(apiMock.post).toHaveBeenCalledWith(
+      "/enterprises/e1/hazard-inspection/templates/tpl0/copy",
+      {},
+      { skipGlobalError: true },
+    );
   });
 
   it("publicity 列表与 token 重置 URL 正确", async () => {
@@ -208,7 +223,11 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
 
     apiMock.post.mockResolvedValue(envelope({ token: "abc", link: "/h/abc" }));
     await resetHazardPublicityToken("e1");
-    expect(apiMock.post).toHaveBeenCalledWith("/enterprises/e1/hazard-inspection/publicity-token");
+    expect(apiMock.post).toHaveBeenCalledWith(
+      "/enterprises/e1/hazard-inspection/publicity-token",
+      {},
+      { skipGlobalError: true },
+    );
   });
 
   it("getHazardDashboard 请求驾驶舱 URL 并解包 data", async () => {
@@ -239,6 +258,7 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
     expect(apiMock.post).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/ai/record-assist",
       { description: "配电箱门变形" },
+      { skipGlobalError: true },
     );
     expect(result.available).toBe(true);
     expect(result.title).toBe("配电箱门破损");
@@ -271,6 +291,7 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
         photo_urls: ["data:image/png;base64,xxx"],
         nonce: "n-1",
       },
+      { skipGlobalError: true },
     );
     expect(result.message).toBe("已提交，待企业管理员确认");
   });

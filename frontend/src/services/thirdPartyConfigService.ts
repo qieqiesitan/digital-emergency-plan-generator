@@ -29,9 +29,11 @@ export async function getThirdPartyConfig(): Promise<ThirdPartyConfigItem[]> {
 export async function updateThirdPartyConfig(
   items: ThirdPartyConfigUpdateItem[],
 ): Promise<string[]> {
+  // ThirdPartyConfigPage 保存 mutation 自带 message.error，跳过全局 toast 防双弹
   const res = await api.put<ApiResponse<string[]>>(
     "/system/third-party-config",
     items,
+    { skipGlobalError: true },
   );
   return res.data.data;
 }

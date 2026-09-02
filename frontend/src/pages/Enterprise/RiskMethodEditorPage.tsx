@@ -124,9 +124,9 @@ export default function RiskMethodEditorPage() {
     mutationFn: async () => {
       const config = buildConfig();
       if (isCreate) {
-        return createMethod(enterpriseId!, { method_type: methodType, name, config });
+        return createMethod(enterpriseId!, { method_type: methodType, name, config }, { skipGlobalError: true });
       }
-      return updateMethod(enterpriseId!, methodId!, { name, config });
+      return updateMethod(enterpriseId!, methodId!, { name, config }, { skipGlobalError: true });
     },
     onSuccess: (data: RiskAssessmentMethod) => {
       message.success(isCreate ? "创建成功" : "保存成功");

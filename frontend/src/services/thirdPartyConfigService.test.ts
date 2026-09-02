@@ -55,7 +55,7 @@ describe("thirdPartyConfigService", () => {
 
     const result = await updateThirdPartyConfig(payload);
 
-    expect(apiMock.put).toHaveBeenCalledWith("/system/third-party-config", payload);
+    expect(apiMock.put).toHaveBeenCalledWith("/system/third-party-config", payload, { skipGlobalError: true });
     expect(result).toEqual([
       "third_party.qcc.api_key",
       "third_party.protego.callback_url",

@@ -645,7 +645,7 @@ export default function RiskNoticeCardPreviewPage() {
     if (!enterpriseId || !objectId) return;
     setAiLoading(true);
     try {
-      const result = await aiOptimize(enterpriseId, objectId);
+      const result = await aiOptimize(enterpriseId, objectId, { skipGlobalError: true });
       setCompare(result);
     } catch {
       message.error("AI 优化失败，已保留原版");
@@ -659,7 +659,7 @@ export default function RiskNoticeCardPreviewPage() {
     if (!enterpriseId || !objectId) return;
     setReviewing(true);
     try {
-      const result = await aiReviewSigns(enterpriseId, objectId);
+      const result = await aiReviewSigns(enterpriseId, objectId, { skipGlobalError: true });
       setReviewResult(result);
       setSignCatalog(result.catalog);
     } catch {
@@ -697,7 +697,7 @@ export default function RiskNoticeCardPreviewPage() {
     if (exporting) return;
     setExporting(true);
     try {
-      const { file_key, warnings } = await exportCards(enterpriseId, [objectId]);
+      const { file_key, warnings } = await exportCards(enterpriseId, [objectId], { skipGlobalError: true });
       window.open(getDownloadUrl(file_key), "_blank");
       if (warnings.length) {
         message.warning(`部分卡片未导出：${warnings.length} 张`);
@@ -721,7 +721,7 @@ export default function RiskNoticeCardPreviewPage() {
         card.signs,
         card.signs_source,
       );
-      const info = await saveSnapshot(enterpriseId, objectId, content);
+      const info = await saveSnapshot(enterpriseId, objectId, content, { skipGlobalError: true });
       const refreshed = await refetch();
       if (refreshed.isError) {
         message.error("已保存快照，但刷新卡片数据失败，请稍后重试");
@@ -749,7 +749,7 @@ export default function RiskNoticeCardPreviewPage() {
         signs: applySignSuggestion(card.signs, reviewResult.suggestion, reviewResult.catalog),
         signs_source: "ai",
       };
-      const info = await saveSnapshot(enterpriseId, objectId, content);
+      const info = await saveSnapshot(enterpriseId, objectId, content, { skipGlobalError: true });
       const refreshed = await refetch();
       if (refreshed.isError) {
         message.error("已保存快照，但刷新卡片数据失败，请稍后重试");
@@ -777,7 +777,7 @@ export default function RiskNoticeCardPreviewPage() {
         signs,
         signs_source: "manual",
       };
-      const info = await saveSnapshot(enterpriseId, objectId, content);
+      const info = await saveSnapshot(enterpriseId, objectId, content, { skipGlobalError: true });
       const refreshed = await refetch();
       if (refreshed.isError) {
         message.error("已保存快照，但刷新卡片数据失败，请稍后重试");

@@ -195,7 +195,7 @@ export default function RiskMethodListPage({ enterpriseId: propEid }: Props) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (mid: string) => deleteMethod(enterpriseId, mid),
+    mutationFn: (mid: string) => deleteMethod(enterpriseId, mid, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("已删除");
       queryClient.invalidateQueries({ queryKey: ["risk-methods", enterpriseId] });
@@ -204,7 +204,7 @@ export default function RiskMethodListPage({ enterpriseId: propEid }: Props) {
   });
 
   const duplicateMut = useMutation({
-    mutationFn: (mid: string) => duplicateMethod(enterpriseId, mid),
+    mutationFn: (mid: string) => duplicateMethod(enterpriseId, mid, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("已复制");
       queryClient.invalidateQueries({ queryKey: ["risk-methods", enterpriseId] });
@@ -217,7 +217,7 @@ export default function RiskMethodListPage({ enterpriseId: propEid }: Props) {
     setCreating(true);
     try {
       const config = buildDefaultConfig(newMethodType);
-      await createMethod(enterpriseId, { method_type: newMethodType, name: newMethodName.trim(), config });
+      await createMethod(enterpriseId, { method_type: newMethodType, name: newMethodName.trim(), config }, { skipGlobalError: true });
       message.success("创建成功");
       setCreateModalOpen(false);
       setNewMethodName("");

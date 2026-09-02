@@ -288,9 +288,9 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
         case "zone": {
           const zonePayload = buildZonePayload(values);
           if (form.id) {
-            await updateZone(enterpriseId, form.id, zonePayload);
+            await updateZone(enterpriseId, form.id, zonePayload, { skipGlobalError: true });
           } else {
-            await createZone(enterpriseId, zonePayload);
+            await createZone(enterpriseId, zonePayload, { skipGlobalError: true });
           }
           break;
         }
@@ -308,17 +308,17 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
             contact_phone: values.contact_phone || undefined,
           };
           if (form.id) {
-            await updateObject(enterpriseId, form.id, objectPayload);
+            await updateObject(enterpriseId, form.id, objectPayload, { skipGlobalError: true });
           } else {
-            await createObject(enterpriseId, { ...objectPayload, zone_id: form.parentId });
+            await createObject(enterpriseId, { ...objectPayload, zone_id: form.parentId }, { skipGlobalError: true });
           }
           break;
         }
         case "unit":
           if (form.id) {
-            await updateUnit(enterpriseId, form.parentId || "", form.id, { name: values.name || "", unit_type: values.unit_type || "", description: values.description || "" });
+            await updateUnit(enterpriseId, form.parentId || "", form.id, { name: values.name || "", unit_type: values.unit_type || "", description: values.description || "" }, { skipGlobalError: true });
           } else {
-          await createUnit(enterpriseId, form.parentId || "", { name: values.name || "", unit_type: values.unit_type || "", description: values.description || "" });
+          await createUnit(enterpriseId, form.parentId || "", { name: values.name || "", unit_type: values.unit_type || "", description: values.description || "" }, { skipGlobalError: true });
           }
           break;
         case "event": {
@@ -340,17 +340,17 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
             chemical_id: values.chemical_id ?? null,
           };
           if (form.id) {
-            await updateEvent(enterpriseId, form.id, eventPayload);
+            await updateEvent(enterpriseId, form.id, eventPayload, { skipGlobalError: true });
           } else {
-            await createEvent(enterpriseId, form.parentId || "", { ...eventPayload, ...(form.parentType === "object" ? { object_id: form.parentId } : { unit_id: form.parentId }) });
+            await createEvent(enterpriseId, form.parentId || "", { ...eventPayload, ...(form.parentType === "object" ? { object_id: form.parentId } : { unit_id: form.parentId }) }, { skipGlobalError: true });
           }
           break;
         }
         case "measure":
           if (form.id) {
-            await updateMeasure(enterpriseId, form.parentId || "", form.id, { measure_category: values.measure_category as MeasureCategory, description: values.description || "", check_items: values.check_items || [] });
+            await updateMeasure(enterpriseId, form.parentId || "", form.id, { measure_category: values.measure_category as MeasureCategory, description: values.description || "", check_items: values.check_items || [] }, { skipGlobalError: true });
           } else {
-          await createMeasure(enterpriseId, form.parentId || "", { measure_category: values.measure_category as MeasureCategory, description: values.description || "", check_items: values.check_items || [] });
+          await createMeasure(enterpriseId, form.parentId || "", { measure_category: values.measure_category as MeasureCategory, description: values.description || "", check_items: values.check_items || [] }, { skipGlobalError: true });
           }
           break;
       }

@@ -1,4 +1,5 @@
 import api from "./api";
+import type { AxiosRequestConfig } from "axios";
 import type { ApiResponse } from "@/types/common";
 import type {
   RawWorkbenchSnapshot,
@@ -40,8 +41,8 @@ export const getRiskMappingWorkbench = (eid: string, floorId?: string) =>
     };
   });
 
-export const saveRiskMappingWorkbench = (eid: string, payload: BatchSavePayload) =>
-  api.post<ApiResponse<BatchSaveResponse>>(`${BASE(eid)}/workbench/batch-save`, payload).then(r => r.data.data);
+export const saveRiskMappingWorkbench = (eid: string, payload: BatchSavePayload, config?: AxiosRequestConfig) =>
+  api.post<ApiResponse<BatchSaveResponse>>(`${BASE(eid)}/workbench/batch-save`, payload, config).then(r => r.data.data);
 
 export const listEnterpriseFloors = (eid: string) =>
   api.get<ApiResponse<EnterpriseFloor[]>>(`${BASE(eid)}/floors`).then(r => r.data.data);

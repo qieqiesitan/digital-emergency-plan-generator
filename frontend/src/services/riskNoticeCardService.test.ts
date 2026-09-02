@@ -41,6 +41,7 @@ describe("riskNoticeCardService", () => {
 
     expect(apiMock.get).toHaveBeenCalledWith("/enterprises/e1/risk-notice-cards", {
       params: { level: "重大", keyword: "储罐" },
+      skipGlobalError: true,
     });
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("储罐区");

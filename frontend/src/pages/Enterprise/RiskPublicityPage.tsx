@@ -147,7 +147,7 @@ export default function RiskPublicityPage() {
       okText: "确认重置",
       cancelText: "取消",
       onOk: close => {
-        resetRiskPublicityToken(enterpriseId)
+        resetRiskPublicityToken(enterpriseId, { skipGlobalError: true })
           .then(() => {
             message.success("链接已重置");
             void refetch();

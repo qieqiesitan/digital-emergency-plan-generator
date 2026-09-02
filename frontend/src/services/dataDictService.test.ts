@@ -55,7 +55,7 @@ describe("dataDictService", () => {
 
     const result = await createSystemDict(payload);
 
-    expect(apiMock.post).toHaveBeenCalledWith("/settings/data-dicts", payload);
+    expect(apiMock.post).toHaveBeenCalledWith("/settings/data-dicts", payload, { skipGlobalError: true });
     expect(result).toEqual(ITEM);
   });
 
@@ -66,7 +66,7 @@ describe("dataDictService", () => {
 
     expect(apiMock.put).toHaveBeenCalledWith("/settings/data-dicts/d1", {
       label: "火灾（修订）",
-    });
+    }, { skipGlobalError: true });
     expect(result).toEqual(ITEM);
   });
 

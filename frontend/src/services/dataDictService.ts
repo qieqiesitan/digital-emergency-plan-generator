@@ -13,12 +13,14 @@ export const listSystemDicts = (dictType?: string) =>
 
 export const createSystemDict = (payload: DataDictPayload) =>
   api
-    .post<ApiResponse<DataDictItem>>("/settings/data-dicts", payload)
+    // DataDictManagePage 创建 mutation 自带 message.error，跳过全局 toast 防双弹
+    .post<ApiResponse<DataDictItem>>("/settings/data-dicts", payload, { skipGlobalError: true })
     .then(r => r.data.data);
 
 export const updateSystemDict = (id: string, patch: Partial<DataDictPayload>) =>
   api
-    .put<ApiResponse<DataDictItem>>(`/settings/data-dicts/${id}`, patch)
+    // DataDictManagePage 更新 mutation 自带 message.error，跳过全局 toast 防双弹
+    .put<ApiResponse<DataDictItem>>(`/settings/data-dicts/${id}`, patch, { skipGlobalError: true })
     .then(r => r.data.data);
 
 /** 企业级字典（GET 返回系统+企业合并视图）。 */

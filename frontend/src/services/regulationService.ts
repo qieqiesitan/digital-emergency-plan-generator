@@ -23,10 +23,12 @@ export async function parseRegulation(rawText?: string, file?: File): Promise<Re
     const fd = new FormData();
     fd.append("file", file);
     if (rawText) fd.append("raw_text", rawText);
-    const res = await api.post("/regulations/parse", fd);
+    // RegulationForm 解析失败自带 message.error，跳过全局 toast 防双弹
+    const res = await api.post("/regulations/parse", fd, { skipGlobalError: true });
     return res.data.data;
   }
-  const res = await api.post("/regulations/parse", { content: rawText || "" });
+  // RegulationForm 解析失败自带 message.error，跳过全局 toast 防双弹
+  const res = await api.post("/regulations/parse", { content: rawText || "" }, { skipGlobalError: true });
   return res.data.data;
 }
 
@@ -35,22 +37,26 @@ export async function createRegulation(data: RegulationCreateRequest, file?: Fil
   fd.append("data", JSON.stringify(data));
   if (file) fd.append("file", file);
   if (force) fd.append("force", "true");
-  const res = await api.post("/regulations", fd);
+  // RegulationForm 入库失败自带 message.error，跳过全局 toast 防双弹
+  const res = await api.post("/regulations", fd, { skipGlobalError: true });
   return res.data.data;
 }
 export async function updateRegulation(id: string, data: RegulationCreateRequest, file?: File): Promise<void> {
   const fd = new FormData();
   fd.append("data", JSON.stringify(data));
   if (file) fd.append("file", file);
-  await api.put(`/regulations/${id}`, fd);
+  // RegulationForm 更新失败自带 message.error，跳过全局 toast 防双弹
+  await api.put(`/regulations/${id}`, fd, { skipGlobalError: true });
 }
 
 export async function deleteRegulation(id: string): Promise<void> {
-  await api.delete(`/regulations/${id}`);
+  // RegulationList 删除失败自带 message.error，跳过全局 toast 防双弹
+  await api.delete(`/regulations/${id}`, { skipGlobalError: true });
 }
 
 export async function abolishRegulation(id: string, replacedBy: string): Promise<void> {
-  await api.post(`/regulations/${id}/abolish`, { replaced_by: replacedBy });
+  // AbolishDialog 废止 mutation 自带 message.error，跳过全局 toast 防双弹
+  await api.post(`/regulations/${id}/abolish`, { replaced_by: replacedBy }, { skipGlobalError: true });
 }
 
 export async function fetchRegulationGraph(): Promise<RegulationGraphData> {
@@ -65,7 +71,8 @@ export async function fetchStats(): Promise<RegulationStats> {
 }
 
 export async function rebuildIndex(): Promise<{ total_articles: number; status: string; duration_seconds: number }> {
-  const res = await api.post("/regulations/rebuild-index");
+  // RegulationManagePage 重建索引失败自带 message.error，跳过全局 toast 防双弹
+  const res = await api.post("/regulations/rebuild-index", {}, { skipGlobalError: true });
   return res.data.data;
 }
 
@@ -91,26 +98,31 @@ export function getSourceDownloadUrl(id: string, filename?: string): string {
 
 export async function fetchSourceFile(id: string, filename?: string): Promise<Blob> {
   const params = filename ? `?filename=${encodeURIComponent(filename)}` : "";
-  const res = await api.get(`/regulations/${id}/source${params}`, { responseType: "blob" });
+  // RegulationDetail 源文件加载失败自带 message.error；blob 下载失败无统一文案，跳过全局 toast
+  const res = await api.get(`/regulations/${id}/source${params}`, { responseType: "blob", skipGlobalError: true });
   return res.data as Blob;
 }
 
 export async function updateTopics(id: string, topics: string[]): Promise<void> {
-  await api.put(`/regulations/${id}/topics`, { topics });
+  // RegulationDetail 标签增删静默失败（catch 空处理），跳过全局 toast
+  await api.put(`/regulations/${id}/topics`, { topics }, { skipGlobalError: true });
 }
 
 export async function checkDuplicate(code: string, full_name: string, raw_text?: string): Promise<DuplicateCheckResponse> {
-  const res = await api.post("/regulations/check-duplicate", { code, full_name, raw_text });
+  // RegulationForm 重复检查失败静默降级为未发现，跳过全局 toast（避免解析成功却弹错）
+  const res = await api.post("/regulations/check-duplicate", { code, full_name, raw_text }, { skipGlobalError: true });
   return res.data.data;
 
 }
 export async function fetchImpact(id: string): Promise<ImpactResponse> {
-  const res = await api.get(`/regulations/${id}/impact`);
+  // AbolishDialog 影响查询失败静默降级，跳过全局 toast（页面有加载态与提示区）
+  const res = await api.get(`/regulations/${id}/impact`, { skipGlobalError: true });
   return res.data.data;
 }
 
 export async function batchAbolish(ids: string[]): Promise<BatchAbolishResponse> {
-  const res = await api.post("/regulations/batch/abolish", { ids });
+  // RegulationList 批量废止 mutation 自带 message.error，跳过全局 toast 防双弹
+  const res = await api.post("/regulations/batch/abolish", { ids }, { skipGlobalError: true });
   return res.data.data;
 }
 

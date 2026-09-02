@@ -68,7 +68,7 @@ export default function RiskNoticeCardPage() {
     }
     setExporting(true);
     try {
-      const { file_key, warnings } = await exportCards(enterpriseId, objectIds);
+      const { file_key, warnings } = await exportCards(enterpriseId, objectIds, { skipGlobalError: true });
       window.open(getDownloadUrl(file_key), "_blank");
       if (warnings.length) {
         message.warning(`部分卡片未导出：${warnings.length} 张`);
