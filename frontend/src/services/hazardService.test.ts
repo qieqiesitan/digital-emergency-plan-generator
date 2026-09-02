@@ -218,7 +218,7 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
     await getHazardPublicity("e1", "ongoing");
     expect(apiMock.get).toHaveBeenCalledWith(
       "/enterprises/e1/hazard-inspection/publicity",
-      { params: { scope: "ongoing" } },
+      { params: { scope: "ongoing" }, skipGlobalError: true },
     );
 
     apiMock.post.mockResolvedValue(envelope({ token: "abc", link: "/h/abc" }));
@@ -308,12 +308,12 @@ describe("hazardService plans / tasks / templates / publicity / dashboard / ai /
 
     expect(apiMock.get).toHaveBeenCalledWith(
       "/public/hazard/tok1",
-      { params: { scope: "ongoing" } },
+      { params: { scope: "ongoing" }, skipGlobalError: true },
     );
     expect(result.enterprise_name).toBe("甲**");
     expect(result.masked).toBe(true);
 
     await fetchPublicHazard("tok1");
-    expect(apiMock.get).toHaveBeenCalledWith("/public/hazard/tok1", { params: {} });
+    expect(apiMock.get).toHaveBeenCalledWith("/public/hazard/tok1", { params: {}, skipGlobalError: true });
   });
 });

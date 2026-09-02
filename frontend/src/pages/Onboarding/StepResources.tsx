@@ -119,9 +119,13 @@ export default function StepResources({
   const generate = async () => {
     setGenerating(true);
     try {
-      const resp = await generateResourcesAI(enterpriseId, [
-        { question_id: "q0", question: "企业概况", answer: overview },
-      ]);
+      const resp = await generateResourcesAI(
+        enterpriseId,
+        [
+          { question_id: "q0", question: "企业概况", answer: overview },
+        ],
+        { skipGlobalError: true },
+      );
       const items: CandidateItem[] = (resp || []).map((c, i) => ({
         _key: `r-${Date.now()}-${i}`,
         ...(c as unknown as Record<string, unknown>),
@@ -137,7 +141,7 @@ export default function StepResources({
   const accept = async (item: CandidateItem) => {
     try {
       // 先 await 保存成功，再移动候选到已采纳区；失败保留候选，杜绝 UI/后端不一致
-      const created = await batchCreateResources(enterpriseId, [toCreatePayload(item)]);
+      const created = await batchCreateResources(enterpriseId, [toCreatePayload(item)], { skipGlobalError: true });
       // 用后端返回的新 id 记录，保证取消采纳时可正确删除
       const saved = created[0]
         ? { ...item, _key: `res-${created[0].id}`, id: created[0].id }
@@ -159,7 +163,7 @@ export default function StepResources({
     const items = displayCandidates;
     if (items.length === 0) return;
     try {
-      const created = await batchCreateResources(enterpriseId, items.map(toCreatePayload));
+      const created = await batchCreateResources(enterpriseId, items.map(toCreatePayload), { skipGlobalError: true });
       const savedItems: CandidateItem[] = items.map((item, i) => {
         const saved = created[i];
         return saved ? { ...item, _key: `res-${saved.id}`, id: saved.id } : item;
@@ -182,7 +186,7 @@ export default function StepResources({
     try {
       for (const item of items) {
         const id = String(item.id || "");
-        if (id) await deleteResource(enterpriseId, id);
+        if (id) await deleteResource(enterpriseId, id, { skipGlobalError: true });
       }
       setAccepted([]);
       // 移回候选区，可重新编辑后再采纳

@@ -261,7 +261,7 @@ export default function StepSurrounding({
   };
 
   const saveSurrounding = useMutation({
-    mutationFn: (data: SurroundingInfo) => updateSurrounding(enterpriseId, data),
+    mutationFn: (data: SurroundingInfo) => updateSurrounding(enterpriseId, data, { skipGlobalError: true }),
     onSuccess: refreshCompletion,
   });
 
@@ -269,10 +269,14 @@ export default function StepSurrounding({
     setAmapConfigOpen(false);
     setAmapSearching(true);
     try {
-      const result = await searchAmapSurrounding(enterpriseId, {
-        radius: amapRadius,
-        types: amapTypes.length > 0 ? amapTypes.join(",") : undefined,
-      });
+      const result = await searchAmapSurrounding(
+        enterpriseId,
+        {
+          radius: amapRadius,
+          types: amapTypes.length > 0 ? amapTypes.join(",") : undefined,
+        },
+        { skipGlobalError: true },
+      );
       // POI 类型选项优先用后端 available_types，若存在则更新，否则保留本地回退常量
       if (result.available_types && result.available_types.length > 0) {
         const mapped: PoiOption[] = result.available_types.map((t: AmapPoiTypeItem) => ({

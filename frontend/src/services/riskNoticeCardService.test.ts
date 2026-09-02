@@ -194,7 +194,7 @@ describe("riskNoticeCardService", () => {
 
     const result = await fetchPublicCard("tok1");
 
-    expect(apiMock.get).toHaveBeenCalledWith("/public/risk-notice-cards/tok1");
+    expect(apiMock.get).toHaveBeenCalledWith("/public/risk-notice-cards/tok1", { skipGlobalError: true });
     expect(result).toEqual(card);
   });
 });

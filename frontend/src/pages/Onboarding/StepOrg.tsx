@@ -104,11 +104,15 @@ export default function StepOrg({
   const generate = async () => {
     setGenerating(true);
     try {
-      const r = await api.post("/onboarding/candidates", {
-        enterprise_id: enterpriseId,
-        module: "org",
-        overview,
-      });
+      const r = await api.post(
+        "/onboarding/candidates",
+        {
+          enterprise_id: enterpriseId,
+          module: "org",
+          overview,
+        },
+        { skipGlobalError: true },
+      );
       const ts = Date.now();
       setCandidates(
         ((r.data.data.items || []) as OrgCandidate[]).map((g, i) => {
@@ -135,7 +139,7 @@ export default function StepOrg({
   };
 
   const saveMut = useMutation({
-    mutationFn: (groups: OrgGroup[]) => updateOrgStructure(enterpriseId, groups),
+    mutationFn: (groups: OrgGroup[]) => updateOrgStructure(enterpriseId, groups, { skipGlobalError: true }),
     onSuccess: () => {
       message.success("组织架构已保存");
       queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] });

@@ -77,4 +77,5 @@ export const resetToken = (enterpriseId: string, objectId: string) =>
 
 /** 公开只读卡片（无鉴权）。 */
 export const fetchPublicCard = (token: string) =>
-  api.get<ApiResponse<CardData>>(`/public/risk-notice-cards/${token}`).then(r => r.data.data);
+  // PublicRiskNoticePage 自带全屏 Result 错误态，跳过全局 toast 防双弹
+  api.get<ApiResponse<CardData>>(`/public/risk-notice-cards/${token}`, { skipGlobalError: true }).then(r => r.data.data);

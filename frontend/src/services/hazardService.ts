@@ -121,7 +121,7 @@ export const deleteHazardTemplate = (eid: string, templateId: string) =>
 // ── 隐患公示 / 驾驶舱 ──
 
 export const getHazardPublicity = (eid: string, scope?: string) =>
-  api.get<ApiResponse<HazardPublicityItem[]>>(`${BASE(eid)}/publicity`, { params: scope ? { scope } : {} }).then(r => r.data.data);
+  api.get<ApiResponse<HazardPublicityItem[]>>(`${BASE(eid)}/publicity`, { params: scope ? { scope } : {}, skipGlobalError: true }).then(r => r.data.data);
 export const resetHazardPublicityToken = (eid: string) =>
   api.post<ApiResponse<HazardPublicityTokenResult>>(`${BASE(eid)}/publicity-token`, {}, { skipGlobalError: true }).then(r => r.data.data);
 export const getHazardDashboard = (eid: string) =>
@@ -132,7 +132,7 @@ export const getHazardDashboard = (eid: string) =>
 export const submitPublicHazardReport = (token: string, data: PublicHazardReportPayload) =>
   api.post<ApiResponse<PublicHazardReportResult>>(`/public/hazard/report/${token}`, data, { skipGlobalError: true }).then(r => r.data.data);
 export const fetchPublicHazard = (token: string, scope?: string) =>
-  api.get<ApiResponse<PublicHazardPublicityPayload>>(`/public/hazard/${token}`, { params: scope ? { scope } : {} }).then(r => r.data.data);
+  api.get<ApiResponse<PublicHazardPublicityPayload>>(`/public/hazard/${token}`, { params: scope ? { scope } : {}, skipGlobalError: true }).then(r => r.data.data);
 
 // ── AI 辅助（失败均降级 available:false，§16） ──
 

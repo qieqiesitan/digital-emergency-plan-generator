@@ -123,7 +123,7 @@ describe("riskManagementService dual-level", () => {
 
     expect(apiMock.get).toHaveBeenCalledWith(
       "/enterprises/e1/risk-management/control-list",
-      { params: { floor_id: "f1", keyword: "仓库", page: 2, size: 50 } },
+      { params: { floor_id: "f1", keyword: "仓库", page: 2, size: 50 }, skipGlobalError: true },
     );
     // 服务内已解包 ApiResponse.data，直接返回业务数据
     expect(result).toEqual({ items: [], total: 0 });
@@ -172,7 +172,7 @@ describe("riskManagementService dual-level", () => {
       },
     });
     const publicityResult = await getRiskPublicity("e1");
-    expect(apiMock.get).toHaveBeenCalledWith("/enterprises/e1/risk-management/risk-publicity");
+    expect(apiMock.get).toHaveBeenCalledWith("/enterprises/e1/risk-management/risk-publicity", { skipGlobalError: true });
     expect(publicityResult).toEqual(publicity);
 
     const tokenData = { token: "t2" };
@@ -188,7 +188,7 @@ describe("riskManagementService dual-level", () => {
       data: { code: 0, message: "ok", data: publicData },
     });
     const publicResult = await fetchPublicRisk("tk-123");
-    expect(apiMock.get).toHaveBeenCalledWith("/public/risk/tk-123");
+    expect(apiMock.get).toHaveBeenCalledWith("/public/risk/tk-123", { skipGlobalError: true });
     expect(publicResult).toEqual(publicData);
   });
 });

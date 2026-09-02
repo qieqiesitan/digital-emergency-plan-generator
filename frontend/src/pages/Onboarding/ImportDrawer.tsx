@@ -45,7 +45,7 @@ export default function ImportDrawer({
     try {
       if (isPackage) {
         // 资料包：一次请求走 batch 分流，不做逐文件 N 次并发
-        const results = await importOnboardingBatch(enterpriseId, files);
+        const results = await importOnboardingBatch(enterpriseId, files, { skipGlobalError: true });
         if (results.length === 0) {
           message.warning("未能从这些文件中识别出企业数据模块，可改用各步骤「导入现有数据」定点导入");
           return; // 保持抽屉打开，便于更换文件重试
@@ -63,7 +63,7 @@ export default function ImportDrawer({
         }
       } else {
         const targetModule = module || "auto";
-        const result = await importOnboardingFile(enterpriseId, targetModule, files[0]);
+        const result = await importOnboardingFile(enterpriseId, targetModule, files[0], { skipGlobalError: true });
         const items = result.candidates || [];
         if (items.length === 0) {
           message.warning("未从该文件中提取到候选，请检查文件内容或换一个文件");

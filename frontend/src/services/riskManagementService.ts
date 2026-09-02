@@ -179,7 +179,8 @@ export interface PublicRiskResponse {
 }
 
 export const getControlList = (enterpriseId: string, params: Record<string, unknown>) =>
-  api.get<ApiResponse<ControlListResponse>>(`${BASE(enterpriseId)}/control-list`, { params }).then(r => r.data.data);
+  // RiskControlListPage isError 自带「加载失败」空态文案，跳过全局 toast 防双弹
+  api.get<ApiResponse<ControlListResponse>>(`${BASE(enterpriseId)}/control-list`, { params, skipGlobalError: true }).then(r => r.data.data);
 /** 导出需保留响应体供页面构造 blob 下载，与其他服务下载惯例一致保持 AxiosResponse。 */
 export const exportControlList = (enterpriseId: string, params?: Record<string, unknown>) =>
   api.get<Blob>(`${BASE(enterpriseId)}/control-list/export`, {
@@ -187,7 +188,8 @@ export const exportControlList = (enterpriseId: string, params?: Record<string, 
     responseType: "blob",
   });
 export const getRiskPublicity = (enterpriseId: string) =>
-  api.get<ApiResponse<RiskPublicityResponse>>(`${BASE(enterpriseId)}/risk-publicity`).then(r => r.data.data);
+  // RiskPublicityPage isError 自带失败态，跳过全局 toast 防双弹
+  api.get<ApiResponse<RiskPublicityResponse>>(`${BASE(enterpriseId)}/risk-publicity`, { skipGlobalError: true }).then(r => r.data.data);
 export const resetRiskPublicityToken = (enterpriseId: string, config?: AxiosRequestConfig) => {
   const call = config
     ? api.post<ApiResponse<{ token: string }>>(`${BASE(enterpriseId)}/risk-publicity/token`, {}, config)
@@ -195,4 +197,5 @@ export const resetRiskPublicityToken = (enterpriseId: string, config?: AxiosRequ
   return call.then(r => r.data.data);
 };
 export const fetchPublicRisk = (token: string) =>
-  api.get<ApiResponse<PublicRiskResponse>>(`/public/risk/${token}`).then(r => r.data.data);
+  // PublicRiskPage 自带全屏 Result 错误态，跳过全局 toast 防双弹
+  api.get<ApiResponse<PublicRiskResponse>>(`/public/risk/${token}`, { skipGlobalError: true }).then(r => r.data.data);
