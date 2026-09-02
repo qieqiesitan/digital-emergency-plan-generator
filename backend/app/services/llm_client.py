@@ -121,8 +121,13 @@ async def llm_chat_completion(
         payload["top_p"] = ai_config.top_p
     if tools is not None:
         payload["tools"] = tools
+    retry_count = DEFAULT_MAX_RETRIES
     if payload_overrides:
-        payload.update(payload_overrides)
+        # B19：max_retries 是客户端重试参数，不得混入请求体（严格 API 400）。
+        # 浅拷贝后取出，保证 payload 不含该键，其余 override 照常生效。
+        overrides = dict(payload_overrides)
+        retry_count = overrides.pop("max_retries", DEFAULT_MAX_RETRIES)
+        payload.update(overrides)
 
     if stream:
         # 流式路径：AsyncClient 在生成器内部创建和管理
@@ -130,8 +135,7 @@ async def llm_chat_completion(
 
     # 非流式路径
     headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
-    return await _post_with_retry(base, payload, headers, timeout,
-                                  max_retries=payload_overrides.get("max_retries", DEFAULT_MAX_RETRIES) if payload_overrides else DEFAULT_MAX_RETRIES)
+    return await _post_with_retry(base, payload, headers, timeout, max_retries=retry_count)
 
 
 async def _stream_response(
@@ -230,3 +234,4 @@ async def llm_text_completion(
         raise HTTPException(500, str(e))
     except Exception as e:
         raise HTTPException(502, f"AI 服务连接失败: {e}")
+

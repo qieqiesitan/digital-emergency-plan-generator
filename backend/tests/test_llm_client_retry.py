@@ -78,3 +78,27 @@ async def test_retry_network_error():
          patch("app.services.llm_client.asyncio.sleep", new=AsyncMock()):
         out = await llm_chat_completion([{"role": "user", "content": "hi"}], _cfg())
     assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_max_retries_override_not_sent_in_payload():
+    """B19：payload_overrides 的 max_retries 只控制重试次数，不得混入请求体（严格 API 400）。"""
+    calls = []
+
+    async def fake_post(url, **kwargs):
+        calls.append(kwargs.get("json") or {})
+        return _resp(429, "rate limited") if len(calls) == 1 else _resp(200)
+
+    client = AsyncMock()
+    client.post.side_effect = fake_post
+    with patch("app.services.llm_client.httpx.AsyncClient", return_value=client), \
+         patch("app.services.llm_client.decrypt_api_key", return_value="sk-test"), \
+         patch("app.services.llm_client.asyncio.sleep", new=AsyncMock()):
+        out = await llm_chat_completion(
+            [{"role": "user", "content": "hi"}], _cfg(),
+            payload_overrides={"max_retries": 1, "temperature": 0.3})
+    assert len(calls) == 2                    # max_retries=1 → 共 2 次尝试
+    for body in calls:
+        assert "max_retries" not in body      # 请求体不得含该键
+        assert body["temperature"] == 0.3     # 其余 override 仍生效
+    assert out["choices"][0]["message"]["content"] == "ok"
