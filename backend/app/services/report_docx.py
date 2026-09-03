@@ -42,6 +42,30 @@ REPORT_KIND_TITLES = {
 }
 
 
+def split_report_content_chapters(content: str) -> list[dict]:
+    """按 '## 标题' 切分合并正文，作为 summary.chapters 缺失时的兜底。"""
+    chapters: list[dict] = []
+    cur_title: str | None = None
+    cur_body: list[str] = []
+
+    def flush():
+        if cur_title is not None:
+            chapters.append({"title": cur_title, "content": "\n".join(cur_body).strip()})
+
+    for line in (content or "").splitlines():
+        # 兜底只按二级标题“## 章节”切分；h1 是报告主标题，直接忽略
+        m = re.match(r"^\s*##\s+(.+?)\s*$", line)
+        if m:
+            flush()
+            cur_title = m.group(1).strip()
+            cur_body = []
+            continue
+        if cur_title is not None:
+            cur_body.append(line)
+    flush()
+    return chapters
+
+
 def _build_report_cover(doc: Document, company_name: str, report_label: str):
     """封面：企业名 + 报告名 + 落款日期（不含预案批准页）。"""
     for _ in range(3):

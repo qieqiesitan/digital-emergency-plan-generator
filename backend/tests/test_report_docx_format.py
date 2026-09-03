@@ -3,7 +3,7 @@ import io
 
 from docx import Document
 
-from app.services.report_docx import generate_report_docx
+from app.services.report_docx import generate_report_docx, split_report_content_chapters
 
 
 def _doc(kind="risk", chapters=None):
@@ -83,3 +83,18 @@ def test_first_chapter_heading_has_page_break_before():
 def test_builder_uses_chapters_argument():
     doc = _doc(chapters=[{"key": "only", "title": "唯一章节", "content": "只有一章"}])
     assert sum(1 for p in doc.paragraphs if p.style.name == "Heading 1") == 1
+
+
+def test_split_report_content_chapters_fallback():
+    content = (
+        "# 企业名 生产安全事故风险评估报告\n\n"
+        "## 一、危险有害因素辨识分析\n\n第一段内容\n\n"
+        "## 二、危险有害因素辨识汇总\n\n第二段内容\n"
+    )
+    chapters = split_report_content_chapters(content)
+    assert [c["title"] for c in chapters] == [
+        "一、危险有害因素辨识分析",
+        "二、危险有害因素辨识汇总",
+    ]
+    assert "第一段内容" in chapters[0]["content"]
+    assert "第二段内容" in chapters[1]["content"]

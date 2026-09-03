@@ -1,3 +1,4 @@
+import asyncio
 import json, os, re, logging
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
@@ -24,6 +25,7 @@ from app.services.report_chapter_utils import (
     get_chapters,
     upsert_chapter,
 )
+from app.services.report_generation_progress import save_generation_progress
 from app.services.report_review_service import review_report_chapters
 from app.services.sse_utils import sse_event
 from app.services.risk_assessment_service import (
@@ -40,6 +42,32 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Risk Assessment"])
+
+# 本进程内正在全量生成的企业（防多标签/重复点击并发跑同一报告；
+# 重启后集合清空，残留的 generating 行可被重新生成覆盖）
+_LIVE_RA_GENERATIONS: set[str] = set()
+
+
+async def _persist_ra_generation(
+    report_id: str,
+    chapter_contents: list[dict],
+    full_content: str,
+    status: str,
+) -> None:
+    """把已完成章节增量落库；失败只记日志，不中断主流程。"""
+    try:
+        await save_generation_progress(
+            RiskAssessmentReport,
+            report_id,
+            chapters=[
+                {"key": c["key"], "title": c["title"], "content": c["content"]}
+                for c in chapter_contents
+            ],
+            content=full_content.strip(),
+            status=status,
+        )
+    except Exception:
+        logger.exception("risk generation progress save failed")
 
 
 def _schedule_enterprise_index_rebuild(enterprise_id: str) -> None:
@@ -361,7 +389,7 @@ async def get_risk_assessment(
     report = (await db.execute(
         select(RiskAssessmentReport).where(
             RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft"]),
+            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
         )
     )).scalar_one_or_none()
     if not report:
@@ -385,7 +413,7 @@ async def get_risk_assessment_summary(
     report = (await db.execute(
         select(RiskAssessmentReport).where(
             RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft"]),
+            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
         )
     )).scalar_one_or_none()
     if not report:
@@ -409,7 +437,7 @@ async def preview_risk_assessment(
     report = (await db.execute(
         select(RiskAssessmentReport).where(
             RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft"]),
+            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
         )
     )).scalar_one_or_none()
     if not report:
@@ -436,65 +464,27 @@ async def export_risk_assessment(
     report = (await db.execute(
         select(RiskAssessmentReport).where(
             RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft"]),
+            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
         )
     )).scalar_one_or_none()
     if not report:
         raise HTTPException(404, "未找到已完成的风险评估报告")
 
-    try:
-        from docx import Document
-        from docx.shared import Pt, Inches, RGBColor
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.oxml.ns import qn
-    except ImportError:
-        raise HTTPException(500, "python-docx 未安装")
+    # ---- 公文版式（复用预案 docx_template 样式体系） ----
+    from app.services.report_docx import (
+        generate_report_docx,
+        split_report_content_chapters,
+    )
 
-    doc = Document()
-    style = doc.styles["Normal"]
-    style.font.size = Pt(12)
-
-    # ---- Professional Cover Page ----
-    # Add empty paragraphs for spacing (top margin)
-    for _ in range(6):
-        doc.add_paragraph("")
-
-    # Main title
-    title_p = doc.add_paragraph()
-    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title_p.add_run(ent.name)
-    run.font.size = Pt(28)
-    run.bold = True
-    run.font.color.rgb = RGBColor(0, 0, 0)
-
-    # Report type subtitle
-    sub_p = doc.add_paragraph()
-    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = sub_p.add_run("生产安全事故风险评估报告")
-    run.font.size = Pt(22)
-    run.bold = True
-    run.font.color.rgb = RGBColor(0, 0, 0)
-
-    # Spacer
-    for _ in range(4):
-        doc.add_paragraph("")
-
-    # Cover footer
-    for line in [
-        f"编制单位：{ent.name}",
-        f"编制日期：{datetime.now().strftime('%Y年%m月%d日')}",
-    ]:
-        if line:
-            para = doc.add_paragraph()
-            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = para.add_run(line)
-            run.font.size = Pt(14)
-            run.font.color.rgb = RGBColor(0, 0, 0)
-
-    doc.add_page_break()
-
-    # ---- Report Body ----
-    _render_content_to_docx(doc, report.content)
+    chapters = ((report.summary or {}).get("chapters")) or []
+    if not chapters:
+        chapters = split_report_content_chapters(report.content)
+    doc = generate_report_docx(
+        company_name=ent.name,
+        report_kind="risk",
+        chapters=chapters,
+        report_title=report.title or "生产安全事故风险评估报告",
+    )
 
     # ---- Export ----
     os.makedirs(settings.EXPORT_DIR, exist_ok=True)
@@ -532,13 +522,9 @@ async def generate_risk_assessment(
     if not ai_config:
         raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
-    existing = (await db.execute(
-        select(RiskAssessmentReport).where(
-            RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status == "generating",
-        )
-    )).scalar_one_or_none()
-    if existing:
+    # 并发保护：同一进程内已有全量生成在跑则拒绝；
+    # 重启/断流残留的 generating 行不再拦截，允许重新生成覆盖
+    if enterprise_id in _LIVE_RA_GENERATIONS:
         raise HTTPException(400, "已有正在生成的报告，请等待完成")
 
     report = (await db.execute(
@@ -563,6 +549,7 @@ async def generate_risk_assessment(
     _schedule_enterprise_index_rebuild(enterprise_id)
 
     async def event_generator():
+        _LIVE_RA_GENERATIONS.add(enterprise_id)
         full_content = ""
         chapter_contents: list[dict] = []
         try:
@@ -598,6 +585,10 @@ async def generate_risk_assessment(
                 yield sse_event("section_done", section_key=ck,
                            message=f"「{ctitle}」生成完成",
                            completed=i+1, total=total)
+                # 逐章增量落库：断流/页面关闭/服务重启后，已完成章节不丢失
+                await _persist_ra_generation(
+                    report.id, chapter_contents, full_content, "generating",
+                )
 
             # Save chapter contents to summary, set status to draft (user will merge manually)
             chapters_json = [
@@ -634,18 +625,22 @@ async def generate_risk_assessment(
                        message=f"报告生成完成，共{total}章",
                        completed=total, total=total,
                        chapters=_json.dumps(chapters_json, ensure_ascii=False))
+        except asyncio.CancelledError:
+            logger.warning("Risk assessment generation cancelled: %s", enterprise_id)
+            # 断流/页面关闭：保留已完成章节为草稿，供续看/续生成
+            await _persist_ra_generation(
+                report.id, chapter_contents, full_content, "draft",
+            )
+            raise
         except Exception as e:
             import traceback
             logger.error(f"Risk assessment generation failed: {e}\n{traceback.format_exc()}")
-            async with async_session() as bg_db:
-                bg_report = (await bg_db.execute(
-                    select(RiskAssessmentReport).where(RiskAssessmentReport.id == report.id)
-                )).scalar_one_or_none()
-                if bg_report:
-                    bg_report.status = "draft"
-                    bg_report.content = full_content
-                    await bg_db.commit()
+            await _persist_ra_generation(
+                report.id, chapter_contents, full_content, "draft",
+            )
             yield sse_event("error", message=str(e))
+        finally:
+            _LIVE_RA_GENERATIONS.discard(enterprise_id)
     return EventSourceResponse(event_generator())
 
 
