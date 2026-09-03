@@ -28,7 +28,7 @@
 - 创建：`backend/app/services/report_docx.py`
 - 测试：`backend/tests/test_report_docx_format.py`
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 `backend/tests/test_report_docx_format.py`：
 
@@ -109,7 +109,7 @@ def test_first_chapter_heading_has_page_break_before():
     raise AssertionError("未找到分页的一级标题")
 ```
 
-- [ ] **步骤 2：运行测试确认失败**
+- [x] **步骤 2：运行测试确认失败**
 
 ```bash
 docker cp backend/tests/test_report_docx_format.py emergency-plan-backend:/app/tests/test_report_docx_format.py
@@ -118,7 +118,7 @@ docker exec emergency-plan-backend python -m pytest tests/test_report_docx_forma
 
 预期：FAIL，`ModuleNotFoundError: No module named 'app.services.report_docx'`。
 
-- [ ] **步骤 3：实现 `backend/app/services/report_docx.py`**
+- [x] **步骤 3：实现 `backend/app/services/report_docx.py`**
 
 ```python
 """报告（风险评估/应急资源调查）DOCX 公文版式生成器。
@@ -287,7 +287,7 @@ def generate_report_docx(
 
 > 注：`_set_east_asian_font_in_run` 为 `docx_template.py:373` 模块级函数，可直接 import；上传根目录用 `app.main.UPLOAD_DIR`（对应容器 `/app/uploads`），不以 `settings` 读取。
 
-- [ ] **步骤 4：运行测试确认通过**
+- [x] **步骤 4：运行测试确认通过**
 
 ```bash
 docker exec emergency-plan-backend python -m pytest tests/test_report_docx_format.py -q
@@ -295,7 +295,7 @@ docker exec emergency-plan-backend python -m pytest tests/test_report_docx_forma
 
 预期：PASS（若某个断言暴露真实差异，则修实现而非改断言）。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/services/report_docx.py backend/tests/test_report_docx_format.py
@@ -309,7 +309,7 @@ git commit -m "feat(report): add plan-style docx builder for risk/resource repor
 **文件：**
 - 修改：`backend/app/routers/risk_assessment.py` export 端点（约 420-525 行区域）
 
-- [ ] **步骤 1：先写/更新回归断言**
+- [x] **步骤 1：先写/更新回归断言**
 
 在 `backend/tests/test_report_docx_format.py` 增加一个纯函数级断言（验证“章节优先取 summary.chapters”）：
 
@@ -321,7 +321,7 @@ def test_builder_uses_chapters_argument():
 
 运行同任务 1 命令确认仍绿。
 
-- [ ] **步骤 2：替换 export 端点正文**
+- [x] **步骤 2：替换 export 端点正文**
 
 保留企业/报告查询、`os.makedirs(settings.EXPORT_DIR, exist_ok=True)`、`filename`、`FileResponse`；删除手写 `doc = Document()`…`_render_content_to_docx(doc, report.content)` 段，替换为：
 
@@ -339,7 +339,7 @@ def test_builder_uses_chapters_argument():
 
 并保留其后 `doc.save(path)` / `FileResponse(...)`。
 
-- [ ] **步骤 3：后端 import 冒烟 + 相关回归**
+- [x] **步骤 3：后端 import 冒烟 + 相关回归**
 
 ```bash
 docker exec emergency-plan-backend python -c "import app.routers.risk_assessment; print('ok')"
@@ -348,7 +348,7 @@ docker exec emergency-plan-backend python -m pytest tests/test_report_docx_forma
 
 预期：全绿。
 
-- [ ] **步骤 4：Commit**
+- [x] **步骤 4：Commit**
 
 ```bash
 git add backend/app/routers/risk_assessment.py
@@ -362,7 +362,7 @@ git commit -m "feat(report): risk assessment export uses plan-style docx"
 **文件：**
 - 修改：`backend/app/routers/resource_investigation.py` export 端点（约 260-285 行区域）
 
-- [ ] **步骤 1：替换 export 端点正文**
+- [x] **步骤 1：替换 export 端点正文**
 
 保留查询/文件名/FileResponse；删除手写 Document 段，替换为：
 
@@ -378,7 +378,7 @@ git commit -m "feat(report): risk assessment export uses plan-style docx"
     )
 ```
 
-- [ ] **步骤 2：import 冒烟 + 相关回归**
+- [x] **步骤 2：import 冒烟 + 相关回归**
 
 ```bash
 docker exec emergency-plan-backend python -c "import app.routers.resource_investigation; print('ok')"
@@ -387,7 +387,7 @@ docker exec emergency-plan-backend python -m pytest tests/test_report_docx_forma
 
 预期：全绿。
 
-- [ ] **步骤 3：Commit**
+- [x] **步骤 3：Commit**
 
 ```bash
 git add backend/app/routers/resource_investigation.py
@@ -400,7 +400,7 @@ git commit -m "feat(report): resource investigation export uses plan-style docx"
 
 **文件：** 无新代码
 
-- [ ] **步骤 1：对已完成行真实导出**
+- [x] **步骤 1：对已完成行真实导出**
 
 用本地 JWT（用户 9afddfc7-87a1-4aa1-80c1-22693cbd2144，企业 94804158-cc33-464d-9aef-025ec90226be）调用：
 
@@ -411,7 +411,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/enterprises
 
 用 python-docx 检查：正文段落数 >0、Heading 1 数量 == 章节数、`批准页` 不存在、含页眉/页脚字段。
 
-- [ ] **步骤 2：重启 backend 并健康检查**
+- [x] **步骤 2：重启 backend 并健康检查**
 
 ```bash
 docker restart emergency-plan-backend
@@ -420,7 +420,7 @@ docker exec emergency-plan-backend python -c "import urllib.request; print(urlli
 
 预期：200。
 
-- [ ] **步骤 3：更新 TASKS.md 快照**（不 commit）
+- [x] **步骤 3：更新 TASKS.md 快照**（不 commit）
 
 记录：已完成方案 A、生成器文件、测试数量、冒烟结果、遗留（docx 视觉核对需用户在 Word/WPS 打开确认）。
 
