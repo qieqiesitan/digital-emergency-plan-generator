@@ -1,3 +1,4 @@
+import asyncio
 import json, os, logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +23,7 @@ from app.services.report_chapter_utils import (
     get_chapters,
     upsert_chapter,
 )
+from app.services.report_generation_progress import save_generation_progress
 from app.services.report_review_service import review_report_chapters
 from app.services.sse_utils import sse_event
 from app.services.resource_investigation_service import (
@@ -33,10 +35,38 @@ from app.services.resource_investigation_service import (
     _get_ri_system_prompt,
 )
 from app.config import settings
-from app.routers.risk_assessment import _stream_llm_with_messages_chunked, _clean_for_docx
+from app.routers.risk_assessment import (
+    _stream_llm_with_messages_chunked,
+    _clean_for_docx,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Resource Investigation"])
+
+# 本进程内正在全量生成的企业（防多标签/重复点击并发跑同一报告）
+_LIVE_RI_GENERATIONS: set[str] = set()
+
+
+async def _persist_ri_generation(
+    report_id: str,
+    chapter_contents: list[dict],
+    full_content: str,
+    status: str,
+) -> None:
+    """把已完成章节增量落库；失败只记日志，不中断主流程。"""
+    try:
+        await save_generation_progress(
+            ResourceInvestigationReport,
+            report_id,
+            chapters=[
+                {"key": c["key"], "title": c["title"], "content": c["content"]}
+                for c in chapter_contents
+            ],
+            content=full_content.strip(),
+            status=status,
+        )
+    except Exception:
+        logger.exception("resource generation progress save failed")
 
 
 @router.post("/{enterprise_id}/resource-investigation/skip")
@@ -111,7 +141,7 @@ async def get_resource_investigation(
         await db.execute(
             select(ResourceInvestigationReport).where(
                 ResourceInvestigationReport.enterprise_id == enterprise_id,
-                ResourceInvestigationReport.status.in_(["completed", "draft"]),
+            ResourceInvestigationReport.status.in_(["completed", "draft", "generating"]),
             )
         )
     ).scalar_one_or_none()
@@ -142,7 +172,7 @@ async def get_resource_investigation_summary(
         await db.execute(
             select(ResourceInvestigationReport).where(
                 ResourceInvestigationReport.enterprise_id == enterprise_id,
-                ResourceInvestigationReport.status.in_(["completed", "draft"]),
+            ResourceInvestigationReport.status.in_(["completed", "draft", "generating"]),
             )
         )
     ).scalar_one_or_none()
@@ -173,7 +203,7 @@ async def preview_resource_investigation(
         await db.execute(
             select(ResourceInvestigationReport).where(
                 ResourceInvestigationReport.enterprise_id == enterprise_id,
-                ResourceInvestigationReport.status.in_(["completed", "draft"]),
+            ResourceInvestigationReport.status.in_(["completed", "draft", "generating"]),
             )
         )
     ).scalar_one_or_none()
@@ -211,62 +241,28 @@ async def export_resource_investigation(
         await db.execute(
             select(ResourceInvestigationReport).where(
                 ResourceInvestigationReport.enterprise_id == enterprise_id,
-                ResourceInvestigationReport.status.in_(["completed", "draft"]),
+            ResourceInvestigationReport.status.in_(["completed", "draft", "generating"]),
             )
         )
     ).scalar_one_or_none()
     if not report:
         raise HTTPException(404, "未找到报告")
 
-    try:
-        from docx import Document
-        from docx.shared import Pt
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-    except ImportError:
-        raise HTTPException(500, "ERROR")
+    # ---- 公文版式（复用预案 docx_template 样式体系） ----
+    from app.services.report_docx import (
+        generate_report_docx,
+        split_report_content_chapters,
+    )
 
-    doc = Document()
-    style = doc.styles["Normal"]
-    style.font.size = Pt(12)
-
-    doc.add_paragraph("")
-    title_p = doc.add_paragraph()
-    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title_p.add_run(report.title)
-    run.font.size = Pt(22)
-    run.bold = True
-
-    if ent:
-        for line in [
-            f"编制单位：{ent.name}",
-            f"Date: {datetime.now().strftime('%Y%m%d')}",
-        ]:
-            if line:
-                para = doc.add_paragraph()
-                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                para.add_run(line)
-    doc.add_page_break()
-
-    cleaned = _clean_for_docx(report.content)
-    for line in cleaned.split("\n"):
-        line = line.strip()
-        if not line:
-            doc.add_paragraph("")
-        elif line.startswith("# "):
-            h = doc.add_heading(level=1)
-            h.add_run(line[2:])
-        elif line.startswith("## "):
-            h = doc.add_heading(level=2)
-            h.add_run(line[3:])
-        elif line.startswith("### "):
-            h = doc.add_heading(level=3)
-            h.add_run(line[4:])
-        elif line.startswith("- "):
-            doc.add_paragraph(line[2:], style="List Bullet")
-        elif line.startswith("1. "):
-            doc.add_paragraph(line[3:], style="List Number")
-        else:
-            doc.add_paragraph(line)
+    chapters = ((report.summary or {}).get("chapters")) or []
+    if not chapters:
+        chapters = split_report_content_chapters(report.content)
+    doc = generate_report_docx(
+        company_name=ent.name,
+        report_kind="resource",
+        chapters=chapters,
+        report_title=report.title or "应急资源调查报告",
+    )
 
     os.makedirs(settings.EXPORT_DIR, exist_ok=True)
     safe_name = ent.name.replace(" ", "_") if ent else "企业"
@@ -316,17 +312,10 @@ async def generate_resource_investigation(
     if not ai_config:
         raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
-    # Check for existing generating report
-    existing = (
-        await db.execute(
-            select(ResourceInvestigationReport).where(
-                ResourceInvestigationReport.enterprise_id == enterprise_id,
-                ResourceInvestigationReport.status == "generating",
-            )
-        )
-    ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(400, "ERROR")
+    # 并发保护：同一进程内已有全量生成在跑则拒绝；
+    # 重启/断流残留的 generating 行不再拦截，允许重新生成覆盖
+    if enterprise_id in _LIVE_RI_GENERATIONS:
+        raise HTTPException(400, "已有正在生成的报告，请等待完成")
 
     # Build context
     context = await build_resource_investigation_context(enterprise_id, db)
@@ -357,6 +346,7 @@ async def generate_resource_investigation(
     await db.commit()
 
     async def event_generator():
+        _LIVE_RI_GENERATIONS.add(enterprise_id)
         full_content = ""
         chapter_contents: list[dict] = []
         try:
@@ -392,6 +382,10 @@ async def generate_resource_investigation(
                 yield sse_event("section_done", section_key=ck,
                            message=f"「{ctitle}」生成完成",
                            completed=i+1, total=total)
+                # 逐章增量落库：断流/页面关闭/服务重启后，已完成章节不丢失
+                await _persist_ri_generation(
+                    report.id, chapter_contents, full_content, "generating",
+                )
 
             # Save chapter contents to summary, set status to draft (user will merge manually)
             chapters_json = [
@@ -412,12 +406,11 @@ async def generate_resource_investigation(
                     bg_report.content = full_content.strip()
                     bg_report.summary = {"chapters": chapters_json}
                     try:
-                        import json as _json2, re as _re2
+                        from app.services.report_summary_utils import extract_trailing_json
                         last_ch = chapter_contents[-1] if chapter_contents else None
                         if last_ch:
-                            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
-                            if m:
-                                struct = _json2.loads(m.group())
+                            struct = extract_trailing_json(last_ch.get("content", ""))
+                            if struct:
                                 bg_report.summary.update(struct)
                     except Exception:
                         pass
@@ -428,21 +421,20 @@ async def generate_resource_investigation(
                        message=f"报告生成完成，共{total}章",
                        completed=total, total=total,
                        chapters=_json.dumps(chapters_json, ensure_ascii=False))
+        except asyncio.CancelledError:
+            logger.warning("Resource investigation generation cancelled: %s", enterprise_id)
+            await _persist_ri_generation(
+                report.id, chapter_contents, full_content, "draft",
+            )
+            raise
         except Exception as e:
             import traceback; logger.error(f"Resource investigation generation failed: {e}\n{traceback.format_exc()}")
-            async with async_session() as bg_db:
-                bg_report = (
-                    await bg_db.execute(
-                        select(ResourceInvestigationReport).where(
-                            ResourceInvestigationReport.id == report.id
-                        )
-                    )
-                ).scalar_one_or_none()
-                if bg_report:
-                    bg_report.status = "draft"
-                    bg_report.content = full_content
-                    await bg_db.commit()
+            await _persist_ri_generation(
+                report.id, chapter_contents, full_content, "draft",
+            )
             yield sse_event("error", message=str(e))
+        finally:
+            _LIVE_RI_GENERATIONS.discard(enterprise_id)
 
     return EventSourceResponse(event_generator())
 
@@ -857,12 +849,11 @@ async def merge_resource_investigation(
     report.status = "completed"
     report.summary = {"chapters": chapters}
     try:
-        import json as _json2, re as _re2
+        from app.services.report_summary_utils import extract_trailing_json
         last_ch = chapters[-1] if chapters else None
         if last_ch:
-            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
-            if m:
-                struct = _json2.loads(m.group())
+            struct = extract_trailing_json(last_ch.get("content", ""))
+            if struct:
                 report.summary.update(struct)
     except Exception:
         pass
