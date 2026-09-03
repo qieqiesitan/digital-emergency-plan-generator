@@ -30,7 +30,7 @@ async def test_get_plan_review_returns_issues():
                return_value={"issues": [{"section_key": "sec_1", "issue": "章节内容为空"}],
                              "warnings": []}):
         out = await get_plan_review("p1", MagicMock(id="u1"), db)
-    assert out["issues"][0]["section_key"] == "sec_1"
+    assert out.data["issues"][0]["section_key"] == "sec_1"
 
 
 @pytest.mark.asyncio
@@ -53,7 +53,7 @@ async def test_apply_review_rules_fixes_placeholder():
          patch("app.routers.review._apply_llm_revision",
                new=AsyncMock(return_value="<p>修订后内容</p>")):
         out = await apply_plan_review("p1", MagicMock(id="u1"), db, mode="llm")
-    assert out["applied"] == ["sec_1"]
+    assert out.data["applied"] == ["sec_1"]
     assert sec.content == "<p>修订后内容</p>"
     db.commit.assert_awaited()
 
@@ -98,9 +98,9 @@ async def test_apply_review_llm_skips_invalid_revision(bad_content):
          patch("app.routers.generation._stream_llm",
                new=AsyncMock(side_effect=[bad_content, _VALID_REVISION])):
         out = await apply_plan_review("p1", MagicMock(id="u1"), db, mode="llm")
-    assert out["applied"] == ["sec_2"]
-    assert [s["section_key"] for s in out["skipped"]] == ["sec_1"]
-    assert out["skipped"][0]["reason"]
+    assert out.data["applied"] == ["sec_2"]
+    assert [s["section_key"] for s in out.data["skipped"]] == ["sec_1"]
+    assert out.data["skipped"][0]["reason"]
     assert sec_bad.content == "<p>原内容</p>"          # 校验失败不写库
     assert sec_ok.content == _VALID_REVISION
     db.commit.assert_awaited()
@@ -141,7 +141,7 @@ async def test_apply_review_llm_valid_revision_applies():
          patch("app.routers.generation._stream_llm",
                new=AsyncMock(return_value=_VALID_REVISION)):
         out = await apply_plan_review("p1", MagicMock(id="u1"), db, mode="llm")
-    assert out["applied"] == ["sec_1"]
-    assert out["skipped"] == []
+    assert out.data["applied"] == ["sec_1"]
+    assert out.data["skipped"] == []
     assert sec.content == _VALID_REVISION
     db.commit.assert_awaited()

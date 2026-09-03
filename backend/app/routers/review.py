@@ -10,6 +10,7 @@ from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanVers
 from app.routers.versions import _build_snapshot
 from app.services.agent.agents import LAYER_PARAMS
 from app.services.plan_review_service import review_plan
+from app.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/plans", tags=["Plan Review"])
 
@@ -47,7 +48,7 @@ async def get_plan_review(plan_id: str, current_user=Depends(get_current_user),
     sections = (await db.execute(select(PlanSection).where(
         PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order))).scalars().all()
     result = review_plan(p, ent, sections)
-    return {"plan_id": plan_id, "title": p.title, **result}
+    return ApiResponse(data={"plan_id": plan_id, "title": p.title, **result})
 
 
 async def _apply_llm_revision(section, issue_text, plan, ent_data, db) -> str | None:
@@ -136,5 +137,5 @@ async def apply_plan_review(plan_id: str, current_user=Depends(get_current_user)
             await db.rollback()
             raise HTTPException(400, "LLM 修订全部校验失败，未应用任何章节")
         await db.commit()
-    return {"plan_id": plan_id, "applied": applied, "skipped": skipped,
-            "snapshot_version": p.current_version}
+    return ApiResponse(data={"plan_id": plan_id, "applied": applied, "skipped": skipped,
+                             "snapshot_version": p.current_version})
