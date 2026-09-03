@@ -1,11 +1,14 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, field_validator
 
-# ── Create ──
-class HazardousChemicalCreate(BaseModel):
+
+def _strip(v: Optional[str]) -> Optional[str]:
+    return v.strip() if isinstance(v, str) else v
+
+
+class ChemicalLibraryCreate(BaseModel):
     name: str
-    library_id: Optional[str] = None
     cas_no: Optional[str] = None
     un_no: Optional[str] = None
     physical_state: Optional[str] = None
@@ -20,13 +23,15 @@ class HazardousChemicalCreate(BaseModel):
     storage_transport: Optional[str] = None
     first_aid: Optional[str] = None
     protective_measures: Optional[str] = None
-    location: Optional[str] = None
-    max_storage: Optional[str] = None
 
-# ── Update ──
-class HazardousChemicalUpdate(BaseModel):
+    @field_validator("name", "cas_no", mode="before")
+    @classmethod
+    def _clean(cls, v: object) -> object:
+        return _strip(v)  # type: ignore[arg-type]
+
+
+class ChemicalLibraryUpdate(BaseModel):
     name: Optional[str] = None
-    library_id: Optional[str] = None
     cas_no: Optional[str] = None
     un_no: Optional[str] = None
     physical_state: Optional[str] = None
@@ -41,14 +46,15 @@ class HazardousChemicalUpdate(BaseModel):
     storage_transport: Optional[str] = None
     first_aid: Optional[str] = None
     protective_measures: Optional[str] = None
-    location: Optional[str] = None
-    max_storage: Optional[str] = None
 
-# ── Response ──
-class HazardousChemicalResponse(BaseModel):
+    @field_validator("name", "cas_no", mode="before")
+    @classmethod
+    def _clean(cls, v: object) -> object:
+        return _strip(v)  # type: ignore[arg-type]
+
+
+class ChemicalLibraryResponse(BaseModel):
     id: str
-    enterprise_id: str
-    library_id: Optional[str] = None
     name: str
     cas_no: Optional[str] = None
     un_no: Optional[str] = None
@@ -64,8 +70,6 @@ class HazardousChemicalResponse(BaseModel):
     storage_transport: Optional[str] = None
     first_aid: Optional[str] = None
     protective_measures: Optional[str] = None
-    location: Optional[str] = None
-    max_storage: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -74,7 +78,11 @@ class HazardousChemicalResponse(BaseModel):
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod
     def _dt_to_str(cls, v: object) -> str:
-        """SQLAlchemy returns datetime; Pydantic v2 model_validate doesn''t auto-coerce to str."""
         if isinstance(v, datetime):
             return v.isoformat()
         return str(v) if v is not None else ""
+
+
+class ChemicalLibraryCollectRequest(BaseModel):
+    enterprise_id: str
+    chemical_id: str
