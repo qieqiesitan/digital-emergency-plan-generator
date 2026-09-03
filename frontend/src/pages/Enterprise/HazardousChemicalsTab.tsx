@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Button, Table, Modal, Form, Input, Space, message, Popconfirm } from "antd";
+import { Button, Table, Modal, Form, Input, Space, message, Popconfirm, Tag } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import AppIcon from "@/components/common/AppIcon";
 import {
@@ -9,6 +9,9 @@ import {
   deleteChemical,
 } from "@/services/hazardousChemicalService";
 import HazardousChemicalAIGenerateModal from "@/components/enterprise/HazardousChemicalAIGenerateModal";
+import ChemicalLibraryPickerModal from "@/components/enterprise/ChemicalLibraryPickerModal";
+import { libraryItemToPrefill } from "@/utils/chemicalLibraryPrefill";
+import type { ChemicalLibraryItem } from "@/types/chemicalLibrary";
 import type { HazardousChemical, HazardousChemicalCreate, HazardousChemicalUpdate } from "@/types/hazardousChemical";
 
 interface Props {
@@ -46,6 +49,13 @@ const columns = (
   { title: "闪点", dataIndex: "flash_point", key: "flash_point", width: 80, render: (v: string | null) => v || "-" },
   { title: "密度", dataIndex: "density", key: "density", width: 80, render: (v: string | null) => v || "-" },
   {
+    title: "来源",
+    dataIndex: "library_id",
+    key: "library_id",
+    width: 90,
+    render: (v: string | null) => (v ? <Tag color="blue">标准库</Tag> : "-"),
+  },
+  {
     title: "操作",
     key: "actions",
     width: 120,
@@ -68,6 +78,7 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [editing, setEditing] = useState<HazardousChemical | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
@@ -90,8 +101,21 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
   }, [enterpriseId]);
 
   const handleAdd = () => {
+    setPickerOpen(true);
+  };
+
+  const handlePick = (item: ChemicalLibraryItem) => {
     setEditing(null);
     form.resetFields();
+    form.setFieldsValue(libraryItemToPrefill(item));
+    setPickerOpen(false);
+    setModalOpen(true);
+  };
+
+  const handleManualAdd = () => {
+    setEditing(null);
+    form.resetFields();
+    setPickerOpen(false);
     setModalOpen(true);
   };
 
@@ -200,6 +224,13 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
           setAiModalOpen(false);
           fetchData();
         }}
+      />
+
+      <ChemicalLibraryPickerModal
+        open={pickerOpen}
+        onSelect={handlePick}
+        onManual={handleManualAdd}
+        onClose={() => setPickerOpen(false)}
       />
     </div>
   );
