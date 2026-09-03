@@ -37,8 +37,11 @@ docker exec emergency-plan-frontend node node_modules/typescript/bin/tsc -b
 - 修改 `backend/app/services/llm_client.py`：流式响应读取 `reasoning_content` 并通过可选 `reasoning_cb` 回调。
 - 修改 `backend/app/routers/generation.py`：流式辅助函数透传 `reasoning_cb`；单章 SSE 增加 `thinking` 事件；批量 SSE 的 `sse_stream` 推送 `thinking`；status 端点返回阶段字段。
 - 修改 `backend/app/services/plan_generation_service.py`：默认分支（后台/聊天批量）改为内部流式收集，自动维护 generation_progress。
+- 修改 `backend/app/routers/risk_assessment.py` 与 `backend/app/routers/resource_investigation.py`：报告逐章生成输出 `thinking` 事件（范围扩展）。
 - 前端：`frontend/src/types/plan.ts`、`frontend/src/services/generationService.ts`、`frontend/src/pages/Plan/PlanEditorPage.tsx`、`frontend/src/components/plan/AIGenerateButton.tsx`、`frontend/src/mobile/screens/PlanEditorScreen.tsx`。
+- 前端（范围扩展）：`frontend/src/types/riskAssessment.ts`、`frontend/src/pages/Enterprise/RiskAssessmentTab.tsx`、`frontend/src/pages/Enterprise/ResourceInvestigationTab.tsx`、`frontend/src/mobile/screens/RiskAssessmentScreen.tsx`、`frontend/src/mobile/screens/ResourceInvestigationScreen.tsx`。
 - 新增测试：`backend/tests/test_thinking_brief.py`、`backend/tests/test_generation_progress.py`、`backend/tests/test_llm_reasoning_cb.py`、`backend/tests/test_generation_thinking_stream.py`（部分）。
+- 新增测试（范围扩展）：`backend/tests/test_report_thinking.py`。
 
 ---
 
@@ -951,7 +954,7 @@ git commit -m "feat(mobile): 单章思考字幕与批量 3 秒轮询"
 
 ---
 
-### 任务 11：回归与真实验收
+### 任务 11：回归与真实验收（预案部分）
 
 - [ ] **步骤 1：后端相关全量回归**
 
@@ -987,8 +990,294 @@ docker restart emergency-plan-backend
 
 ---
 
+### 任务 12：报告流共享事件辅助函数（risk_assessment.py）
+
+**文件：**
+- 修改：`backend/app/routers/risk_assessment.py`（`_stream_llm_with_messages_chunked` 增加 `reasoning_cb`；新增 `_stream_chapter_events`）
+- 测试：`backend/tests/test_report_thinking.py`
+
+- [ ] **步骤 1：编写失败的测试**
+
+```python
+"""test_report_thinking.py"""
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.routers import risk_assessment as ra
+from app.services.thinking_brief import CaptionThrottle
+
+
+@pytest.mark.asyncio
+async def test_stream_chapter_events_emits_caption_then_chunks(monkeypatch):
+    async def fake_chunked(messages, ai_config, reasoning_cb=None):
+        if reasoning_cb:
+            reasoning_cb("需要结合风险源分布确定辨识范围。")
+        yield "第一段"
+        yield "第二段"
+
+    monkeypatch.setattr(ra, "_stream_llm_with_messages_chunked", fake_chunked)
+    events = []
+    async for kind, payload in ra._stream_chapter_events(
+        [], MagicMock(), CaptionThrottle("风险辨识"), "ch1",
+    ):
+        events.append((kind, payload))
+    kinds = [k for k, _ in events]
+    assert kinds[0] == "thinking"
+    assert "chunk" in kinds
+    assert ("end", "第一段第二段") in events
+
+
+@pytest.mark.asyncio
+async def test_stream_chapter_events_propagates_error(monkeypatch):
+    async def boom(messages, ai_config, reasoning_cb=None):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ra, "_stream_llm_with_messages_chunked", boom)
+    with pytest.raises(RuntimeError):
+        async for _ in ra._stream_chapter_events(
+            [], MagicMock(), CaptionThrottle("风险辨识"), "ch1",
+        ):
+            pass
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：`docker cp backend/tests/test_report_thinking.py emergency-plan-backend:/app/tests/ && docker exec emergency-plan-backend python -m pytest -q -p no:cacheprovider tests/test_report_thinking.py`
+预期：FAIL，`AttributeError: ... has no attribute '_stream_chapter_events'`
+
+- [ ] **步骤 3：实现**
+
+`_stream_llm_with_messages_chunked` 签名增加 `reasoning_cb=None`，内部调用改为：
+
+```python
+        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120,
+                                        reasoning_cb=reasoning_cb)
+```
+
+在其后新增：
+
+```python
+async def _stream_chapter_events(messages, ai_config, throttle, section_key):
+    """逐章产出 ("thinking", caption) / ("chunk", text)；结束产出 ("end", full_text)。"""
+    import asyncio as _asyncio
+
+    events: _asyncio.Queue = _asyncio.Queue()
+
+    def _on_reasoning(piece):
+        caption = throttle.push(piece)
+        if caption:
+            events.put_nowait(("thinking", caption))
+
+    async def _run():
+        full = ""
+        try:
+            async for chunk in _stream_llm_with_messages_chunked(
+                messages, ai_config, reasoning_cb=_on_reasoning,
+            ):
+                full += chunk
+                events.put_nowait(("chunk", chunk))
+            events.put_nowait(("end", full))
+        except Exception as e:
+            events.put_nowait(("error", e))
+
+    task = _asyncio.create_task(_run())
+    while True:
+        kind, payload = await events.get()
+        if kind == "error":
+            await task
+            raise payload
+        yield kind, payload
+        if kind == "end":
+            await task
+            return
+```
+
+- [ ] **步骤 4：运行测试验证通过**
+
+预期：PASS（2 passed）
+
+- [ ] **步骤 5：Commit**
+
+```bash
+git add backend/app/routers/risk_assessment.py backend/tests/test_report_thinking.py
+git commit -m "feat(report): 报告逐章事件队列支持推理要点"
+```
+
+---
+
+### 任务 13：风险评估 / 资源调查 generate 端点输出 thinking 事件
+
+**文件：**
+- 修改：`backend/app/routers/risk_assessment.py`（`generate_risk_assessment` 逐章循环）
+- 修改：`backend/app/routers/resource_investigation.py`（`generate_resource_investigation` 逐章循环，导入并复用 `_stream_chapter_events`）
+
+- [ ] **步骤 1：替换两端点的逐章流式循环**
+
+`risk_assessment.py` 的 `event_generator` 中，把：
+
+```python
+                ch_content = ""
+                async for chunk_content in _stream_llm_with_messages_chunked(messages, ai_config):
+                    ch_content += chunk_content
+                    yield sse_event("chunk", content=chunk_content, section_key=ck)
+```
+
+替换为：
+
+```python
+                ch_content = ""
+                from app.services.thinking_brief import CaptionThrottle
+                async for ev_kind, ev_payload in _stream_chapter_events(
+                    messages, ai_config, CaptionThrottle(ctitle), ck,
+                ):
+                    if ev_kind == "thinking":
+                        yield sse_event("thinking", section_key=ck, message=ev_payload)
+                    elif ev_kind == "chunk":
+                        ch_content += ev_payload
+                        yield sse_event("chunk", content=ev_payload, section_key=ck)
+                    else:
+                        ch_content = ev_payload or ch_content
+```
+
+`resource_investigation.py` 做同样替换，并在文件顶部导入追加：
+
+```python
+from app.routers.risk_assessment import _stream_chapter_events
+```
+
+（原 `_stream_llm_with_messages_chunked` 导入可保留，供其它调用使用。）
+
+- [ ] **步骤 2：运行回归**
+
+```bash
+docker exec emergency-plan-backend python -m pytest -q -p no:cacheprovider tests/test_report_thinking.py tests/test_risk_assessment.py tests/test_resource_investigation.py
+```
+
+> 如容器内无对应测试文件，先 `docker cp backend/tests/<file>.py emergency-plan-backend:/app/tests/`。预期：PASS
+
+- [ ] **步骤 3：Commit**
+
+```bash
+git add backend/app/routers/risk_assessment.py backend/app/routers/resource_investigation.py
+git commit -m "feat(report): 两份报告逐章生成推送思考要点事件"
+```
+
+---
+
+### 任务 14：报告前端（桌面 Tab ×2、移动 Screen ×2）展示字幕
+
+**文件：**
+- 修改：`frontend/src/types/riskAssessment.ts`
+- 修改：`frontend/src/pages/Enterprise/RiskAssessmentTab.tsx`
+- 修改：`frontend/src/pages/Enterprise/ResourceInvestigationTab.tsx`
+- 修改：`frontend/src/mobile/screens/RiskAssessmentScreen.tsx`
+- 修改：`frontend/src/mobile/screens/ResourceInvestigationScreen.tsx`
+
+- [ ] **步骤 1：类型扩展**
+
+`types/riskAssessment.ts` 的 `SSEEvent.type` union 增加 `"thinking"`：
+
+```ts
+type: "progress" | "chunk" | "section_done" | "batch_done" | "error" | "token" | "chapter_start" | "chapter_end" | "done" | "complete" | "thinking";
+```
+
+- [ ] **步骤 2：桌面 Tab（RiskAssessmentTab / ResourceInvestigationTab）**
+
+两个文件分别新增 `const [thinkingText, setThinkingText] = useState("");`，在 SSE switch 中：
+
+```ts
+case "thinking": {
+  setThinkingText(event.message || "");
+  break;
+}
+```
+
+在 `case "chunk"` 与 `case "section_done"` 中 `setThinkingText("")`；`batch_done`/`error` 也清空。
+
+在展示“批量生成进度/章节状态”的同一面板内（`batchProgress.message` 渲染处）下方插入：
+
+```tsx
+{thinkingText && (
+  <div style={{ marginTop: 4, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>
+    {thinkingText}<span style={{ color: "#1a56db" }}>▌</span>
+  </div>
+)}
+```
+
+- [ ] **步骤 3：移动 Screen（RiskAssessmentScreen / ResourceInvestigationScreen）**
+
+两个文件分别新增 `const [thinkingText, setThinkingText] = useState("");`，在 `onData` 回调的 `progress/chapter_start` 分支前增加：
+
+```ts
+if (event.type === "thinking") {
+  setThinkingText(event.message || "");
+} else if (event.type === "chunk" || event.type === "token") {
+  setThinkingText("");
+  // 原有正文累积逻辑保持不变
+}
+```
+
+在进度文本与 `ProgressBar` 之间渲染：
+
+```tsx
+{thinkingText ? (
+  <div style={{ fontSize: 12, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
+    {thinkingText}
+  </div>
+) : null}
+```
+
+`done/complete/batch_done/error` 分支中调用 `setThinkingText("")`。
+
+- [ ] **步骤 4：类型检查**
+
+运行：`docker exec emergency-plan-frontend node node_modules/typescript/bin/tsc -b`
+预期：exit 0
+
+- [ ] **步骤 5：Commit**
+
+```bash
+git add frontend/src/types/riskAssessment.ts frontend/src/pages/Enterprise/RiskAssessmentTab.tsx frontend/src/pages/Enterprise/ResourceInvestigationTab.tsx frontend/src/mobile/screens/RiskAssessmentScreen.tsx frontend/src/mobile/screens/ResourceInvestigationScreen.tsx
+git commit -m "feat(frontend): 风险评估与资源调查报告思考字幕"
+```
+
+---
+
+### 任务 15：回归与真实验收（含报告）
+
+- [ ] **步骤 1：后端全量回归**
+
+在任务 11 命令基础上追加 `tests/test_report_thinking.py`、`tests/test_risk_assessment.py`、`tests/test_resource_investigation.py`；预期全部 PASS。
+
+- [ ] **步骤 2：前端类型与单测**
+
+```bash
+docker exec emergency-plan-frontend node node_modules/typescript/bin/tsc -b
+docker exec emergency-plan-frontend npx vitest run 2>&1 | tail -5
+```
+预期：exit 0 / vitest PASS
+
+- [ ] **步骤 3：重启后端并手动验收**
+
+```bash
+docker restart emergency-plan-backend
+```
+
+验收清单（新增）：
+1. 桌面端企业详情 → 风险评估报告 → AI 生成：进度区出现思考字幕，约 2 秒更新，写作开始消失。
+2. 桌面端应急资源调查报告同 1。
+3. 移动端 RiskAssessmentScreen / ResourceInvestigationScreen 同 1。
+4. 后端日志无推理原文。
+
+- [ ] **步骤 4：Commit（如有遗留修正）**
+
+按文件分别 commit，不混入他人改动。
+
+---
+
 ## 自检结果
 
-- 规格覆盖：范围（桌面批量/两端单章/移动批量）、字幕形态 v2、隐私 memory-only、轮询 3s/200 次、阶段兜底、SSE `thinking` 事件、generation_progress 与 status 扩展均有对应任务（任务 1-11）。
+- 规格覆盖：范围（桌面批量/两端单章/移动批量）、字幕形态 v2、隐私 memory-only、轮询 3s/200 次、阶段兜底、SSE `thinking` 事件、generation_progress 与 status 扩展均有对应任务（任务 1-11）；范围扩展（风险评估/资源调查两份报告的逐章 SSE 字幕）对应任务 12-15。
 - 占位符：无 TODO/待定；代码变更步骤均含实际代码或精确 diff 说明。
 - 类型一致性：`CaptionThrottle.push`、`ThinkingBriefBuffer.feed`、`_collect_stream_text`、`generation_progress.set/get/clear`、前端 `GenerationStatusData` 与 `thinking` 事件在任务间保持一致；`reasoning_cb` 全部为可选参数，默认 None。

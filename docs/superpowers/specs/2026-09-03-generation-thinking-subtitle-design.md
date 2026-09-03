@@ -144,3 +144,22 @@
 
 - 后端：`app/services/llm_client.py`、`app/routers/generation.py`、`app/services/plan_generation_service.py`、新增 `app/services/generation_progress.py`、新增 `app/services/thinking_brief.py`、对应测试。
 - 前端：`services/generationService.ts`（类型与状态读取）、`pages/Plan/PlanEditorPage.tsx`、`mobile/screens/PlanEditorScreen.tsx`、`types/plan.ts`。
+
+## 范围扩展：风险评估报告 / 应急资源调查报告（2026-09-03 追加）
+
+同一“思考要点字幕”能力扩展到两份报告的分章节 AI 生成（两者均为 SSE 逐章生成，事件结构与预案一致）。
+
+### 做
+
+- 后端：`risk_assessment.py` 与 `resource_investigation.py` 的 `generate` 端点逐章输出 `thinking` 事件；共享 `_stream_llm_with_messages_chunked` 增加可选 `reasoning_cb`；新增“逐章事件队列”辅助函数，把推理要点实时透出（推理仍只存内存、不落库）。
+- 前端：桌面 `RiskAssessmentTab`、`ResourceInvestigationTab` 与移动 `RiskAssessmentScreen`、`ResourceInvestigationScreen` 处理 `thinking` 事件并在进度区显示字幕；`types/riskAssessment.ts` 的 `SSEEvent` 增加 `"thinking"`。
+
+### 不做
+
+- 两份报告的“合并（merge）”与预览/导出流程不加字幕（非逐章 LLM 流）。
+- 报告生成不做空结果重试改造（本期仅加字幕；保留现状）。
+
+### 验证
+
+- 后端：逐章事件辅助函数单测（thinking/chunk/end/error）、两个端点回归。
+- 前端：4 个文件类型检查与手工验收——生成报告时进度区出现约 2 秒一更的思考字幕，写作阶段消失。
