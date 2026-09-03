@@ -61,7 +61,8 @@ export function MainLayout() {
     hasMenu("/settings/users") ||
     hasMenu("/settings/roles") ||
     hasMenu("/settings/system") ||
-    hasMenu("/settings/data-dicts");
+    hasMenu("/settings/data-dicts") ||
+    hasMenu("/settings/chemical-library");
   const showAIGroup = hasMenu("/settings/prompts");
 
   const settingsChildren = [
@@ -85,6 +86,7 @@ export function MainLayout() {
             ...(hasMenu("/settings/roles") ? [{ key: "/settings/roles", icon: <SafetyCertificateOutlined />, label: "角色管理" }] : []),
             ...(hasMenu("/settings/system") ? [{ key: "/settings/system", icon: <SettingOutlined />, label: "系统配置" }] : []),
             ...(hasMenu("/settings/data-dicts") ? [{ key: "/settings/data-dicts", icon: <DatabaseOutlined />, label: "数据字典管理" }] : []),
+            ...(hasMenu("/settings/chemical-library") ? [{ key: "/settings/chemical-library", icon: <DatabaseOutlined />, label: "化学品库管理" }] : []),
           ],
         }]
       : []),
