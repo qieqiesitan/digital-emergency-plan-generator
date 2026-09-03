@@ -89,7 +89,7 @@ export default function TiptapEditor({
     const html = editor.getHTML();
     const next = content || "";
     if (html !== next) {
-      editor.commands.setContent(next, false);
+      editor.commands.setContent(next, { emitUpdate: false });
     }
   }, [content, editor]);
 
