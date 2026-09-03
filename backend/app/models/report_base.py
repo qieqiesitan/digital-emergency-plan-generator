@@ -16,6 +16,7 @@ class ReportBase(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    style_preference: Mapped[Optional[dict]] = mapped_column(JSONB, default=None)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     current_version: Mapped[int] = mapped_column(default=1)
     generated_by: Mapped[str] = mapped_column(String(20), nullable=False, default="ai")
