@@ -77,6 +77,29 @@ async def test_create_success():
 
 
 @pytest.mark.asyncio
+async def test_create_with_alias_and_remark_passes_through():
+    db = AsyncMock()
+    db.add = MagicMock()  # Session.add 为同步方法
+    db.execute.return_value = MagicMock(scalar_one_or_none=lambda: None)  # 无冲突
+
+    async def _fake_refresh(obj):
+        if obj.id is None:
+            obj.id = "lib-alias-1"
+        if obj.created_at is None:
+            obj.created_at = datetime.now()
+        if obj.updated_at is None:
+            obj.updated_at = datetime.now()
+
+    db.refresh = AsyncMock(side_effect=_fake_refresh)
+    body = ChemicalLibraryCreate(name="甲醇", alias="木醇", cas_no="67-56-1", remark="剧毒")
+    resp = await router_mod.create_library_item(body, _admin(), db)
+    assert resp.data.name == "甲醇"
+    assert resp.data.alias == "木醇"
+    assert resp.data.remark == "剧毒"
+    assert db.add.called and db.commit.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_update_rename_conflict_excludes_self():
     existing_other = _lib(id="lib-2", name="甲醇", cas_no="67-56-1")
     db = AsyncMock()

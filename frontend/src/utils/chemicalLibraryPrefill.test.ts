@@ -7,7 +7,9 @@ describe("libraryItemToPrefill", () => {
     const item: ChemicalLibraryItem = {
       id: "lib-1",
       name: "乙醇",
+      alias: "酒精",
       cas_no: "67-56-1",
+      remark: null,
       un_no: "1170",
       physical_state: "液体",
       flash_point: "12℃",

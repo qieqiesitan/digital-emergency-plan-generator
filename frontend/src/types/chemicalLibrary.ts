@@ -1,7 +1,9 @@
 export interface ChemicalLibraryItem {
   id: string;
   name: string;
+  alias: string | null;
   cas_no: string | null;
+  remark: string | null;
   un_no: string | null;
   physical_state: string | null;
   flash_point: string | null;
@@ -21,7 +23,9 @@ export interface ChemicalLibraryItem {
 
 export interface ChemicalLibraryPayload {
   name: string;
+  alias?: string | null;
   cas_no?: string | null;
+  remark?: string | null;
   un_no?: string | null;
   physical_state?: string | null;
   flash_point?: string | null;

@@ -59,6 +59,7 @@ async def list_library_items(
         like = f"%{keyword.strip()}%"
         base = base.where(or_(
             ChemicalLibrary.name.ilike(like),
+            ChemicalLibrary.alias.ilike(like),
             ChemicalLibrary.cas_no.ilike(like),
             ChemicalLibrary.un_no.ilike(like),
         ))

@@ -9,7 +9,9 @@ def _strip(v: Optional[str]) -> Optional[str]:
 
 class ChemicalLibraryCreate(BaseModel):
     name: str
+    alias: Optional[str] = None
     cas_no: Optional[str] = None
+    remark: Optional[str] = None
     un_no: Optional[str] = None
     physical_state: Optional[str] = None
     flash_point: Optional[str] = None
@@ -24,7 +26,7 @@ class ChemicalLibraryCreate(BaseModel):
     first_aid: Optional[str] = None
     protective_measures: Optional[str] = None
 
-    @field_validator("name", "cas_no", mode="before")
+    @field_validator("name", "alias", "cas_no", "remark", mode="before")
     @classmethod
     def _clean(cls, v: object) -> object:
         return _strip(v)  # type: ignore[arg-type]
@@ -32,7 +34,9 @@ class ChemicalLibraryCreate(BaseModel):
 
 class ChemicalLibraryUpdate(BaseModel):
     name: Optional[str] = None
+    alias: Optional[str] = None
     cas_no: Optional[str] = None
+    remark: Optional[str] = None
     un_no: Optional[str] = None
     physical_state: Optional[str] = None
     flash_point: Optional[str] = None
@@ -47,7 +51,7 @@ class ChemicalLibraryUpdate(BaseModel):
     first_aid: Optional[str] = None
     protective_measures: Optional[str] = None
 
-    @field_validator("name", "cas_no", mode="before")
+    @field_validator("name", "alias", "cas_no", "remark", mode="before")
     @classmethod
     def _clean(cls, v: object) -> object:
         return _strip(v)  # type: ignore[arg-type]
@@ -56,7 +60,9 @@ class ChemicalLibraryUpdate(BaseModel):
 class ChemicalLibraryResponse(BaseModel):
     id: str
     name: str
+    alias: Optional[str] = None
     cas_no: Optional[str] = None
+    remark: Optional[str] = None
     un_no: Optional[str] = None
     physical_state: Optional[str] = None
     flash_point: Optional[str] = None

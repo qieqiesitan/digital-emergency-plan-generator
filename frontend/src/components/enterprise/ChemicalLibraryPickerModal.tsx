@@ -39,6 +39,14 @@ export default function ChemicalLibraryPickerModal({ open, onSelect, onManual, o
 
   const columns = [
     { title: "化学品名称", dataIndex: "name", key: "name", width: 200 },
+    {
+      title: "别名",
+      dataIndex: "alias",
+      key: "alias",
+      width: 200,
+      ellipsis: true,
+      render: (v: string | null) => v || "-",
+    },
     { title: "CAS号", dataIndex: "cas_no", key: "cas_no", width: 130, render: (v: string | null) => v || "-" },
     { title: "UN号", dataIndex: "un_no", key: "un_no", width: 90, render: (v: string | null) => v || "-" },
     { title: "物理状态", dataIndex: "physical_state", key: "physical_state", width: 100, render: (v: string | null) => v || "-" },
@@ -55,7 +63,7 @@ export default function ChemicalLibraryPickerModal({ open, onSelect, onManual, o
       destroyOnHidden
     >
       <Input.Search
-        placeholder="按名称 / CAS号 / UN号搜索"
+        placeholder="按名称 / 别名 / CAS号 / UN号搜索"
         allowClear
         enterButton="搜索"
         onSearch={(v) => fetch(v.trim(), 1)}

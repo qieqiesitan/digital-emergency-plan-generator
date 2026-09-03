@@ -16,7 +16,9 @@ const { TextArea } = Input;
 
 const FORM_ITEMS: { key: string; label: string; textarea?: boolean; span?: 1 | 2 }[] = [
   { key: "name", label: "化学品名称" },
+  { key: "alias", label: "别名（多个用；分隔）" },
   { key: "cas_no", label: "CAS号" },
+  { key: "remark", label: "备注（如：剧毒）" },
   { key: "un_no", label: "UN号" },
   { key: "physical_state", label: "物理状态" },
   { key: "flash_point", label: "闪点" },
@@ -148,7 +150,26 @@ export default function ChemicalLibraryManagePage() {
   };
 
   const columns = [
-    { title: "化学品名称", dataIndex: "name", key: "name", width: 180 },
+    {
+      title: "化学品名称",
+      dataIndex: "name",
+      key: "name",
+      width: 220,
+      render: (v: string, record: ChemicalLibraryItem) => (
+        <Space size={4}>
+          <span>{v}</span>
+          {record.remark === "剧毒" && <Tag color="red">剧毒</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: "别名",
+      dataIndex: "alias",
+      key: "alias",
+      width: 220,
+      ellipsis: true,
+      render: (v: string | null) => v || "-",
+    },
     { title: "CAS号", dataIndex: "cas_no", key: "cas_no", width: 130, render: (v: string | null) => v || "-" },
     { title: "UN号", dataIndex: "un_no", key: "un_no", width: 90, render: (v: string | null) => v || "-" },
     { title: "物理状态", dataIndex: "physical_state", key: "physical_state", width: 100, render: (v: string | null) => v || "-" },
@@ -181,7 +202,7 @@ export default function ChemicalLibraryManagePage() {
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增条目</Button>
         <Button icon={<ImportOutlined />} onClick={() => setCollectOpen(true)}>从企业台账收录</Button>
         <Input.Search
-          placeholder="按名称 / CAS / UN 搜索"
+          placeholder="按名称 / 别名 / CAS / UN 搜索"
           allowClear
           enterButton
           onSearch={(v) => { setKeyword(v.trim()); setPage(1); }}
@@ -201,7 +222,7 @@ export default function ChemicalLibraryManagePage() {
           onChange: setPage,
           showTotal: (t) => `共 ${t} 条`,
         }}
-        scroll={{ x: 900 }}
+        scroll={{ x: 1200 }}
       />
 
       <Drawer

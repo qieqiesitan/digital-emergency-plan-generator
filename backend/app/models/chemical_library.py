@@ -13,7 +13,9 @@ class ChemicalLibrary(Base):
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    alias: Mapped[Optional[str]] = mapped_column(String(500))
     cas_no: Mapped[Optional[str]] = mapped_column(String(50))
+    remark: Mapped[Optional[str]] = mapped_column(String(100))
     un_no: Mapped[Optional[str]] = mapped_column(String(20))
     physical_state: Mapped[Optional[str]] = mapped_column(String(200))
     flash_point: Mapped[Optional[str]] = mapped_column(String(50))
