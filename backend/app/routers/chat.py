@@ -283,6 +283,46 @@ def _safe_tool_args(tc) -> dict:
         return {}
 
 
+def _extract_xml_tool_calls(content: str) -> list:
+    """解析模型偶发返回的 XML 风格工具调用（<tool_calls><invoke name=...><parameter name=...>）。
+    兼容层转换失败时兜底，避免 XML 原文被当普通文本输出成乱字符。"""
+    import re as _re
+    if not content or "<invoke" not in content:
+        return []
+    calls = []
+    blocks = _re.findall(
+        r"<invoke\s+name=[\"']([^\"']+)[\"']>(.*?)</invoke>",
+        content, _re.S)
+    for idx, (name, body) in enumerate(blocks):
+        params = {}
+        for m in _re.finditer(
+                r"<parameter\s+name=[\"']([^\"']+)[\"']>(.*?)</parameter>",
+                body, _re.S):
+            key, val = m.group(1).strip(), m.group(2).strip()
+            try:
+                params[key] = json.loads(val) if val[:1] in ("{", "[", '"', "t", "f", "n") else val
+            except Exception:
+                params[key] = val
+        calls.append({
+            "id": f"xmlcall_{idx}",
+            "type": "function",
+            "function": {"name": name, "arguments": json.dumps(params, ensure_ascii=False)},
+        })
+    return calls
+
+
+def _normalize_tool_calls(msg: dict) -> list:
+    """OpenAI tool_calls 缺失但 content 含 XML 调用时兜底解析（避免乱字符输出）。"""
+    calls = msg.get("tool_calls") or []
+    if calls:
+        return calls
+    xml_calls = _extract_xml_tool_calls(msg.get("content") or "")
+    if xml_calls:
+        msg["content"] = None
+        msg["tool_calls"] = xml_calls
+    return xml_calls
+
+
 async def _run_tool_isolated(fn_name: str, fn_args: dict, user_id: str) -> str:
     """独立 session 执行只读工具（AsyncSession 不支持并发共享）。"""
     from app.models.user import User
@@ -549,7 +589,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
 
     choice = llm_resp.get("choices", [{}])[0]
     msg = choice.get("message", {})
-    first_tool_calls = msg.get("tool_calls", [])
+    first_tool_calls = _normalize_tool_calls(msg)
 
     # 无工具调用 → 直接返回文本
     if not first_tool_calls:
@@ -646,7 +686,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
 
             choice = next_resp.get("choices", [{}])[0]
             new_msg = choice.get("message", {})
-            next_tool_calls = new_msg.get("tool_calls", [])
+            next_tool_calls = _normalize_tool_calls(new_msg)
 
             if not next_tool_calls:
                 # 任务完成，流式输出最终总结
