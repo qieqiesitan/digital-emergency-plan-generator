@@ -273,12 +273,17 @@ def _build_section_prompt(section_title: str, enterprise_data: dict, custom_inst
     if plan_type != "*" and section_key:
         tmpl = get_section_prompt(plan_type, section_key)
         if tmpl and tmpl.get("user_prompt_template"):
+            # 防御：模板尾部可能带「可用变量说明」块（内含 {{变量}} 示例），
+            # 会被 render_template 二次替换导致 enterprise_data 全文重复注入（prompt 翻倍）。
+            tmpl_text = tmpl["user_prompt_template"]
+            if "【可用变量说明】" in tmpl_text:
+                tmpl_text = tmpl_text.split("【可用变量说明】")[0].rstrip("-\n ")
             variables = {
                 "enterprise_data": json.dumps(enterprise_data, ensure_ascii=False, indent=2),
                 "accident_type": accident_type or "",
                 "previous_context": previous_context or "",
             }
-            prompt = render_template(tmpl["user_prompt_template"], variables)
+            prompt = render_template(tmpl_text, variables)
             if tmpl.get("system_prompt"):
                 prompt = tmpl["system_prompt"] + "\n\n---\n\n" + prompt
             mermaid_inst = _get_mermaid_instruction(section_key, section_title, diagram_preference)
@@ -548,7 +553,12 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
             "external_distance_km": r.external_distance_km,
         } for r in resources],
         "risk_events": risk_context.get("risk_events", []),
-        "zones": risk_context.get("zones", []),
+        # zones/objects/floors 仅保留轻量摘要（风险分区绘图坐标不注入 LLM prompt，
+        # 避免单企业 374 分区 polygon 撑爆 prompt 至 40 万+ 字符）
+        "zones": [
+            {"name": (z.get("name") or "") if isinstance(z, dict) else str(z)}
+            for z in (risk_context.get("zones") or [])
+        ],
         "risk_objects": risk_context.get("risk_objects", []),
         "floors": risk_context.get("floors", []),
         "floor_plan_url": getattr(enterprise, "floor_plan_url", None),
@@ -1041,9 +1051,17 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
             yield sse_event("progress", message=f"正在生成「{s.title}」...")
 
             full = ""
+            # 用独立 session 重新获取 AI 配置，避免请求级 ORM 对象在提交/会话关闭后
+            # 属性过期导致 LLM 流式调用静默失败（与批量后台生成模式一致）
+            from app.services.ai_config_service import get_system_ai_config as _reget_ai_cfg
+            from app.database import async_session as _cfg_session
+            async with _cfg_session() as _cfg_db:
+                _ai_cfg = await _reget_ai_cfg(_cfg_db)
+            if not _ai_cfg:
+                raise RuntimeError("系统未配置 AI 模型，请联系管理员")
 
             async for chunk_content in _stream_llm_chunks(
-                prompt, ai_config, p.plan_type, p.style_preference,
+                prompt, _ai_cfg, p.plan_type, p.style_preference,
                 p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
             ):
 
@@ -1189,8 +1207,15 @@ async def regenerate_selection(
         try:
             yield sse_event("progress", message=f"正在重生成「{s.title}」选中段落...")
 
+            from app.services.ai_config_service import get_system_ai_config as _reget_ai_cfg2
+            from app.database import async_session as _cfg_session2
+            async with _cfg_session2() as _cfg_db2:
+                _ai_cfg2 = await _reget_ai_cfg2(_cfg_db2)
+            if not _ai_cfg2:
+                raise RuntimeError("系统未配置 AI 模型，请联系管理员")
+
             async for chunk_content in _stream_llm_chunks(
-                user_prompt, ai_config, p.plan_type, p.style_preference,
+                user_prompt, _ai_cfg2, p.plan_type, p.style_preference,
                 p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
             ):
                 yield sse_event("chunk", content=chunk_content)
@@ -1263,8 +1288,14 @@ async def generate_preview(
     async def event_generator():
         try:
             full = ""
+            from app.services.ai_config_service import get_system_ai_config as _reget_ai_cfg3
+            from app.database import async_session as _cfg_session3
+            async with _cfg_session3() as _cfg_db3:
+                _ai_cfg3 = await _reget_ai_cfg3(_cfg_db3)
+            if not _ai_cfg3:
+                raise RuntimeError("系统未配置 AI 模型，请联系管理员")
             async for chunk in _stream_llm_chunks(
-                prompt, ai_config, p.plan_type,
+                prompt, _ai_cfg3, p.plan_type,
                 p.style_preference, p.advanced_prompt_overrides,
                 payload_overrides=LAYER_PARAMS["generate"],
             ):
