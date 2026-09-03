@@ -1,25 +1,17 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import uuid4
 from typing import Optional
-from sqlalchemy import String, Text, DateTime, ForeignKey, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, Text, DateTime, func
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
 
-class HazardousChemical(Base):
-    """危险化学品信息表 —— 存储企业涉及的危险化学品 MSDS 级数据"""
-    __tablename__ = "hazardous_chemicals"
+class ChemicalLibrary(Base):
+    """系统级危险化学品公共库条目（MSDS 标准属性，跨企业共享）。"""
+    __tablename__ = "chemical_library"
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
-    enterprise_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"),
-        nullable=False, index=True,
-    )
-    library_id: Mapped[Optional[str]] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("chemical_library.id", ondelete="SET NULL"),
-        nullable=True, index=True,
-    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     cas_no: Mapped[Optional[str]] = mapped_column(String(50))
     un_no: Mapped[Optional[str]] = mapped_column(String(20))
@@ -35,7 +27,5 @@ class HazardousChemical(Base):
     storage_transport: Mapped[Optional[str]] = mapped_column(Text)
     first_aid: Mapped[Optional[str]] = mapped_column(Text)
     protective_measures: Mapped[Optional[str]] = mapped_column(Text)
-    location: Mapped[Optional[str]] = mapped_column(String(300))
-    max_storage: Mapped[Optional[str]] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
