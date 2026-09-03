@@ -20,13 +20,16 @@ export interface RiskAssessmentReport {
   enterprise_id: string;
   title: string;
   content: string;
-  summary: RiskAssessmentSummary;
+  summary: Partial<RiskAssessmentSummary> & {
+    chapters?: Array<{ key: string; title: string; content: string }>;
+  };
   status: "draft" | "generating" | "completed";
   generated_by: "ai" | "manual";
   generated_at: string | null;
   current_version?: number;
   created_at: string;
   updated_at: string;
+  style_preference?: Record<string, string> | null;
 }
 
 export interface RiskAssessmentPreview {

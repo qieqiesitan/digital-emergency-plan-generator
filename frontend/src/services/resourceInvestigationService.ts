@@ -1,6 +1,7 @@
 import type { ApiResponse } from '@/types/common';
 import type { ResourceInvestigationReport, ResourceInvestigationPreview } from "@/types/resourceInvestigation";
 import type { ReportVersionItem, SSEEvent } from "@/types/riskAssessment";
+import type { ReportIssue } from "@/types/reportWorkspace";
 import type { ChapterDef } from '@/services/riskAssessmentService';
 import api from "./api";
 
@@ -42,41 +43,60 @@ export function generateResourceInvestigationStream(
   customInstruction: string | undefined,
   onEvent: (event: SSEEvent) => void,
   onError: (error: string) => void,
-  onComplete: () => void
+  onComplete: () => void,
+): AbortController {
+  return ssePost(
+    `/api/v1/enterprises/${enterpriseId}/resource-investigation/generate`,
+    { custom_instruction: customInstruction || null },
+    { onEvent, onError, onComplete },
+  );
+}
+
+interface SSEPostCallbacks {
+  onEvent: (event: SSEEvent) => void;
+  onError: (error: string) => void;
+  onComplete: () => void;
+}
+
+function ssePost(
+  path: string,
+  body: Record<string, unknown>,
+  cb: SSEPostCallbacks,
 ): AbortController {
   const controller = new AbortController();
   const token = localStorage.getItem("access_token");
 
-  fetch(`/api/v1/enterprises/${enterpriseId}/resource-investigation/generate`, {
+  fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ custom_instruction: customInstruction || null }),
+    body: JSON.stringify(body),
     signal: controller.signal,
   })
     .then(async (response) => {
       if (!response.ok) {
         const err = await response.json().catch(() => ({ message: "生成请求失败" }));
-        onError(err.message || err.detail || "生成请求失败");
+        cb.onError(err.message || err.detail || "生成请求失败");
         return;
       }
       const reader = response.body?.getReader();
-      if (!reader) { onError("无法读取响应流"); return; }
+      if (!reader) { cb.onError("无法读取响应流"); return; }
       const decoder = new TextDecoder();
       let buffer = "";
       while (true) {
         const { done, value } = await reader.read();
-        if (done) { onComplete(); break; }
+        if (done) { cb.onComplete(); break; }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             try {
-              const jsonStr = line.replace(/^(?:data: )+/, ""); const event: SSEEvent = JSON.parse(jsonStr);
-              onEvent(event);
+              const jsonStr = line.replace(/^(?:data: )+/, "");
+              const event: SSEEvent = JSON.parse(jsonStr);
+              cb.onEvent(event);
             } catch { /* skip */ }
           }
         }
@@ -84,11 +104,65 @@ export function generateResourceInvestigationStream(
     })
     .catch((err) => {
       if (err.name !== "AbortError") {
-        onError(err.message || "网络错误");
+        cb.onError(err.message || "网络错误");
       }
     });
 
   return controller;
+}
+
+export function generateResourceInvestigationSectionStream(
+  enterpriseId: string,
+  chapterKey: string,
+  cb: {
+    onEvent: (event: SSEEvent) => void;
+    onError: (error: string) => void;
+    onComplete: () => void;
+  },
+): AbortController {
+  return ssePost(
+    `/api/v1/enterprises/${enterpriseId}/resource-investigation/generate/section`,
+    { chapter_key: chapterKey },
+    cb,
+  );
+}
+
+export async function saveResourceInvestigationSection(
+  enterpriseId: string,
+  chapterKey: string,
+  content: string,
+): Promise<void> {
+  await api.put(`/enterprises/${enterpriseId}/resource-investigation/sections/${chapterKey}`, { content });
+}
+
+export async function reviewResourceInvestigation(
+  enterpriseId: string,
+  sectionKeys: string[] | null = null,
+): Promise<ReportIssue[]> {
+  const res = await api.post(`/enterprises/${enterpriseId}/resource-investigation/review`, { section_keys: sectionKeys });
+  return res.data.data.issues;
+}
+
+export async function applyResourceInvestigationReview(
+  enterpriseId: string,
+  sectionKeys: string[],
+): Promise<Array<{ section_key: string; title: string; original: string; revised: string }>> {
+  const res = await api.post(`/enterprises/${enterpriseId}/resource-investigation/review/apply`, { section_keys: sectionKeys });
+  return res.data.data.applied;
+}
+
+export async function getResourceInvestigationStyle(
+  enterpriseId: string,
+): Promise<Record<string, string>> {
+  const res = await api.get(`/enterprises/${enterpriseId}/resource-investigation/style`);
+  return res.data.data.style_preference || {};
+}
+
+export async function saveResourceInvestigationStyle(
+  enterpriseId: string,
+  style: Record<string, string>,
+): Promise<void> {
+  await api.put(`/enterprises/${enterpriseId}/resource-investigation/style`, { style_preference: style });
 }
 
 

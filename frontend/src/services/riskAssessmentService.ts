@@ -1,5 +1,6 @@
 import type { ApiResponse } from '@/types/common';
 import type { RiskAssessmentReport, RiskAssessmentPreview, ReportVersionItem, SSEEvent } from "@/types/riskAssessment";
+import type { ReportIssue } from "@/types/reportWorkspace";
 import api from "./api";
 import type { AxiosRequestConfig } from "axios";
 
@@ -62,43 +63,63 @@ export async function rollbackRiskAssessmentVersion(enterpriseId: string, versio
 
 export function generateRiskAssessmentStream(
   enterpriseId: string,
+  customInstruction: string | undefined,
   onEvent: (event: SSEEvent) => void,
   onError: (error: string) => void,
-  customInstruction: string | undefined, onComplete: () => void
+  onComplete: () => void,
+): AbortController {
+  return ssePost(
+    `/api/v1/enterprises/${enterpriseId}/risk-assessment/generate`,
+    { custom_instruction: customInstruction || null },
+    { onEvent, onError, onComplete },
+  );
+}
+
+interface SSEPostCallbacks {
+  onEvent: (event: SSEEvent) => void;
+  onError: (error: string) => void;
+  onComplete: () => void;
+}
+
+function ssePost(
+  path: string,
+  body: Record<string, unknown>,
+  cb: SSEPostCallbacks,
 ): AbortController {
   const controller = new AbortController();
   const token = localStorage.getItem("access_token");
 
-  fetch(`/api/v1/enterprises/${enterpriseId}/risk-assessment/generate`, {
+  fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ custom_instruction: customInstruction || null }),
+    body: JSON.stringify(body),
     signal: controller.signal,
   })
     .then(async (response) => {
       if (!response.ok) {
         const err = await response.json().catch(() => ({ message: "生成请求失败" }));
-        onError(err.message || err.detail || "生成请求失败");
+        cb.onError(err.message || err.detail || "生成请求失败");
         return;
       }
       const reader = response.body?.getReader();
-      if (!reader) { onError("无法读取响应流"); return; }
+      if (!reader) { cb.onError("无法读取响应流"); return; }
       const decoder = new TextDecoder();
       let buffer = "";
       while (true) {
         const { done, value } = await reader.read();
-        if (done) { onComplete(); break; }
+        if (done) { cb.onComplete(); break; }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             try {
-              const jsonStr = line.replace(/^(?:data: )+/, ""); const event: SSEEvent = JSON.parse(jsonStr);
-              onEvent(event);
+              const jsonStr = line.replace(/^(?:data: )+/, "");
+              const event: SSEEvent = JSON.parse(jsonStr);
+              cb.onEvent(event);
             } catch { /* skip */ }
           }
         }
@@ -106,11 +127,65 @@ export function generateRiskAssessmentStream(
     })
     .catch((err) => {
       if (err.name !== "AbortError") {
-        onError(err.message || "网络错误");
+        cb.onError(err.message || "网络错误");
       }
     });
 
   return controller;
+}
+
+export function generateRiskAssessmentSectionStream(
+  enterpriseId: string,
+  chapterKey: string,
+  cb: {
+    onEvent: (event: SSEEvent) => void;
+    onError: (error: string) => void;
+    onComplete: () => void;
+  },
+): AbortController {
+  return ssePost(
+    `/api/v1/enterprises/${enterpriseId}/risk-assessment/generate/section`,
+    { chapter_key: chapterKey },
+    cb,
+  );
+}
+
+export async function saveRiskAssessmentSection(
+  enterpriseId: string,
+  chapterKey: string,
+  content: string,
+): Promise<void> {
+  await api.put(`/enterprises/${enterpriseId}/risk-assessment/sections/${chapterKey}`, { content });
+}
+
+export async function reviewRiskAssessment(
+  enterpriseId: string,
+  sectionKeys: string[] | null = null,
+): Promise<ReportIssue[]> {
+  const res = await api.post(`/enterprises/${enterpriseId}/risk-assessment/review`, { section_keys: sectionKeys });
+  return res.data.data.issues;
+}
+
+export async function applyRiskAssessmentReview(
+  enterpriseId: string,
+  sectionKeys: string[],
+): Promise<Array<{ section_key: string; title: string; original: string; revised: string }>> {
+  const res = await api.post(`/enterprises/${enterpriseId}/risk-assessment/review/apply`, { section_keys: sectionKeys });
+  return res.data.data.applied;
+}
+
+export async function getRiskAssessmentStyle(
+  enterpriseId: string,
+): Promise<Record<string, string>> {
+  const res = await api.get(`/enterprises/${enterpriseId}/risk-assessment/style`);
+  return res.data.data.style_preference || {};
+}
+
+export async function saveRiskAssessmentStyle(
+  enterpriseId: string,
+  style: Record<string, string>,
+): Promise<void> {
+  await api.put(`/enterprises/${enterpriseId}/risk-assessment/style`, { style_preference: style });
 }
 
 
