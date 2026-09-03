@@ -144,6 +144,8 @@ def _html_table_to_docx(doc, html_table: str):
 def _clean_for_docx(content: str) -> str:
     """Strip markdown artifacts that _render_content_to_docx doesn't handle."""
     import re as _re
+    # 0. Markdown 表格（| 分隔）→ HTML 表格（docx 渲染器只认 HTML table）
+    content = _md_tables_to_html(content)
     # 1. Remove fenced code blocks
     content = _re.sub(r'```[\w]*\n[\s\S]*?```', '', content)
     # 2. Remove bare mermaid blocks (no code fences: "mermaid\nflowchart...")
@@ -199,6 +201,51 @@ def _clean_for_docx(content: str) -> str:
     content = '\n'.join(lines_out)
     return content
 
+
+def _md_tables_to_html(content: str) -> str:
+    """把连续的 Markdown 管道表格块转换为 HTML <table>，其余内容原样返回。"""
+    import re as _re
+
+    lines = content.split("\n")
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        if not _re.match(r'^\s*\|.*\|\s*$', line):
+            out.append(line)
+            i += 1
+            continue
+        # 收集连续管道行
+        block: list[str] = []
+        j = i
+        while j < n and _re.match(r'^\s*\|.*\|\s*$', lines[j]):
+            block.append(lines[j].strip())
+            j += 1
+        # 仅当第 2 行是分隔行（|---|）才视为 Markdown 表格
+        if len(block) >= 2 and _re.match(r'^\|[\s:\-|]+\|$', block[1]):
+            def _cells(row: str) -> list[str]:
+                return [c.strip() for c in row.strip().strip("|").split("|")]
+
+            header = _cells(block[0])
+            rows = [_cells(r) for r in block[2:]]
+            html_parts = [
+                '<table border="1" cellpadding="4" cellspacing="0"><thead><tr>'
+            ]
+            html_parts.extend(f"<th>{c}</th>" for c in header)
+            html_parts.append("</tr></thead><tbody>")
+            for row in rows:
+                html_parts.append("<tr>")
+                html_parts.extend(f"<td>{c}</td>" for c in row)
+                html_parts.append("</tr>")
+            html_parts.append("</tbody></table>")
+            out.append("".join(html_parts))
+            i = j
+            continue
+        out.append(line)
+        i += 1
+    return "\n".join(out)
+
 def _render_content_to_docx(doc, content: str):
     """Render content that may contain interleaved text and HTML tables into docx."""
     from docx.shared import Pt
@@ -216,6 +263,30 @@ def _render_content_to_docx(doc, content: str):
             # Render text lines
             for line in part.split("\n"):
                 line = line.strip()
+                import re as _re
+                img_m = _re.match(r"^!\[([^\]]*)\]\((uploads|/uploads/[^)]+)\)\s*$", line)
+                if img_m:
+                    url = img_m.group(2)
+                    local = None
+                    if url.startswith("/uploads/"):
+                        from pathlib import Path
+                        local = str(Path(__file__).resolve().parents[2] / "uploads" / url[len("/uploads/"):])
+                    elif url.startswith("uploads/"):
+                        from pathlib import Path
+                        local = str(Path(__file__).resolve().parents[2] / url)
+                    if local and Path(local).exists():
+                        try:
+                            from docx.shared import Inches
+                            para = doc.add_paragraph()
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = para.add_run()
+                            run.add_picture(local, width=Inches(6.3))
+                            if img_m.group(1):
+                                cap = doc.add_paragraph(img_m.group(1))
+                                cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        except Exception as e:
+                            logger.warning("docx image insert failed: %s", e)
+                    continue
                 if not line:
                     doc.add_paragraph("")
                 elif line.startswith("# "):
@@ -543,15 +614,19 @@ async def generate_risk_assessment(
                     bg_report.content = full_content.strip()
                     bg_report.summary = {"chapters": chapters_json}
                     try:
-                        import json as _json2, re as _re2
+                        from app.services.report_summary_utils import extract_trailing_json
                         last_ch = chapter_contents[-1] if chapter_contents else None
                         if last_ch:
-                            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
-                            if m:
-                                struct = _json2.loads(m.group())
+                            struct = extract_trailing_json(last_ch.get("content", ""))
+                            if struct:
                                 bg_report.summary.update(struct)
                     except Exception:
                         pass
+                    try:
+                        from app.services.report_four_color_service import render_enterprise_four_color_images
+                        bg_report.summary["images"] = await render_enterprise_four_color_images(enterprise_id, bg_db)
+                    except Exception:
+                        logger.exception("four-color images render failed")
                     await bg_db.commit()
 
             import json as _json
@@ -974,16 +1049,25 @@ async def merge_risk_assessment(
 
     report.title = report_title
     merged = _clean_for_docx(merged)
+    try:
+        from app.services.report_four_color_service import (
+            four_color_images_markdown,
+            insert_figure_block,
+        )
+        images = (report.summary or {}).get("images") or []
+        block = four_color_images_markdown(images)
+        merged = insert_figure_block(merged, block, "三、风险等级评估")
+    except Exception:
+        logger.exception("four-color figure inject failed")
     report.content = merged
     report.status = "completed"
     report.summary = {"chapters": chapters}
     try:
-        import json as _json2, re as _re2
+        from app.services.report_summary_utils import extract_trailing_json
         last_ch = chapters[-1] if chapters else None
         if last_ch:
-            m = _re2.search(r"\{[^}]+\}\s*$", last_ch.get("content", ""))
-            if m:
-                struct = _json2.loads(m.group())
+            struct = extract_trailing_json(last_ch.get("content", ""))
+            if struct:
                 report.summary.update(struct)
     except Exception:
         pass
