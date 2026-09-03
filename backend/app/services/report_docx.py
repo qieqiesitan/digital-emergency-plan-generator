@@ -93,6 +93,34 @@ def _clean_chapter(content: str) -> str:
     return _clean_for_docx(content or "")
 
 
+def _norm_title_text(text: str) -> str:
+    """去掉标题行常见的 markdown 修饰（#/**）后归一化。"""
+    t = text.strip()
+    t = re.sub(r"^#{1,6}\s*", "", t)
+    t = t.strip("*").strip()
+    return t.strip()
+
+
+def _strip_leading_title_duplicate(content: str, title: str) -> str:
+    """删除章节正文开头与章节标题重复的首行（模型输出常自带标题行）。"""
+    target = _norm_title_text(title)
+    if not target:
+        return content
+    lines = (content or "").splitlines()
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if _norm_title_text(stripped) == target:
+            # 去掉标题行及紧随其后的空行
+            rest = lines[i + 1:]
+            while rest and not rest[0].strip():
+                rest.pop(0)
+            return "\n".join(rest)
+        break
+    return content
+
+
 def _embed_local_image(doc: Document, src: str) -> bool:
     """把 /uploads/... 本地图嵌入 docx；失败返回 False。"""
     from app.main import UPLOAD_DIR
@@ -155,7 +183,7 @@ def generate_report_docx(
         if not content:
             continue
 
-        cleaned = _clean_chapter(content)
+        cleaned = _strip_leading_title_duplicate(_clean_chapter(content), title)
         html = markdown.markdown(
             cleaned, extensions=["tables", "fenced_code", "md_in_html"],
         )

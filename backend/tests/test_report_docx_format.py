@@ -98,3 +98,19 @@ def test_split_report_content_chapters_fallback():
     ]
     assert "第一段内容" in chapters[0]["content"]
     assert "第二段内容" in chapters[1]["content"]
+
+
+def test_duplicate_leading_chapter_title_stripped():
+    """章节内容自带同名标题行时，正文不再重复出现该标题。"""
+    doc = _doc(
+        chapters=[
+            {
+                "key": "ch1",
+                "title": "一、危险有害因素辨识分析",
+                "content": "一、危险有害因素辨识分析\n\n辨识正文内容。",
+            }
+        ]
+    )
+    joined = "\n".join(p.text for p in doc.paragraphs)
+    assert joined.count("一、危险有害因素辨识分析") == 1
+    assert "辨识正文内容" in joined
