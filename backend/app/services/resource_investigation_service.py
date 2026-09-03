@@ -1,4 +1,3 @@
-from app.regulations.injector import inject_regulations
 import json
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +5,9 @@ from sqlalchemy import select
 from app.models.enterprise import Enterprise, EmergencyResource
 from app.models.risk_assessment import RiskAssessmentReport
 from app.models.resource_investigation import ResourceInvestigationReport
+from app.regulations.context_builder import RegulationContextBuilder
+from app.services.report_data_loader import load_chemicals, load_org_members
+from app.services.risk_context_builder import build_risk_management_context
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,36 @@ async def build_resource_investigation_context(enterprise_id: str, db: AsyncSess
     if risk_report and isinstance(risk_report.summary, dict):
         risk_conclusion = risk_report.summary.get("overall_assessment", risk_conclusion)
         top_risks = risk_report.summary.get("top_risks", [])
+
+    # 风险管控数据兜底：即使风险评估摘要缺失，也把风险事件统计/高风险源带进去
+    risk_ctx = await build_risk_management_context(enterprise_id, db)
+    overview_map: dict[tuple, int] = {}
+    for rs in risk_ctx.get("risk_sources", []):
+        key = (rs.get("accident_type") or "其他", rs.get("risk_level") or "")
+        overview_map[key] = overview_map.get(key, 0) + 1
+    risk_overview = [
+        {"accident_type": k[0], "risk_level": k[1], "count": v}
+        for k, v in sorted(
+            overview_map.items(), key=lambda item: (-item[1], item[0][0])
+        )
+    ]
+    level_rank = {"重大": 0, "较大": 1, "一般": 2, "低": 3}
+    top_risk_sources = sorted(
+        (
+            {
+                "name": rs.get("name", ""),
+                "location": rs.get("location", ""),
+                "risk_level": rs.get("risk_level", ""),
+                "accident_type": rs.get("accident_type", ""),
+                "control_measures": (rs.get("control_measures") or "")[:200],
+            }
+            for rs in risk_ctx.get("risk_sources", [])
+        ),
+        key=lambda x: level_rank.get(x["risk_level"], 9),
+    )[:10]
+
+    chemicals = await load_chemicals(enterprise_id, db)
+    org_members = await load_org_members(enterprise_id, db)
 
     return {
         "enterprise": {
@@ -96,6 +128,11 @@ async def build_resource_investigation_context(enterprise_id: str, db: AsyncSess
         ],
         "risk_conclusion": risk_conclusion,
         "top_risks": top_risks,
+        "risk_overview": risk_overview,
+        "top_risk_sources": top_risk_sources,
+        "total_events": risk_ctx.get("total_events", 0),
+        "chemicals": chemicals,
+        "org_members": org_members,
     }
 
 
@@ -176,7 +213,11 @@ SYSTEM_PROMPT = """你是一位持有国家注册安全工程师资格的应急�
 def _get_ri_system_prompt() -> str:
     """获取应急资源调查系统提示词，优先从数据库取。"""
     cached = get_report_system_prompt("resource_investigation_system")
-    return cached if cached else SYSTEM_PROMPT
+    if cached:
+        return cached
+    from app.services.report_system_prompts import RI_REPORT_SYSTEM_PROMPT
+
+    return RI_REPORT_SYSTEM_PROMPT
 
 
 CHAPTER_DEFINITIONS = [
@@ -241,7 +282,7 @@ CHAPTER_DEFINITIONS = [
             "2）对照现有内部资源，判断是否充足\n"
             "3）对照外部可依托资源，判断响应时间\n"
             "4）识别资源缺口——具体说明缺什么、为什么缺、建议补充什么、预估数量\n\n"
-            "【输出要求】缺口分析必须具体、有针对性。字数 600-900 字。禁止使用 Markdown 符号。\n\n请在以上正文内容之后，额外输出一个 Mermaid flowchart 流程图，描述「应急资源调查与评估流程」。\n要求：\n1. 使用 flowchart TD（自上而下）布局\n2. 包含关键节点：确定调查范围→内部资源清点→外部资源调查→风险场景需求分析→资源缺口识别→补充建议→结论\n3. 节点用方括号[]表示，决策节点用菱形{}表示\n4. 流程图放在单独的 ```mermaid 代码块中，放在章节正文末尾\n5. 节点文字使用中文，简洁明了（每节点不超过15个字）"
+            "【输出要求】缺口分析必须具体、有针对性。字数 600-900 字。禁止使用 Markdown 符号。"
         ),
     },
     {
@@ -259,7 +300,13 @@ CHAPTER_DEFINITIONS = [
 ]
 
 
-def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_instruction=None):
+def build_chapter_prompt(
+    chapter_key,
+    context,
+    previous_chapters=None,
+    custom_instruction=None,
+    style_preference: dict | None = None,
+):
     enterprise = context["enterprise"]
     internal = context.get("internal_resources", [])
     external = context.get("external_resources", [])
@@ -293,6 +340,37 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
         "主要设备清单：" + str(enterprise.get("main_equipment_list", "") or "（待补充）"),
         "自然条件：" + str(enterprise.get("natural_conditions", "") or "（待补充）"),
         "",
+    ]
+    org_members = context.get("org_members") or []
+    if org_members:
+        lines_out.append("【应急组织成员（共 " + str(len(org_members)) + " 人）】")
+        for m in org_members:
+            member_line = "1）" + str(m.get("name", "")) + "，" + str(m.get("position", ""))
+            if m.get("phone"):
+                member_line += "，联系电话：" + str(m.get("phone", ""))
+            lines_out.append(member_line)
+        lines_out.append("")
+    chemicals = context.get("chemicals") or []
+    if chemicals:
+        lines_out.append("【企业涉及危险化学品明细（共 " + str(len(chemicals)) + " 种）】")
+        for i, c in enumerate(chemicals, 1):
+            c_line = str(i) + "）名称：" + str(c.get("name", ""))
+            if c.get("cas_no"):
+                c_line += "（CAS " + str(c.get("cas_no", "")) + "）"
+            props = []
+            for label, key in (
+                ("物理状态", "physical_state"),
+                ("闪点", "flash_point"),
+                ("爆炸极限", "explosion_limit"),
+                ("存放位置", "location"),
+            ):
+                if c.get(key):
+                    props.append(label + "：" + str(c.get(key, "")))
+            if props:
+                c_line += "，" + "；".join(props)
+            lines_out.append(c_line)
+        lines_out.append("")
+    lines_out += [
         "【风险评估结论】",
     ]
     if risk_conclusion is not None:
@@ -310,6 +388,29 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
             )
 
     lines_out.append("")
+    risk_overview = context.get("risk_overview") or []
+    if risk_overview:
+        lines_out.append("【主要风险场景（来自风险分级管控数据，共 "
+                         + str(context.get("total_events", 0)) + " 项风险事件）】")
+        for row in risk_overview:
+            lines_out.append(
+                "1）事故类型：" + str(row.get("accident_type", ""))
+                + "，风险等级：" + str(row.get("risk_level", "") or "未分级")
+                + "，共 " + str(row.get("count", 0)) + " 项"
+            )
+        lines_out.append("")
+    top_risk_sources = context.get("top_risk_sources") or []
+    if top_risk_sources:
+        lines_out.append("【较高风险源清单】")
+        for tr in top_risk_sources:
+            lines_out.append(
+                "1）" + str(tr.get("name", ""))
+                + "（" + str(tr.get("location", "") or "位置未填") + "）——"
+                + str(tr.get("accident_type", "")) + "，"
+                + str(tr.get("risk_level", "") or "未分级")
+                + "；现有管控措施：" + str(tr.get("control_measures", "") or "（未填写）")
+            )
+        lines_out.append("")
     lines_out.append("【内部应急资源清单（共 " + str(len(internal)) + " 项）】")
     idx = 1
     for r in internal:
@@ -362,6 +463,12 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
         lines_out.append(custom_instruction)
 
     prompt = "\n".join(lines_out)
+    if style_preference:
+        from app.services.prompt_cache import generate_style_instruction
+
+        style = dict(style_preference)
+        style["diagram_preference"] = "none"  # 报告正文禁用 mermaid
+        prompt += "\n\n【创作风格——请严格遵循】\n" + generate_style_instruction(style)
     try:
         reg_ctx = RegulationContextBuilder().get_chapter_context(
             section_key=chapter_key,
@@ -391,4 +498,3 @@ def get_chapter_title(chapter_key):
         if c["key"] == chapter_key:
             return c["title"]
     return chapter_key
-

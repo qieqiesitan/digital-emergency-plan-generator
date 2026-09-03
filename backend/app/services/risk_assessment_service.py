@@ -1,10 +1,10 @@
-from app.regulations.injector import inject_regulations
 import json
 import logging
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.risk_assessment import RiskAssessmentReport
 from app.services.risk_context_builder import build_risk_management_context
+from app.regulations.context_builder import RegulationContextBuilder
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,9 @@ def _get_ra_system_prompt(style_preference: dict | None = None) -> str:
     cached = get_report_system_prompt("risk_assessment_system")
     if cached:
         return cached
-    return build_system_prompt_with_style(style_preference=style_preference or {})
+    from app.services.report_system_prompts import RA_REPORT_SYSTEM_PROMPT
+
+    return RA_REPORT_SYSTEM_PROMPT
 
 # L/S value normalizers
 _LS_TEXT_MAP = {"\u9ad8": 4, "\u4e2d": 3, "\u4f4e": 2, "\u8f83\u9ad8": 4, "\u8f83\u4f4e": 2, "\u5f88\u9ad8": 5, "\u5f88\u4f4e": 1}
@@ -140,12 +142,12 @@ CHAPTER_DEFINITIONS = [
     {
         "key": "ch3_risk_eval",
         "title": "三、风险等级评估",
-        "instruction": "请根据前面已完成的风险辨识结果，进行L\u00d7S风险矩阵评估。\n\n（一）评估方法与标准——说明采用L\u00d7S风险矩阵法（5级量表，L:1-5, S:1-5, R=L\u00d7S）。\n\n请输出以下三个标准HTML表格：\n\n表1：事故发生的可能性（L）分级标准（等级1-5 | 标准描述）\nL=5: 在现场没有采取防范、监测、保护、控制措施，或危害的发生不能被发现，或在正常情况经常发生此类事故或事件\nL=4: 危害的发生不容易被发现，现场没有检测系统，或控制措施未有效执行或不恰当，或危害常发生在预期情况下发生\nL=3: 没有保护措施，或未严格按操作程序执行，或危害的发生容易被发现，或过去曾经发生类似事故或事件\nL=2: 危害一旦发生能及时发现，并定期进行监测，或现场有防范控制措施并能有效执行，或过去偶尔发生事故或事件\nL=1: 有充分有效的防范、控制、监测、保护措施，员工安全意识高，严格执行操作规程，极不可能发生事故\n\n表2：事故后果严重程度（S）分级标准（等级1-5 | 法律法规及其他要求 | 人员 | 财产损失/万元 | 停止运营 | 企业形象）\n包含5级完整描述，每级覆盖5个维度\n\n表3：风险等级判定及控制措施（风险度 | 等级 | 应采取的行动/控制措施 | 实施期限）\n20-25\u21921级重大\u2192立刻 | 15-16\u21922级较大\u2192立即或近期整改 | 9-12\u21923级一般\u21922年内治理 | <8\u21924级低\u2192有条件有经费时治理\n\n（二）L\u00d7S风险评估计算表——对前面辨识出的所有事故类型逐项计算，输出HTML表格：序号 | 事故类型 | L | S | R | 风险等级\n\n（三）重大风险分析——对R\u226520的项目详细分析后果和影响范围。\n\n【输出要求】所有表格使用HTML table格式。L/S值须结合企业实际合理赋值。字数2000-3500字。\n\n请在以上正文内容之后，额外输出一个 Mermaid flowchart 流程图，描述「L×S风险评估流程」。\n要求：\n1. 使用 flowchart TD（自上而下）布局\n2. 包含关键节点：确定事故类型→评估可能性(L)→评估严重性(S)→计算R=L×S→判定风险等级→制定管控措施\n3. 节点用方括号[]表示，决策节点用菱形{}表示\n4. 流程图放在单独的 ```mermaid 代码块中，放在章节正文末尾\n5. 节点文字使用中文，简洁明了（每节点不超过15个字）",
+        "instruction": "请根据前面已完成的风险辨识结果，进行L\u00d7S风险矩阵评估。\n\n（一）评估方法与标准——说明采用L\u00d7S风险矩阵法（5级量表，L:1-5, S:1-5, R=L\u00d7S）。\n\n请输出以下三个标准HTML表格：\n\n表1：事故发生的可能性（L）分级标准（等级1-5 | 标准描述）\nL=5: 在现场没有采取防范、监测、保护、控制措施，或危害的发生不能被发现，或在正常情况经常发生此类事故或事件\nL=4: 危害的发生不容易被发现，现场没有检测系统，或控制措施未有效执行或不恰当，或危害常发生在预期情况下发生\nL=3: 没有保护措施，或未严格按操作程序执行，或危害的发生容易被发现，或过去曾经发生类似事故或事件\nL=2: 危害一旦发生能及时发现，并定期进行监测，或现场有防范控制措施并能有效执行，或过去偶尔发生事故或事件\nL=1: 有充分有效的防范、控制、监测、保护措施，员工安全意识高，严格执行操作规程，极不可能发生事故\n\n表2：事故后果严重程度（S）分级标准（等级1-5 | 法律法规及其他要求 | 人员 | 财产损失/万元 | 停止运营 | 企业形象）\n包含5级完整描述，每级覆盖5个维度\n\n表3：风险等级判定及控制措施（风险度 | 等级 | 应采取的行动/控制措施 | 实施期限）\n20-25\u21921级重大\u2192立刻 | 15-16\u21922级较大\u2192立即或近期整改 | 9-12\u21923级一般\u21922年内治理 | <8\u21924级低\u2192有条件有经费时治理\n\n（二）L\u00d7S风险评估计算表——对前面辨识出的所有事故类型逐项计算，输出HTML表格：序号 | 事故类型 | L | S | R | 风险等级\n\n（三）重大风险分析——对R\u226520的项目详细分析后果和影响范围。\n\n【输出要求】所有表格使用HTML table格式。L/S值须结合企业实际合理赋值。字数2000-3500字。",
     },
     {
         "key": "ch4_measures",
         "title": "四、现有管控措施评价",
-        "instruction": "请根据风险源数据中记录的现有管控措施，逐项评价其有效性和充分性。\n\n对每项重大和较大风险源对应的管控措施进行评价，格式如下：\n1）风险源名称：XXX\n   现有措施：XXX\n   评价：XXX（指出优点和不足）\n   定性：有效/基本有效/需改进\n\n【输出要求】直接输出正文，评价应具体有针对性。至少覆盖所有重大和较大风险源。字数800-1500字。\n\n请在以上正文内容之后，额外输出一个 Mermaid flowchart 流程图，描述「L×S风险评估流程」。\n要求：\n1. 使用 flowchart TD（自上而下）布局\n2. 包含关键节点：确定事故类型→评估可能性(L)→评估严重性(S)→计算R=L×S→判定风险等级→制定管控措施\n3. 节点用方括号[]表示，决策节点用菱形{}表示\n4. 流程图放在单独的 ```mermaid 代码块中，放在章节正文末尾\n5. 节点文字使用中文，简洁明了（每节点不超过15个字）",
+        "instruction": "请根据风险源数据中记录的现有管控措施，逐项评价其有效性和充分性。\n\n对每项重大和较大风险源对应的管控措施进行评价，格式如下：\n1）风险源名称：XXX\n   现有措施：XXX\n   评价：XXX（指出优点和不足）\n   定性：有效/基本有效/需改进\n\n【输出要求】直接输出正文，评价应具体有针对性。至少覆盖所有重大和较大风险源。字数800-1500字。",
     },
     {
         "key": "ch5_conclusion",
@@ -155,7 +157,13 @@ CHAPTER_DEFINITIONS = [
 ]
 
 
-def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_instruction=None):
+def build_chapter_prompt(
+    chapter_key,
+    context,
+    previous_chapters=None,
+    custom_instruction=None,
+    style_preference: dict | None = None,
+):
     enterprise = context["enterprise"]
     risk_sources = context["risk_sources"]
     for rs in risk_sources:
@@ -196,16 +204,73 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
         if val:
             lines_out.append(label + "：" + str(val))
     lines_out.append("")
+    org_members = context.get("org_members") or []
+    if org_members:
+        lines_out.append("【应急组织成员（共 " + str(len(org_members)) + " 人）】")
+        for m in org_members:
+            member_line = "1）" + str(m.get("name", "")) + "，" + str(m.get("position", ""))
+            if m.get("phone"):
+                member_line += "，联系电话：" + str(m.get("phone", ""))
+            lines_out.append(member_line)
+        lines_out.append("")
     lines_out.append("【风险源清单（共 " + str(len(risk_sources)) + " 项）】")
     for i, rs in enumerate(risk_sources, 1):
         lines_out.append(str(i) + "）风险源名称：" + str(rs.get("name", "")))
+        if rs.get("zone") or rs.get("object") or rs.get("unit"):
+            path = " / ".join(
+                str(rs.get(k) or "")
+                for k in ("zone", "object", "unit")
+                if rs.get(k)
+            )
+            lines_out.append("   所属层级：" + path)
         lines_out.append("   风险类别：" + str(rs.get("categories", "")))
         lines_out.append("   所在位置：" + str(rs.get("location", "")))
+        if rs.get("accident_type"):
+            lines_out.append("   事故类型：" + str(rs.get("accident_type", "")))
         lines_out.append("   风险描述：" + str(rs.get("description", "")))
         lines_out.append("   可能性参考：L级" + str(rs.get("_l_num", 2)) + "级)")
         lines_out.append("   严重性参考：S级" + str(rs.get("_s_num", 2)) + "级)")
         lines_out.append("   风险等级参考：" + str(rs.get("risk_level", "")))
+        if rs.get("risk_score") not in (None, ""):
+            lines_out.append("   风险分值（R）：" + str(rs.get("risk_score", "")))
+        if rs.get("inherent_risk_level"):
+            inherent = str(rs.get("inherent_risk_level", ""))
+            if rs.get("inherent_risk_score") not in (None, ""):
+                inherent += "（" + str(rs.get("inherent_risk_score", "")) + "）"
+            lines_out.append("   固有风险：" + inherent)
+        if rs.get("triggers"):
+            lines_out.append("   触发条件：" + str(rs.get("triggers", ""))[:200])
+        if rs.get("consequences"):
+            lines_out.append("   可能后果：" + str(rs.get("consequences", ""))[:200])
         lines_out.append("   现有管控措施：" + str(rs.get("control_measures", "")))
+        lines_out.append("")
+    chemicals = context.get("chemicals") or []
+    if chemicals:
+        lines_out.append("【危险化学品明细（共 " + str(len(chemicals)) + " 种）】")
+        for i, c in enumerate(chemicals, 1):
+            c_line = str(i) + "）名称：" + str(c.get("name", ""))
+            if c.get("cas_no"):
+                c_line += "（CAS " + str(c.get("cas_no", "")) + "）"
+            props = []
+            for label, key in (
+                ("物理状态", "physical_state"),
+                ("闪点", "flash_point"),
+                ("爆炸极限", "explosion_limit"),
+                ("自燃温度", "ignition_temp"),
+                ("沸点", "boiling_point"),
+                ("密度", "density"),
+                ("存放位置", "location"),
+                ("最大储量", "max_storage"),
+            ):
+                if c.get(key):
+                    props.append(label + "：" + str(c.get(key, "")))
+            if props:
+                c_line += "，" + "；".join(props)
+            lines_out.append(c_line)
+            if c.get("health_hazard"):
+                lines_out.append("   健康危害：" + str(c.get("health_hazard", ""))[:300])
+            if c.get("fire_hazard"):
+                lines_out.append("   火灾/爆炸危害：" + str(c.get("fire_hazard", ""))[:300])
         lines_out.append("")
     if previous_chapters:
         lines_out.append("【前面章节内容（供参考，保持一致）】")
@@ -229,6 +294,12 @@ def build_chapter_prompt(chapter_key, context, previous_chapters=None, custom_in
         lines_out.append("【用户补充要求】")
         lines_out.append(custom_instruction)
     prompt = "\n".join(lines_out)
+    if style_preference:
+        from app.services.prompt_cache import generate_style_instruction
+
+        style = dict(style_preference)
+        style["diagram_preference"] = "none"  # 报告正文禁用 mermaid
+        prompt += "\n\n【创作风格——请严格遵循】\n" + generate_style_instruction(style)
     try:
         reg_ctx = RegulationContextBuilder().get_chapter_context(
             section_key=chapter_key,
@@ -258,4 +329,3 @@ def get_chapter_title(chapter_key):
         if c["key"] == chapter_key:
             return c["title"]
     return chapter_key
-
