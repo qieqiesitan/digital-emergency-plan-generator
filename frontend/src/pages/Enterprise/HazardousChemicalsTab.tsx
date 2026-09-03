@@ -213,6 +213,11 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
             {formItems}
           </div>
+          {/* 隐藏字段：承载库选择来源标记，保证 validateFields 返回 library_id 并随保存落库；
+              手动添加时 resetFields 清空、无该键；编辑时由 record.library_id 自动回填。 */}
+          <Form.Item name="library_id" hidden>
+            <Input />
+          </Form.Item>
         </Form>
       </Modal>
 
