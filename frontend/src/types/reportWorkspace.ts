@@ -13,6 +13,8 @@ export interface ReportDocument {
   status: string;
   chapters: ReportChapter[];
   stylePreference?: Record<string, string> | null;
+  /** 全量生成产出的四色分布图（risk 类型 summary.images 透传） */
+  fourColorImages?: Array<{ floor_id: string; floor_name: string; url: string }>;
 }
 
 export interface ReportIssue {

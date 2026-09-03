@@ -4,6 +4,7 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
   Empty,
   message,
   Modal,
@@ -943,6 +944,21 @@ export default function ReportWorkspace({
                   readOnly={generating === "full" || generatingKeys.has(currentChapter.key)}
                   placeholder={`编辑「${currentChapter.title}」内容...`}
                 />
+                {kind === "risk" && currentChapter?.key === "ch2_summary" && (doc?.fourColorImages?.length ?? 0) > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8 }}>四色分布图</div>
+                    {doc?.fourColorImages?.map((im) => (
+                      <Card
+                        key={im.floor_id}
+                        size="small"
+                        style={{ marginBottom: 12 }}
+                        title={`${im.floor_name} 四色分布图`}
+                      >
+                        <img src={im.url} alt={im.floor_name} style={{ maxWidth: "100%" }} />
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           ) : (

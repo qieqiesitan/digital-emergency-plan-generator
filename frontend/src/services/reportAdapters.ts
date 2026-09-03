@@ -22,6 +22,9 @@ function makeAdapter(
         status: doc.status,
         chapters: chaptersFrom(doc),
         stylePreference: doc.style_preference,
+        fourColorImages: (doc.summary as
+          | { images?: Array<{ floor_id: string; floor_name: string; url: string }> }
+          | undefined)?.images ?? [],
       };
     },
     saveChapter: (enterpriseId, key, content) => kind === "risk"
