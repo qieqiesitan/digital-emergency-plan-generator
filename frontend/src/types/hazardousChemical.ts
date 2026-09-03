@@ -1,6 +1,7 @@
 ﻿export interface HazardousChemical {
   id: string;
   enterprise_id: string;
+  library_id: string | null;
   name: string;
   cas_no: string | null;
   un_no: string | null;
@@ -24,6 +25,7 @@
 
 export interface HazardousChemicalCreate {
   name: string;
+  library_id?: string | null;
   cas_no?: string;
   un_no?: string;
   physical_state?: string;
