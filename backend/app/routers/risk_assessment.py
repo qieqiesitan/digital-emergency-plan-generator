@@ -23,6 +23,7 @@ from app.services.markdown_utils import md_to_html
 from app.services.report_chapter_utils import (
     chapters_to_summary,
     get_chapters,
+    rebuild_chapters_summary,
     upsert_chapter,
 )
 from app.services.report_generation_progress import save_generation_progress
@@ -751,7 +752,9 @@ def _risk_section_event_generator(
                     # SQLAlchemy 判定为变更，必须生成新对象才会发 UPDATE
                     chapters = [dict(c) for c in get_chapters(bg_report.summary)]
                     chapters = upsert_chapter(chapters, cdef["key"], cdef["title"], ch_content)
-                    bg_report.summary = chapters_to_summary(chapters)
+                    bg_report.summary = rebuild_chapters_summary(
+                        chapters, dict(bg_report.summary or {})
+                    )
                     await bg_db.commit()
             yield sse_event("section_done", section_key=cdef["key"],
                             message=f"「{cdef['title']}」生成完成",
@@ -830,7 +833,7 @@ async def save_risk_assessment_section(
     # 拷贝章节后再 upsert，避免 JSONB 原地修改不被识别
     chapters = [dict(c) for c in get_chapters(report.summary)]
     chapters = upsert_chapter(chapters, chapter_key, title, body.content)
-    report.summary = chapters_to_summary(chapters)
+    report.summary = rebuild_chapters_summary(chapters, dict(report.summary or {}))
     await db.commit()
     return ApiResponse(data={"content_length": len(body.content)})
 
@@ -1049,14 +1052,19 @@ async def merge_risk_assessment(
             four_color_images_markdown,
             insert_figure_block,
         )
+        from app.services.report_four_color_service import (
+            render_enterprise_four_color_images as _render_four_color_images,
+        )
         images = (report.summary or {}).get("images") or []
+        if not images:
+            images = await _render_four_color_images(enterprise_id, db)
         block = four_color_images_markdown(images)
         merged = insert_figure_block(merged, block, "三、风险等级评估")
     except Exception:
         logger.exception("four-color figure inject failed")
     report.content = merged
     report.status = "completed"
-    report.summary = {"chapters": chapters}
+    report.summary = rebuild_chapters_summary(chapters, dict(report.summary or {}))
     try:
         from app.services.report_summary_utils import extract_trailing_json
         last_ch = chapters[-1] if chapters else None
