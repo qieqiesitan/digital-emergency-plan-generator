@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Alert,
@@ -37,20 +37,12 @@ export default function PlanCreatePage() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [planType, setPlanType] = useState<PlanType | null>(initType);
-  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string | null>(
-    queryEnterpriseId || currentEnterpriseId,
-  );
+  // 显式选择优先；未选择时兜底当前企业（在第二步可见可改，不静默创建到首个企业）
+  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string | null>(null);
   const [accidentType, setAccidentType] = useState<string>("");
   const [title, setTitle] = useState("");
 
-  // 企业列表异步加载完成后，兜底默认当前企业（显式展示在第二步，可改，不静默创建到首个企业）
-  useEffect(() => {
-    if (!queryEnterpriseId && !selectedEnterpriseId && currentEnterpriseId) {
-      setSelectedEnterpriseId(currentEnterpriseId);
-    }
-  }, [queryEnterpriseId, selectedEnterpriseId, currentEnterpriseId]);
-
-  const effectiveEnterpriseId = queryEnterpriseId || selectedEnterpriseId;
+  const effectiveEnterpriseId = queryEnterpriseId || selectedEnterpriseId || currentEnterpriseId;
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", effectiveEnterpriseId],
@@ -156,7 +148,7 @@ export default function PlanCreatePage() {
                 loading={enterprisesLoading}
                 showSearch
                 optionFilterProp="label"
-                value={selectedEnterpriseId ?? undefined}
+                value={selectedEnterpriseId ?? currentEnterpriseId ?? undefined}
                 onChange={(v) => setSelectedEnterpriseId(v)}
                 options={enterprises.map((e) => ({ value: e.id, label: e.name }))}
               />
