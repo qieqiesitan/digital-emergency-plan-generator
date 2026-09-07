@@ -60,6 +60,7 @@ export default function PlanEditorPage() {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
   const [failedSections, setFailedSections] = useState<Array<{ section_key: string; title: string }>>([]);
+  const [thinkingText, setThinkingText] = useState("");
   const [aiUnavailable, setAiUnavailable] = useState(false);
   const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
   const [advancedOverrides, setAdvancedOverrides] = useState<Record<string, unknown> | null>(null);
@@ -305,8 +306,13 @@ export default function PlanEditorPage() {
       keys ?? allKeys,
       (event: SSEEvent) => {
         switch (event.type) {
+          case "thinking":
+            if (event.message) setThinkingText(event.message);
+            break;
+
           case "progress":
             if (event.section_key) {
+              setThinkingText("");
               genContentRef.current[event.section_key] = genContentRef.current[event.section_key] || "";
               setGeneratingSections(prev => new Set(prev).add(event.section_key!));
               // Auto-select the section being generated (first time only per section)
@@ -324,6 +330,7 @@ export default function PlanEditorPage() {
 
           case "chunk":
             if (event.content && event.section_key) {
+              setThinkingText("");
               // Accumulate content in ref
               genContentRef.current[event.section_key] = (genContentRef.current[event.section_key] || "") + event.content;
               // Update editor if this section is currently viewed (using ref for StrictMode safety)
@@ -335,6 +342,7 @@ export default function PlanEditorPage() {
 
           case "section_done":
             if (event.section_key) {
+              setThinkingText("");
               completedCount++;
               setGeneratingSections(prev => { const next = new Set(prev); next.delete(event.section_key!); return next; });
               // Refresh sidebar to show updated section status
@@ -345,6 +353,7 @@ export default function PlanEditorPage() {
           case "batch_done":
             setIsGenerating(false);
             setGeneratingSections(new Set());
+            setThinkingText("");
             setBatchProgress({ current: 0, total: 0, message: "" });
             if (event.failed_sections && event.failed_sections.length > 0) {
               setFailedSections(event.failed_sections);
@@ -361,6 +370,7 @@ export default function PlanEditorPage() {
           case "error":
             setIsGenerating(false);
             setGeneratingSections(new Set());
+            setThinkingText("");
             reportGenerationError(event.message || "生成出错");
             break;
         }
@@ -368,6 +378,7 @@ export default function PlanEditorPage() {
       (error: string) => {
         setIsGenerating(false);
         setGeneratingSections(new Set());
+        setThinkingText("");
         setBatchProgress({ current: 0, total: 0, message: "" });
         reportGenerationError(error);
       },
@@ -538,6 +549,11 @@ export default function PlanEditorPage() {
           <div style={{ textAlign: "center", fontSize: 13, color: "#666", marginTop: 4 }}>
             {batchProgress.message}
           </div>
+          {thinkingText && (
+            <div style={{ textAlign: "center", fontSize: 13, color: "#374151", marginTop: 4, lineHeight: 1.6 }}>
+              {thinkingText}<span style={{ color: "#1a56db" }}>▌</span>
+            </div>
+          )}
         </div>
       )}
 

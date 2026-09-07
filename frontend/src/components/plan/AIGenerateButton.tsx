@@ -35,6 +35,7 @@ export default function AIGenerateButton({
   const [status, setStatus] = useState<GenStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [aiConfigError, setAiConfigError] = useState(false);
+  const [thinkingText, setThinkingText] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
   const [diffOld, setDiffOld] = useState("");
@@ -123,10 +124,14 @@ export default function AIGenerateButton({
         controllerRef.current = generateSectionStream(
           planId, sectionKey,
           (event) => {
-            if (event.type === "chunk" && event.content) {
+            if (event.type === "thinking") {
+              setThinkingText(event.message || "");
+            } else if (event.type === "chunk" && event.content) {
+              setThinkingText("");
               fullTextRef.current += event.content;
               onContentChunk(fullTextRef.current);
             } else if (event.type === "done") {
+              setThinkingText("");
               const newText = event.content || fullTextRef.current;
               if (oldContent && newText !== oldContent) {
                 setDiffOld(oldContent);
@@ -139,6 +144,7 @@ export default function AIGenerateButton({
               setStatus("done");
               setTimeout(() => setStatus("idle"), 1500);
             } else if (event.type === "error") {
+              setThinkingText("");
               applyGenError(event.message, "AI 生成失败");
             }
           },
@@ -167,7 +173,14 @@ export default function AIGenerateButton({
       {status === "loading" ? (
         // ponytail: in selection mode, feedback is handled by RichTextEditor toolbar; render nothing here
         mode === "selection" ? null : (
-          <Button icon={<LoadingOutlined />} onClick={handleStop} disabled={disabled}>生成中... 停止</Button>
+          <>
+            <Button icon={<LoadingOutlined />} onClick={handleStop} disabled={disabled}>生成中... 停止</Button>
+            {thinkingText && (
+              <span style={{ marginLeft: 10, fontSize: 12, color: "#374151" }}>
+                {thinkingText}
+              </span>
+            )}
+          </>
         )
       ) : status === "done" ? (
         <Button icon={<CheckCircleOutlined style={{ color: "#52c41a" }} />} disabled>生成完成</Button>

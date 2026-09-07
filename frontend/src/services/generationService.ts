@@ -1,4 +1,4 @@
-import type { SSEEvent, GenerateBatchRequest } from "@/types/plan";
+import type { SSEEvent, GenerateBatchRequest, GenerationStatusData } from "@/types/plan";
 import { sseFetch, apiJsonFetch } from "./sseFetch";
 
 export function generateSectionStream(
@@ -78,7 +78,7 @@ export async function generateBatchBackground(
 
 export async function getGenerationStatus(
   planId: string
-): Promise<{ code: number; data: { generating: boolean; failed_sections: Array<{ section_key: string; title: string }> } }> {
+): Promise<{ code: number; data: GenerationStatusData }> {
   return apiJsonFetch<{ code: number; data: { generating: boolean; failed_sections: Array<{ section_key: string; title: string }> } }>({
     path: `/plans/${planId}/generate/status`,
     errorMessage: "查询生成状态失败",

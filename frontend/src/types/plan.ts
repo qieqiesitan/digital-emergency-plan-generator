@@ -153,7 +153,19 @@ export interface GenerateBatchRequest {
   section_keys?: string[] | null;
 }
 
-export type SSEEventType = "chunk" | "done" | "error" | "progress" | "section_done" | "batch_done" | "token" | "chapter_start" | "chapter_end" | "complete";
+export interface GenerationStatusData {
+  generating: boolean;
+  failed_sections: Array<{ section_key: string; title: string }>;
+  phase?: "idle" | "thinking" | "writing" | "done";
+  section_key?: string;
+  section_title?: string;
+  index?: number;
+  total?: number;
+  thinking_brief?: string;
+  elapsed_seconds?: number;
+}
+
+export type SSEEventType = "chunk" | "done" | "error" | "progress" | "section_done" | "batch_done" | "token" | "chapter_start" | "chapter_end" | "complete" | "thinking";
 
 export interface SSEEvent {
   type: SSEEventType;
