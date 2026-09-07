@@ -696,7 +696,7 @@ def _embed_mermaid_svgs(html_content: str, svgs: dict[str, str]) -> str:
 
 async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = "*",
                              style_preference=None, advanced_overrides=None,
-                             payload_overrides=None):
+                             payload_overrides=None, reasoning_cb=None):
     try:
         messages = [
             {"role": "system", "content": _build_system_prompt(plan_type, style_preference, advanced_overrides)},
@@ -705,10 +705,12 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
         if payload_overrides:
             gen = await llm_chat_completion(
                 messages, ai_config, stream=True, timeout=120,
-                payload_overrides=payload_overrides,
+                payload_overrides=payload_overrides, reasoning_cb=reasoning_cb,
             )
         else:
-            gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
+            gen = await llm_chat_completion(
+                messages, ai_config, stream=True, timeout=120, reasoning_cb=reasoning_cb,
+            )
         async for chunk in gen:
             yield chunk
     except HTTPException:
@@ -722,13 +724,14 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
 
 async def _stream_llm_chunks_with_retry(prompt: str, ai_config: AIConfig, plan_type: str = "*",
                                         style_preference=None, advanced_overrides=None,
-                                        payload_overrides=None, max_attempts: int = 2):
+                                        payload_overrides=None, reasoning_cb=None,
+                                        max_attempts: int = 2):
     """流式返回 LLM 文本；某次尝试完全空输出（推理型模型把输出额度耗尽）时自动重试。"""
     for attempt in range(1, max_attempts + 1):
         saw_text = False
         async for chunk in _stream_llm_chunks(
             prompt, ai_config, plan_type, style_preference, advanced_overrides,
-            payload_overrides=payload_overrides,
+            payload_overrides=payload_overrides, reasoning_cb=reasoning_cb,
         ):
             if chunk and chunk.strip():
                 saw_text = True
@@ -737,6 +740,19 @@ async def _stream_llm_chunks_with_retry(prompt: str, ai_config: AIConfig, plan_t
         if saw_text:
             return
         logger.warning("LLM 空返回（第 %d/%d 次），自动重试", attempt, max_attempts)
+
+
+async def _collect_stream_text(prompt: str, ai_config: AIConfig, plan_type: str = "*",
+                               style_preference=None, advanced_overrides=None,
+                               payload_overrides=None, reasoning_cb=None) -> str:
+    """流式收集完整文本（不重试，重试由 run_batch_generation 负责）。"""
+    full = ""
+    async for chunk in _stream_llm_chunks(
+        prompt, ai_config, plan_type, style_preference, advanced_overrides,
+        payload_overrides=payload_overrides, reasoning_cb=reasoning_cb,
+    ):
+        full += chunk
+    return full
 
 
 async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*",
