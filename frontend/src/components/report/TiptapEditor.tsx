@@ -26,6 +26,7 @@ interface TiptapEditorProps {
   onChange: (html: string) => void;
   readOnly?: boolean;
   placeholder?: string;
+  maxHeight?: string;
   onReady?: (editor: Editor) => void;
   onSelectionUpdate?: (editor: Editor) => void;
 }
@@ -55,7 +56,7 @@ function ToolbarButton({
 }
 
 export default function TiptapEditor({
-  content, onChange, readOnly, placeholder, onReady, onSelectionUpdate,
+  content, onChange, readOnly, placeholder, maxHeight, onReady, onSelectionUpdate,
 }: TiptapEditorProps) {
   const isInternalChange = useRef(false);
   const onReadyRef = useRef(onReady);
@@ -182,7 +183,14 @@ export default function TiptapEditor({
           <AlignRightOutlined />
         </ToolbarButton>
       </div>
-      <EditorContent editor={editor} style={{ minHeight: 320, padding: "12px 16px" }} />
+      <EditorContent
+        editor={editor}
+        style={{
+          minHeight: 320,
+          padding: "12px 16px",
+          ...(maxHeight ? { maxHeight, overflow: "auto" } : {}),
+        }}
+      />
     </div>
   );
 }

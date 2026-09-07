@@ -71,6 +71,7 @@ export default function RichTextEditor({
           onChange={onChange}
           readOnly={readOnly}
           placeholder={placeholder}
+          maxHeight="calc(100vh - 320px)"
           onReady={(ed) => { editorRef.current = ed; }}
           onSelectionUpdate={(ed) => {
             const { from, to } = ed.state.selection;
