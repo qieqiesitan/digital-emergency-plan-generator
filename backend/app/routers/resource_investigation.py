@@ -36,6 +36,7 @@ from app.services.resource_investigation_service import (
 )
 from app.config import settings
 from app.routers.risk_assessment import (
+    _stream_chapter_events,
     _stream_llm_with_messages_chunked,
     _clean_for_docx,
 )
@@ -371,9 +372,17 @@ async def generate_resource_investigation(
                     {"role": "user", "content": ch_prompt},
                 ]
                 ch_content = ""
-                async for chunk_content in _stream_llm_with_messages_chunked(messages, ai_config):
-                    ch_content += chunk_content
-                    yield sse_event("chunk", content=chunk_content, section_key=ck)
+                from app.services.thinking_brief import CaptionThrottle
+                async for ev_kind, ev_payload in _stream_chapter_events(
+                    messages, ai_config, CaptionThrottle(ctitle), ck,
+                ):
+                    if ev_kind == "thinking":
+                        yield sse_event("thinking", section_key=ck, message=ev_payload)
+                    elif ev_kind == "chunk":
+                        ch_content += ev_payload
+                        yield sse_event("chunk", content=ev_payload, section_key=ck)
+                    else:
+                        ch_content = ev_payload or ch_content
 
                 chapter_contents.append({
                     "key": ck, "title": ctitle, "content": ch_content,
@@ -536,9 +545,17 @@ def _ri_section_event_generator(
                 {"role": "user", "content": ch_prompt},
             ]
             ch_content = ""
-            async for chunk_content in _stream_llm_with_messages_chunked(messages, ai_config):
-                ch_content += chunk_content
-                yield sse_event("chunk", content=chunk_content, section_key=cdef["key"])
+            from app.services.thinking_brief import CaptionThrottle
+            async for ev_kind, ev_payload in _stream_chapter_events(
+                messages, ai_config, CaptionThrottle(cdef["title"]), cdef["key"],
+            ):
+                if ev_kind == "thinking":
+                    yield sse_event("thinking", section_key=cdef["key"], message=ev_payload)
+                elif ev_kind == "chunk":
+                    ch_content += ev_payload
+                    yield sse_event("chunk", content=ev_payload, section_key=cdef["key"])
+                else:
+                    ch_content = ev_payload or ch_content
             if not ch_content.strip():
                 raise Exception("AI 未返回内容，请重试")
             async with async_session() as bg_db:
