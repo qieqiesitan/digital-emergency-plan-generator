@@ -81,6 +81,12 @@ async def _post_with_retry(base: str, payload: dict, headers: dict, timeout: int
     raise LLMError(0, "LLM retry exhausted")
 
 
+def _delta_texts(delta: dict) -> tuple[str, str]:
+    """从 SSE delta 提取 (reasoning_content, content)。"""
+    delta = delta or {}
+    return delta.get("reasoning_content") or "", delta.get("content") or ""
+
+
 async def llm_chat_completion(
     messages: list[dict],
     ai_config: AIConfig,
@@ -89,6 +95,7 @@ async def llm_chat_completion(
     tools: list | None = None,
     payload_overrides: dict | None = None,
     include_top_p: bool = True,
+    reasoning_cb=None,
 ) -> dict | AsyncGenerator[str, None]:
     """统一的 LLM Chat Completion 调用入口。
 
@@ -131,7 +138,7 @@ async def llm_chat_completion(
 
     if stream:
         # 流式路径：AsyncClient 在生成器内部创建和管理
-        return _stream_response(base, payload, ai_config, timeout)
+        return _stream_response(base, payload, ai_config, timeout, reasoning_cb=reasoning_cb)
 
     # 非流式路径
     headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
@@ -144,6 +151,7 @@ async def _stream_response(
     ai_config: AIConfig,
     timeout: int = 120,
     max_retries: int = DEFAULT_MAX_RETRIES,
+    reasoning_cb=None,
 ) -> AsyncGenerator[str, None]:
     """内部：流式响应处理（建连/首响应前可重试，中途断流不重试）。"""
     headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
@@ -166,7 +174,12 @@ async def _stream_response(
                             try:
                                 chunk = json.loads(data)
                                 delta = chunk.get("choices", [{}])[0].get("delta", {})
-                                content = delta.get("content", "")
+                                reasoning, content = _delta_texts(delta)
+                                if reasoning and reasoning_cb:
+                                    try:
+                                        reasoning_cb(reasoning)
+                                    except Exception:
+                                        logger.exception("reasoning_cb failed")
                                 if content:
                                     yield content
                             except json.JSONDecodeError:
