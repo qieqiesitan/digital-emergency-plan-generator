@@ -163,3 +163,12 @@
 
 - 后端：逐章事件辅助函数单测（thinking/chunk/end/error）、两个端点回归。
 - 前端：4 个文件类型检查与手工验收——生成报告时进度区出现约 2 秒一更的思考字幕，写作阶段消失。
+
+## 2026-09-07 复核修订（报告部分）
+
+09-03 之后代码发生了报告侧重构（ReportWorkspace、章节级生成端点、单章/重生成共用生成器、逐章落库），原“范围扩展”章节中后端/前端落点需要修订：
+
+- 后端：字幕事件需同时覆盖 **4 处逐章 LLM 流**——risk/resource 各自的“全量生成”循环，以及各自的单章/重生成共用生成器（`_risk_section_event_generator` / `_ri_section_event_generator`，桌面工作台单章生成走后者）。统一在共享的 `_stream_llm_with_messages_chunked`（risk_assessment.py，resource 复用导入）上加 `reasoning_cb`，并复用逐章事件队列辅助函数。
+- 前端：桌面端字幕 UI 应加在**通用 `components/report/ReportWorkspace.tsx`**（全量生成与单章生成两处 SSE switch）；`RiskAssessmentTab.tsx` / `ResourceInvestigationTab.tsx` 只是 ReportWorkspace 的薄包装，不再承载 SSE 处理。移动端 `RiskAssessmentScreen` / `ResourceInvestigationScreen` 仍走全量 SSE，保持不变。
+- 命名注意：后端已有 `report_generation_progress.py`（把“已完成章节”逐章**落库**）；本设计新增的是预案批量用的进程内 `generation_progress`（仅轮询、不落库），两者职责不同、不得混用或合并。
+- 执行注意：`backend/app/routers/risk_assessment.py` 存在他人未提交改动（章节摘要重建与四色图兜底）。执行报告任务前应先提交/暂存该文件既有改动，避免与字幕改动混提。

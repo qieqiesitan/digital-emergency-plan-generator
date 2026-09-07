@@ -39,9 +39,11 @@ docker exec emergency-plan-frontend node node_modules/typescript/bin/tsc -b
 - 修改 `backend/app/services/plan_generation_service.py`：默认分支（后台/聊天批量）改为内部流式收集，自动维护 generation_progress。
 - 修改 `backend/app/routers/risk_assessment.py` 与 `backend/app/routers/resource_investigation.py`：报告逐章生成输出 `thinking` 事件（范围扩展）。
 - 前端：`frontend/src/types/plan.ts`、`frontend/src/services/generationService.ts`、`frontend/src/pages/Plan/PlanEditorPage.tsx`、`frontend/src/components/plan/AIGenerateButton.tsx`、`frontend/src/mobile/screens/PlanEditorScreen.tsx`。
-- 前端（范围扩展）：`frontend/src/types/riskAssessment.ts`、`frontend/src/pages/Enterprise/RiskAssessmentTab.tsx`、`frontend/src/pages/Enterprise/ResourceInvestigationTab.tsx`、`frontend/src/mobile/screens/RiskAssessmentScreen.tsx`、`frontend/src/mobile/screens/ResourceInvestigationScreen.tsx`。
+- 前端（范围扩展）：`frontend/src/types/riskAssessment.ts`、`frontend/src/components/report/ReportWorkspace.tsx`（桌面两 Tab 的薄包装，SSE 在 Workspace 内）、`frontend/src/mobile/screens/RiskAssessmentScreen.tsx`、`frontend/src/mobile/screens/ResourceInvestigationScreen.tsx`。
 - 新增测试：`backend/tests/test_thinking_brief.py`、`backend/tests/test_generation_progress.py`、`backend/tests/test_llm_reasoning_cb.py`、`backend/tests/test_generation_thinking_stream.py`（部分）。
 - 新增测试（范围扩展）：`backend/tests/test_report_thinking.py`。
+
+> **2026-09-07 修订**：报告侧代码已重构（ReportWorkspace、章节级端点、单章共用生成器）。任务 12–14 的落点以修订注为准；桌面字幕 UI 实际修改 `components/report/ReportWorkspace.tsx`（两处 SSE switch），Tab 文件只是薄包装。`backend/app/routers/risk_assessment.py` 存在他人未提交改动（章节摘要重建/四色图兜底）——执行报告任务前先让用户提交或 stash 该文件，或用 `git add -p` 只暂存本任务 hunk，严禁混提。
 
 ---
 
@@ -996,6 +998,8 @@ docker restart emergency-plan-backend
 - 修改：`backend/app/routers/risk_assessment.py`（`_stream_llm_with_messages_chunked` 增加 `reasoning_cb`；新增 `_stream_chapter_events`）
 - 测试：`backend/tests/test_report_thinking.py`
 
+> **2026-09-07 修订**：本任务内容不变。确认 `resource_investigation.py` 从 `app.routers.risk_assessment` 复用导入 `_stream_llm_with_messages_chunked`（若已改为本地定义，则在本地函数同步加 `reasoning_cb`）。risk_assessment.py 当前有他人未提交改动，按文件结构节顶部修订注处理后再开始。
+
 - [ ] **步骤 1：编写失败的测试**
 
 ```python
@@ -1112,6 +1116,8 @@ git commit -m "feat(report): 报告逐章事件队列支持推理要点"
 - 修改：`backend/app/routers/risk_assessment.py`（`generate_risk_assessment` 逐章循环）
 - 修改：`backend/app/routers/resource_investigation.py`（`generate_resource_investigation` 逐章循环，导入并复用 `_stream_chapter_events`）
 
+> **2026-09-07 修订**：除两个“全量生成”逐章循环外，**同样替换**两个单章/重生成共用生成器（`_risk_section_event_generator`、`_ri_section_event_generator`）中的 `_stream_llm_with_messages_chunked` 流式循环——桌面 ReportWorkspace 的单章生成走的是 `generate/section` 端点（复用这两个生成器），必须一并覆盖。四处替换共用同一模式；全量循环保留现有的逐章落库（`_persist_*_generation`）、取消与错误处理代码不动。resource_investigation.py 若仍从 risk_assessment 导入 `_stream_llm_with_messages_chunked`，则 `_stream_chapter_events` 同样从 risk_assessment 导入。
+
 - [ ] **步骤 1：替换两端点的逐章流式循环**
 
 `risk_assessment.py` 的 `event_generator` 中，把：
@@ -1165,14 +1171,15 @@ git commit -m "feat(report): 两份报告逐章生成推送思考要点事件"
 
 ---
 
-### 任务 14：报告前端（桌面 Tab ×2、移动 Screen ×2）展示字幕
+### 任务 14：报告前端（桌面 ReportWorkspace、移动 Screen ×2）展示字幕
 
 **文件：**
 - 修改：`frontend/src/types/riskAssessment.ts`
-- 修改：`frontend/src/pages/Enterprise/RiskAssessmentTab.tsx`
-- 修改：`frontend/src/pages/Enterprise/ResourceInvestigationTab.tsx`
+- 修改：`frontend/src/components/report/ReportWorkspace.tsx`（替代原 Tab 修改：全量生成 ~329-410 与单章生成 ~421-470 两处 SSE switch）
 - 修改：`frontend/src/mobile/screens/RiskAssessmentScreen.tsx`
 - 修改：`frontend/src/mobile/screens/ResourceInvestigationScreen.tsx`
+
+> **2026-09-07 修订**：桌面 `RiskAssessmentTab.tsx` / `ResourceInvestigationTab.tsx` 已改为 ReportWorkspace 薄包装，不再直接处理 SSE；字幕 state、事件分支与渲染全部放在 `components/report/ReportWorkspace.tsx`。移动端两个 Screen 仍走全量 SSE，处理方式不变。`ReportWorkspace` 需要一处共享 `thinkingText` state：全量生成与单章生成的事件回调都更新它，`chunk/section_done/batch_done/done/error` 时清空；渲染插在批量进度 `batchProgress.message`（约 827-832 行）下方，单章生成时也可复用同区域/章节操作条附近。
 
 - [ ] **步骤 1：类型扩展**
 
@@ -1265,8 +1272,8 @@ docker restart emergency-plan-backend
 ```
 
 验收清单（新增）：
-1. 桌面端企业详情 → 风险评估报告 → AI 生成：进度区出现思考字幕，约 2 秒更新，写作开始消失。
-2. 桌面端应急资源调查报告同 1。
+1. 桌面端企业详情 → 风险评估报告（ReportWorkspace）：全量“一键生成”与单章生成均出现思考字幕，约 2 秒更新，写作开始消失。
+2. 桌面端应急资源调查报告（ReportWorkspace）同 1。
 3. 移动端 RiskAssessmentScreen / ResourceInvestigationScreen 同 1。
 4. 后端日志无推理原文。
 
@@ -1278,6 +1285,6 @@ docker restart emergency-plan-backend
 
 ## 自检结果
 
-- 规格覆盖：范围（桌面批量/两端单章/移动批量）、字幕形态 v2、隐私 memory-only、轮询 3s/200 次、阶段兜底、SSE `thinking` 事件、generation_progress 与 status 扩展均有对应任务（任务 1-11）；范围扩展（风险评估/资源调查两份报告的逐章 SSE 字幕）对应任务 12-15。
+- 规格覆盖：范围（桌面批量/两端单章/移动批量）、字幕形态 v2、隐私 memory-only、轮询 3s/200 次、阶段兜底、SSE `thinking` 事件、generation_progress 与 status 扩展均有对应任务（任务 1-11）；范围扩展（风险评估/资源调查：全量循环 ×2 + 单章共用生成器 ×2、ReportWorkspace + 移动 Screen ×2）对应任务 12-15。
 - 占位符：无 TODO/待定；代码变更步骤均含实际代码或精确 diff 说明。
 - 类型一致性：`CaptionThrottle.push`、`ThinkingBriefBuffer.feed`、`_collect_stream_text`、`generation_progress.set/get/clear`、前端 `GenerationStatusData` 与 `thinking` 事件在任务间保持一致；`reasoning_cb` 全部为可选参数，默认 None。
