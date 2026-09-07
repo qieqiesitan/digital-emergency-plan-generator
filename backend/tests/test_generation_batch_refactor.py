@@ -473,7 +473,7 @@ async def test_stream_chunks_with_retry_retries_when_first_attempt_empty(monkeyp
     calls = {"n": 0}
 
     async def fake_chunks(prompt, ai_config, plan_type="*", style_preference=None,
-                          advanced_overrides=None, payload_overrides=None):
+                          advanced_overrides=None, payload_overrides=None, reasoning_cb=None):
         calls["n"] += 1
         if calls["n"] == 1:
             yield ""
@@ -496,7 +496,7 @@ async def test_stream_chunks_with_retry_exhausts_then_returns_nothing(monkeypatc
     calls = {"n": 0}
 
     async def fake_chunks(prompt, ai_config, plan_type="*", style_preference=None,
-                          advanced_overrides=None, payload_overrides=None):
+                          advanced_overrides=None, payload_overrides=None, reasoning_cb=None):
         calls["n"] += 1
         yield ""
 

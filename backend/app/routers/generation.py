@@ -1085,7 +1085,6 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             yield sse_event("progress", message=f"正在生成「{s.title}」...")
 
-            full = ""
             # 用独立 session 重新获取 AI 配置，避免请求级 ORM 对象在提交/会话关闭后
             # 属性过期导致 LLM 流式调用静默失败（与批量后台生成模式一致）
             from app.services.ai_config_service import get_system_ai_config as _reget_ai_cfg
@@ -1095,14 +1094,40 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
             if not _ai_cfg:
                 raise RuntimeError("系统未配置 AI 模型，请联系管理员")
 
-            async for chunk_content in _stream_llm_chunks_with_retry(
-                prompt, _ai_cfg, p.plan_type, p.style_preference,
-                p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
-            ):
+            from app.services.thinking_brief import CaptionThrottle
+            events: asyncio.Queue = asyncio.Queue()
+            throttle = CaptionThrottle(s.title)
 
-                full += chunk_content
+            def _on_reasoning(piece: str) -> None:
+                caption = throttle.push(piece)
+                if caption:
+                    events.put_nowait(("thinking", caption))
 
-                yield sse_event("chunk", content=chunk_content)
+            async def _run_stream() -> str:
+                full = ""
+                async for chunk_content in _stream_llm_chunks_with_retry(
+                    prompt, _ai_cfg, p.plan_type, p.style_preference,
+                    p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
+                    reasoning_cb=_on_reasoning,
+                ):
+                    full += chunk_content
+                    events.put_nowait(("chunk", chunk_content))
+                events.put_nowait(("end", full))
+                return full
+
+            task = asyncio.create_task(_run_stream())
+            full = ""
+            while True:
+                kind, payload = await events.get()
+                if kind == "thinking":
+                    yield sse_event("thinking", section_key=section_key, message=payload)
+                elif kind == "chunk":
+                    full += payload
+                    yield sse_event("chunk", content=payload)
+                elif kind == "end":
+                    full = payload
+                    break
+            await task
 
             if not full or not full.strip():
                 raise RuntimeError("AI 返回内容为空，生成失败，请重试")
