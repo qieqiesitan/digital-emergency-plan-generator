@@ -34,3 +34,18 @@ export function stripAppBase(pathname: string, appBase: string = APP_BASE): stri
   }
   return pathname;
 }
+
+/**
+ * 生成对外公开链接（告知卡二维码 / 公示复制链接等）：
+ * 统一注入部署子路径 APP_BASE，避免子路径部署下链接落在 router basename 之外。
+ */
+export function buildPublicUrl(
+  path: string,
+  opts: { origin?: string; appBase?: string } = {},
+): string {
+  const origin =
+    opts.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
+  const base = opts.appBase ?? APP_BASE;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${origin}${base}${normalized}`;
+}

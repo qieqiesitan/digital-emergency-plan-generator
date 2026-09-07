@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_BASE, stripAppBase } from "./platform";
+import { APP_BASE, buildPublicUrl, stripAppBase } from "./platform";
 
 describe("stripAppBase", () => {
   it("appBase 为空时原样返回 pathname", () => {
@@ -34,5 +34,31 @@ describe("stripAppBase", () => {
 describe("APP_BASE", () => {
   it("始终为字符串（根路径构建时为空串）", () => {
     expect(typeof APP_BASE).toBe("string");
+  });
+});
+
+describe("buildPublicUrl", () => {
+  it("根路径部署时不注入额外前缀", () => {
+    expect(buildPublicUrl("/r/abc", { origin: "https://example.com", appBase: "" })).toBe(
+      "https://example.com/r/abc",
+    );
+  });
+
+  it("子路径部署时在 origin 后注入 APP_BASE", () => {
+    expect(
+      buildPublicUrl("/p/risk/xyz", {
+        origin: "https://example.com",
+        appBase: "/emergency-plan-migration",
+      }),
+    ).toBe("https://example.com/emergency-plan-migration/p/risk/xyz");
+  });
+
+  it("自动补全缺失的前导斜杠", () => {
+    expect(
+      buildPublicUrl("h/report/tok", {
+        origin: "https://example.com",
+        appBase: "/sub",
+      }),
+    ).toBe("https://example.com/sub/h/report/tok");
   });
 });
