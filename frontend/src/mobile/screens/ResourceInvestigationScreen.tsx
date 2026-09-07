@@ -46,6 +46,15 @@ export default function ResourceInvestigationScreen() {
   const hasReport = report && typeof report === "object" && "content" in report;
   const reportContent = hasReport ? (report as Record<string, unknown>).content : null;
 
+  // 后台生成中：每 4 秒拉一次报告，离开页面返回后仍能看到已保存产出
+  useEffect(() => {
+    if (!enterpriseId || !report || (report as { status?: string }).status !== "generating") return;
+    const timer = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["resource-investigation", enterpriseId] });
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [enterpriseId, report, queryClient]);
+
   // 清理 abort
   useEffect(() => {
     return () => { abortRef.current?.abort(); };

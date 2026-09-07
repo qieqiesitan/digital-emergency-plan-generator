@@ -256,6 +256,13 @@ export default function ReportWorkspace({
     void loadDocument();
   }, [loadDocument]);
 
+  // 后台生成中：每 4 秒拉一次报告，展示已保存章节
+  useEffect(() => {
+    if (!doc || doc.status !== "generating") return;
+    const timer = setInterval(() => void loadDocument(), 4000);
+    return () => clearInterval(timer);
+  }, [doc, loadDocument]);
+
   // 卸载/离开前提示未保存内容
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -833,14 +840,14 @@ export default function ReportWorkspace({
       )}
       {interruptedGenerating && (
         <Alert
-          type="warning"
+          type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="上次生成未完成"
-          description={`已保留 ${partialChapterCount}/${chapterDefs.length} 章。可对左侧空章节单独生成，或一键重新生成全部；若仍在其他页面生成中请稍候再试。`}
+          message="报告正在后台生成中…"
+          description={`已保存 ${partialChapterCount}/${chapterDefs.length} 章；生成不会因离开页面而中断，可稍后返回查看`}
           action={
-            <Button size="small" onClick={() => void startFullGenerate()}>
-              重新生成全部
+            <Button size="small" onClick={() => void loadDocument()}>
+              立即刷新
             </Button>
           }
         />
