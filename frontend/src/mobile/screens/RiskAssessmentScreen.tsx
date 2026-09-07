@@ -32,6 +32,7 @@ export default function RiskAssessmentScreen() {
   const [streamContent, setStreamContent] = useState("");
   const [progressMessage, setProgressMessage] = useState("");
   const [progressPct, setProgressPct] = useState(0);
+  const [thinkingText, setThinkingText] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +63,7 @@ export default function RiskAssessmentScreen() {
     if (!enterpriseId) return;
     setGenStatus("generating");
     setStreamContent("");
+    setThinkingText("");
     setProgressMessage("正在连接 AI 生成引擎…");
     setProgressPct(0);
 
@@ -69,7 +71,9 @@ export default function RiskAssessmentScreen() {
       enterpriseId,
       undefined,
       (event: SSEEvent) => {
-        if (event.type === "progress" || event.type === "chapter_start") {
+        if (event.type === "thinking") {
+          setThinkingText(event.message || "");
+        } else if (event.type === "progress" || event.type === "chapter_start") {
           setProgressMessage(event.message ?? event.chapter ?? "正在生成…");
           setProgressPct(Math.min(95, (event.current ?? 0) / Math.max(1, event.total ?? 8) * 100));
         } else if (event.type === "chapter_end") {
@@ -78,11 +82,13 @@ export default function RiskAssessmentScreen() {
             setStreamContent(prev => prev + chunk);
           }
         } else if (event.type === "token" || event.type === "chunk") {
+          setThinkingText("");
           const chunk = event.content ?? event.token ?? event.chunk ?? "";
           if (chunk) {
             setStreamContent(prev => prev + chunk);
           }
         } else if (event.type === "done" || event.type === "complete") {
+          setThinkingText("");
           if (event.content) setStreamContent(event.content);
           setGenStatus("done");
           setProgressPct(100);
@@ -90,11 +96,13 @@ export default function RiskAssessmentScreen() {
           queryClient.invalidateQueries({ queryKey: ["risk-assessment", enterpriseId] });
           queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
         } else if (event.type === "section_done") {
+          setThinkingText("");
           const chunk = event.content ?? "";
           if (chunk) {
             setStreamContent(prev => prev + chunk);
           }
         } else if (event.type === "batch_done") {
+          setThinkingText("");
           const batchChapters = event.chapters;
           if (batchChapters) {
             try {
@@ -173,6 +181,11 @@ export default function RiskAssessmentScreen() {
             </button>
           </div>
           <ProgressBar percent={progressPct} />
+          {thinkingText ? (
+            <div style={{ fontSize: 12, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
+              {thinkingText}
+            </div>
+          ) : null}
         </div>
       )}
 

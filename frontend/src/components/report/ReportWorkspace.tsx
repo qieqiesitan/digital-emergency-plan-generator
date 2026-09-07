@@ -112,6 +112,7 @@ export default function ReportWorkspace({
   const [generatingKeys, setGeneratingKeys] = useState<Set<string>>(new Set());
   const [failedChapters, setFailedChapters] = useState<ReportChapter[]>([]);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
+  const [thinkingText, setThinkingText] = useState("");
   const [aiUnavailable, setAiUnavailable] = useState(false);
 
   const [styleOpen, setStyleOpen] = useState(false);
@@ -128,6 +129,7 @@ export default function ReportWorkspace({
   const [genModalKey, setGenModalKey] = useState<string | null>(null);
   const [savingVersion, setSavingVersion] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   const allControllersRef = useRef<AbortController[]>([]);
@@ -265,6 +267,10 @@ export default function ReportWorkspace({
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
+      // 离开页面即停止进行中的生成：后端会把已完成章节落为草稿，
+      // 避免“生成到一半退出”后整份作废或残留 generating 空行
+      allControllersRef.current.forEach((c) => c.abort());
+      allControllersRef.current = [];
       flushPendingSaves();
     };
   }, [flushPendingSaves]);
@@ -326,7 +332,12 @@ export default function ReportWorkspace({
       {
         onEvent: (event) => {
           switch (event.type) {
+            case "thinking": {
+              setThinkingText(event.message || "");
+              break;
+            }
             case "progress": {
+              setThinkingText("");
               const sk = event.section_key as string | undefined;
               if (sk) setGeneratingKeys((prev) => new Set(prev).add(sk));
               setBatchProgress((prev) => ({
@@ -337,6 +348,7 @@ export default function ReportWorkspace({
               break;
             }
             case "chunk": {
+              setThinkingText("");
               const sk = event.section_key as string | undefined;
               if (sk && event.content) {
                 genBufferRef.current[sk] = (genBufferRef.current[sk] || "") + String(event.content);
@@ -345,6 +357,7 @@ export default function ReportWorkspace({
               break;
             }
             case "section_done": {
+              setThinkingText("");
               const sk = event.section_key as string | undefined;
               if (sk) {
                 setGeneratingKeys((prev) => {
@@ -357,6 +370,7 @@ export default function ReportWorkspace({
               break;
             }
             case "batch_done": {
+              setThinkingText("");
               const rawChapters = (event.chapters as unknown) || event.content || "";
               if (typeof rawChapters === "string" && rawChapters.trim()) {
                 try {
@@ -388,6 +402,7 @@ export default function ReportWorkspace({
               break;
             }
             case "error": {
+              setThinkingText("");
               const sk = event.section_key as string | undefined;
               if (sk) {
                 setFailedChapters((prev) => addFailedChapter(prev, sk, sk));
@@ -400,6 +415,7 @@ export default function ReportWorkspace({
           }
         },
         onError: (error) => {
+          setThinkingText("");
           showGenError(error, "生成失败，请重试");
           setGenerating(null);
           setGeneratingKeys(new Set());
@@ -430,7 +446,12 @@ export default function ReportWorkspace({
       const cb = {
         onEvent: (event: any) => {
           switch (event.type) {
+            case "thinking": {
+              setThinkingText(event.message || "");
+              break;
+            }
             case "chunk": {
+              setThinkingText("");
               if (event.content) {
                 genBufferRef.current[key] = (genBufferRef.current[key] || "") + String(event.content);
                 setChapterContent(key, genBufferRef.current[key]);
@@ -438,6 +459,7 @@ export default function ReportWorkspace({
               break;
             }
             case "section_done": {
+              setThinkingText("");
               setGenerating(null);
               setGeneratingKeys(new Set());
               const finalMd = genBufferRef.current[key] || "";
@@ -452,6 +474,7 @@ export default function ReportWorkspace({
               break;
             }
             case "error": {
+              setThinkingText("");
               setGenerating(null);
               setGeneratingKeys(new Set());
               showGenError(event.message, "单章生成失败");
@@ -460,6 +483,7 @@ export default function ReportWorkspace({
           }
         },
         onError: (error: string) => {
+          setThinkingText("");
           setGenerating(null);
           setGeneratingKeys(new Set());
           showGenError(error, "单章生成失败");
@@ -621,6 +645,11 @@ export default function ReportWorkspace({
   }, [adapter, enterpriseId, styleValue, showGenError]);
 
   const currentStatus = generating ? "generating" : doc?.status || "empty";
+  /** 上次会话中断残留的 generating 行（当前页面没有正在运行的生成） */
+  const interruptedGenerating = doc?.status === "generating" && !generating;
+  const partialChapterCount = interruptedGenerating
+    ? (doc?.chapters ?? []).filter((c) => c.content && c.content.trim()).length
+    : 0;
   const currentChapter = selectedDef;
   const hasDraftContent = Object.values(contentByKey).some((c) => c && c.trim());
   const saveStatus = currentChapter ? saveState[currentChapter.key] || "saved" : "saved";
@@ -653,7 +682,7 @@ export default function ReportWorkspace({
             重新生成
           </Button>
         )}
-        {currentStatus !== "generating" && (
+        {!generating && (
           <Button
             icon={<ThunderboltOutlined />}
             onClick={() => void startFullGenerate()}
@@ -701,6 +730,7 @@ export default function ReportWorkspace({
         )}
         <Button
           icon={<EyeOutlined />}
+          disabled={!!generating}
           onClick={() => navigate(`/enterprises/${enterpriseId}/${kind === "resource" ? "resource-investigation" : "risk-assessment"}/preview`)}
         >
           预览
@@ -708,9 +738,17 @@ export default function ReportWorkspace({
         <Button
           type="primary"
           icon={<ExportOutlined />}
+          loading={exporting}
           onClick={() => {
-            const url = adapter.exportUrl(enterpriseId);
-            if (url) window.open(url, "_blank");
+            setExporting(true);
+            adapter
+              .download(enterpriseId)
+              .catch((err: unknown) =>
+                message.error(
+                  (err as Error)?.message || "导出失败，请重试",
+                ),
+              )
+              .finally(() => setExporting(false));
           }}
         >
           导出
@@ -755,8 +793,8 @@ export default function ReportWorkspace({
         {toolbar}
         <div style={{ color: "#999", marginBottom: 12 }}>
           生成时间：
-          {(doc as ReportDocument & { generated_at?: string }).generated_at
-            ? new Date((doc as ReportDocument & { generated_at?: string }).generated_at!).toLocaleString("zh-CN")
+          {doc.generatedAt
+            ? new Date(doc.generatedAt).toLocaleString("zh-CN")
             : "-"}
         </div>
         <div
@@ -788,6 +826,25 @@ export default function ReportWorkspace({
     <div>
       {aiUnavailable && <AiNotConfiguredHint onClose={() => setAiUnavailable(false)} />}
       {toolbar}
+      {thinkingText && (
+        <div style={{ marginBottom: 8, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>
+          {thinkingText}<span style={{ color: "#1a56db" }}>▌</span>
+        </div>
+      )}
+      {interruptedGenerating && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="上次生成未完成"
+          description={`已保留 ${partialChapterCount}/${chapterDefs.length} 章。可对左侧空章节单独生成，或一键重新生成全部；若仍在其他页面生成中请稍候再试。`}
+          action={
+            <Button size="small" onClick={() => void startFullGenerate()}>
+              重新生成全部
+            </Button>
+          }
+        />
+      )}
       {generating === "full" && (
         <div style={{ marginBottom: 12 }}>
           <Progress

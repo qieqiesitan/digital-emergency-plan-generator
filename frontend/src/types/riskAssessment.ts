@@ -47,7 +47,7 @@ export interface ReportVersionItem {
 }
 
 export interface SSEEvent {
-  type: "progress" | "chunk" | "section_done" | "batch_done" | "error" | "token" | "chapter_start" | "chapter_end" | "done" | "complete";
+  type: "progress" | "chunk" | "section_done" | "batch_done" | "error" | "token" | "chapter_start" | "chapter_end" | "done" | "complete" | "thinking";
   message?: string;
   stage?: string;
   content?: string;
