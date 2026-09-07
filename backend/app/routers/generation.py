@@ -811,13 +811,24 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                 section_key_holder: dict = {}
 
                 async def sse_stream(prompt, cfg, pt, sp, ao):
+                    from app.services.thinking_brief import CaptionThrottle
                     full = ""
                     key = section_key_holder.get("key")
                     title = section_key_holder.get("title", key)
+                    throttle = CaptionThrottle(title)
+
+                    def _on_reasoning(piece: str) -> None:
+                        caption = throttle.push(piece)
+                        if caption:
+                            event_queue.put_nowait(sse_event(
+                                "thinking", section_key=key, message=caption,
+                            ))
+
                     try:
                         async for chunk in _stream_llm_chunks(
                             prompt, cfg, pt, sp, ao,
                             payload_overrides=LAYER_PARAMS["generate"],
+                            reasoning_cb=_on_reasoning,
                         ):
                             full += chunk
                             await event_queue.put(sse_event("chunk", content=chunk, section_key=key))
