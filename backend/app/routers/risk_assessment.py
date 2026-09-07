@@ -29,6 +29,7 @@ from app.services.report_chapter_utils import (
 from app.services.report_generation_progress import save_generation_progress
 from app.services.report_review_service import review_report_chapters
 from app.services.sse_utils import sse_event
+from app.services.background_stream import BackgroundStream
 from app.services.risk_assessment_service import (
     CHAPTER_DEFINITIONS as RA_CHAPTER_DEFINITIONS,
 )
@@ -688,7 +689,14 @@ async def generate_risk_assessment(
             yield sse_event("error", message=str(e))
         finally:
             _LIVE_RA_GENERATIONS.discard(enterprise_id)
-    return EventSourceResponse(event_generator())
+    stream = BackgroundStream()
+    await stream.start(event_generator)
+
+    async def event_sse():
+        async for event in stream.events():
+            yield event
+
+    return EventSourceResponse(event_sse())
 
 
 @router.get("/{enterprise_id}/risk-assessment/chapters")
