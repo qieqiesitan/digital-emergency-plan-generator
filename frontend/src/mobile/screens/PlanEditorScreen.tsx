@@ -90,6 +90,7 @@ export default function PlanEditorScreen() {
   const [generating, setGenerating] = useState(false);
   const [genProgressPct, setGenProgressPct] = useState(0);
   const [genProgressMsg, setGenProgressMsg] = useState("");
+  const [thinkingBrief, setThinkingBrief] = useState("");
   const [generationBanner, setGenerationBanner] = useState<{
     status: "generating" | "done" | "cancelled"; message: string;
   } | null>(null);
@@ -291,6 +292,7 @@ export default function PlanEditorScreen() {
 
     setGenerating(true);
     setGenProgressPct(0);
+    setThinkingBrief("");
     setGenProgressMsg(`AI 正在撰写"${selectedChapter.title}"…`);
     setGenerationBanner({ status: "generating", message: `AI 正在撰写"${selectedChapter.title}"…` });
 
@@ -308,12 +310,15 @@ export default function PlanEditorScreen() {
       onData: (data) => {
         try {
           const event = JSON.parse(data);
-          if (event.type === "progress" || event.type === "chapter_start") {
+          if (event.type === "thinking") {
+            setThinkingBrief(event.message || "");
+          } else if (event.type === "progress" || event.type === "chapter_start") {
             setGenProgressMsg(event.message ?? event.chapter ?? "");
             setGenProgressPct(Math.min(95, (event.current ?? 0) / Math.max(1, event.total ?? 1) * 100));
           } else {
             const chunk = event.content ?? event.token ?? event.chunk ?? "";
             if (chunk) {
+              setThinkingBrief("");
               accumulated += chunk;
               setLocalContent(accumulated);
             }
@@ -322,6 +327,7 @@ export default function PlanEditorScreen() {
       },
       onComplete: () => {
         setGenerating(false);
+        setThinkingBrief("");
         setGenProgressPct(100);
         setGenerationBanner({ status: "done", message: "✓ 生成完成" });
         autoSave(accumulated);
@@ -329,11 +335,13 @@ export default function PlanEditorScreen() {
       },
       onError: (message) => {
         setGenerating(false);
+        setThinkingBrief("");
         setGenerationBanner(null);
         showToast?.({ type: "error", message: message || "生成失败" });
       },
     }).catch((err: any) => {
       setGenerating(false);
+      setThinkingBrief("");
       setGenerationBanner(null);
       showToast?.({ type: "error", message: err?.message ?? "生成失败" });
     });
@@ -342,28 +350,48 @@ export default function PlanEditorScreen() {
   const handleCancelGeneration = () => {
     abortRef.current?.abort();
     setGenerating(false);
+    setThinkingBrief("");
     setGenerationBanner({ status: "cancelled", message: "已取消，已保留已生成内容" });
     setTimeout(() => setGenerationBanner(null), 2000);
   };
 
   // ========== AI 批量生成（后台 + 失败重试） ==========
-  // 后台批量生成通常需要 1-3 分钟，单次 5 秒查询几乎总是查不到结果。
-  // 改为多次轮询：每 15 秒查一次，最多 8 次（约 2 分钟），生成完成或出现失败即停止。
+  // 后台批量生成：生成中每 3 秒轮询一次读取阶段与思考要点；上限 200 次（约 10 分钟）兜底。
   const pollGenerationStatus = useCallback(
-    async (planId: string, attempts = 8, intervalMs = 15000) => {
+    async (planId: string, attempts = 200, intervalMs = 3000) => {
       for (let i = 0; i < attempts; i++) {
         await new Promise((r) => setTimeout(r, intervalMs));
         try {
           const status = await getGenerationStatus(planId);
           const failed = status?.data?.failed_sections ?? [];
+          setThinkingBrief(status?.data?.thinking_brief || "");
+          const label = status?.data?.phase === "writing" ? "正在撰写" : "思考中";
+          const progressText = status?.data?.section_title
+            ? `${status.data.index ?? ""}/${status.data.total ?? ""} · ${label} ${
+                status.data.elapsed_seconds != null ? `${status.data.elapsed_seconds} 秒` : ""
+              } · ${status.data.section_title}`
+            : "";
+          if (progressText) {
+            setGenProgressMsg(progressText);
+            setGenerationBanner({ status: "generating", message: progressText });
+          }
           if (!status?.data?.generating || failed.length > 0) {
+            setThinkingBrief("");
             setFailedSections(failed);
+            if (failed.length === 0) {
+              setGenerationBanner({ status: "done", message: "✓ 批量生成完成" });
+              setTimeout(() => setGenerationBanner(null), 2000);
+            } else {
+              setGenerationBanner(null);
+            }
             return failed;
           }
         } catch {
           // 轮询失败继续尝试
         }
       }
+      setThinkingBrief("");
+      setGenerationBanner(null);
       return [];
     },
     []
@@ -376,9 +404,11 @@ export default function PlanEditorScreen() {
       return;
     }
     setFailedSections([]);
+    setThinkingBrief("");
     try {
       const res = await generateBatchBackground(planId, keys);
       showToast?.({ type: "success", message: res.message || "已在后台开始生成" });
+      setGenerationBanner({ status: "generating", message: res.message || "已在后台开始生成…" });
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       statusTimerRef.current = setTimeout(async () => {
         const failed = await pollGenerationStatus(planId);
@@ -389,6 +419,7 @@ export default function PlanEditorScreen() {
         queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
       }, 0);
     } catch (e: any) {
+      setGenerationBanner(null);
       showToast?.({ type: "error", message: e?.message || "批量生成失败" });
     }
   }, [planId, showToast, queryClient, pollGenerationStatus]);
@@ -582,6 +613,11 @@ export default function PlanEditorScreen() {
           {generationBanner.status === "generating" && (
             <ProgressBar percent={genProgressPct} />
           )}
+          {thinkingBrief ? (
+            <div style={{ fontSize: 12, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
+              {thinkingBrief}
+            </div>
+          ) : null}
         </div>
       )}
 
