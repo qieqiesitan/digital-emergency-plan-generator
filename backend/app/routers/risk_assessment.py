@@ -355,14 +355,52 @@ async def _stream_llm_with_messages(messages: list[dict], ai_config: AIConfig) -
         raise Exception(f"LLM call failed: {e.status_code} {e.text[:300]}")
 
 
-async def _stream_llm_with_messages_chunked(messages: list[dict], ai_config: AIConfig):
+async def _stream_llm_with_messages_chunked(messages: list[dict], ai_config: AIConfig,
+                                            reasoning_cb=None):
     _guard_decrypt(ai_config)
     try:
-        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=120)
+        gen = await llm_chat_completion(
+            messages, ai_config, stream=True, timeout=120, reasoning_cb=reasoning_cb,
+        )
         async for chunk in gen:
             yield chunk
     except LLMError as e:
         raise Exception(f"LLM call failed: {e.status_code} {e.text[:300]}")
+
+
+async def _stream_chapter_events(messages, ai_config, throttle, section_key):
+    """逐章产出 ("thinking", caption) / ("chunk", text)；结束产出 ("end", full_text)。"""
+    import asyncio as _asyncio
+
+    events: _asyncio.Queue = _asyncio.Queue()
+
+    def _on_reasoning(piece):
+        caption = throttle.push(piece)
+        if caption:
+            events.put_nowait(("thinking", caption))
+
+    async def _run():
+        full = ""
+        try:
+            async for chunk in _stream_llm_with_messages_chunked(
+                messages, ai_config, reasoning_cb=_on_reasoning,
+            ):
+                full += chunk
+                events.put_nowait(("chunk", chunk))
+            events.put_nowait(("end", full))
+        except Exception as e:
+            events.put_nowait(("error", e))
+
+    task = _asyncio.create_task(_run())
+    while True:
+        kind, payload = await events.get()
+        if kind == "error":
+            await task
+            raise payload
+        yield kind, payload
+        if kind == "end":
+            await task
+            return
 
 
 async def _stream_llm_with_system(prompt: str, ai_config: AIConfig) -> str:
