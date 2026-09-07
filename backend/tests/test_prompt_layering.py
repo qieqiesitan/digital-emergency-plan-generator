@@ -47,7 +47,7 @@ async def test_review_revision_passes_review_layer_overrides(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_generate_default_branch_passes_generate_layer_overrides(monkeypatch):
-    """批量生成默认（非流式）分支必须向 _stream_llm 传 LAYER_PARAMS['generate']。"""
+    """批量生成默认（内部流式）分支必须向 _collect_stream_text 传 LAYER_PARAMS['generate']。"""
     from app.routers import generation as gen
     from app.services import plan_generation_service as svc
 
@@ -60,12 +60,13 @@ async def test_generate_default_branch_passes_generate_layer_overrides(monkeypat
 
     captured = {}
 
-    async def fake_stream_llm(prompt, ai_config, plan_type="*", style_preference=None,
-                              advanced_overrides=None, payload_overrides=None):
+    async def fake_collect(prompt, ai_config, plan_type="*", style_preference=None,
+                           advanced_overrides=None, payload_overrides=None,
+                           reasoning_cb=None, on_content_start=None):
         captured["payload_overrides"] = payload_overrides
         return "<p>ok</p>"
 
-    monkeypatch.setattr(gen, "_stream_llm", fake_stream_llm)
+    monkeypatch.setattr(gen, "_collect_stream_text", fake_collect)
     monkeypatch.setattr(gen, "_build_section_prompt", lambda *a, **k: "prompt")
     monkeypatch.setattr(gen, "_collect_previous_context", lambda *a, **k: None)
     monkeypatch.setattr(gen, "_pre_render_mermaid_svgs", AsyncMock(return_value=[]))
