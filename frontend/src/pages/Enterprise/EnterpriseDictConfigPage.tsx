@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   App as AntApp,
   Button,
@@ -30,6 +30,7 @@ import {
 } from "@/services/dataDictService";
 import type { DataDictItem, DataDictPayload } from "@/types/dataDict";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -85,7 +86,7 @@ interface DrawerState {
 /** 企业风险与隐患配置页：系统+企业合并视图，企业条目可覆盖系统默认。 */
 export default function EnterpriseDictConfigPage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/risk-management`);
   const queryClient = useQueryClient();
   const { message, modal } = AntApp.useApp();
   const [activeType, setActiveType] = useState<string>("全部");
@@ -329,7 +330,7 @@ export default function EnterpriseDictConfigPage() {
       <PageHeader
         title="风险与隐患配置"
         subtitle="查看系统默认字典并配置本企业覆盖（评估因子、管控层级映射、危害类型等）"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
         extra={
           <Button icon={<RollbackOutlined />} onClick={() => void refetch()}>
             刷新

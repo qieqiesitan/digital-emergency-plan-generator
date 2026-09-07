@@ -34,6 +34,7 @@ import type {
 } from "@/types/hazard";
 import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 
 const TASK_STATUS_LABELS: Record<HazardTaskStatus, string> = {
   pending: "待执行",
@@ -136,6 +137,7 @@ type ListFilters = Record<string, unknown>;
 export default function HazardTaskPage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/hazard`);
   const queryClient = useQueryClient();
   const { message } = AntApp.useApp();
   const [filters, setFilters] = useState<ListFilters>({});
@@ -395,7 +397,7 @@ export default function HazardTaskPage() {
       <PageHeader
         title="排查任务"
         subtitle="按计划自动生成的排查任务，逐项核对后提交；异常项可一键转为隐患登记"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
       />
 
       <Space wrap style={{ marginBottom: 16 }}>

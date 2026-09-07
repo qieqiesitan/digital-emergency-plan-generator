@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   Alert,
   App as AntApp,
@@ -35,6 +35,7 @@ import {
 } from "@/services/hazardService";
 import type { HazardChecklistTemplate, HazardChecklistTemplateItem } from "@/types/hazard";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 
 const { Text } = Typography;
 
@@ -75,7 +76,7 @@ interface TemplateFormValues {
 /** 检查表模板管理页（§7）：系统+企业合并列表、企业 CRUD、复制系统模板、AI 生成。 */
 export default function HazardTemplatePage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/hazard`);
   const queryClient = useQueryClient();
   const { message } = AntApp.useApp();
   const [form] = Form.useForm<TemplateFormValues>();
@@ -280,7 +281,7 @@ export default function HazardTemplatePage() {
       <PageHeader
         title="检查表模板"
         subtitle="系统模板与企业模板合并展示（企业同名模板优先）；系统模板需复制后编辑"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新建模板

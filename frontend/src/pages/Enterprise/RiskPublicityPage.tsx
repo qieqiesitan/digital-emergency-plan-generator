@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRiskPublicity, resetRiskPublicityToken } from "@/services/riskManagementService";
 import type { ControlListRow, PublicityZone } from "@/services/riskManagementService";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { toCanvasX, toCanvasY } from "@/utils/riskMappingGeometry";
 import { buildPublicUrl } from "@/utils/platform";
@@ -108,6 +109,7 @@ function PublicityMap({ zones }: { zones: PublicityZone[] }) {
 export default function RiskPublicityPage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/risk-management`);
   const { modal, message } = AntApp.useApp();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -213,7 +215,7 @@ export default function RiskPublicityPage() {
       <PageHeader
         title="重大风险公示"
         subtitle="面向全员公示重大风险及管控信息，可打印公告或复制公开脱敏链接"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
       />
 
       {isError || !data ? (

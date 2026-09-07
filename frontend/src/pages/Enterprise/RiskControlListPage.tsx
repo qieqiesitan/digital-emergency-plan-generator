@@ -8,6 +8,7 @@ import type { ControlListRow } from "@/services/riskManagementService";
 import { listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 
 const LEVEL_OPTIONS = ["重大", "较大", "一般", "低"];
@@ -31,6 +32,7 @@ function LevelTag({ level }: { level?: string }) {
 export default function RiskControlListPage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/risk-management`);
   const { message } = AntApp.useApp();
   const [filters, setFilters] = useState<ListFilters>({});
   const [page, setPage] = useState(1);
@@ -128,7 +130,7 @@ export default function RiskControlListPage() {
       <PageHeader
         title="风险分级管控清单"
         subtitle="按楼层/分区/等级/管控层级筛选，支持导出 Excel 台账"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
         extra={
           <Button type="primary" loading={exporting} onClick={() => void handleExport()}>
             导出 Excel

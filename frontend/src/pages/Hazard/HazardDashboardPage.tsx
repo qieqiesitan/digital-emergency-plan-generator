@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   App as AntApp,
   Badge,
@@ -25,6 +25,7 @@ import {
   getHazardDashboard,
 } from "@/services/hazardService";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 
 const { Text } = Typography;
 
@@ -247,7 +248,7 @@ function EnterpriseCompareChart({ data }: { data: { enterprise_id: string; name:
 /** 隐患驾驶舱（§12）：指标卡 + 图表 + 未读角标 + 导出。 */
 export default function HazardDashboardPage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/hazard`);
   const { message } = AntApp.useApp();
   const [exporting, setExporting] = useState<"ledger" | "report" | null>(null);
 
@@ -285,7 +286,7 @@ export default function HazardDashboardPage() {
   if (isError || !data) {
     return (
       <div>
-        <PageHeader title="隐患驾驶舱" onBack={() => navigate(-1)} />
+        <PageHeader title="隐患驾驶舱" onBack={appBack} />
         <Empty description="驾驶舱数据加载失败，请稍后重试">
           <Button type="primary" onClick={() => void refetch()}>
             重新加载
@@ -395,7 +396,7 @@ export default function HazardDashboardPage() {
       <PageHeader
         title="隐患驾驶舱"
         subtitle="企业隐患排查治理综合态势（指标口径与后端 dashboard 一致）"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
         extra={
           <Space wrap>
             <Tooltip title={unreadTip}>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Badge, Card, Segmented, Button, Tree, Tag, Spin, Space, Empty, Select } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import RiskDistributionStage from "@/components/enterprise/riskMapping/RiskDistr
 import RiskOverviewMatrix from "@/components/enterprise/RiskOverviewMatrix";
 import RiskOverviewStats from "@/components/enterprise/RiskOverviewStats";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { useAppBack } from "@/routing/useAppBack";
 import type { HierarchyEvent, HierarchyZone } from "@/types/riskManagement";
 
 type ViewMode = "quad" | "floorplan" | "data";
@@ -16,7 +17,9 @@ type ColorMode = "current" | "inherent";
 
 export default function RiskOverviewPage() {
   const { id: enterpriseId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const appBack = useAppBack(
+    enterpriseId ? `/enterprises/${enterpriseId}/risk-management` : "/enterprises",
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("quad");
   const [colorMode, setColorMode] = useState<ColorMode>(() => {
     const saved = localStorage.getItem("risk-overview-color-mode");
@@ -85,7 +88,7 @@ export default function RiskOverviewPage() {
   return (
     <div style={{ padding: "0 0 16px 0" }}>
       <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
+        <Button icon={<ArrowLeftOutlined />} onClick={appBack}>返回</Button>
         <Select
           value={effectiveFloorId}
           placeholder="选择楼层"

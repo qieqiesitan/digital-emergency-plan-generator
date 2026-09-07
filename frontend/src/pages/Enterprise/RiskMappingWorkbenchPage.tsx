@@ -52,7 +52,8 @@ export default function RiskMappingWorkbenchPage() {
       if (enterpriseId) {
         navigate(`/enterprises/${enterpriseId}/risk-management`);
       } else {
-        navigate(-1);
+        // 无企业参数（异常直达）时回企业列表，避免跳到站外历史
+        navigate("/enterprises", { replace: true });
       }
     };
     if (dirty) {

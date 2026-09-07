@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   App as AntApp,
   Button,
@@ -25,6 +24,7 @@ import {
 } from "@/services/dataDictService";
 import type { DataDictItem, DataDictPayload } from "@/types/dataDict";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -49,7 +49,7 @@ interface DrawerState {
 
 /** 系统数据字典管理页（管理员）：按 dict_type 分组维护系统级字典条目。 */
 export default function DataDictManagePage() {
-  const navigate = useNavigate();
+  const appBack = useAppBack("/dashboard");
   const queryClient = useQueryClient();
   const { message } = AntApp.useApp();
   const [activeType, setActiveType] = useState<string>("全部");
@@ -207,7 +207,7 @@ export default function DataDictManagePage() {
       <PageHeader
         title="数据字典管理"
         subtitle="维护系统级字典（评估因子、管控层级映射、危害类型等），企业可在此基础上覆盖"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新增条目

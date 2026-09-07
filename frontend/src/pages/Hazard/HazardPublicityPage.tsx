@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   App as AntApp,
   Button,
@@ -20,6 +20,7 @@ import { getHazardPublicity, resetHazardPublicityToken } from "@/services/hazard
 import type { HazardPublicityItem } from "@/types/hazard";
 import { buildPublicUrl } from "@/utils/platform";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 
 const { Text } = Typography;
 
@@ -55,7 +56,7 @@ export default function HazardPublicityPage() {
 }
 
 function HazardPublicityContent({ enterpriseId }: { enterpriseId: string }) {
-  const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/hazard`);
   const { message, modal } = AntApp.useApp();
   const [scope, setScope] = useState<string>("all");
   const [tokenInfo, setTokenInfo] = useState<{ token: string; link: string } | null>(() =>
@@ -162,7 +163,7 @@ function HazardPublicityContent({ enterpriseId }: { enterpriseId: string }) {
       <PageHeader
         title="隐患公示"
         subtitle="面向全员公示隐患整改情况，可打印公告或生成公开脱敏链接"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
         extra={
           <Space wrap className="hazard-publicity-actions">
             <Button icon={<ReloadOutlined />} onClick={() => void refetch()}>

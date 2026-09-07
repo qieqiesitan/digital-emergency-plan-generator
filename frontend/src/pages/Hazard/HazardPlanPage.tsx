@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   Alert,
   App as AntApp,
@@ -33,6 +33,7 @@ import { listMembers } from "@/services/enterpriseOrgService";
 import { listZones } from "@/services/riskManagementService";
 import type { HazardInspectionPlan, HazardScheduleSuggestionResult } from "@/types/hazard";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAppBack } from "@/routing/useAppBack";
 
 const CATEGORY_LABELS: Record<string, string> = {
   daily: "日常",
@@ -114,7 +115,7 @@ function buildPlanDraft(
 /** 排查计划配置页（§6）：计划 CRUD + 启用开关 + AI 排程建议卡。 */
 export default function HazardPlanPage() {
   const { id: enterpriseId = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const appBack = useAppBack(`/enterprises/${enterpriseId}/hazard`);
   const queryClient = useQueryClient();
   const { message } = AntApp.useApp();
   const [form] = Form.useForm<PlanFormValues>();
@@ -386,7 +387,7 @@ export default function HazardPlanPage() {
       <PageHeader
         title="排查计划"
         subtitle="配置排查计划、覆盖分区与责任人；AI 排程建议仅供参考，需人工确认后保存"
-        onBack={() => navigate(-1)}
+        onBack={appBack}
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新建计划
