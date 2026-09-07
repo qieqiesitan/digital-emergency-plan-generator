@@ -182,7 +182,7 @@ export default function RiskAssessmentScreen() {
           </div>
           <ProgressBar percent={progressPct} />
           {thinkingText ? (
-            <div style={{ fontSize: 12, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 4, lineHeight: 1.5 }}>
               {thinkingText}
             </div>
           ) : null}

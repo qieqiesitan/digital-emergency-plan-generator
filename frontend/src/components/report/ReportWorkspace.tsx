@@ -827,8 +827,8 @@ export default function ReportWorkspace({
       {aiUnavailable && <AiNotConfiguredHint onClose={() => setAiUnavailable(false)} />}
       {toolbar}
       {thinkingText && (
-        <div style={{ marginBottom: 8, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>
-          {thinkingText}<span style={{ color: "#1a56db" }}>▌</span>
+        <div style={{ marginBottom: 8, fontSize: 13, color: "#9ca3af", lineHeight: 1.6 }}>
+          {thinkingText}<span style={{ color: "#9ca3af" }}>▌</span>
         </div>
       )}
       {interruptedGenerating && (

@@ -567,8 +567,8 @@ export default function PlanEditorPage() {
             {batchProgress.message}
           </div>
           {thinkingText && (
-            <div style={{ textAlign: "center", fontSize: 13, color: "#374151", marginTop: 4, lineHeight: 1.6 }}>
-              {thinkingText}<span style={{ color: "#1a56db" }}>▌</span>
+            <div style={{ textAlign: "center", fontSize: 13, color: "#9ca3af", marginTop: 4, lineHeight: 1.6 }}>
+              {thinkingText}<span style={{ color: "#9ca3af" }}>▌</span>
             </div>
           )}
         </div>

@@ -176,7 +176,7 @@ export default function AIGenerateButton({
           <>
             <Button icon={<LoadingOutlined />} onClick={handleStop} disabled={disabled}>生成中... 停止</Button>
             {thinkingText && (
-              <span style={{ marginLeft: 10, fontSize: 12, color: "#374151" }}>
+              <span style={{ marginLeft: 10, fontSize: 12, color: "#9ca3af" }}>
                 {thinkingText}
               </span>
             )}
