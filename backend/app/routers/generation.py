@@ -744,13 +744,18 @@ async def _stream_llm_chunks_with_retry(prompt: str, ai_config: AIConfig, plan_t
 
 async def _collect_stream_text(prompt: str, ai_config: AIConfig, plan_type: str = "*",
                                style_preference=None, advanced_overrides=None,
-                               payload_overrides=None, reasoning_cb=None) -> str:
+                               payload_overrides=None, reasoning_cb=None,
+                               on_content_start=None) -> str:
     """流式收集完整文本（不重试，重试由 run_batch_generation 负责）。"""
     full = ""
+    started = {"v": False}
     async for chunk in _stream_llm_chunks(
         prompt, ai_config, plan_type, style_preference, advanced_overrides,
         payload_overrides=payload_overrides, reasoning_cb=reasoning_cb,
     ):
+        if on_content_start and chunk and chunk.strip() and not started["v"]:
+            started["v"] = True
+            on_content_start()
         full += chunk
     return full
 
@@ -937,11 +942,21 @@ async def get_generation_status(plan_id: str, current_user=Depends(get_current_u
     ))).scalar_one_or_none()
     if not p:
         raise HTTPException(404, "预案不存在")
+    from app.services import generation_progress as _gp
+    import time as _time
+    state = _gp.get_progress(plan_id)
     return {
         "code": 0,
         "data": {
             "generating": _active_generations.get(plan_id, False),
             "failed_sections": _failed_sections.get(plan_id, []),
+            "phase": state.get("phase", "idle"),
+            "section_key": state.get("section_key"),
+            "section_title": state.get("section_title"),
+            "index": state.get("index"),
+            "total": state.get("total"),
+            "thinking_brief": state.get("thinking_brief"),
+            "elapsed_seconds": int(_time.time() - state["started_at"]) if state.get("started_at") else None,
         },
     }
 
@@ -1008,6 +1023,8 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
             logger.error(f"Background batch generation failed: {e}")
         finally:
             _clear_generation_state(plan_id)
+            from app.services import generation_progress as _gp
+            _gp.clear_progress(plan_id)
 
     task = asyncio.create_task(run_background())
 

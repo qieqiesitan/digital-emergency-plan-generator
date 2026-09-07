@@ -122,6 +122,8 @@ async def _run_background(plan_id, plan_type, accident_type, style_preference,
             logger.error(f"Failed to reset plan status after failure: {rollback_e}")
     finally:
         _background_tasks.pop(plan_id, None)
+        from app.services import generation_progress as _gp
+        _gp.clear_progress(plan_id)
 
 
 async def run_batch_generation(
@@ -154,9 +156,12 @@ async def run_batch_generation(
     不传（background 原行为，避免出现「这是应急预案的第N个章节」编号提示）。
     """
     from app.routers.generation import (
-        _build_section_prompt, _collect_previous_context, _stream_llm,
+        _build_section_prompt, _collect_previous_context, _collect_stream_text,
         _pre_render_mermaid_svgs, _attach_diagrams, _GenerationCancelled,
     )
+    from app.services import generation_progress as _gp
+    from app.services.thinking_brief import CaptionThrottle
+    import time as _time
     await ensure_loaded()
     completed = 0
     failed = 0
@@ -186,9 +191,27 @@ async def run_batch_generation(
             prompt_text = _build_section_prompt(section_title, ent_data, **prompt_kwargs)
             async def _fetch_full():
                 if stream_fn is None:
-                    return await _stream_llm(
+                    state = _gp.get_progress(plan_id)
+                    started_at = state.get("started_at") or _time.time()
+                    _gp.set_progress(
+                        plan_id, phase="thinking", section_key=section_key,
+                        section_title=section_title, index=i + 1, total=len(section_tuples),
+                        thinking_brief=None, started_at=started_at,
+                    )
+                    throttle = CaptionThrottle(section_title)
+
+                    def _on_reasoning(piece: str) -> None:
+                        caption = throttle.push(piece)
+                        if caption:
+                            _gp.set_progress(plan_id, thinking_brief=caption)
+
+                    def _on_content_start() -> None:
+                        _gp.set_progress(plan_id, phase="writing", thinking_brief=None)
+
+                    return await _collect_stream_text(
                         prompt_text, ai_config, plan_type, style_preference,
                         advanced_overrides, payload_overrides=LAYER_PARAMS["generate"],
+                        reasoning_cb=_on_reasoning, on_content_start=_on_content_start,
                     )
                 return await stream_fn(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
 
