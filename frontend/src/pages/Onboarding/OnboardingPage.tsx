@@ -212,7 +212,7 @@ export default function OnboardingPage() {
             });
             if (STEPS[current].key === "generate") {
               // 生成步骤为可选：跳过即完成引导，直接回工作台，避免 current+1 越界
-              navigate("/dashboard");
+              navigate("/dashboard", { replace: true });
             } else if (current < STEPS.length - 1) {
               setCurrent(current + 1);
             }

@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getEnterprise } from "@/services/enterpriseService";
 import { getCockpitSummary } from "@/services/cockpitService";
+import { useCurrentEnterprise } from "@/contexts/EnterpriseContext";
 import type { CockpitSummary } from "@/types/cockpit";
 import CockpitBackground from "@/components/enterprise/cockpit/CockpitBackground";
 import CockpitHeader from "@/components/enterprise/cockpit/CockpitHeader";
@@ -37,6 +39,14 @@ export default function EnterpriseCockpitPage() {
     queryFn: () => getCockpitSummary(id!),
     enabled: !!id,
   });
+  const { setCurrentEnterprise } = useCurrentEnterprise();
+
+  // 进入驾驶舱即同步「当前企业」，供全局新建预案等入口默认归属正确企业
+  useEffect(() => {
+    if (enterpriseQ.data?.id) {
+      setCurrentEnterprise(enterpriseQ.data.id);
+    }
+  }, [enterpriseQ.data, setCurrentEnterprise]);
 
   if (enterpriseQ.isLoading || summaryQ.isLoading) {
     return <div style={{ display: "flex", justifyContent: "center", padding: 80 }}><Spin size="large" /></div>;

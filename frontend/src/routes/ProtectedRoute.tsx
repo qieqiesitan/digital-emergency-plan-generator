@@ -1,9 +1,12 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { Spin } from "antd";
 import { useAuth } from "@/contexts/AuthContext";
+import { buildLoginPath } from "@/routing/loginRedirect";
+import { stripAppBase } from "@/utils/platform";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -14,7 +17,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // 携带来源页，登录成功后回跳；只允许站内相对路径（buildLoginPath 内校验）
+    const redirect = stripAppBase(location.pathname) + location.search;
+    return <Navigate to={buildLoginPath(redirect)} replace />;
   }
 
   return <>{children}</>;

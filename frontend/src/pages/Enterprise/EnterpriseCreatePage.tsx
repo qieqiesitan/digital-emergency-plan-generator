@@ -35,7 +35,8 @@ export default function EnterpriseCreatePage() {
       message.success("企业创建成功");
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
       // 引导按企业维度进行（每个企业创建后都进入引导，可从引导页「稍后继续」离开）
-      navigate(`/onboarding?enterprise_id=${data.id}`);
+      // replace：浏览器后退不再回到已提交的创建表单
+      navigate(`/onboarding?enterprise_id=${data.id}`, { replace: true });
     },
     onError: (err: unknown) => message.error(extractDetail(err) || "创建失败"),
   });

@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Outlet } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Layout, Typography } from "antd";
 import AppIcon from "@/components/common/AppIcon";
 
@@ -6,6 +8,13 @@ const { Content } = Layout;
 const { Title, Paragraph } = Typography;
 
 export function AuthLayout() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const isRegister = location.pathname.endsWith("/register");
+    document.title = `${isRegister ? "注册" : "登录"} - 数字化预案系统`;
+  }, [location.pathname]);
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <div

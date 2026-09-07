@@ -8,6 +8,7 @@ import type { ControlListRow, PublicityZone } from "@/services/riskManagementSer
 import { PageHeader } from "@/components/common/PageHeader";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { toCanvasX, toCanvasY } from "@/utils/riskMappingGeometry";
+import { buildPublicUrl } from "@/utils/platform";
 
 const MAP_WIDTH = 1200;
 const MAP_HEIGHT = 640;
@@ -129,7 +130,7 @@ export default function RiskPublicityPage() {
     return groups;
   }, [data]);
 
-  const publicUrl = data ? `${window.location.origin}/p/risk/${data.token}` : "";
+  const publicUrl = data ? buildPublicUrl(`/p/risk/${data.token}`) : "";
 
   const copyLink = async () => {
     try {

@@ -18,6 +18,7 @@ import { CopyOutlined, PrinterOutlined, ReloadOutlined, SafetyCertificateOutline
 import { useQuery } from "@tanstack/react-query";
 import { getHazardPublicity, resetHazardPublicityToken } from "@/services/hazardService";
 import type { HazardPublicityItem } from "@/types/hazard";
+import { buildPublicUrl } from "@/utils/platform";
 import { PageHeader } from "@/components/common/PageHeader";
 
 const { Text } = Typography;
@@ -68,7 +69,7 @@ function HazardPublicityContent({ enterpriseId }: { enterpriseId: string }) {
     enabled: !!enterpriseId,
   });
 
-  const publicUrl = tokenInfo ? `${window.location.origin}${tokenInfo.link}` : "";
+  const publicUrl = tokenInfo ? buildPublicUrl(tokenInfo.link) : "";
 
   const copyLink = async () => {
     if (!publicUrl) return;

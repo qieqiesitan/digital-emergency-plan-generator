@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import QRCode from "qrcode";
 import { QrcodeOutlined } from "@ant-design/icons";
 import type { CardData } from "@/types/riskNoticeCard";
+import { buildPublicUrl } from "@/utils/platform";
 
 /** 空正文兜底文案（与后端 docx 渲染一致，预览页等复用）。 */
 export const EMPTY_TEXT = "暂无，请先完善风险评估数据";
@@ -326,7 +327,7 @@ export default function RiskNoticeCard({ card, onEditSigns }: RiskNoticeCardProp
 
   useEffect(() => {
     let cancelled = false;
-    const fullUrl = `${window.location.origin}${card.public_url}`;
+    const fullUrl = buildPublicUrl(card.public_url);
     QRCode.toDataURL(fullUrl, { width: 112, margin: 1 })
       .then((url) => {
         if (!cancelled) setQrDataUrl(url);

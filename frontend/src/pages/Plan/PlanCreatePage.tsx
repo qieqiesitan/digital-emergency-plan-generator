@@ -1,6 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Steps, Card, Button, Select, Input, message, Space, Typography, Descriptions } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Empty,
+  Input,
+  message,
+  Select,
+  Space,
+  Steps,
+  Typography,
+} from "antd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPlan } from "@/services/planService";
 import { useCurrentEnterprise } from "@/contexts/EnterpriseContext";
@@ -10,6 +22,7 @@ import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PLAN_TYPE_LABELS } from "@/utils/constants";
 import { ACCIDENT_TYPES_2025 } from "@/utils/accidentTypes";
 import type { PlanType } from "@/types/plan";
+import { planEditorUrl } from "@/routing/planUrls";
 
 const { Title, Text } = Typography;
 
@@ -19,14 +32,25 @@ export default function PlanCreatePage() {
   const [searchParams] = useSearchParams();
   const initType = (searchParams.get("type") as PlanType) || null;
   const queryEnterpriseId = searchParams.get("enterprise_id");
-  const { currentEnterpriseId } = useCurrentEnterprise();
-
-  const effectiveEnterpriseId = queryEnterpriseId || currentEnterpriseId;
+  const { currentEnterpriseId, enterprises, isLoading: enterprisesLoading, setCurrentEnterprise } =
+    useCurrentEnterprise();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [planType, setPlanType] = useState<PlanType | null>(initType);
+  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string | null>(
+    queryEnterpriseId || currentEnterpriseId,
+  );
   const [accidentType, setAccidentType] = useState<string>("");
   const [title, setTitle] = useState("");
+
+  // 企业列表异步加载完成后，兜底默认当前企业（显式展示在第二步，可改，不静默创建到首个企业）
+  useEffect(() => {
+    if (!queryEnterpriseId && !selectedEnterpriseId && currentEnterpriseId) {
+      setSelectedEnterpriseId(currentEnterpriseId);
+    }
+  }, [queryEnterpriseId, selectedEnterpriseId, currentEnterpriseId]);
+
+  const effectiveEnterpriseId = queryEnterpriseId || selectedEnterpriseId;
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", effectiveEnterpriseId],
@@ -40,11 +64,32 @@ export default function PlanCreatePage() {
     onSuccess: (data) => {
       message.success("预案创建成功");
       queryClient.invalidateQueries({ queryKey: ["plans"] });
-      // auto_generate=sample：C2-4（样章确认）在 PlanEditorPage 支持该参数前，创建后不自动生成；依赖记录见 TASKS.md
-      navigate(`/plans/${data.id}/edit?auto_generate=sample${queryEnterpriseId ? `&enterprise_id=${queryEnterpriseId}` : ""}`);
+      if (effectiveEnterpriseId) setCurrentEnterprise(effectiveEnterpriseId);
+      // replace：浏览器后退不再回到已提交的创建表单；企业语境随 URL 进入编辑器
+      navigate(
+        planEditorUrl(data.id, {
+          enterpriseId: effectiveEnterpriseId,
+          autoGenerate: "sample",
+        }),
+        { replace: true },
+      );
     },
     onError: () => message.error("创建失败"),
   });
+
+  // 全局入口且没有任何企业时直接引导建企业，而不是让「创建」按钮永久禁用
+  if (!queryEnterpriseId && !enterprisesLoading && enterprises.length === 0) {
+    return (
+      <div style={{ maxWidth: 720 }}>
+        <PageHeader title="新建预案" onBack={() => navigate("/plans")} />
+        <Empty description="还没有企业数据，请先创建企业后再新建预案">
+          <Button type="primary" onClick={() => navigate("/enterprises/new")}>
+            去创建企业
+          </Button>
+        </Empty>
+      </div>
+    );
+  }
 
   const curEnterprise = enterprise;
   const defaultTitle = curEnterprise && planType
@@ -102,12 +147,35 @@ export default function PlanCreatePage() {
       {currentStep === 1 && (
         <div>
           <Title level={5}>确认信息</Title>
+          {!queryEnterpriseId && (
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary">所属企业</Text>
+              <Select
+                style={{ width: "100%" }}
+                placeholder={enterprisesLoading ? "企业加载中..." : "请选择企业"}
+                loading={enterprisesLoading}
+                showSearch
+                optionFilterProp="label"
+                value={selectedEnterpriseId ?? undefined}
+                onChange={(v) => setSelectedEnterpriseId(v)}
+                options={enterprises.map((e) => ({ value: e.id, label: e.name }))}
+              />
+            </div>
+          )}
           <Descriptions column={1} style={{ marginBottom: 16 }}>
             <Descriptions.Item label="企业">{curEnterprise?.name || "-"}</Descriptions.Item>
             <Descriptions.Item label="预案类型">
               {planType ? PLAN_TYPE_LABELS[planType] : "-"}
             </Descriptions.Item>
           </Descriptions>
+          {!effectiveEnterpriseId && !enterprisesLoading && (
+            <Alert
+              type="warning"
+              showIcon
+              message="请先选择所属企业"
+              style={{ marginBottom: 16 }}
+            />
+          )}
           <Input
             size="large"
             placeholder="预案标题"

@@ -4,10 +4,12 @@ import { Button, Result, Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import RiskNoticeCard from "@/components/enterprise/RiskNoticeCard";
 import { fetchPublicCard } from "@/services/riskNoticeCardService";
+import { usePageTitle } from "@/routing/usePageTitle";
 
 /** 公开只读页（/r/:token，无登录守卫）。 */
 export default function PublicRiskNoticePage() {
   const { token = "" } = useParams<{ token: string }>();
+  usePageTitle("风险告知卡公示");
 
   const { data: card, error, isLoading, isError, refetch } = useQuery({
     queryKey: ["public-risk-notice", token],

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchPublicRisk } from "@/services/riskManagementService";
 import type { PublicRiskRow } from "@/services/riskManagementService";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { usePageTitle } from "@/routing/usePageTitle";
 
 function formatTime(iso?: string) {
   if (!iso) return "—";
@@ -16,6 +17,7 @@ function formatTime(iso?: string) {
 /** 重大风险公示公开只读页（/p/risk/:token，无登录守卫）。 */
 export default function PublicRiskPage() {
   const { token = "" } = useParams<{ token: string }>();
+  usePageTitle("重大风险公示");
 
   const { data, error, isLoading, isError, refetch } = useQuery({
     queryKey: ["public-risk", token],

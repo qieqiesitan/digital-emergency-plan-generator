@@ -23,6 +23,11 @@ import type { StylePreference } from "@/components/plan/StylePanel";
 import type { PlanSection, SectionTemplate } from "@/types/plan";
 import type { SSEEvent } from "@/types/plan";
 import { isAiNotConfiguredError } from "@/utils/aiUnavailable";
+import {
+  planPreviewUrl,
+  planVersionsUrl,
+  sanitizeEditorSearchParams,
+} from "@/routing/planUrls";
 
 // 流式生成期间把 AI 输出的 Markdown 转成 HTML 再进编辑器，
 // 避免编辑器直接显示 Markdown 源码（如表格的 | --- | 分隔符）。
@@ -258,8 +263,9 @@ export default function PlanEditorPage() {
     const storageKey = `plan_auto_gen_${id}`;
     if (sessionStorage.getItem(storageKey) === "1") return;
     sessionStorage.setItem(storageKey, "1");
-    // Clear the URL param so it does not re-trigger on page revisit
-    navigate(`/plans/${id}/edit`, { replace: true });
+    // 只清 auto_generate 防重复触发，保留 enterprise_id 等其余参数，避免返回丢企业语境
+    const keptQuery = sanitizeEditorSearchParams(searchParams.toString());
+    navigate(`/plans/${id}/edit${keptQuery}`, { replace: true });
     if (plan?.status === "generating") {
       // Already marked generating — do not double-trigger
       return;
@@ -475,13 +481,20 @@ export default function PlanEditorPage() {
             <Button icon={<AuditOutlined />} onClick={() => reviewMut.mutate()} loading={reviewMut.isPending}>
               AI 审查
             </Button>
-            <Button icon={<HistoryOutlined />} onClick={() => navigate(`/plans/${id}/versions`)}>
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={() => navigate(planVersionsUrl(id!, { enterpriseId }))}
+            >
               版本历史
             </Button>
             <Button icon={<SaveOutlined />} onClick={() => saveVersionMut.mutate()} loading={saveVersionMut.isPending}>
               保存版本
             </Button>
-            <Button icon={<ExportOutlined />} type="primary" onClick={() => navigate(`/plans/${id}/preview`)}>
+            <Button
+              icon={<ExportOutlined />}
+              type="primary"
+              onClick={() => navigate(planPreviewUrl(id!, { enterpriseId }))}
+            >
               导出
             </Button>
           </Space>
@@ -535,7 +548,11 @@ export default function PlanEditorPage() {
           style={{ marginBottom: 12 }}
           message="⚠ 部分章节可能未覆盖完整要点"
           description={validation.issues.slice(0, 3).map((i) => `「${i.section_title}」${i.issue}`).join("；")}
-          action={<Button size="small" onClick={() => navigate(`/plans/${id}/preview`)}>查看要点清单</Button>}
+          action={
+            <Button size="small" onClick={() => navigate(planPreviewUrl(id!, { enterpriseId }))}>
+              查看要点清单
+            </Button>
+          }
         />
       )}
 
@@ -688,7 +705,13 @@ export default function PlanEditorPage() {
         onCancel={() => setReviewOpen(false)}
         width={640}
         footer={[
-          <Button key="rollback" onClick={() => { setReviewOpen(false); navigate(`/plans/${id}/versions`); }}>
+          <Button
+            key="rollback"
+            onClick={() => {
+              setReviewOpen(false);
+              navigate(planVersionsUrl(id!, { enterpriseId }));
+            }}
+          >
             回退（版本历史）
           </Button>,
           <Button

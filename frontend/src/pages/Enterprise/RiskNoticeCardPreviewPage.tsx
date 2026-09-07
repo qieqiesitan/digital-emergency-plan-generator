@@ -14,6 +14,7 @@ import {
 } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import RiskNoticeCard, { EMPTY_TEXT } from "@/components/enterprise/RiskNoticeCard";
+import { buildPublicUrl } from "@/utils/platform";
 import { PageHeader } from "@/components/common/PageHeader";
 import { getDownloadUrl } from "@/services/exportService";
 import {
@@ -686,7 +687,7 @@ export default function RiskNoticeCardPreviewPage() {
   const copyPublicLink = async () => {
     if (!card) return;
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${card.public_url}`);
+      await navigator.clipboard.writeText(buildPublicUrl(card.public_url));
       message.success("公开链接已复制");
     } catch {
       message.error("复制失败，请手动复制");

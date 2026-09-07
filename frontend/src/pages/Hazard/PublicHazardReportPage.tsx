@@ -16,6 +16,7 @@ import type { UploadFile } from "antd";
 import { CameraOutlined, SendOutlined } from "@ant-design/icons";
 import axios from "axios";
 import { submitPublicHazardReport } from "@/services/hazardService";
+import { usePageTitle } from "@/routing/usePageTitle";
 
 const { Paragraph } = Typography;
 
@@ -48,6 +49,7 @@ interface ReportFormValues {
 /** 扫码公开上报页（/h/report/:token，免登录，§8）。 */
 export default function PublicHazardReportPage() {
   const { token = "" } = useParams<{ token: string }>();
+  usePageTitle("隐患上报");
   const { message } = AntApp.useApp();
   const [form] = Form.useForm<ReportFormValues>();
   const [nonce] = useState<string>(generateNonce);

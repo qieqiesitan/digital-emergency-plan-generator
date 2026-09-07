@@ -9,6 +9,7 @@ import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 import type { CardSummary } from "@/types/riskNoticeCard";
+import { buildPublicUrl } from "@/utils/platform";
 
 /** 风险等级筛选项（与后端合法值一致）。 */
 const LEVEL_OPTIONS = ["重大", "较大", "一般", "低", "未评估"];
@@ -53,7 +54,7 @@ export default function RiskNoticeCardPage() {
 
   const copyLink = async (card: CardSummary) => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${card.public_url}`);
+      await navigator.clipboard.writeText(buildPublicUrl(card.public_url));
       message.success("公开链接已复制");
     } catch {
       message.error("复制失败，请手动复制");

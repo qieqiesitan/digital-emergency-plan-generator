@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Layout, Menu, Button, Dropdown, Avatar, theme, Alert } from "antd";
 import {
@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import FloatingChat from "@/components/common/FloatingChat";
 import { stripAppBase } from "@/utils/platform";
 import { MENU_MAP } from "@/utils/menuMap";
+import { getPageMeta } from "@/routing/pageMeta";
 
 const { Header, Sider, Content } = Layout;
 
@@ -52,8 +53,26 @@ export function MainLayout() {
   };
   const navigate = useNavigate();
   const location = useLocation();
+  const appPath = stripAppBase(location.pathname);
   const { user, logout, menuPermissions, menuLoadFailed } = useAuth();
   const { token: themeToken } = theme.useToken();
+
+  // 页面标题 + 菜单高亮：动态路径（企业/预案详情等）由元数据规则推导，不再字符串精确匹配
+  useEffect(() => {
+    const meta = getPageMeta(appPath);
+    document.title = meta.title ? `${meta.title} - 数字化预案系统` : "数字化预案系统";
+  }, [appPath]);
+
+  // 路由切换后回到页面顶部，避免长列表底部切页后停留在旧滚动位置
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.getElementById("app-content")?.scrollTo({ top: 0 });
+  }, [location.pathname]);
+
+  const selectedMenuKeys = useMemo(() => {
+    const menuKey = getPageMeta(appPath).menuKey;
+    return menuKey ? [menuKey] : [];
+  }, [appPath]);
 
   const hasMenu = (path: string) => menuPermissions.includes(MENU_MAP[path] ?? "");
 
@@ -153,7 +172,7 @@ export function MainLayout() {
         <Menu
           key={proMode ? "pro" : "basic"}
           mode="inline"
-          selectedKeys={[stripAppBase(location.pathname)]}
+          selectedKeys={selectedMenuKeys}
           defaultOpenKeys={defaultOpenKeys}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
@@ -191,6 +210,7 @@ export function MainLayout() {
           </div>
         </Header>
         <Content
+          id="app-content"
           style={{
             margin: 24,
             padding: 24,

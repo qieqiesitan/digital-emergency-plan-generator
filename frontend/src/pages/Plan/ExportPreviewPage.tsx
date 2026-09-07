@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Button, Space, message, Alert, Tag } from "antd";
 import { DownloadOutlined, PrinterOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
@@ -7,10 +7,13 @@ import { getExportPreview, exportDocx, validateExport } from "@/services/exportS
 import MermaidRenderer from "@/components/plan/MermaidRenderer";
 import { EMERGENCY_CARD_CSS } from "@/styles/emergencyCardCss";
 import type { ExportTask } from "@/types/plan";
+import { planEditorUrl } from "@/routing/planUrls";
 
 export default function ExportPreviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const enterpriseId = searchParams.get("enterprise_id");
   const [downloading, setDownloading] = useState(false);
   const { data: preview, isLoading } = useQuery({
     queryKey: ["exportPreview", id],
@@ -80,7 +83,10 @@ export default function ExportPreviewPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 100px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/plans/" + id + "/edit")}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate(planEditorUrl(id!, { enterpriseId }))}
+        >
           返回编辑
         </Button>
         <Space>
@@ -104,7 +110,7 @@ export default function ExportPreviewPage() {
               ))}
             </ul>
           }
-          action={<Button onClick={() => navigate(`/plans/${id}/edit`)}>去编辑</Button>}
+          action={<Button onClick={() => navigate(planEditorUrl(id!, { enterpriseId }))}>去编辑</Button>}
         />
       )}
       {validation && validation.warnings.length > 0 && (

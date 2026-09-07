@@ -1,17 +1,20 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Table, Button, Modal, message, Tag } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPlan, listVersions, rollbackVersion } from "@/services/planService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { formatDate } from "@/utils/formatters";
+import { planEditorUrl } from "@/routing/planUrls";
 
 export default function VersionListPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const { data: versions, isLoading } = useQuery({ queryKey: ["versions", id], queryFn: () => listVersions(id!), enabled: !!id });
   const { data: plan } = useQuery({ queryKey: ["plan", id], queryFn: () => getPlan(id!), enabled: !!id });
   const currentVersion = plan?.current_version ?? 0;
+  const enterpriseId = searchParams.get("enterprise_id") ?? plan?.enterprise_id ?? null;
   const rollbackMut = useMutation({
     // 页面 onError 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
     mutationFn: (vid: string) => rollbackVersion(id!, vid, { skipGlobalError: true }),
@@ -26,7 +29,10 @@ export default function VersionListPage() {
 
   return (
     <div>
-      <PageHeader title="版本历史" onBack={() => navigate(`/plans/${id}/edit`)} />
+      <PageHeader
+        title="版本历史"
+        onBack={() => navigate(planEditorUrl(id!, { enterpriseId }))}
+      />
       <Table dataSource={versions || []} rowKey="id" loading={isLoading}
         columns={[
           {

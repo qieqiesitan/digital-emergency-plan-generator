@@ -4,6 +4,8 @@ import { AuthLayout } from "@/layouts/AuthLayout";
 import { MainLayout } from "@/layouts/MainLayout";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { PermissionRoute } from "./PermissionRoute";
+import RouteErrorPage from "./RouteErrorPage";
+import NotFoundPage from "./NotFoundPage";
 import { MENU_MAP } from "@/utils/menuMap";
 import LoginPage from "@/pages/Login/LoginPage";
 import RegisterPage from "@/pages/Register/RegisterPage";
@@ -170,6 +172,7 @@ export function createRouter() {
   return createBrowserRouter([
     {
       element: <AuthLayout />,
+      errorElement: <RouteErrorPage />,
       children: [
         { path: "/login", element: <LoginPage /> },
         { path: "/register", element: <RegisterPage /> },
@@ -181,15 +184,20 @@ export function createRouter() {
           <MainLayout />
         </ProtectedRoute>
       ),
+      errorElement: <RouteErrorPage />,
       children: guardedContentRoutes,
     },
     // 公开只读页：无登录守卫（token 无效由后端返回 404）
-    { path: "/r/:token", element: <PublicRiskNoticePage /> },
-    { path: "/p/risk/:token", element: <PublicRiskPage /> },
+    { path: "/r/:token", element: <PublicRiskNoticePage />, errorElement: <RouteErrorPage /> },
+    { path: "/p/risk/:token", element: <PublicRiskPage />, errorElement: <RouteErrorPage /> },
     // 隐患公开页（§15：公开公示 /h/:token、扫码上报 /h/report/:token，均免登录）
-    { path: "/h/report/:token", element: <PublicHazardReportPage /> },
-    { path: "/h/:token", element: <PublicHazardPage /> },
+    {
+      path: "/h/report/:token",
+      element: <PublicHazardReportPage />,
+      errorElement: <RouteErrorPage />,
+    },
+    { path: "/h/:token", element: <PublicHazardPage />, errorElement: <RouteErrorPage /> },
     { path: "/m/*", element: <MobileRedirect /> },
-    { path: "*", element: <Navigate to="/dashboard" replace /> },
+    { path: "*", element: <NotFoundPage /> },
   ], { basename: APP_BASE || undefined });
 }

@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { fetchPublicHazard } from "@/services/hazardService";
 import type { HazardPublicityItem } from "@/types/hazard";
+import { usePageTitle } from "@/routing/usePageTitle";
 
 const LEVEL_LABELS: Record<string, string> = {
   major: "重大",
@@ -37,6 +38,7 @@ function formatTime(iso?: string) {
 /** 隐患公示公开页（/h/:token，免登录脱敏只读，§11.2）。 */
 export default function PublicHazardPage() {
   const { token = "" } = useParams<{ token: string }>();
+  usePageTitle("隐患公示");
   const [scope, setScope] = useState<string>("all");
 
   const { data, error, isLoading, isError, refetch } = useQuery({
