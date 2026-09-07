@@ -394,3 +394,115 @@ async def test_finalize_batch_result_sets_status_and_snapshot():
     }
     bg_db.add.assert_called_once()
     bg_db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_batch_generation_retries_once_on_empty_llm_output():
+    """批量生成：模型首轮空返回时应自动重试一次，重试成功则章节算完成。"""
+    from app.services.plan_generation_service import run_batch_generation
+
+    bg_db = AsyncMock()
+    sec1 = MagicMock()
+    sec1.section_key = "sec_1"
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [sec1]
+    bg_db.execute.return_value = result
+    calls = {"n": 0}
+
+    async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
+        calls["n"] += 1
+        return "" if calls["n"] == 1 else "<p>正文内容</p>"
+
+    out = await run_batch_generation(
+        bg_db=bg_db,
+        plan_id="p1",
+        section_tuples=[("sec_1", "总则")],
+        ai_config=MagicMock(),
+        ent_data={},
+        plan_type="comprehensive",
+        accident_type=None,
+        style_preference=None,
+        advanced_overrides=None,
+        stream_fn=fake_stream,
+    )
+    assert out["completed"] == 1
+    assert out["failed"] == 0
+    assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_run_batch_generation_empty_twice_marks_section_failed():
+    """批量生成：重试后仍为空时应记为失败章节，而不是静默存空内容。"""
+    from app.services.plan_generation_service import run_batch_generation
+
+    bg_db = AsyncMock()
+    sec1 = MagicMock()
+    sec1.section_key = "sec_1"
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [sec1]
+    bg_db.execute.return_value = result
+    calls = {"n": 0}
+
+    async def fake_stream(prompt, cfg, plan_type, style=None, advanced=None):
+        calls["n"] += 1
+        return ""
+
+    out = await run_batch_generation(
+        bg_db=bg_db,
+        plan_id="p1",
+        section_tuples=[("sec_1", "总则")],
+        ai_config=MagicMock(),
+        ent_data={},
+        plan_type="comprehensive",
+        accident_type=None,
+        style_preference=None,
+        advanced_overrides=None,
+        stream_fn=fake_stream,
+    )
+    assert out["completed"] == 0
+    assert out["failed"] == 1
+    assert out["failed_sections"][0]["section_key"] == "sec_1"
+    assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_stream_chunks_with_retry_retries_when_first_attempt_empty(monkeypatch):
+    """单章 SSE 流式：首轮完全空输出时应自动重试一次并透出正文 chunk。"""
+    from app.routers import generation as gen
+
+    calls = {"n": 0}
+
+    async def fake_chunks(prompt, ai_config, plan_type="*", style_preference=None,
+                          advanced_overrides=None, payload_overrides=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            yield ""
+            return
+        yield "<p>正文内容</p>"
+
+    monkeypatch.setattr(gen, "_stream_llm_chunks", fake_chunks)
+    collected = []
+    async for chunk in gen._stream_llm_chunks_with_retry("prompt", MagicMock()):
+        collected.append(chunk)
+    assert "".join(collected) == "<p>正文内容</p>"
+    assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_stream_chunks_with_retry_exhausts_then_returns_nothing(monkeypatch):
+    """单章 SSE 流式：两次都空输出时不再无限重试，交由调用方按失败处理。"""
+    from app.routers import generation as gen
+
+    calls = {"n": 0}
+
+    async def fake_chunks(prompt, ai_config, plan_type="*", style_preference=None,
+                          advanced_overrides=None, payload_overrides=None):
+        calls["n"] += 1
+        yield ""
+
+    monkeypatch.setattr(gen, "_stream_llm_chunks", fake_chunks)
+    collected = []
+    async for chunk in gen._stream_llm_chunks_with_retry("prompt", MagicMock()):
+        collected.append(chunk)
+    assert collected == []
+    assert calls["n"] == 2

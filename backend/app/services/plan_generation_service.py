@@ -184,13 +184,20 @@ async def run_batch_generation(
             if use_section_number:
                 prompt_kwargs["section_number"] = i + 1
             prompt_text = _build_section_prompt(section_title, ent_data, **prompt_kwargs)
-            if stream_fn is None:
-                full = await _stream_llm(
-                    prompt_text, ai_config, plan_type, style_preference,
-                    advanced_overrides, payload_overrides=LAYER_PARAMS["generate"],
-                )
-            else:
-                full = await stream_fn(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
+            async def _fetch_full():
+                if stream_fn is None:
+                    return await _stream_llm(
+                        prompt_text, ai_config, plan_type, style_preference,
+                        advanced_overrides, payload_overrides=LAYER_PARAMS["generate"],
+                    )
+                return await stream_fn(prompt_text, ai_config, plan_type, style_preference, advanced_overrides)
+
+            full = await _fetch_full()
+            if not full or not full.strip():
+                logger.warning("Section %s 空返回，自动重试", section_key)
+                full = await _fetch_full()
+            if not full or not full.strip():
+                raise ValueError("AI 返回内容为空，生成失败")
             s.content = md_to_html(full, normalize=True)
             s.ai_generated = True
             s.mermaid_svgs = await _pre_render_mermaid_svgs(full)

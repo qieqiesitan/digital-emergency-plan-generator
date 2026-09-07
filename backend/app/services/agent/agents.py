@@ -73,8 +73,8 @@ class AgentRegistry:
 # 调用侧在既有 LLM 调用点按任务选择对应分层字典，作为 payload_overrides 浅合并覆盖。
 LAYER_PARAMS = {
     "assistant": {"temperature": 0.5},
-    "generate": {"temperature": 0.7, "max_tokens": 4096},
-    "review": {"temperature": 0.2, "max_tokens": 2048},
-    "regulation": {"temperature": 0.3, "max_tokens": 1024},
-    "report": {"temperature": 0.5, "max_tokens": 4096},
+    "generate": {"temperature": 0.7},
+    "review": {"temperature": 0.2},
+    "regulation": {"temperature": 0.3},
+    "report": {"temperature": 0.5},
 }

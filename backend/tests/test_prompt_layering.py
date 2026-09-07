@@ -85,3 +85,10 @@ async def test_generate_default_branch_passes_generate_layer_overrides(monkeypat
     )
     assert out["completed"] == 1
     assert captured["payload_overrides"] == LAYER_PARAMS["generate"]
+
+
+def test_layer_params_do_not_force_max_tokens():
+    """推理型模型下硬性 max_tokens 会让 reasoning 耗尽预算、正文为空；
+    输出长度应交给 AI 配置（admin 可控），分层只保留温度等风格差异。"""
+    for params in LAYER_PARAMS.values():
+        assert "max_tokens" not in params

@@ -720,6 +720,25 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
         raise HTTPException(500, str(e))
 
 
+async def _stream_llm_chunks_with_retry(prompt: str, ai_config: AIConfig, plan_type: str = "*",
+                                        style_preference=None, advanced_overrides=None,
+                                        payload_overrides=None, max_attempts: int = 2):
+    """流式返回 LLM 文本；某次尝试完全空输出（推理型模型把输出额度耗尽）时自动重试。"""
+    for attempt in range(1, max_attempts + 1):
+        saw_text = False
+        async for chunk in _stream_llm_chunks(
+            prompt, ai_config, plan_type, style_preference, advanced_overrides,
+            payload_overrides=payload_overrides,
+        ):
+            if chunk and chunk.strip():
+                saw_text = True
+            if chunk:
+                yield chunk
+        if saw_text:
+            return
+        logger.warning("LLM 空返回（第 %d/%d 次），自动重试", attempt, max_attempts)
+
+
 async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*",
                       style_preference=None, advanced_overrides=None,
                       payload_overrides=None) -> str:
@@ -1060,7 +1079,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
             if not _ai_cfg:
                 raise RuntimeError("系统未配置 AI 模型，请联系管理员")
 
-            async for chunk_content in _stream_llm_chunks(
+            async for chunk_content in _stream_llm_chunks_with_retry(
                 prompt, _ai_cfg, p.plan_type, p.style_preference,
                 p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
             ):
@@ -1068,6 +1087,9 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
                 full += chunk_content
 
                 yield sse_event("chunk", content=chunk_content)
+
+            if not full or not full.strip():
+                raise RuntimeError("AI 返回内容为空，生成失败，请重试")
 
             from app.database import async_session as _standalone_session
 
@@ -1214,11 +1236,16 @@ async def regenerate_selection(
             if not _ai_cfg2:
                 raise RuntimeError("系统未配置 AI 模型，请联系管理员")
 
-            async for chunk_content in _stream_llm_chunks(
+            full = ""
+            async for chunk_content in _stream_llm_chunks_with_retry(
                 user_prompt, _ai_cfg2, p.plan_type, p.style_preference,
                 p.advanced_prompt_overrides, payload_overrides=LAYER_PARAMS["generate"],
             ):
+                full += chunk_content
                 yield sse_event("chunk", content=chunk_content)
+
+            if not full or not full.strip():
+                raise RuntimeError("AI 返回内容为空，重生成失败，请重试")
 
             p.status = "draft"
             await db.commit()
@@ -1294,7 +1321,7 @@ async def generate_preview(
                 _ai_cfg3 = await _reget_ai_cfg3(_cfg_db3)
             if not _ai_cfg3:
                 raise RuntimeError("系统未配置 AI 模型，请联系管理员")
-            async for chunk in _stream_llm_chunks(
+            async for chunk in _stream_llm_chunks_with_retry(
                 prompt, _ai_cfg3, p.plan_type,
                 p.style_preference, p.advanced_prompt_overrides,
                 payload_overrides=LAYER_PARAMS["generate"],
@@ -1304,6 +1331,8 @@ async def generate_preview(
                 if len(full) > body.max_tokens:
                     yield sse_event("done", message="预览完成")
                     return
+            if not full or not full.strip():
+                raise RuntimeError("AI 返回内容为空，预览生成失败，请重试")
             yield sse_event("done", message="预览完成")
         except Exception as e:
             yield sse_event("error", message=str(e))
