@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock } from "lucide-react";
@@ -16,7 +15,6 @@ export default function LoginScreen() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = email.trim() !== "" && password.length >= 8;
@@ -49,7 +47,7 @@ export default function LoginScreen() {
             <Input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(v) => setEmail(v)}
               placeholder="请输入邮箱"
               prefixIcon={<Mail size={20} />}
               fullWidth
@@ -57,9 +55,9 @@ export default function LoginScreen() {
             />
 
             <Input
-              type={showPassword ? "text" : "password"}
+              type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(v) => setPassword(v)}
               placeholder="请输入密码"
               prefixIcon={<Lock size={20} />}
               showPasswordToggle

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { User, Mail, Lock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,7 +11,7 @@ import { useToast } from "@/mobile/components/ui/Toast";
 
 export default function RegisterScreen() {
   const navigate = useNavigate();
-  const { register, login } = useAuth();
+  const { register } = useAuth();
   const { showToast } = useToast();
 
   const [name, setName] = useState("");
@@ -63,7 +62,7 @@ export default function RegisterScreen() {
             <Input
               placeholder="请输入姓名"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(v) => setName(v)}
               prefixIcon={<User size={20} />}
               fullWidth
             />
@@ -72,7 +71,7 @@ export default function RegisterScreen() {
               type="email"
               placeholder="请输入邮箱"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(v) => setEmail(v)}
               prefixIcon={<Mail size={20} />}
               fullWidth
               autoComplete="email"
@@ -82,7 +81,7 @@ export default function RegisterScreen() {
               type="password"
               placeholder="请输入密码"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(v) => setPassword(v)}
               prefixIcon={<Lock size={20} />}
               showPasswordToggle
               fullWidth
@@ -109,7 +108,7 @@ export default function RegisterScreen() {
               type="password"
               placeholder="请确认密码"
               value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
+              onChange={(v) => setPasswordConfirm(v)}
               prefixIcon={<Lock size={20} />}
               showPasswordToggle
               fullWidth

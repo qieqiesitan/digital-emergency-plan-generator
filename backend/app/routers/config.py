@@ -5,14 +5,14 @@ from app.database import get_db
 from app.models.system import SysConfig
 from app.schemas.system import ConfigItem, ConfigCreate, ConfigUpdate
 from app.schemas.common import ApiResponse
-from app.dependencies import get_current_user
+from app.dependencies import require_admin
 
 router = APIRouter(prefix="/configs", tags=["System Config"])
 
 
 @router.get("", response_model=ApiResponse[list[ConfigItem]])
 async def list_configs(
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     rows = (await db.execute(select(SysConfig).order_by(SysConfig.config_key))).scalars().all()
@@ -22,7 +22,7 @@ async def list_configs(
 @router.get("/{config_key}", response_model=ApiResponse[ConfigItem])
 async def get_config(
     config_key: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     row = (await db.execute(select(SysConfig).where(SysConfig.config_key == config_key))).scalar_one_or_none()
@@ -35,7 +35,7 @@ async def get_config(
 async def set_config(
     config_key: str,
     data: ConfigUpdate,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     row = (await db.execute(select(SysConfig).where(SysConfig.config_key == config_key))).scalar_one_or_none()
@@ -61,7 +61,7 @@ async def set_config(
 @router.delete("/{config_key}")
 async def delete_config(
     config_key: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     row = (await db.execute(select(SysConfig).where(SysConfig.config_key == config_key))).scalar_one_or_none()

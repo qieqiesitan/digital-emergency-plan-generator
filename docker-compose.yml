@@ -24,7 +24,7 @@ services:
     container_name: emergency-plan-backend
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/emergency_plan
-      SECRET_KEY: ${SECRET_KEY:-emergency-plan-docker-secret-key-2026}
+      SECRET_KEY: ${SECRET_KEY:-}
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-abcdefghijklmnopqrstuvwxyz123456}

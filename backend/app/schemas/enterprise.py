@@ -1,6 +1,6 @@
 from app.schemas.common import DatetimeStr
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class OrgMember(BaseModel):
     role: str
@@ -33,35 +33,37 @@ class SurroundingInfo(BaseModel):
 
 class EnterpriseBase(BaseModel):
     """企业共享字段。Create/Update/Response 继承此基类，消除字段重复定义。"""
-    name: str
-    address: str | None = None
-    industry: str | None = None
-    business_scope: str | None = None
+    # P1 加固：max_length 与 enterprises 表列宽一致，超长输入在 schema 层即 422，
+    # 不再等到 asyncpg 抛 DataError 500。
+    name: str = Field(min_length=1, max_length=255)
+    address: str | None = Field(default=None, max_length=500)
+    industry: str | None = Field(default=None, max_length=255)
+    business_scope: str | None = Field(default=None, max_length=1000)
     employee_count: int | None = None
-    credit_code: str | None = None
-    legal_representative: str | None = None
-    economic_type: str | None = None
+    credit_code: str | None = Field(default=None, max_length=50)
+    legal_representative: str | None = Field(default=None, max_length=100)
+    economic_type: str | None = Field(default=None, max_length=50)
     established_date: str | None = None
     registered_capital: float | None = None
-    phone: str | None = None
-    fax: str | None = None
-    postal_code: str | None = None
+    phone: str | None = Field(default=None, max_length=50)
+    fax: str | None = Field(default=None, max_length=50)
+    postal_code: str | None = Field(default=None, max_length=10)
     land_area: float | None = None
     building_area: float | None = None
-    safety_officer: str | None = None
-    safety_officer_phone: str | None = None
+    safety_officer: str | None = Field(default=None, max_length=100)
+    safety_officer_phone: str | None = Field(default=None, max_length=50)
     safety_staff_count: int | None = None
-    safety_standardization: str | None = None
-    fire_approval: str | None = None
+    safety_standardization: str | None = Field(default=None, max_length=20)
+    fire_approval: str | None = Field(default=None, max_length=50)
     fire_approval_date: str | None = None
     last_plan_filing_date: str | None = None
-    last_plan_filing_authority: str | None = None
-    main_products: str | None = None
-    annual_capacity: str | None = None
-    hazardous_chemicals: str | None = None
-    special_equipment: str | None = None
-    building_overview: str | None = None
-    floor_plan_url: str | None = None
+    last_plan_filing_authority: str | None = Field(default=None, max_length=200)
+    main_products: str | None = Field(default=None, max_length=2000)
+    annual_capacity: str | None = Field(default=None, max_length=500)
+    hazardous_chemicals: str | None = Field(default=None, max_length=2000)
+    special_equipment: str | None = Field(default=None, max_length=2000)
+    building_overview: str | None = Field(default=None, max_length=4000)
+    floor_plan_url: str | None = Field(default=None, max_length=500)
     gis_lat: float | None = None
     gis_lng: float | None = None
 

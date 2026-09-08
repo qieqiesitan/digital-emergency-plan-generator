@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import secrets
 from jose import jwt, JWTError
 from passlib.context import CryptContext
-from app.config import settings
+from app.config import settings, is_weak_secret_key
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -16,10 +16,14 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def create_access_token(user_id: str) -> str:
+    if is_weak_secret_key(settings.SECRET_KEY):
+        raise ValueError("JWT SECRET_KEY 未配置或过弱，禁止签发 token")
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode({"sub": user_id, "exp": expire, "type": "access"}, settings.SECRET_KEY, algorithm="HS256")
 
 def create_refresh_token(user_id: str) -> str:
+    if is_weak_secret_key(settings.SECRET_KEY):
+        raise ValueError("JWT SECRET_KEY 未配置或过弱，禁止签发 token")
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     return jwt.encode({"sub": user_id, "exp": expire, "type": "refresh"}, settings.SECRET_KEY, algorithm="HS256")
 
