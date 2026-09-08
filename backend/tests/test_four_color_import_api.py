@@ -25,6 +25,7 @@ from app.services.floor_plan_storage_service import (
     remove_four_color_temp_dir,
     save_four_color_temp,
 )
+from app.services.risk_mapping_service import LEVEL_COLORS
 
 
 def _png_bytes(img: Image.Image | None = None, width=120, height=80, color=(255, 0, 0)) -> bytes:
@@ -315,9 +316,14 @@ def _saved_zones_result(*names_levels):
             "name": name,
             "description": None,
             "sort_order": i,
-            "floor_plan_polygon": None,
+            "floor_plan_polygon": {
+                "version": 2,
+                "level_mode": "manual",
+                "risk_level": level,
+                "polygons": [{"id": "p1", "points": [{"x": 10, "y": 10}, {"x": 30, "y": 10}, {"x": 30, "y": 40}]}],
+            },
             "max_risk_level": level,
-            "effective_color": None,
+            "effective_color": LEVEL_COLORS[level],
             "object_count": 0,
             "created_at": "2026-08-06T00:00:00+08:00",
             "updated_at": "2026-08-06T00:00:00+08:00",
@@ -417,8 +423,12 @@ async def test_commit_replace_deletes_old_zones_and_creates_new(monkeypatch):
     remove_old.assert_called_once()
     assert len(resp.data.zones) == 2
     created_polys = [call.args[0].floor_plan_polygon for call in db.add.call_args_list]
-    assert created_polys[0]["color"] == "#ff4d4f"
-    assert created_polys[1]["color"] == "#52c41a"
+    assert created_polys[0]["risk_level"] == "重大"
+    assert created_polys[1]["risk_level"] == "低"
+    assert created_polys[0]["level_mode"] == "manual"
+    assert "color_source" not in created_polys[0]
+    assert resp.data.zones[0].max_risk_level == "重大"
+    assert resp.data.zones[0].effective_color == "#ff4d4f"
 
 
 @pytest.mark.asyncio

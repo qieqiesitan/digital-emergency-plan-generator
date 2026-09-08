@@ -257,8 +257,8 @@ async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, 
     for zone in body.zones:
         polygon_v2 = {
             "version": 2,
-            "color_source": "manual",
-            "color": LEVEL_COLORS[zone.risk_level],
+            "level_mode": "manual",
+            "risk_level": zone.risk_level,
             "polygons": [
                 {"id": f"poly-{i}", "label": zone.name, "points": [p.model_dump() for p in poly.points]}
                 for i, poly in enumerate(zone.polygons)
@@ -293,8 +293,8 @@ async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, 
             sort_order=i,
             floor_plan_polygon={
                 "version": 2,
-                "color_source": "manual",
-                "color": LEVEL_COLORS[zone.risk_level],
+                "level_mode": "manual",
+                "risk_level": zone.risk_level,
                 "polygons": [
                     {"id": f"poly-{i}-{j}", "label": zone.name, "points": [p.model_dump() for p in poly.points]}
                     for j, poly in enumerate(zone.polygons)
@@ -311,9 +311,12 @@ async def commit_four_color_import(body: FourColorCommitRequest, floor_id: str, 
     zone_responses = []
     for z in saved_zones:
         r = RiskZoneResponse.model_validate(z)
-        # 导入的分区暂无风险对象：max_risk_level 保持 None，颜色取手动色板
-        r.effective_color = effective_color(r.floor_plan_polygon, None)
-        r.inherent_effective_color = effective_color(r.floor_plan_polygon, None)
+        norm = r.floor_plan_polygon.model_dump() if r.floor_plan_polygon else None
+        level = norm.get("risk_level") if norm and norm.get("level_mode") == "manual" else None
+        r.max_risk_level = level
+        r.inherent_max_level = level
+        r.effective_color = effective_color(norm, level)
+        r.inherent_effective_color = effective_color(norm, level)
         zone_responses.append(r)
     return ApiResponse(data=FourColorCommitResponse(
         floor=await _floor_response(db, floor),
