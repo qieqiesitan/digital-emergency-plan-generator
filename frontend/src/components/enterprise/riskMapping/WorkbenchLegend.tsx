@@ -20,7 +20,7 @@ export default function WorkbenchLegend({ colorMode = "current" }: { colorMode?:
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 6 }}>
-        区域颜色 = 该区域 {colorMode === "inherent" ? "固有" : "现有"} 最大风险等级
+        区域颜色 = 所属分区颜色（{colorMode === "inherent" ? "固有" : "现有"}最大风险等级或手动指定等级）
       </div>
       {LEGEND_ITEMS.map(([level, color]) => (
         <div key={level} style={{ display: "flex", alignItems: "center", gap: 6 }}>
