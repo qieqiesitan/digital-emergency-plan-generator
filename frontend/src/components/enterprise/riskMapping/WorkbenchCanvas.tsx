@@ -900,7 +900,12 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                       }}
                       onClick={e => {
                         e.cancelBubble = true;
-                        setState({ selectedRegionId: regionId, selectedRiskPointId: null, selectedTextId: null });
+                        setState({
+                          selectedRegionId: regionId,
+                          selectedRiskPointId: null,
+                          selectedTextId: null,
+                          selectedZoneId: z.id,
+                        });
                       }}
                       onDragStart={() => {
                         zoneDragOriginRef.current.set(`${z.id}:${p.id}`, p.points);

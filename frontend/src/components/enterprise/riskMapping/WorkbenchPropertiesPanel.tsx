@@ -113,7 +113,7 @@ export default function WorkbenchPropertiesPanel() {
       ),
       pendingRegions: useRiskMappingWorkbenchStore.getState().pendingRegions.filter(r => r.id !== selectedPending.id),
     });
-    setState({ selectedRegionId: null });
+    setState({ selectedRegionId: null, selectedZoneId: target.id });
   };
 
   const moveSelectedPolygon = () => {
