@@ -27,7 +27,7 @@ from app.services.risk_mapping_service import (
 
 
 def _v2_polygon(polygons: list) -> dict:
-    return {"version": 2, "color_source": "auto", "polygons": polygons}
+    return {"version": 2, "level_mode": "auto", "risk_level": None, "polygons": polygons}
 
 
 def _points3() -> list[dict]:
@@ -44,8 +44,8 @@ def test_normalize_legacy_points():
 def test_validate_polygon_rejects_bad_coordinates():
     errors = validate_polygon_v2({
         "version": 2,
-        "color_source": "manual",
-        "color": "#ff4d4f",
+        "level_mode": "manual",
+        "risk_level": "重大",
         "polygons": [{"id": "p1", "points": [{"x": 10, "y": 10}, {"x": 20, "y": 20}, {"x": 30, "y": 101}]}],
     })
     assert any("0-100" in e for e in errors)
@@ -83,7 +83,8 @@ def test_risk_zone_polygon_normalizes_legacy_points():
         "points": _points3(),
     })
     assert result.version == 2
-    assert result.color_source == "auto"
+    assert result.level_mode == "auto"
+    assert result.risk_level is None
     assert result.polygons[0].id == "zone-1"
     assert result.polygons[0].label == "原料库"
     assert result.polygons[0].points[0].x == 1
@@ -100,41 +101,70 @@ def test_risk_zone_polygon_rejects_invalid_version():
         RiskZoneFloorPlanPolygon.model_validate({"version": 1, "color_source": "auto", "polygons": [{"id": "p1", "points": _points3()}]})
 
 
-def test_risk_zone_polygon_rejects_invalid_color_source():
-    with pytest.raises(ValidationError):
-        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "color_source": "hack", "polygons": [{"id": "p1", "points": _points3()}]})
-
-
-def test_risk_zone_polygon_requires_color_for_manual():
-    with pytest.raises(ValidationError):
-        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "color_source": "manual", "polygons": [{"id": "p1", "points": _points3()}]})
-
-
-def test_risk_zone_polygon_accepts_manual_with_color():
+def test_risk_zone_polygon_normalizes_legacy_color_source_manual():
     result = RiskZoneFloorPlanPolygon.model_validate({
         "version": 2,
         "color_source": "manual",
         "color": "#ff4d4f",
         "polygons": [{"id": "p1", "points": _points3()}],
     })
-    assert result.color == "#ff4d4f"
+    assert result.level_mode == "manual"
+    assert result.risk_level == "重大"
+
+
+def test_risk_zone_polygon_normalizes_legacy_color_source_unknown_color():
+    result = RiskZoneFloorPlanPolygon.model_validate({
+        "version": 2,
+        "color_source": "manual",
+        "color": "#123456",
+        "polygons": [{"id": "p1", "points": _points3()}],
+    })
+    assert result.level_mode == "auto"
+    assert result.risk_level is None
+
+
+def test_risk_zone_polygon_rejects_invalid_level_mode():
+    with pytest.raises(ValidationError):
+        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "level_mode": "hack", "polygons": [{"id": "p1", "points": _points3()}]})
+
+
+def test_risk_zone_polygon_requires_level_for_manual():
+    with pytest.raises(ValidationError):
+        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "level_mode": "manual", "risk_level": None, "polygons": [{"id": "p1", "points": _points3()}]})
+
+
+def test_risk_zone_polygon_rejects_level_for_auto():
+    with pytest.raises(ValidationError):
+        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "level_mode": "auto", "risk_level": "重大", "polygons": [{"id": "p1", "points": _points3()}]})
+
+
+def test_risk_zone_polygon_accepts_manual_with_level():
+    result = RiskZoneFloorPlanPolygon.model_validate({
+        "version": 2,
+        "level_mode": "manual",
+        "risk_level": "较大",
+        "polygons": [{"id": "p1", "points": _points3()}],
+    })
+    assert result.level_mode == "manual"
+    assert result.risk_level == "较大"
 
 
 def test_risk_zone_polygon_rejects_empty_polygons():
     with pytest.raises(ValidationError):
-        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "color_source": "auto", "polygons": []})
+        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "level_mode": "auto", "risk_level": None, "polygons": []})
 
 
 def test_risk_zone_polygon_rejects_too_few_points():
     with pytest.raises(ValidationError):
-        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "color_source": "auto", "polygons": [{"id": "p1", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}]}]})
+        RiskZoneFloorPlanPolygon.model_validate({"version": 2, "level_mode": "auto", "risk_level": None, "polygons": [{"id": "p1", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}]}]})
 
 
 def test_risk_zone_polygon_rejects_duplicate_ids():
     with pytest.raises(ValidationError):
         RiskZoneFloorPlanPolygon.model_validate({
             "version": 2,
-            "color_source": "auto",
+            "level_mode": "auto",
+            "risk_level": None,
             "polygons": [
                 {"id": "p1", "points": _points3()},
                 {"id": "p1", "points": _points3()},
@@ -175,9 +205,82 @@ def test_ensure_default_floor_reuses_enterprise_floor_plan_url():
     db.flush.assert_awaited_once()
 
 
-def test_manual_color_wins():
-    color = effective_color({"version": 2, "color_source": "manual", "color": "#123456", "polygons": []}, "重大")
-    assert color == "#123456"
+def test_manual_level_color_wins():
+    color = effective_color({"version": 2, "level_mode": "manual", "risk_level": "重大", "polygons": []}, "低")
+    assert color == "#ff4d4f"
+
+
+def test_auto_uses_computed_level():
+    color = effective_color({"version": 2, "level_mode": "auto", "risk_level": None, "polygons": []}, "较大")
+    assert color == "#fa8c16"
+
+
+def test_manual_bad_level_falls_back_to_auto():
+    color = effective_color({"version": 2, "level_mode": "manual", "risk_level": "未评估", "polygons": []}, "低")
+    assert color == "#52c41a"
+
+
+def test_normalize_legacy_manual_color_maps_to_level():
+    result = normalize_polygon({
+        "version": 2,
+        "color_source": "manual",
+        "color": "#fa8c16",
+        "polygons": [{"id": "p1", "points": _points3()}],
+    }, "原料库")
+    assert result["level_mode"] == "manual"
+    assert result["risk_level"] == "较大"
+    assert "color_source" not in result
+    assert "color" not in result
+
+
+def test_normalize_legacy_manual_unknown_color_falls_back_auto():
+    result = normalize_polygon({
+        "version": 2,
+        "color_source": "manual",
+        "color": "#123456",
+        "polygons": [{"id": "p1", "points": _points3()}],
+    }, "原料库")
+    assert result["level_mode"] == "auto"
+    assert result["risk_level"] is None
+
+
+def test_normalize_legacy_auto_mode():
+    result = normalize_polygon({
+        "version": 2,
+        "color_source": "auto",
+        "color": None,
+        "polygons": [{"id": "p1", "points": _points3()}],
+    }, "原料库")
+    assert result["level_mode"] == "auto"
+    assert result["risk_level"] is None
+    assert "color_source" not in result
+
+
+def test_normalize_new_structure_is_idempotent():
+    v2 = {"version": 2, "level_mode": "manual", "risk_level": "重大", "polygons": [{"id": "p1", "points": _points3()}]}
+    once = normalize_polygon(v2, "原料库")
+    twice = normalize_polygon(once, "原料库")
+    assert once == twice == v2
+
+
+def test_validate_polygon_manual_requires_level():
+    errors = validate_polygon_v2({"version": 2, "level_mode": "manual", "risk_level": None, "polygons": [{"id": "p1", "points": _points3()}]})
+    assert any("risk_level" in e for e in errors)
+
+
+def test_validate_polygon_auto_rejects_level():
+    errors = validate_polygon_v2({"version": 2, "level_mode": "auto", "risk_level": "重大", "polygons": [{"id": "p1", "points": _points3()}]})
+    assert any("auto" in e and "risk_level" in e for e in errors)
+
+
+def test_validate_polygon_accepts_legacy_manual_color_input():
+    errors = validate_polygon_v2({
+        "version": 2,
+        "color_source": "manual",
+        "color": "#fadb14",
+        "polygons": [{"id": "p1", "points": _points3()}],
+    })
+    assert errors == []
 
 
 def _ent_result():
@@ -483,7 +586,8 @@ async def test_batch_save_rejects_duplicate_client_id():
     ]
     polygon = RiskZoneFloorPlanPolygon.model_validate({
         "version": 2,
-        "color_source": "auto",
+        "level_mode": "auto",
+        "risk_level": None,
         "polygons": [{"id": "p1", "points": _points3()}],
     })
     body = _batch_body(zones=[

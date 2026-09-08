@@ -12,24 +12,39 @@ LEVEL_COLORS = {
     "低": "#52c41a",
     "未评估": "#d9d9d9",
 }
+LEVEL_COLORS_REVERSE = {v.lower(): k for k, v in LEVEL_COLORS.items() if k != "未评估"}
 
 
 def normalize_polygon(raw: dict | None, zone_name: str = "") -> dict | None:
     if not raw:
         return None
-    if raw.get("version") == 2:
-        return raw
-    points = raw.get("points") or []
-    return {
-        "version": 2,
-        "color_source": "auto",
-        "color": None,
-        "polygons": [{
-            "id": raw.get("id") or "legacy-polygon",
-            "label": raw.get("label") or zone_name,
-            "points": points,
-        }],
-    }
+    if raw.get("version") != 2:
+        points = raw.get("points") or []
+        return {
+            "version": 2,
+            "level_mode": "auto",
+            "risk_level": None,
+            "polygons": [{
+                "id": raw.get("id") or "legacy-polygon",
+                "label": raw.get("label") or zone_name,
+                "points": points,
+            }],
+        }
+    data = dict(raw)
+    if "color_source" in data:
+        level = None
+        if data.get("color_source") == "manual" and data.get("color"):
+            level = LEVEL_COLORS_REVERSE.get(str(data["color"]).lower())
+        data["level_mode"] = "manual" if level else "auto"
+        data["risk_level"] = level
+        data.pop("color_source", None)
+        data.pop("color", None)
+    else:
+        data.setdefault("level_mode", "auto")
+        data.setdefault("risk_level", None)
+    if data["level_mode"] == "auto":
+        data["risk_level"] = None
+    return data
 
 
 def validate_polygon_v2(polygon: dict | None) -> list[str]:
@@ -40,12 +55,17 @@ def validate_polygon_v2(polygon: dict | None) -> list[str]:
     if not isinstance(polygon, dict):
         errors.append("floor_plan_polygon 必须为对象")
         return errors
+    if "color_source" in polygon:
+        polygon = normalize_polygon(polygon) or polygon
     if polygon.get("version") != 2:
         errors.append("version 必须为 2")
-    if polygon.get("color_source") not in ("auto", "manual"):
-        errors.append("color_source 必须为 auto 或 manual")
-    if polygon.get("color_source") == "manual" and not isinstance(polygon.get("color"), str):
-        errors.append("manual 模式必须提供 color")
+    if polygon.get("level_mode") not in ("auto", "manual"):
+        errors.append("level_mode 必须为 auto 或 manual")
+    elif polygon.get("level_mode") == "manual":
+        if polygon.get("risk_level") not in LEVEL_COLORS or polygon.get("risk_level") == "未评估":
+            errors.append("manual 模式必须指定 risk_level（重大/较大/一般/低）")
+    elif polygon.get("risk_level") is not None:
+        errors.append("auto 模式不允许携带 risk_level")
     polygons = polygon.get("polygons")
     if not isinstance(polygons, list):
         errors.append("polygons 必须为非空数组")
@@ -80,8 +100,10 @@ def validate_polygon_v2(polygon: dict | None) -> list[str]:
 
 def effective_color(polygon: dict | Any | None, max_level: str | None) -> str:
     data = polygon.model_dump() if polygon and hasattr(polygon, "model_dump") else polygon
-    if data and data.get("color_source") == "manual":
-        return data.get("color") or LEVEL_COLORS.get(max_level or "未评估") or "#d9d9d9"
+    if data:
+        normalized = normalize_polygon(dict(data)) or {}
+        if normalized.get("level_mode") == "manual" and normalized.get("risk_level") in LEVEL_COLORS_REVERSE.values():
+            return LEVEL_COLORS[normalized["risk_level"]]
     return LEVEL_COLORS.get(max_level or "未评估", "#d9d9d9")
 
 

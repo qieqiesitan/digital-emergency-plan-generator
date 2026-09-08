@@ -3,6 +3,7 @@ from datetime import datetime, date
 from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.common import DatetimeStr
+from app.services.risk_mapping_service import LEVEL_COLORS_REVERSE
 
 RISK_LEVEL_SET = {"重大", "较大", "一般", "低"}
 CONTROL_LEVEL_SET = {"企业", "部门", "班组", "岗位"}
@@ -45,31 +46,46 @@ class RiskPolygon(BaseModel):
 
 class RiskZoneFloorPlanPolygon(BaseModel):
     version: Literal[2] = 2
-    color_source: Literal["auto", "manual"]
-    color: str | None = None
+    level_mode: Literal["auto", "manual"] = "auto"
+    risk_level: str | None = None
     polygons: list[RiskPolygon] = Field(min_length=1)
 
     @model_validator(mode="before")
     @classmethod
     def normalize_legacy(cls, data: Any):
-        """兼容旧前端 {points: [...]} 结构，自动归一化为 v2。"""
-        if isinstance(data, dict) and data.get("points") is not None and data.get("polygons") is None:
+        """兼容旧结构：{points} 旧版与 color_source/color 旧版都归一化为 level_mode/risk_level。"""
+        if not isinstance(data, dict):
+            return data
+        if data.get("points") is not None and data.get("polygons") is None:
             return {
                 "version": 2,
-                "color_source": "auto",
-                "color": None,
+                "level_mode": "auto",
+                "risk_level": None,
                 "polygons": [{
                     "id": data.get("id") or "legacy-polygon",
                     "label": data.get("label"),
                     "points": data.get("points"),
                 }],
             }
+        if data.get("version") == 2 and data.get("color_source") is not None:
+            level = (
+                LEVEL_COLORS_REVERSE.get(str(data.get("color") or "").lower())
+                if data.get("color_source") == "manual" else None
+            )
+            return {
+                "version": 2,
+                "level_mode": "manual" if level else "auto",
+                "risk_level": level,
+                "polygons": data.get("polygons") or [],
+            }
         return data
 
     @model_validator(mode="after")
     def validate_v2_rules(self):
-        if self.color_source == "manual" and not isinstance(self.color, str):
-            raise ValueError("manual 模式必须提供 color")
+        if self.level_mode == "manual" and self.risk_level not in RISK_LEVEL_SET:
+            raise ValueError("manual 模式必须指定 risk_level（重大/较大/一般/低）")
+        if self.level_mode == "auto" and self.risk_level is not None:
+            raise ValueError("auto 模式不允许携带 risk_level")
         ids = [p.id for p in self.polygons]
         if len(ids) != len(set(ids)):
             raise ValueError("polygons.id 不能重复")
