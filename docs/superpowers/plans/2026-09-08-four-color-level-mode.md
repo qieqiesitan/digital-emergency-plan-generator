@@ -289,7 +289,7 @@ def effective_color(polygon: dict | Any | None, max_level: str | None) -> str:
     return LEVEL_COLORS.get(max_level or "未评估", "#d9d9d9")
 ```
 
-注意：`LEVEL_COLORS_REVERSE` 只含四大等级键（"未评估"灰无反向映射），所以 manual 分支用 `LEVEL_COLORS_REVERSE.values()` 判断可排除"未评估"，与 schema 的 `RISK_LEVEL_SET`（四色）口径一致。
+注意：`LEVEL_COLORS_REVERSE` 构建时必须排除"未评估"灰键（`{v.lower(): k for k, v in LEVEL_COLORS.items() if k != "未评估"}`），否则灰 `#d9d9d9` 会被反查成"未评估"并误入 manual 分支；反查表只含四大等级后，manual 分支用 `LEVEL_COLORS_REVERSE.values()` 判断即天然排除"未评估"，与 schema 的 `RISK_LEVEL_SET`（四色）口径一致。`validate_polygon_v2` 只应在输入含旧 `color_source` 键时归一化，避免 `normalize_polygon` 把 auto+risk_level 的非法输入吞成合法。
 
 - [ ] **步骤 4：实现 schema 新结构**
 
