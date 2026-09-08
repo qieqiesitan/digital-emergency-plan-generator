@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
 
-from app.routers.risk_management import _same_ts
+from app.routers.risk_management import _same_ts, _zone_dual_levels
 from app.schemas.risk_management import (
     BatchSaveRequest,
     BatchSaveRiskPointItem,
@@ -18,8 +19,8 @@ from app.schemas.risk_management import (
 def _v2_polygon() -> RiskZoneFloorPlanPolygon:
     return RiskZoneFloorPlanPolygon(
         version=2,
-        color_source="auto",
-        color=None,
+        level_mode="auto",
+        risk_level=None,
         polygons=[RiskPolygon(
             id="p1",
             label="原料库",
@@ -83,8 +84,8 @@ def test_hierarchy_zone_response_extends_floor_fields():
         "description": "原料储存区域",
         "floor_plan_polygon": {
             "version": 2,
-            "color_source": "auto",
-            "color": None,
+            "level_mode": "auto",
+            "risk_level": None,
             "polygons": [{"id": "p1", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}]}],
         },
         "max_risk_level": "较大",
@@ -107,6 +108,27 @@ def test_hierarchy_zone_response_extends_floor_fields():
     assert resp.objects[0].floor_id == "floor-1"
     assert resp.objects[0].location_x == 32.5
     assert resp.objects[0].location_y == 45.2
+
+
+def test_workbench_dual_levels_uses_manual_override():
+    zone = MagicMock()
+    zone.floor_plan_polygon = {"version": 2, "level_mode": "manual", "risk_level": "重大", "polygons": []}
+    current, color, inherent, inherent_color = _zone_dual_levels(zone)
+    assert current == "重大"
+    assert inherent == "重大"
+    assert color == "#ff4d4f"
+    assert inherent_color == "#ff4d4f"
+
+
+def test_workbench_dual_levels_ignores_unknown_manual_level():
+    zone = MagicMock()
+    zone.floor_plan_polygon = {"version": 2, "level_mode": "manual", "risk_level": "未评估", "polygons": []}
+    zone.objects = []
+    current, color, inherent, inherent_color = _zone_dual_levels(zone)
+    assert current == "未评估"
+    assert inherent == "未评估"
+    assert color == "#d9d9d9"
+    assert inherent_color == "#d9d9d9"
 
 
 def test_same_ts_compares_absolute_instant():

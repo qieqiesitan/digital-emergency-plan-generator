@@ -22,7 +22,7 @@ from app.services.risk_source_migration_service import (
     build_migration_preview,
     execute_migration as execute_risk_source_migration,
 )
-from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS
+from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS, LEVEL_COLORS_REVERSE
 from app.services.risk_control_list_service import (
     ZONE_TREE_OPTIONS,
     build_ledger_workbook,
@@ -412,9 +412,18 @@ def _validate_point_range(x, y) -> None:
 
 
 def _zone_dual_levels(zone):
-    """返回 (max_level, effective_color, inherent_max_level, inherent_effective_color)。"""
+    """返回 (max_level, effective_color, inherent_max_level, inherent_effective_color)。
+    显式等级（level_mode=manual）对现有/固有两种模式同时生效。"""
+    poly = zone.floor_plan_polygon
+    override = None
+    if isinstance(poly, dict):
+        if poly.get("level_mode") == "manual" and poly.get("risk_level") in LEVEL_COLORS_REVERSE.values():
+            override = poly["risk_level"]
     current = max_risk_level(zone)
     inherent = max_risk_level(zone, "inherent")
+    if override:
+        current = override
+        inherent = override
     return (current, effective_color(zone.floor_plan_polygon, current),
             inherent, effective_color(zone.floor_plan_polygon, inherent))
 
@@ -1205,7 +1214,7 @@ async def get_risk_publicity(
             "floor_id": z.floor_id,
             "floor_name": z.floor.name if z.floor else None,
             "name": z.name,
-            "floor_plan_polygon": z.floor_plan_polygon,
+            "floor_plan_polygon": normalize_polygon(z.floor_plan_polygon, z.name),
             "max_level": cur,
             "effective_color": cur_color,
             "inherent_max_level": inh,
