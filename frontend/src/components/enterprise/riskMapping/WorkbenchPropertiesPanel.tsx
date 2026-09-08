@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
-import { Button, Input, InputNumber, Select, Space } from "antd";
+import { Button, Input, InputNumber, Radio, Select, Space } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import type { RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
 import { transformPolygonPoints } from "@/utils/riskMappingGeometry";
+import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+
+const LEVEL_CHOICES: [string, string][] = [
+  ["重大", RISK_LEVEL_COLORS["重大"]],
+  ["较大", RISK_LEVEL_COLORS["较大"]],
+  ["一般", RISK_LEVEL_COLORS["一般"]],
+  ["低", RISK_LEVEL_COLORS["低"]],
+];
 
 type RiskPointDraft = Pick<
   RiskObject,
@@ -30,6 +38,14 @@ export default function WorkbenchPropertiesPanel() {
   const [regionScale, setRegionScale] = useState(100);
   const [regionRotation, setRegionRotation] = useState(0);
   const zone = zones.find(z => z.id === selectedZoneId);
+  const manualLevel =
+    zone?.floor_plan_polygon?.level_mode === "manual" ? (zone.floor_plan_polygon.risk_level ?? null) : null;
+  const levelPreview = manualLevel
+    ? `手动指定 · ${manualLevel}风险`
+    : `${zone?.max_risk_level || "未评估"}风险（自动）`;
+  const zoneColorPreview = manualLevel
+    ? (manualLevel && RISK_LEVEL_COLORS[manualLevel]) || "#d9d9d9"
+    : zone?.effective_color || "#d9d9d9";
   const selectedPending = selectedRegionId?.startsWith("pending:")
     ? pendingRegions.find(r => r.id === selectedRegionId.slice("pending:".length)) ?? null
     : null;
@@ -354,35 +370,84 @@ export default function WorkbenchPropertiesPanel() {
       ) : (
         <>
           <Input value={zone.name} onChange={e => updateZone({ name: e.target.value })} />
+          <div style={{ borderTop: "1px solid #f0f0f0", marginTop: 8, paddingTop: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>分区颜色</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  background: zoneColorPreview,
+                  display: "inline-block",
+                  border: "1px solid #d9d9d9",
+                }}
+              />
+              <span style={{ fontSize: 12, color: "#666" }}>{levelPreview}</span>
+            </div>
+            <Radio.Group
+              size="small"
+              value={zone.floor_plan_polygon?.level_mode || "auto"}
+              onChange={e => {
+                const polygon = zone.floor_plan_polygon || { version: 2, level_mode: "auto" as const, risk_level: null, polygons: [] };
+                const mode = e.target.value as "auto" | "manual";
+                updateZone({
+                  floor_plan_polygon: {
+                    ...polygon,
+                    level_mode: mode,
+                    risk_level: mode === "manual" ? polygon.risk_level || "较大" : null,
+                  },
+                });
+              }}
+              options={[
+                { value: "auto", label: "跟随自动" },
+                { value: "manual", label: "手动指定" },
+              ]}
+            />
+            {zone.floor_plan_polygon?.level_mode === "manual" && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                {LEVEL_CHOICES.map(([level, color]) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() =>
+                      updateZone({
+                        floor_plan_polygon: {
+                          ...zone.floor_plan_polygon!,
+                          level_mode: "manual",
+                          risk_level: level as "重大" | "较大" | "一般" | "低",
+                        },
+                      })
+                    }
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      border:
+                        zone.floor_plan_polygon?.risk_level === level ? "2px solid #1677ff" : "1px solid #d9d9d9",
+                      background: color,
+                      color: level === "一般" ? "#333" : "#fff",
+                      cursor: "pointer",
+                      fontSize: 12,
+                    }}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: "#999", marginTop: 6 }}>
+              手动指定后现有/固有模式均显示该颜色，不随风险对象变化。
+            </div>
+          </div>
           <Input.TextArea
             style={{ marginTop: 8 }}
             rows={3}
             value={zone.description || ""}
             onChange={e => updateZone({ description: e.target.value })}
           />
-          <Select
-            style={{ width: "100%", marginTop: 8 }}
-            value={zone.floor_plan_polygon?.level_mode || "auto"}
-            options={[{ value: "auto", label: "自动颜色" }, { value: "manual", label: "手动覆盖" }]}
-            onChange={value => {
-              const polygon = zone.floor_plan_polygon || { version: 2, level_mode: "auto" as const, risk_level: null, polygons: [] };
-              updateZone({
-                floor_plan_polygon: {
-                  ...polygon,
-                  level_mode: value as "auto" | "manual",
-                  risk_level: value === "manual" ? polygon.risk_level || "重大" : null,
-                },
-              });
-            }}
-          />
-          {zone.floor_plan_polygon?.level_mode === "manual" && (
-            <Input
-              type="text"
-              style={{ width: "100%", marginTop: 8 }}
-              value={zone.floor_plan_polygon.risk_level || "重大"}
-              disabled
-            />
-          )}
           <Button
             danger
             block
