@@ -343,6 +343,13 @@ async def export_plan_docx(
             "diagram_svgs": s.diagram_svgs or {},
         })
 
+    # P3：校验与导出联动——无任何非空章节时拒绝生成空文档
+    if not sections_data:
+        raise HTTPException(
+            400,
+            "预案所有章节均为空，无法导出 DOCX。请先在编辑器中完善章节内容后再导出。",
+        )
+
     # 质量校验 → 正文证据片段（预览与 docx 高亮共用）
     from app.services.plan_quality_service import check_plan
     required = []

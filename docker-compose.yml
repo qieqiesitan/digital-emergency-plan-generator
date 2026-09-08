@@ -2,6 +2,8 @@ services:
   postgres:
     image: postgres:16
     container_name: emergency-plan-db
+    # P2 #10：防御性终止超长空闲事务（30 分钟），防连接无限挂起
+    command: ["postgres", "-c", "idle_in_transaction_session_timeout=30min"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

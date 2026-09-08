@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Row, Col, Statistic, List, Typography, Button, Skeleton, Empty, Modal, Input, Select, Tag, Progress, Space } from "antd";
+import { Alert, Card, Row, Col, Statistic, List, Typography, Button, Skeleton, Empty, Modal, Input, Select, Tag, Progress, Space } from "antd";
 import {
   BankOutlined,
   FileTextOutlined,
@@ -34,12 +34,17 @@ export default function DashboardPage() {
   const [modalSearch, setModalSearch] = useState("");
   const [modalIndustry, setModalIndustry] = useState<string | undefined>(undefined);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError: dashboardError, refetch: dashboardRefetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: getDashboard,
   });
 
-  const { data: enterprisePage, isLoading: enterprisesLoading } = useQuery({
+  const {
+    data: enterprisePage,
+    isLoading: enterprisesLoading,
+    isError: enterprisesError,
+    refetch: enterprisesRefetch,
+  } = useQuery({
     queryKey: ["enterprises", "quick-create"],
     queryFn: () => listEnterprises({ page: 1, page_size: 100 }),
   });
@@ -62,6 +67,23 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 8 }} />;
+  }
+
+  // P1-8：接口失败与「无数据」严格区分，避免误导性空态/全 0
+  if (dashboardError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="工作台数据加载失败"
+        description="网络异常或服务暂不可用，请检查连接后重试。数据未丢失，恢复后会自动显示。"
+        action={
+          <Button size="small" onClick={() => dashboardRefetch()}>
+            重试
+          </Button>
+        }
+      />
+    );
   }
 
   if (!data || data.stats.enterprise_count === 0) {
@@ -136,7 +158,19 @@ export default function DashboardPage() {
         <Title level={5} style={{ margin: 0 }}>企业概览</Title>
         <Button type="link" onClick={() => navigate("/enterprises")}>进入企业管理 →</Button>
       </div>
-      {enterprises.length === 0 ? (
+      {enterprisesError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="企业列表加载失败"
+          description="无法获取企业数据，请检查网络后重试"
+          action={
+            <Button size="small" onClick={() => enterprisesRefetch()}>
+              重试
+            </Button>
+          }
+        />
+      ) : enterprises.length === 0 ? (
         <Empty description="暂无企业">
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/enterprises/new")}>
             创建第一个企业
@@ -246,6 +280,17 @@ export default function DashboardPage() {
         </Space>
         {enterprisesLoading ? (
           <Skeleton active paragraph={{ rows: 4 }} />
+        ) : enterprisesError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="企业列表加载失败"
+            action={
+              <Button size="small" onClick={() => enterprisesRefetch()}>
+                重试
+              </Button>
+            }
+          />
         ) : enterprises.length === 0 ? (
           <Empty description="暂无企业" />
         ) : (

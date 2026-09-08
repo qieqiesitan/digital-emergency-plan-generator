@@ -25,9 +25,22 @@ MIME_MAP = {
     ".webmanifest": "application/manifest+json",
 }
 
+
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
+    # 隐藏 Python/SimpleHTTP 版本细节（QA #7）
+    server_version = "EmergencyPlan"
+    sys_version = ""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIST_DIR, **kwargs)
+
+    def end_headers(self):
+        # QA #7：统一安全响应头（静态 + 代理 + 错误响应）
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        super().end_headers()
 
     def do_GET(self):
         if (
@@ -163,6 +176,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = http.server.HTTPServer(("0.0.0.0", PORT), ProxyHandler)
+    # 必须用多线程：SSE 生成是长连接，单线程服务器会在整段生成期间
+    # 阻塞所有其它静态/API 请求（表现为页面卡死、按钮无响应）
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), ProxyHandler)
     print(f"Serving on port {PORT}, proxying API to {BACKEND}")
     server.serve_forever()

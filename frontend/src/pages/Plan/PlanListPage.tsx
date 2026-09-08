@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Table, Tabs, Radio, Input, Button, Space, Progress, message } from "antd";
+import { Alert, Table, Tabs, Radio, Input, Button, Space, Progress, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listPlans, deletePlan } from "@/services/planService";
@@ -33,7 +33,7 @@ export default function PlanListPage() {
   });
 
   // plan list — server-side filters + pagination
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["plans", {
       enterprise_id: enterprise_id || undefined,
       plan_type: typeFilter !== "all" ? typeFilter : undefined,
@@ -73,6 +73,25 @@ export default function PlanListPage() {
   const isGlobal = !enterprise_id;
   const entName = enterprise?.name || "";
   const hasActiveFilters = search.trim() !== "" || typeFilter !== "all" || statusFilter !== "all";
+
+  // P1-8：请求失败必须与「无数据」区分，避免误导性空态/全 0
+  if (isError) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Alert
+          type="error"
+          showIcon
+          message="预案列表加载失败"
+          description="网络异常或服务暂不可用，请检查连接后重试。数据未丢失，恢复后会自动显示。"
+          action={
+            <Button size="small" onClick={() => refetch()}>
+              重试
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   const columns = [
     {
