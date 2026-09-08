@@ -4,8 +4,8 @@ import type { RiskZoneFloorPlanPolygon } from "@/types/riskManagement";
 
 const polygon: RiskZoneFloorPlanPolygon = {
   version: 2,
-  color_source: "auto",
-  color: null,
+  level_mode: "auto",
+  risk_level: null,
   polygons: [
     {
       id: "p1",
@@ -60,8 +60,8 @@ describe("buildZonePayload", () => {
 describe("mergeEditedPolygon", () => {
   const multiRegion: RiskZoneFloorPlanPolygon = {
     version: 2,
-    color_source: "manual",
-    color: "#ff0000",
+    level_mode: "manual",
+    risk_level: "较大",
     polygons: [
       {
         id: "p1",
@@ -101,15 +101,15 @@ describe("mergeEditedPolygon", () => {
     expect(result.polygons[1]).toEqual(multiRegion.polygons[1]);
   });
 
-  it("keeps the v2 color_source and color instead of resetting to auto", () => {
+  it("keeps the v2 level_mode and risk_level instead of resetting to auto", () => {
     const result = mergeEditedPolygon(multiRegion, "储罐区", multiRegion.polygons[0].points);
 
     expect(result.version).toBe(2);
-    expect(result.color_source).toBe("manual");
-    expect(result.color).toBe("#ff0000");
+    expect(result.level_mode).toBe("manual");
+    expect(result.risk_level).toBe("较大");
   });
 
-  it("creates a fresh auto-colored single-region polygon when nothing existed", () => {
+  it("creates a fresh auto-leveled single-region polygon when nothing existed", () => {
     const result = mergeEditedPolygon(null, "新区域", [
       { x: 0, y: 0 },
       { x: 1, y: 0 },
@@ -117,8 +117,8 @@ describe("mergeEditedPolygon", () => {
     ]);
 
     expect(result.version).toBe(2);
-    expect(result.color_source).toBe("auto");
-    expect(result.color).toBeNull();
+    expect(result.level_mode).toBe("auto");
+    expect(result.risk_level).toBeNull();
     expect(result.polygons).toHaveLength(1);
     expect(result.polygons[0].label).toBe("新区域");
   });

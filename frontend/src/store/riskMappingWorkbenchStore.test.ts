@@ -357,8 +357,8 @@ describe("riskMappingWorkbenchStore", () => {
           ...makeZone("z1"),
           floor_plan_polygon: {
             version: 2,
-            color_source: "auto",
-            color: null,
+            level_mode: "auto",
+            risk_level: null,
             polygons: [
               { id: "p1", label: "p1", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] },
               { id: "p2", label: "p2", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] },

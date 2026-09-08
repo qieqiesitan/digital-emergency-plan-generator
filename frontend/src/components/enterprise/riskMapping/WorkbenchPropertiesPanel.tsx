@@ -90,7 +90,7 @@ export default function WorkbenchPropertiesPanel() {
     if (!selectedPending || !regionZoneId) return;
     const target = zones.find(z => z.id === regionZoneId);
     if (!target) return;
-    const polygon = target.floor_plan_polygon || { version: 2, color_source: "auto" as const, color: null, polygons: [] };
+    const polygon = target.floor_plan_polygon || { version: 2, level_mode: "auto" as const, risk_level: null, polygons: [] };
     commit();
     setSnapshot({
       zones: useRiskMappingWorkbenchStore.getState().zones.map(z =>
@@ -122,7 +122,7 @@ export default function WorkbenchPropertiesPanel() {
     const targetZone = zones.find(z => z.id === targetZoneId);
     const polygon = sourceZone?.floor_plan_polygon?.polygons.find(p => p.id === selectedZonePolygon.polygonId);
     if (!sourceZone || !targetZone || !polygon) return;
-    const targetPolygon = targetZone.floor_plan_polygon || { version: 2, color_source: "auto" as const, color: null, polygons: [] };
+    const targetPolygon = targetZone.floor_plan_polygon || { version: 2, level_mode: "auto" as const, risk_level: null, polygons: [] };
     const targetPolygonId = targetPolygon.polygons.some(p => p.id === polygon.id)
       ? `${polygon.id}-moved-${Date.now().toString(36)}`
       : polygon.id;
@@ -362,29 +362,25 @@ export default function WorkbenchPropertiesPanel() {
           />
           <Select
             style={{ width: "100%", marginTop: 8 }}
-            value={zone.floor_plan_polygon?.color_source || "auto"}
+            value={zone.floor_plan_polygon?.level_mode || "auto"}
             options={[{ value: "auto", label: "自动颜色" }, { value: "manual", label: "手动覆盖" }]}
             onChange={value => {
-              const polygon = zone.floor_plan_polygon || { version: 2, color_source: "auto" as const, color: null, polygons: [] };
+              const polygon = zone.floor_plan_polygon || { version: 2, level_mode: "auto" as const, risk_level: null, polygons: [] };
               updateZone({
                 floor_plan_polygon: {
                   ...polygon,
-                  color_source: value as "auto" | "manual",
-                  color: value === "manual" ? polygon.color || "#ff4d4f" : null,
+                  level_mode: value as "auto" | "manual",
+                  risk_level: value === "manual" ? polygon.risk_level || "重大" : null,
                 },
               });
             }}
           />
-          {zone.floor_plan_polygon?.color_source === "manual" && (
+          {zone.floor_plan_polygon?.level_mode === "manual" && (
             <Input
-              type="color"
+              type="text"
               style={{ width: "100%", marginTop: 8 }}
-              value={zone.floor_plan_polygon.color || "#ff4d4f"}
-              onChange={e =>
-                updateZone({
-                  floor_plan_polygon: { ...zone.floor_plan_polygon!, color: e.target.value },
-                })
-              }
+              value={zone.floor_plan_polygon.risk_level || "重大"}
+              disabled
             />
           )}
           <Button

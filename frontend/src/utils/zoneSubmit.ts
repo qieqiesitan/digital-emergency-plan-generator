@@ -47,8 +47,8 @@ export function mergeEditedPolygon(
   const rest = current?.polygons?.slice(1) ?? [];
   return {
     version: 2,
-    color_source: current?.color_source ?? "auto",
-    color: current?.color ?? null,
+    level_mode: current?.level_mode ?? "auto",
+    risk_level: current?.risk_level ?? null,
     polygons: [edited, ...rest],
   };
 }

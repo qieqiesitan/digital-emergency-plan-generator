@@ -7,7 +7,7 @@ import type {
 
 export type {
   RiskLevel,
-  ColorSource,
+  LevelMode,
   RiskPolygonPoint,
   RiskPolygon,
   RiskZoneFloorPlanPolygon,

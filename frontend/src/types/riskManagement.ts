@@ -3,13 +3,13 @@ export type MeasureCategory = "engineering" | "management" | "ppe" | "emergency"
 export type MeasureStatus = "pending" | "implemented" | "expired";
 
 export type RiskLevel = "重大" | "较大" | "一般" | "低" | "未评估";
-export type ColorSource = "auto" | "manual";
+export type LevelMode = "auto" | "manual";
 export interface RiskPolygonPoint { x: number; y: number }
 export interface RiskPolygon { id: string; label?: string; points: RiskPolygonPoint[] }
 export interface RiskZoneFloorPlanPolygon {
   version: 2;
-  color_source: ColorSource;
-  color: string | null;
+  level_mode: LevelMode;
+  risk_level: Exclude<RiskLevel, "未评估"> | null;
   polygons: RiskPolygon[];
 }
 

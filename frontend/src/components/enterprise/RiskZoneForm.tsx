@@ -4,6 +4,7 @@ import { DeleteOutlined } from "@ant-design/icons";
 import AppIcon from "@/components/common/AppIcon";
 import { mergeEditedPolygon } from "@/utils/zoneSubmit";
 import type { EnterpriseFloor } from "@/types/riskMappingWorkbench";
+import type { RiskLevel } from "@/types/riskManagement";
 
 interface PolygonPoint { x: number; y: number }
 
@@ -13,8 +14,8 @@ interface RiskZoneFormValues {
   floor_id?: string | null;
   floor_plan_polygon?: {
     version: 2;
-    color_source: "auto" | "manual";
-    color: string | null;
+    level_mode: "auto" | "manual";
+    risk_level: Exclude<RiskLevel, "未评估"> | null;
     polygons: { id: string; label?: string; points: PolygonPoint[] }[];
   };
 }

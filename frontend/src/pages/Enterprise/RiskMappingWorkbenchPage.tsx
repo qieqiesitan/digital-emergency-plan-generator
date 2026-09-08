@@ -122,7 +122,7 @@ export default function RiskMappingWorkbenchPage() {
     }
     const zones = state.zones.map(z => {
       const isNew = z.id.startsWith("new-zone-");
-      const polygon = z.floor_plan_polygon ?? { version: 2, color_source: "auto" as const, color: null, polygons: [] };
+      const polygon = z.floor_plan_polygon ?? { version: 2, level_mode: "auto" as const, risk_level: null, polygons: [] };
       return isNew
         ? {
             zone_id: null as null,
