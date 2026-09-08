@@ -325,7 +325,7 @@ class RiskZoneFloorPlanPolygon(BaseModel):
                     "points": data.get("points"),
                 }],
             }
-        if data.get("color_source") is not None:
+        if data.get("version") == 2 and data.get("color_source") is not None:
             level = (
                 LEVEL_COLORS_REVERSE.get(str(data.get("color") or "").lower())
                 if data.get("color_source") == "manual" else None
