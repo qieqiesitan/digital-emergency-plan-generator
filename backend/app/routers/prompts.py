@@ -73,7 +73,7 @@ def _to_response(p: PromptTemplate) -> dict:
 @router.get("", response_model=ApiResponse[list])
 async def list_prompts(
     category: Optional[str] = Query(None),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """获取提示词模板列表（本地DB）"""
@@ -87,7 +87,7 @@ async def list_prompts(
 @router.get("/{prompt_id}", response_model=ApiResponse[dict])
 async def get_prompt(
     prompt_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """获取单个提示词模板"""

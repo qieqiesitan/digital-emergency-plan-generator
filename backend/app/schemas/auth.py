@@ -1,4 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+import re
+
+from pydantic import BaseModel, Field, field_validator
+
+
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 
 # P1-9：常见弱密码黑名单（纯键盘序列/纯数字/纯字母/占位）
@@ -14,6 +19,9 @@ def validate_password_strength(v: str) -> str:
     """密码复杂度：>=8 位、含字母和数字、非常见弱密码。"""
     if len(v) < 8:
         raise ValueError("密码长度至少 8 位")
+    # bcrypt 仅使用前 72 字节：超长密码会被静默截断，等价降级（QA S16）
+    if len(v.encode("utf-8")) > 72:
+        raise ValueError("密码长度不能超过 72 字节")
     lowered = v.lower()
     if lowered in COMMON_WEAK_PASSWORDS:
         raise ValueError("密码过于常见，请更换更复杂的密码")
@@ -30,6 +38,13 @@ class RegisterRequest(BaseModel):
     password: str
     password_confirm: str
     name: str
+
+    @field_validator("email")
+    @classmethod
+    def email_format(cls, v):
+        if not EMAIL_RE.match(v):
+            raise ValueError("邮箱格式不正确")
+        return v
 
     @field_validator("password")
     @classmethod

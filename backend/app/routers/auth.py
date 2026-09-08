@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
@@ -14,7 +14,7 @@ from app.schemas.common import ApiResponse
 from app.services.auth_service import (
     hash_password, verify_password, create_access_token, create_refresh_token,
     decode_token, generate_password_reset_token, send_password_reset_email,
-    RESET_TOKEN_TTL_MINUTES,
+    RESET_TOKEN_TTL_MINUTES, revoke_token,
 )
 from jose import JWTError
 from app.middleware.rate_limit import rate_limited
@@ -77,7 +77,17 @@ async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
     ))
 
 @router.post("/logout")
-async def logout(data: LogoutRequest):
+async def logout(data: LogoutRequest, request: Request):
+    """撤销 refresh/access token（进程内 jti 黑名单）。
+
+    限制：单 worker 内存实现；多 worker/重启后黑名单失效，
+    token 在自然过期前仍可用——生产多 worker 部署需换共享存储。
+    """
+    if data.refresh_token:
+        revoke_token(data.refresh_token)
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        revoke_token(auth_header[7:].strip())
     return {"code": 0, "message": "ok"}
 
 

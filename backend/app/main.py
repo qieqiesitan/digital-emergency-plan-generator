@@ -166,6 +166,19 @@ app = FastAPI(title="Digital Emergency Plan Generator", version="1.0.0", lifespa
 
 
 @app.middleware("http")
+async def _security_headers(request, call_next):
+    """QA #7：补齐安全响应头（API 响应）。"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+    )
+    return response
+
+
+@app.middleware("http")
 async def _db_data_error_to_422(request, call_next):
     """非法 UUID / 超长字段等 asyncpg 数据错误：500 → 422，防内部细节泄露。
 
@@ -285,6 +298,9 @@ async def health():
 
 @app.get("/{full_path:path}")
 async def spa_fallback(full_path: str):
+    # API 未知路径返回 JSON 404，避免 catch-all 把 /api/* 兜成 SPA HTML
+    if full_path.startswith("api/"):
+        return JSONResponse(status_code=404, content={"detail": "接口不存在"})
     if not os.path.isdir(FRONTEND_DIST):
         return {"detail": "Frontend not built"}, 404
     file_path = os.path.join(FRONTEND_DIST, full_path)

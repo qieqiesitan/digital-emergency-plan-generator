@@ -39,7 +39,7 @@ class EnterpriseBase(BaseModel):
     address: str | None = Field(default=None, max_length=500)
     industry: str | None = Field(default=None, max_length=255)
     business_scope: str | None = Field(default=None, max_length=1000)
-    employee_count: int | None = None
+    employee_count: int | None = Field(default=None, ge=0)
     credit_code: str | None = Field(default=None, max_length=50)
     legal_representative: str | None = Field(default=None, max_length=100)
     economic_type: str | None = Field(default=None, max_length=50)
@@ -52,7 +52,7 @@ class EnterpriseBase(BaseModel):
     building_area: float | None = None
     safety_officer: str | None = Field(default=None, max_length=100)
     safety_officer_phone: str | None = Field(default=None, max_length=50)
-    safety_staff_count: int | None = None
+    safety_staff_count: int | None = Field(default=None, ge=0)
     safety_standardization: str | None = Field(default=None, max_length=20)
     fire_approval: str | None = Field(default=None, max_length=50)
     fire_approval_date: str | None = None
