@@ -2,6 +2,7 @@ import { Badge, Button, Divider, Empty, Space } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import type { WorkbenchZone } from "@/types/riskMappingWorkbench";
+import { zoneDisplayColor, zoneDisplayLevel } from "@/utils/zoneDisplay";
 
 export default function WorkbenchZonePanel() {
   const zones = useRiskMappingWorkbenchStore(s => s.zones);
@@ -53,7 +54,7 @@ export default function WorkbenchZonePanel() {
               borderRadius: 6,
               cursor: "pointer",
               border: selectedZoneId === z.id ? "2px solid #1677ff" : "1px solid #d9d9d9",
-              background: z.effective_color ? z.effective_color + "18" : "#fff",
+              background: zoneDisplayColor(z, "current") + "18",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -75,7 +76,7 @@ export default function WorkbenchZonePanel() {
               />
             </div>
             <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-              {(z.floor_plan_polygon?.polygons || []).length} 个区域 · {z.max_risk_level || "未评估"}风险
+              {(z.floor_plan_polygon?.polygons || []).length} 个区域 · {zoneDisplayLevel(z)}风险
             </div>
           </div>
         ))

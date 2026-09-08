@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { Button, Input, InputNumber, Radio, Select, Space } from "antd";
+import { useEffect, useRef, useState } from "react";
+import { Button, Input, InputNumber, message, Radio, Select, Space } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import type { RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
 import { transformPolygonPoints } from "@/utils/riskMappingGeometry";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { zoneDisplayColor, zoneDisplayLevel } from "@/utils/zoneDisplay";
 
 const LEVEL_CHOICES: [string, string][] = [
   ["重大", RISK_LEVEL_COLORS["重大"]],
@@ -38,14 +39,20 @@ export default function WorkbenchPropertiesPanel() {
   const [regionScale, setRegionScale] = useState(100);
   const [regionRotation, setRegionRotation] = useState(0);
   const zone = zones.find(z => z.id === selectedZoneId);
-  const manualLevel =
-    zone?.floor_plan_polygon?.level_mode === "manual" ? (zone.floor_plan_polygon.risk_level ?? null) : null;
-  const levelPreview = manualLevel
-    ? `手动指定 · ${manualLevel}风险`
-    : `${zone?.max_risk_level || "未评估"}风险（自动）`;
-  const zoneColorPreview = manualLevel
-    ? (manualLevel && RISK_LEVEL_COLORS[manualLevel]) || "#d9d9d9"
-    : zone?.effective_color || "#d9d9d9";
+  const autoBaseRef = useRef<
+    Map<
+      string,
+      Pick<
+        WorkbenchZone,
+        "effective_color" | "inherent_effective_color" | "max_risk_level" | "inherent_max_level"
+      >
+    >
+  >(new Map());
+  const zoneColorMode = zone?.floor_plan_polygon?.level_mode ?? "auto";
+  const levelPreview = zone
+    ? `${zoneDisplayLevel(zone)}风险${zoneColorMode === "manual" ? "（手动指定）" : "（自动）"}`
+    : "";
+  const zoneColorPreview = zone ? zoneDisplayColor(zone, "current") : "#d9d9d9";
   const selectedPending = selectedRegionId?.startsWith("pending:")
     ? pendingRegions.find(r => r.id === selectedRegionId.slice("pending:".length)) ?? null
     : null;
@@ -100,6 +107,45 @@ export default function WorkbenchPropertiesPanel() {
     if (!zone) return;
     commit();
     setSnapshot({ zones: useRiskMappingWorkbenchStore.getState().zones.map(z => (z.id === zone.id ? { ...z, ...patch } : z)) });
+  };
+
+  const setZoneColorMode = (mode: "auto" | "manual", riskLevel?: "重大" | "较大" | "一般" | "低") => {
+    if (!zone) return;
+    const polygon = zone.floor_plan_polygon || {
+      version: 2,
+      level_mode: "auto" as const,
+      risk_level: null,
+      polygons: [],
+    };
+    if (mode === "manual") {
+      if (!autoBaseRef.current.has(zone.id)) {
+        autoBaseRef.current.set(zone.id, {
+          effective_color: zone.effective_color,
+          inherent_effective_color: zone.inherent_effective_color,
+          max_risk_level: zone.max_risk_level,
+          inherent_max_level: zone.inherent_max_level,
+        });
+      }
+      updateZone({
+        floor_plan_polygon: {
+          ...polygon,
+          level_mode: "manual",
+          risk_level: riskLevel ?? polygon.risk_level ?? "较大",
+        },
+      });
+      return;
+    }
+    const base = autoBaseRef.current.get(zone.id);
+    if (base) {
+      autoBaseRef.current.delete(zone.id);
+      updateZone({
+        floor_plan_polygon: { ...polygon, level_mode: "auto", risk_level: null },
+        ...base,
+      });
+    } else {
+      message.info("已切换为跟随自动：保存后将按分区风险对象最大等级重新着色。");
+      updateZone({ floor_plan_polygon: { ...polygon, level_mode: "auto", risk_level: null } });
+    }
   };
 
   const bindSelectedPending = () => {
@@ -387,18 +433,8 @@ export default function WorkbenchPropertiesPanel() {
             </div>
             <Radio.Group
               size="small"
-              value={zone.floor_plan_polygon?.level_mode || "auto"}
-              onChange={e => {
-                const polygon = zone.floor_plan_polygon || { version: 2, level_mode: "auto" as const, risk_level: null, polygons: [] };
-                const mode = e.target.value as "auto" | "manual";
-                updateZone({
-                  floor_plan_polygon: {
-                    ...polygon,
-                    level_mode: mode,
-                    risk_level: mode === "manual" ? polygon.risk_level || "较大" : null,
-                  },
-                });
-              }}
+              value={zoneColorMode}
+              onChange={e => setZoneColorMode(e.target.value as "auto" | "manual")}
               options={[
                 { value: "auto", label: "跟随自动" },
                 { value: "manual", label: "手动指定" },
@@ -410,15 +446,7 @@ export default function WorkbenchPropertiesPanel() {
                   <button
                     key={level}
                     type="button"
-                    onClick={() =>
-                      updateZone({
-                        floor_plan_polygon: {
-                          ...zone.floor_plan_polygon!,
-                          level_mode: "manual",
-                          risk_level: level as "重大" | "较大" | "一般" | "低",
-                        },
-                      })
-                    }
+                    onClick={() => setZoneColorMode("manual", level as "重大" | "较大" | "一般" | "低")}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",

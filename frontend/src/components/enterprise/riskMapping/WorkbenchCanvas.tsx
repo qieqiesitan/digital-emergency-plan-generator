@@ -25,6 +25,7 @@ import {
 } from "@/utils/riskMappingGeometry";
 import type { RiskPolygonPoint, RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
+import { zoneDisplayColor } from "@/utils/zoneDisplay";
 import WorkbenchRiskPointLayer from "./WorkbenchRiskPointLayer";
 
 const STAGE_WIDTH = 1200;
@@ -142,8 +143,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const [spacePressed, setSpacePressed] = useState(false);
   const canvasBoxRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const zoneColor = (z: WorkbenchZone) =>
-    colorMode === "inherent" ? (z.inherent_effective_color ?? z.effective_color) : z.effective_color;
+  const zoneColor = (z: WorkbenchZone) => zoneDisplayColor(z, colorMode);
 
   useEffect(() => {
     const url = floor?.floor_plan_url;
