@@ -17,11 +17,16 @@ from app.services.auth_service import (
     RESET_TOKEN_TTL_MINUTES,
 )
 from jose import JWTError
+from app.middleware.rate_limit import rate_limited
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register", response_model=ApiResponse[UserResponse])
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(
+    data: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = rate_limited(limit=10, window_seconds=3600, scope="register"),
+):
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="该邮箱已被注册")
@@ -34,7 +39,11 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     return ApiResponse(data=UserResponse.model_validate(user))
 
 @router.post("/login", response_model=ApiResponse[TokenResponse])
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(
+    data: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = rate_limited(limit=30, window_seconds=900, scope="login"),
+):
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if not user or not verify_password(data.password, user.password_hash):
@@ -73,7 +82,11 @@ async def logout(data: LogoutRequest):
 
 
 @router.post("/forgot-password", response_model=ApiResponse[dict])
-async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = rate_limited(limit=10, window_seconds=900, scope="forgot_password"),
+):
     """申请密码找回（骨架）：生成令牌并落库，邮件发送留空待 SMTP 接入。
 
     无论邮箱是否存在均返回相同成功提示，不泄露用户是否存在。

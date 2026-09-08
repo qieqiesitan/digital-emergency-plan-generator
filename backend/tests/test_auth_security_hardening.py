@@ -1,4 +1,4 @@
-"""体检修复 S5/S9 回归测试：CORS 收敛、密码最小长度。
+"""体检修复 S5/S9 回归测试：CORS 收敛、密码最小长度与复杂度。
 
 - S5：CORS 默认仅本地开发源，且不允许 `*` 与 allow_credentials=True 组合。
 - S9：register / reset-password 密码统一 min_length=6 校验。
@@ -19,8 +19,24 @@ def test_register_rejects_short_password():
 
 
 def test_register_accepts_minimum_length_password():
-    data = RegisterRequest(email="a@example.com", password="123456", password_confirm="123456", name="测试用户")
-    assert data.password == "123456"
+    data = RegisterRequest(email="a@example.com", password="Abcdef12", password_confirm="Abcdef12", name="测试用户")
+    assert data.password == "Abcdef12"
+
+
+def test_register_rejects_weak_common_password():
+    """P1-9：123456 等常见弱密码必须被拒绝。"""
+    with pytest.raises(Exception):
+        RegisterRequest(email="a@example.com", password="12345678", password_confirm="12345678", name="测试用户")
+
+
+def test_register_rejects_pure_letters_password():
+    with pytest.raises(Exception):
+        RegisterRequest(email="a@example.com", password="abcdefgh", password_confirm="abcdefgh", name="测试用户")
+
+
+def test_register_accepts_letter_and_number_password():
+    data = RegisterRequest(email="a@example.com", password="Abcdef12", password_confirm="Abcdef12", name="测试用户")
+    assert data.password == "Abcdef12"
 
 
 def test_register_rejects_mismatched_confirm():
@@ -34,8 +50,8 @@ def test_reset_password_rejects_short_password():
 
 
 def test_reset_password_accepts_minimum_length():
-    data = ResetPasswordRequest(token="tk", new_password="123456")
-    assert data.new_password == "123456"
+    data = ResetPasswordRequest(token="tk", new_password="Abcdef12")
+    assert data.new_password == "Abcdef12"
 
 
 # ── S5 CORS 收敛 ──

@@ -1,17 +1,48 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+
+# P1-9：常见弱密码黑名单（纯键盘序列/纯数字/纯字母/占位）
+COMMON_WEAK_PASSWORDS = {
+    "123456", "12345678", "123456789", "1234567890", "password",
+    "password1", "qwerty", "qwerty123", "abc123", "abc12345",
+    "111111", "000000", "123123", "654321", "admin123", "test1234",
+    "iloveyou", "monkey", "dragon", "welcome", "sunshine",
+}
+
+
+def validate_password_strength(v: str) -> str:
+    """密码复杂度：>=8 位、含字母和数字、非常见弱密码。"""
+    if len(v) < 8:
+        raise ValueError("密码长度至少 8 位")
+    lowered = v.lower()
+    if lowered in COMMON_WEAK_PASSWORDS:
+        raise ValueError("密码过于常见，请更换更复杂的密码")
+    has_letter = any(c.isalpha() for c in v)
+    has_digit = any(c.isdigit() for c in v)
+    if not (has_letter and has_digit):
+        raise ValueError("密码必须同时包含字母和数字")
+    return v
+
+
 class RegisterRequest(BaseModel):
     email: str
     # 安全加固（S9）：注册/重置密码统一最小长度校验
-    password: str = Field(min_length=6)
-    password_confirm: str = Field(min_length=6)
+    password: str
+    password_confirm: str
     name: str
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, v):
+        return validate_password_strength(v)
 
     @field_validator("password_confirm")
     @classmethod
     def passwords_match(cls, v, info):
         if "password" in info.data and v != info.data["password"]:
             raise ValueError("两次输入的密码不一致")
+        if "password" in info.data:
+            validate_password_strength(v)
         return v
 
 class LoginRequest(BaseModel):
@@ -37,4 +68,9 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    new_password: str = Field(min_length=6)
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_strength(cls, v):
+        return validate_password_strength(v)
