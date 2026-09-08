@@ -592,6 +592,7 @@ async def generate_risk_assessment(
         _LIVE_RA_GENERATIONS.add(enterprise_id)
         full_content = ""
         chapter_contents: list[dict] = []
+        last_summary_struct: dict | None = None
         try:
             chapter_keys = get_chapter_keys()
             total = len(chapter_keys)
@@ -626,6 +627,11 @@ async def generate_risk_assessment(
                     else:
                         ch_content = ev_payload or ch_content
 
+                from app.services.report_summary_utils import strip_trailing_json
+                ch_content, ch_struct = strip_trailing_json(ch_content)
+                if ch_struct:
+                    last_summary_struct = ch_struct
+
                 chapter_contents.append({
                     "key": ck, "title": ctitle, "content": ch_content,
                 })
@@ -653,12 +659,8 @@ async def generate_risk_assessment(
                     bg_report.content = full_content.strip()
                     bg_report.summary = {"chapters": chapters_json}
                     try:
-                        from app.services.report_summary_utils import extract_trailing_json
-                        last_ch = chapter_contents[-1] if chapter_contents else None
-                        if last_ch:
-                            struct = extract_trailing_json(last_ch.get("content", ""))
-                            if struct:
-                                bg_report.summary.update(struct)
+                        if last_summary_struct:
+                            bg_report.summary.update(last_summary_struct)
                     except Exception:
                         pass
                     try:
@@ -801,6 +803,8 @@ def _risk_section_event_generator(
                     yield sse_event("chunk", content=ev_payload, section_key=cdef["key"])
                 else:
                     ch_content = ev_payload or ch_content
+            from app.services.report_summary_utils import strip_trailing_json
+            ch_content, _struct = strip_trailing_json(ch_content)
             if not ch_content.strip():
                 raise Exception("AI 未返回内容，请重试")
             async with async_session() as bg_db:
@@ -1103,8 +1107,17 @@ async def merge_risk_assessment(
 
     report_title = f"#{ent.name} 生产安全事故风险评估报告"
     merged_parts = []
+    cleaned_chapters = []
+    last_summary_struct = None
+    from app.services.report_summary_utils import strip_trailing_json
     for ch in chapters:
-        merged_parts.append(f"## {ch.get('title', '')}\n\n{ch.get('content', '')}")
+        content, struct = strip_trailing_json(ch.get("content", ""))
+        if struct:
+            last_summary_struct = struct
+        cleaned = dict(ch)
+        cleaned["content"] = content
+        cleaned_chapters.append(cleaned)
+        merged_parts.append(f"## {ch.get('title', '')}\n\n{content}")
     merged = report_title + "\n\n" + "\n\n".join(merged_parts)
 
     report.title = report_title
@@ -1126,14 +1139,10 @@ async def merge_risk_assessment(
         logger.exception("four-color figure inject failed")
     report.content = merged
     report.status = "completed"
-    report.summary = rebuild_chapters_summary(chapters, dict(report.summary or {}))
+    report.summary = rebuild_chapters_summary(cleaned_chapters, dict(report.summary or {}))
     try:
-        from app.services.report_summary_utils import extract_trailing_json
-        last_ch = chapters[-1] if chapters else None
-        if last_ch:
-            struct = extract_trailing_json(last_ch.get("content", ""))
-            if struct:
-                report.summary.update(struct)
+        if last_summary_struct:
+            report.summary.update(last_summary_struct)
     except Exception:
         pass
     report.generated_at = datetime.now(timezone.utc)
