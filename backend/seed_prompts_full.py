@@ -539,6 +539,14 @@ SEEDS = [
 ]
 
 
+# 风险源清单权威规则：所有应急系统提示词统一追加（幂等）
+from app.services.report_data_authority import with_rule as _with_rule
+
+for _seed in SEEDS:
+    if _seed.get("category") == "emergency_system":
+        _seed["system_prompt"] = _with_rule(_seed.get("system_prompt") or "")
+
+
 async def seed():
     async with async_session() as db:
         created = 0
