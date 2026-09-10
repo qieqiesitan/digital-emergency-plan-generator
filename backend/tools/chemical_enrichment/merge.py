@@ -12,10 +12,35 @@ def _number(value: str):
     return float(match.group(0)) if match else None
 
 
+TEMPERATURE_FIELDS = ("flash_point", "boiling_point", "ignition_temp")
+
+
+def _canonical(field: str, value: str):
+    """把带单位的值归一到可比较的数值：温度 → ℃，密度 → g/mL；无法归一返回 None。"""
+    number = _number(value)
+    if number is None:
+        return None
+    if field in TEMPERATURE_FIELDS:
+        if "°F" in value:
+            return (number - 32) * 5 / 9
+        if "℃" in value or "°C" in value:
+            return number
+        return None
+    if field == "density":
+        if "kg/m" in value:
+            return number / 1000
+        if "g/mL" in value or "g/cm" in value:
+            return number
+        return None
+    return None
+
+
 def _conflict(field: str, left: str, right: str) -> bool:
     if field == "un_no":
         return left != right
-    a, b = _number(left), _number(right)
+    if field in ("physical_state", "health_hazard", "fire_hazard", "explosion_limit"):
+        return False  # 文本类字段不做数值冲突判定
+    a, b = _canonical(field, left), _canonical(field, right)
     if a is None or b is None:
         return False
     base = max(abs(a), abs(b), 1e-9)

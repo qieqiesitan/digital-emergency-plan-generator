@@ -21,6 +21,21 @@ class CachedFetcher:
     def _requests_get(self, url: str):
         return requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
 
+    @staticmethod
+    def _decode(resp) -> str:
+        """按 UTF-8 解码响应字节。
+
+        ChemBlink / PubChem 页面为 UTF-8，但响应头不带 charset 时 requests 会猜成
+        latin-1，导致中文变成乱码；这里统一用字节解码，失败再回退 requests 的推断。
+        """
+        content = getattr(resp, "content", None)
+        if content:
+            try:
+                return content.decode("utf-8")
+            except UnicodeDecodeError:
+                return resp.text
+        return resp.text
+
     def _cache_path(self, url: str) -> Path:
         host = urlparse(url).netloc.replace(":", "_")
         digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
@@ -42,8 +57,9 @@ class CachedFetcher:
                 last_error = exc
                 continue
             if resp.status_code == 200:
-                path.write_text(resp.text, encoding="utf-8")
-                return resp.text
+                text = self._decode(resp)
+                path.write_text(text, encoding="utf-8")
+                return text
             last_error = RuntimeError(f"HTTP {resp.status_code}: {url}")
             if resp.status_code in (400, 404):
                 break  # 资源不存在，无需重试

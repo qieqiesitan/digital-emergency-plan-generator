@@ -44,6 +44,38 @@ def test_fetcher_retries_then_raises(tmp_path):
     assert len(calls) == 3
 
 
+def test_fetcher_decodes_utf8_bytes(tmp_path):
+    """requests 可能猜错编码（resp.text 乱码），缓存必须按 UTF-8 解码字节。"""
+
+    class _FakeResponse:
+        status_code = 200
+        content = "危害分类".encode("utf-8")
+        text = "å±å®³åç±»"  # 模拟 requests 猜成 latin-1
+
+    fetcher = CachedFetcher(cache_dir=tmp_path, delay=0.0, get=lambda url: _FakeResponse())
+    assert fetcher.text("https://example.com/zh") == "危害分类"
+
+
+def test_pubchem_density_requires_unit():
+    def record(value):
+        return {"Record": {"Section": [{"TOCHeading": "Density", "Information": [
+            {"Value": {"StringWithMarkup": [{"String": value}]}}]}]}}
+
+    assert parse_pug_view(record("0.7914 g/cm3 (NTP, 1992)"))["density"] == "0.7914 g/cm3"
+    assert parse_pug_view(
+        record("0.557 at 68 °F (USCG, 1999) - Less dense than water; will float"))["density"] == ""
+
+
+def test_pubchem_flash_point_strips_citation_and_prose():
+    def record(value):
+        return {"Record": {"Section": [{"TOCHeading": "Flash Point", "Information": [
+            {"Value": {"StringWithMarkup": [{"String": value}]}}]}]}}
+
+    assert parse_pug_view(record("-117 °F (USCG, 1999)"))["flash_point"] == "-117 °F"
+    assert parse_pug_view(
+        record("12 °C closed cup - highly flammable (NTP, 1992)"))["flash_point"] == "12 °C"
+
+
 def test_chemblink_prefers_experimental_value():
     html = (FIXTURES / "chemblink_75-18-3.html").read_text(encoding="utf-8")
     data = parse_product_page(html)
@@ -110,6 +142,58 @@ def test_merge_does_not_overwrite_existing_values():
     assert merged["flash_point"] == "管理员手改值"
     assert merged["physical_state"] == "液态"
     assert set(merged) >= set(FIELDS) | {"conflicts"}
+
+
+def test_merge_handles_unit_difference_instead_of_false_conflict():
+    from backend.tools.chemical_enrichment.merge import merge_sources
+
+    merged = merge_sources({"flash_point": "12℃"}, {"flash_point": "53.6 °F"})
+    assert merged["flash_point"] == "12℃"
+    assert merged["conflicts"] == []
+
+
+def test_merge_real_numeric_conflict_is_left_blank():
+    from backend.tools.chemical_enrichment.merge import merge_sources
+
+    merged = merge_sources({"flash_point": "12℃"}, {"flash_point": "40 ℃"})
+    assert merged["flash_point"] == ""
+    assert merged["conflicts"] == ["flash_point"]
+
+
+def test_merge_text_fields_never_conflict():
+    from backend.tools.chemical_enrichment.merge import merge_sources
+
+    merged = merge_sources({"health_hazard": "急性毒性 类别3"}, {"health_hazard": "类别4"})
+    assert merged["health_hazard"] == "急性毒性 类别3"
+    assert merged["conflicts"] == []
+
+
+def test_collect_record_tolerates_single_source_failure(tmp_path):
+    from backend.tools.chemical_enrichment.fetch import CachedFetcher
+    from backend.tools.enrich_chemical_library import collect_record
+
+    html = (FIXTURES / "chemblink_75-18-3.html").read_text(encoding="utf-8")
+
+    class _Response:
+        pass
+
+    def fake_get(url):
+        response = _Response()
+        if "pubchem" in url:
+            response.status_code = 404
+            response.text = ""
+            response.content = b""
+        else:
+            response.status_code = 200
+            response.content = html.encode("utf-8")
+            response.text = html
+        return response
+
+    fetcher = CachedFetcher(cache_dir=tmp_path, delay=0.0, get=fake_get)
+    chemblink, pubchem, errors = collect_record(fetcher, "75-18-3")
+    assert chemblink["flash_point"] == "-36℃"
+    assert pubchem == {}
+    assert any("pubchem" in error for error in errors)
 
 
 def test_sql_uses_coalesce_nullif_and_only_present_fields():
