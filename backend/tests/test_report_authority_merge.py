@@ -46,3 +46,34 @@ async def test_merge_writes_data_conflicts(monkeypatch):
     conflicts = report.summary["data_conflicts"]
     assert any(c["type"] == "count_mismatch" for c in conflicts)
     assert any(c["type"] == "level_mismatch" for c in conflicts)
+
+
+@pytest.mark.asyncio
+async def test_merge_survives_risk_context_failure(monkeypatch):
+    """冲突检测取风险树失败时降级为空清单，不得阻断 merge。"""
+    ent = MagicMock(id="e1")
+    report = MagicMock(id="r1", summary={}, style_preference=None, content="")
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=lambda: ent),
+        MagicMock(scalars=lambda: MagicMock(first=lambda: report)),
+    ])
+    monkeypatch.setattr(
+        ra, "build_risk_management_context",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    )
+    monkeypatch.setattr(ra, "_schedule_enterprise_index_rebuild", lambda *a, **k: None)
+    from app.services import report_four_color_service
+    monkeypatch.setattr(
+        report_four_color_service, "render_enterprise_four_color_images",
+        AsyncMock(return_value=[]),
+    )
+    request = MagicMock()
+    request.custom_instruction = json.dumps([
+        {"key": "ch5_conclusion", "title": "五、结论", "content": "正文内容"},
+    ])
+    result = await ra.merge_risk_assessment(
+        "e1", request, current_user=MagicMock(id="u1"), db=db,
+    )
+    assert result.data["status"] == "completed"
+    assert "data_conflicts" in report.summary

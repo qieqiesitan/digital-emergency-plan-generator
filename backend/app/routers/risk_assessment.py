@@ -1150,8 +1150,12 @@ async def merge_risk_assessment(
     except Exception:
         pass
     from app.services.report_data_authority import apply_data_conflicts
-    ctx = await build_risk_management_context(enterprise_id, db)
-    report.summary = apply_data_conflicts(report.summary, ctx.get("risk_sources", []))
+    try:
+        ctx = await build_risk_management_context(enterprise_id, db)
+    except Exception:
+        logger.exception("risk context load for conflict check failed")
+        ctx = {}
+    report.summary = apply_data_conflicts(report.summary, (ctx or {}).get("risk_sources", []))
     report.generated_at = datetime.now(timezone.utc)
     await db.commit()
     _schedule_enterprise_index_rebuild(enterprise_id)
