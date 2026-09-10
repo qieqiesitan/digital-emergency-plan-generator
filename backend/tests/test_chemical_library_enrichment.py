@@ -84,3 +84,29 @@ def test_pubchem_state_mapping_rules():
     assert map_physical_state("White crystalline solid") == "固态"
     assert map_physical_state("Oily liquid") == "液态"
     assert map_physical_state("") == ""
+
+
+def test_merge_conflicting_un_is_left_blank():
+    from backend.tools.chemical_enrichment.merge import merge_sources
+
+    chemblink = {"un_no": "1164", "flash_point": "-36℃"}
+    pubchem = {"un_no": "2384", "flash_point": "-37.8 ℃", "physical_state": "液态",
+               "explosion_limit": "6%~36.5%", "ignition_temp": "", "boiling_point": "37 ℃",
+               "density": ""}
+    merged = merge_sources(chemblink, pubchem)
+    assert merged["un_no"] == ""
+    assert merged["flash_point"] == "-36℃"
+    assert merged["physical_state"] == "液态"
+    assert merged["explosion_limit"] == "6%~36.5%"
+    assert merged["boiling_point"] == "37 ℃"
+    assert "un_no" in merged["conflicts"]
+
+
+def test_merge_does_not_overwrite_existing_values():
+    from backend.tools.chemical_enrichment.merge import FIELDS, merge_sources
+
+    merged = merge_sources({"flash_point": "12℃"}, {"physical_state": "液态"},
+                           existing={"flash_point": "管理员手改值"})
+    assert merged["flash_point"] == "管理员手改值"
+    assert merged["physical_state"] == "液态"
+    assert set(merged) >= set(FIELDS) | {"conflicts"}
