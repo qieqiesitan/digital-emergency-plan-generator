@@ -110,3 +110,31 @@ def test_merge_does_not_overwrite_existing_values():
     assert merged["flash_point"] == "管理员手改值"
     assert merged["physical_state"] == "液态"
     assert set(merged) >= set(FIELDS) | {"conflicts"}
+
+
+def test_sql_uses_coalesce_nullif_and_only_present_fields():
+    from backend.tools.chemical_enrichment.sqlgen import render_update_sql
+
+    row = {"id": "11111111-1111-1111-1111-111111111111",
+           "values": {"un_no": "1230", "flash_point": "12℃", "boiling_point": ""}}
+    sql = render_update_sql([row])
+    assert "COALESCE(NULLIF(un_no,''), '1230')" in sql
+    assert "flash_point" in sql
+    assert "boiling_point" not in sql
+    assert sql.strip().endswith(";")
+
+
+def test_sql_skips_rows_without_any_value():
+    from backend.tools.chemical_enrichment.sqlgen import render_update_sql
+
+    row = {"id": "22222222-2222-2222-2222-222222222222",
+           "values": {"un_no": "", "flash_point": "  "}}
+    assert render_update_sql([row]).strip() == ""
+
+
+def test_sql_escapes_single_quotes():
+    from backend.tools.chemical_enrichment.sqlgen import render_update_sql
+
+    row = {"id": "33333333-3333-3333-3333-333333333333",
+           "values": {"health_hazard": "眼刺激；3,3'-二甲基"}}
+    assert "3,3''-二甲基" in render_update_sql([row])
