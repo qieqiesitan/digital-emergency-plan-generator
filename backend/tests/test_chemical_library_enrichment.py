@@ -218,6 +218,16 @@ def test_process_rows_preserves_input_order_with_workers():
     assert failed[0]["error"] == "pubchem: HTTP 404"
 
 
+def test_parse_rows_payload_handles_newline_in_cas():
+    from backend.tools.enrich_chemical_library import parse_rows_payload
+
+    payload = ('[{"id": "a-1", "name": "焦磷酸", "cas": "77287-29-7"}, '
+               '{"id": "a-2", "name": "多硫化铵", "cas": "7632-04-4\\n12259-92-6"}]')
+    rows = parse_rows_payload(payload)
+    assert rows == [["a-1", "焦磷酸", "77287-29-7"],
+                    ["a-2", "多硫化铵", "7632-04-4\n12259-92-6"]]
+
+
 def test_sql_uses_coalesce_nullif_and_only_present_fields():
     from backend.tools.chemical_enrichment.sqlgen import render_update_sql
 

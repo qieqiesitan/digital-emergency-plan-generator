@@ -27,14 +27,21 @@ SQL_NAME = "db_migration_20260910_chemical_library_enrich.sql"
 JSON_NAME = "chemical_library_enrichment_20260910.json"
 
 
+def parse_rows_payload(payload: str) -> list:
+    """把 psql 的 JSON 数组解析为 [[id, name, cas], ...]（CAS 含换行也不会错位）。"""
+    data = json.loads((payload or "").strip() or "[]")
+    return [[row["id"], row["name"], row["cas"]] for row in data]
+
+
 def load_rows_from_db() -> list:
-    sql = ("SELECT id::text || chr(9) || name || chr(9) || cas_no FROM chemical_library "
-           "WHERE cas_no IS NOT NULL AND cas_no <> '' ORDER BY id")
+    sql = ("SELECT COALESCE(json_agg(json_build_object('id', id::text, 'name', name, "
+           "'cas', cas_no) ORDER BY id), '[]'::json)::text FROM chemical_library "
+           "WHERE cas_no IS NOT NULL AND cas_no <> ''")
     out = subprocess.run(
         ["docker", "exec", "emergency-plan-db", "psql", "-U", "postgres",
          "-d", "emergency_plan", "-tAc", sql],
         capture_output=True, text=True, encoding="utf-8", check=True)
-    return [line.split("\t") for line in out.stdout.splitlines() if line.strip()]
+    return parse_rows_payload(out.stdout)
 
 
 def resolve_pubchem(fetcher: CachedFetcher, cas: str) -> tuple:
