@@ -190,7 +190,16 @@ export default function RiskMappingWorkbenchPage() {
       const code = typeof detail === "string" ? detail : (detail as { code?: string } | undefined)?.code;
       const msg = typeof detail === "string" ? detail : (detail as { message?: string } | undefined)?.message;
       if (code === "SAVE_CONFLICT") {
-        message.error("数据已被其他人修改，请刷新后重试");
+        Modal.confirm({
+          title: "数据已被其他窗口修改",
+          content: `${msg || "该楼层数据已变更"}。本页面持有的版本比其他窗口/地址旧，继续保存会被拒绝；可同步最新数据（本页未保存的改动将被放弃），再重新调整并保存。`,
+          okText: "同步最新数据",
+          cancelText: "取消",
+          onOk: async () => {
+            await queryClient.refetchQueries({ queryKey: ["risk-workbench", enterpriseId] });
+            message.success("已同步最新数据，请重新调整后保存");
+          },
+        });
       } else {
         message.error(msg || "保存失败");
       }

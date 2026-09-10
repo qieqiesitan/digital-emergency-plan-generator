@@ -531,7 +531,11 @@ async def batch_save_workbench(body: BatchSaveRequest, enterprise_id: str, curre
     if not floor:
         raise HTTPException(404, detail={"code": "FLOOR_NOT_FOUND", "message": "楼层不存在"})
     if not _same_ts(floor.updated_at, body.floor_updated_at):
-        raise HTTPException(409, detail={"code": "SAVE_CONFLICT", "message": "楼层数据已变更，请刷新"})
+        logger.warning("SAVE_CONFLICT entity=floor id=%s db=%s payload=%s", floor.id, floor.updated_at, body.floor_updated_at)
+        raise HTTPException(409, detail={
+            "code": "SAVE_CONFLICT", "message": "楼层数据已变更，请刷新",
+            "data": {"entity": "floor", "id": floor.id, "db": str(floor.updated_at), "payload": str(body.floor_updated_at)},
+        })
 
     client_ids = [z.client_id for z in body.zones if z.client_id] + [r.client_id for r in body.risk_points if r.client_id]
     if len(client_ids) != len(set(client_ids)):
@@ -555,7 +559,11 @@ async def batch_save_workbench(body: BatchSaveRequest, enterprise_id: str, curre
             if not zone:
                 raise HTTPException(404, detail={"code": "ZONE_NOT_FOUND", "message": "分区不存在"})
             if not _same_ts(zone.updated_at, item.updated_at):
-                raise HTTPException(409, detail={"code": "SAVE_CONFLICT", "message": "分区已变更，请刷新"})
+                logger.warning("SAVE_CONFLICT entity=zone id=%s db=%s payload=%s", zone.id, zone.updated_at, item.updated_at)
+                raise HTTPException(409, detail={
+                    "code": "SAVE_CONFLICT", "message": "分区已变更，请刷新",
+                    "data": {"entity": "zone", "id": zone.id, "db": str(zone.updated_at), "payload": str(item.updated_at)},
+                })
             zone.name = item.name or zone.name
             zone.description = item.description
             zone.sort_order = item.sort_order
@@ -598,7 +606,11 @@ async def batch_save_workbench(body: BatchSaveRequest, enterprise_id: str, curre
             if not point:
                 raise HTTPException(404, detail={"code": "RISK_POINT_NOT_FOUND", "message": "风险点不存在"})
             if not _same_ts(point.updated_at, item.updated_at):
-                raise HTTPException(409, detail={"code": "SAVE_CONFLICT", "message": "风险点已变更，请刷新"})
+                logger.warning("SAVE_CONFLICT entity=risk_point id=%s db=%s payload=%s", point.id, point.updated_at, item.updated_at)
+                raise HTTPException(409, detail={
+                    "code": "SAVE_CONFLICT", "message": "风险点已变更，请刷新",
+                    "data": {"entity": "risk_point", "id": point.id, "db": str(point.updated_at), "payload": str(item.updated_at)},
+                })
             point.zone_id = target_zone_id
             point.floor_id = floor.id
             point.location_x = item.location_x

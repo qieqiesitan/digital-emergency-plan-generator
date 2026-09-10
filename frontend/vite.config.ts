@@ -49,14 +49,11 @@ async function getPlugins() {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
           {
+            // 风险工作台等接口用 updated_at 做乐观锁并发控制：
+            // 一旦返回 Service Worker 缓存（NetworkFirst 超时回退/离线）的旧响应，
+            // 页面就会拿着过期版本提交并被后端 409 拒绝，且刷新也无法恢复，故 API 一律不缓存。
             urlPattern: /^\/api\/v1\//,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "api-cache",
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 100, maxAgeSeconds: 3600 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
+            handler: "NetworkOnly",
           },
           {
             urlPattern: /\.(?:woff2?)$/,
