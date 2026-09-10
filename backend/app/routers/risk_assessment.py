@@ -663,6 +663,10 @@ async def generate_risk_assessment(
                             bg_report.summary.update(last_summary_struct)
                     except Exception:
                         pass
+                    from app.services.report_data_authority import apply_data_conflicts
+                    bg_report.summary = apply_data_conflicts(
+                        bg_report.summary, context.get("risk_sources", []),
+                    )
                     try:
                         from app.services.report_four_color_service import render_enterprise_four_color_images
                         bg_report.summary["images"] = await render_enterprise_four_color_images(enterprise_id, bg_db)
@@ -1145,6 +1149,9 @@ async def merge_risk_assessment(
             report.summary.update(last_summary_struct)
     except Exception:
         pass
+    from app.services.report_data_authority import apply_data_conflicts
+    ctx = await build_risk_management_context(enterprise_id, db)
+    report.summary = apply_data_conflicts(report.summary, ctx.get("risk_sources", []))
     report.generated_at = datetime.now(timezone.utc)
     await db.commit()
     _schedule_enterprise_index_rebuild(enterprise_id)
