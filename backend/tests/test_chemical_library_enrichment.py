@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from backend.tools.chemical_enrichment.fetch import CachedFetcher
+from backend.tools.chemical_enrichment.chemblink import parse_product_page
 
 FIXTURES = Path(__file__).parent / "fixtures" / "chemical_enrichment"
 
@@ -40,3 +41,28 @@ def test_fetcher_retries_then_raises(tmp_path):
     with pytest.raises(RuntimeError):
         fetcher.text("https://example.com/flaky")
     assert len(calls) == 3
+
+
+def test_chemblink_prefers_experimental_value():
+    html = (FIXTURES / "chemblink_75-18-3.html").read_text(encoding="utf-8")
+    data = parse_product_page(html)
+    assert data["flash_point"] == "-36℃"
+    assert data["boiling_point"] == "38℃"
+    assert data["density"] == "0.846 g/mL"
+
+
+def test_chemblink_plain_value_and_un():
+    html = (FIXTURES / "chemblink_2050-92-2.html").read_text(encoding="utf-8")
+    data = parse_product_page(html)
+    assert data["flash_point"] == "52℃"
+    assert data["boiling_point"] == "202-203℃"
+    assert data["un_no"] == "2841"
+    assert data["density"] == ""  # 裸数值无单位 → 按不可溯源留空
+
+
+def test_chemblink_ghs_split_into_health_and_fire():
+    html = (FIXTURES / "chemblink_75-18-3.html").read_text(encoding="utf-8")
+    data = parse_product_page(html)
+    assert "易燃液体 类别2" in data["fire_hazard"]
+    assert "急性毒性 类别3" in data["health_hazard"]
+    assert data["un_no"] == "1164"
