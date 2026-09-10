@@ -74,6 +74,10 @@ export default function RiskMappingWorkbenchPage() {
     queryKey: ["risk-workbench", enterpriseId, currentFloorId],
     queryFn: () => getRiskMappingWorkbench(enterpriseId!, currentFloorId || undefined),
     enabled: !!enterpriseId,
+    // 工作台数据用 updated_at 做乐观锁：每次进入都重新拉取，且不允许用缓存旧数据兜底，
+    // 否则退出重进/切换楼层会显示旧颜色，甚至把旧版本再次提交导致 409。
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   useEffect(() => {
@@ -170,7 +174,7 @@ export default function RiskMappingWorkbenchPage() {
     };
     try {
       const saved = await saveRiskMappingWorkbench(enterpriseId!, payload, { skipGlobalError: true });
-      setSnapshot({
+      const nextSnapshot = {
         floors: state.floors.map(f => (f.id === saved.floor.id ? saved.floor : f)),
         currentFloorId: saved.floor.id,
         zones: saved.zones,
@@ -179,6 +183,17 @@ export default function RiskMappingWorkbenchPage() {
         pendingRegions: state.pendingRegions,
         deletedRiskPointIds: [],
         deletedZoneIds: [],
+      };
+      setSnapshot(nextSnapshot);
+      // 同步 react-query 缓存与 store：否则后续 data effect 会用保存前的旧缓存覆盖刚保存的数据，
+      // 造成"调色回显丢失 / 再次保存提交旧版本被 409"。
+      queryClient.setQueryData(["risk-workbench", enterpriseId, saved.floor.id], {
+        floors: nextSnapshot.floors,
+        currentFloorId: saved.floor.id,
+        zones: saved.zones,
+        riskPoints: saved.risk_points,
+        texts: saved.texts,
+        pendingRegions: state.pendingRegions,
       });
       useRiskMappingWorkbenchStore.getState().markSaved();
       message.success("保存成功");
