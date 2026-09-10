@@ -93,6 +93,15 @@ def test_chemblink_plain_value_and_un():
     assert data["density"] == ""  # 裸数值无单位 → 按不可溯源留空
 
 
+def test_chemblink_normalizes_split_density_unit():
+    """源页面把 g/cm³ 拆成 `g/cm` + `3` 两行，应收敛为 `g/cm³`。"""
+    from backend.tools.chemical_enrichment.chemblink import parse_product_page
+
+    html = (FIXTURES / "chemblink_75-18-3.html").read_text(encoding="utf-8")
+    html = html.replace("0.846 g/mL", "1.7g/cm 3")  # 构造同款写法
+    assert parse_product_page(html)["density"] == "1.7g/cm³"
+
+
 def test_chemblink_ghs_split_into_health_and_fire():
     html = (FIXTURES / "chemblink_75-18-3.html").read_text(encoding="utf-8")
     data = parse_product_page(html)
@@ -158,6 +167,22 @@ def test_merge_real_numeric_conflict_is_left_blank():
     merged = merge_sources({"flash_point": "12℃"}, {"flash_point": "40 ℃"})
     assert merged["flash_point"] == ""
     assert merged["conflicts"] == ["flash_point"]
+
+
+def test_merge_prefers_labeled_experimental_value_on_conflict():
+    from backend.tools.chemical_enrichment.merge import merge_sources
+
+    chemblink = {"flash_point": "12℃", "experimental": ["flash_point"]}
+    merged = merge_sources(chemblink, {"flash_point": "40 ℃"})
+    assert merged["flash_point"] == "12℃"      # 标了实验值 → 直接采信，不算冲突
+    assert merged["conflicts"] == []
+
+
+def test_chemblink_reports_experimental_fields():
+    html = (FIXTURES / "chemblink_75-18-3.html").read_text(encoding="utf-8")
+    data = parse_product_page(html)
+    assert "flash_point" in data["experimental"]
+    assert "density" in data["experimental"]
 
 
 def test_merge_text_fields_never_conflict():

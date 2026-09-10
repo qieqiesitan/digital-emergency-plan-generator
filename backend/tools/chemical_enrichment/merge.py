@@ -49,6 +49,7 @@ def _conflict(field: str, left: str, right: str) -> bool:
 
 def merge_sources(chemblink: dict, pubchem: dict, existing: dict | None = None) -> dict:
     existing = existing or {}
+    experimental = set(chemblink.get("experimental") or [])
     merged: dict = {}
     conflicts: list = []
     for field in FIELDS:
@@ -58,6 +59,9 @@ def merge_sources(chemblink: dict, pubchem: dict, existing: dict | None = None) 
             continue
         left = (chemblink.get(field) or "").strip()
         right = (pubchem.get(field) or "").strip()
+        if left and field in experimental:
+            merged[field] = left  # ChemBlink 明确标注实验值 → 直接采信
+            continue
         if left and right and _conflict(field, left, right):
             merged[field] = ""
             conflicts.append(field)

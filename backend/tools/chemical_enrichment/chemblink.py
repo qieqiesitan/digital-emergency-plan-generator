@@ -41,22 +41,26 @@ def _block(lines: list, label: str) -> str:
 def _normalize(value: str) -> str:
     value = value.replace("−", "-").replace("°C", "℃").strip(" ,;|*")
     value = re.sub(r"\s+", " ", value)
+    # 源页面把密度单位拆成 `g/cm` + `3` 两行 → 收敛为 g/cm³
+    value = re.sub(r"g/cm\s*3", "g/cm³", value)
+    value = re.sub(r"g/cm3", "g/cm³", value)
     # 去掉数值与单位之间的空格：`52 ℃` → `52℃`、`0.846 g/mL` 保持
     return re.sub(r"\s+(℃|g/cm\s*3|g/cm³)", r"\1", value)
 
 
-def _pick_value(block: str) -> str:
+def _pick_value(block: str) -> tuple:
+    """返回 (值, 是否带「实验值」标注)。"""
     if not block:
-        return ""
+        return "", False
     experimental = re.search(r"([^,;|]*\(实验值\))", block)
     if experimental:
         found = VALUE_RE.search(experimental.group(1))
         if found:
-            return _normalize(found.group(1))
+            return _normalize(found.group(1)), True
     if "计算值" in block and "实验值" not in block:
-        return ""
+        return "", False
     found = VALUE_RE.search(block)
-    return _normalize(found.group(1)) if found else ""
+    return (_normalize(found.group(1)), False) if found else ("", False)
 
 
 def _parse_ghs(lines: list) -> tuple:
@@ -85,11 +89,17 @@ def parse_product_page(html: str) -> dict:
     lines = _lines(html)
     health, fire = _parse_ghs(lines)
     match = re.search(r"\bUN\s*(\d{4})\b", " ".join(lines))
+    experimental: list = []
+    values = {}
+    for field, label in (("flash_point", "闪点"), ("boiling_point", "沸点"), ("density", "密度")):
+        value, is_experimental = _pick_value(_block(lines, label))
+        values[field] = value
+        if is_experimental:
+            experimental.append(field)
     return {
-        "flash_point": _pick_value(_block(lines, "闪点")),
-        "boiling_point": _pick_value(_block(lines, "沸点")),
-        "density": _pick_value(_block(lines, "密度")),
+        **values,
         "un_no": match.group(1) if match else "",
         "health_hazard": health,
         "fire_hazard": fire,
+        "experimental": experimental,
     }
