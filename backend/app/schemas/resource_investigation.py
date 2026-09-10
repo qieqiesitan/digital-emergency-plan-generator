@@ -1,5 +1,5 @@
 ﻿from datetime import datetime
-from typing import Optional
+from typing import Any
 from pydantic import BaseModel
 from app.schemas.common import DatetimeStr
 
@@ -26,7 +26,8 @@ class ResourceInvestigationReportResponse(BaseModel):
     enterprise_id: str
     title: str
     content: str
-    summary: ResourceInvestigationSummary
+    # 与风险评估报告一致：JSONB summary 原样透传，避免过滤 chapters 等扩展键。
+    summary: dict[str, Any]
     status: str
     generated_by: str
     generated_at: DatetimeStr | None

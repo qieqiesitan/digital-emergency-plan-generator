@@ -1,5 +1,5 @@
 ﻿from datetime import datetime
-from typing import Optional
+from typing import Any
 from pydantic import BaseModel
 from app.schemas.common import DatetimeStr
 
@@ -19,7 +19,9 @@ class RiskAssessmentReportResponse(BaseModel):
     enterprise_id: str
     title: str
     content: str
-    summary: RiskAssessmentSummary
+    # JSONB summary 结构不定（chapters/images/统计键等），需原样透传，
+    # 否则草稿章节/四色图等扩展键会被 Pydantic 白名单过滤掉。
+    summary: dict[str, Any]
     status: str
     generated_by: str
     generated_at: DatetimeStr | None

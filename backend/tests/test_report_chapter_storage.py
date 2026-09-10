@@ -2,6 +2,7 @@ from app.services.report_chapter_utils import (
     get_chapters,
     upsert_chapter,
     update_chapter_content,
+    rebuild_chapters_summary,
 )
 
 
@@ -26,3 +27,18 @@ def test_update_chapter_content_only_matches_key():
     updated = update_chapter_content(chapters, "a", "new")
     assert updated[0]["content"] == "new"
     assert updated[1]["content"] == "2"
+
+
+def test_rebuild_chapters_summary_keeps_images():
+    prev = {
+        "chapters": [{"key": "a", "title": "A", "content": "1"}],
+        "images": [{"floor_id": "f1", "floor_name": "默认总图", "url": "/u/f1.png"}],
+    }
+    out = rebuild_chapters_summary([{"key": "b", "title": "B", "content": "x"}], prev)
+    assert out["chapters"] == [{"key": "b", "title": "B", "content": "x"}]
+    assert out["images"] == prev["images"]
+
+
+def test_rebuild_chapters_summary_without_images():
+    out = rebuild_chapters_summary([{"key": "a", "title": "A", "content": "1"}], {"chapters": []})
+    assert "images" not in out

@@ -8,10 +8,12 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from app.database import async_session
 from app.models.prompt import PromptTemplate
-from app.services.risk_assessment_service import SYSTEM_PROMPT as RA_SYSTEM_PROMPT
-from app.services.resource_investigation_service import SYSTEM_PROMPT as RI_SYSTEM_PROMPT
 from app.services.risk_assessment_service import CHAPTER_DEFINITIONS as RA_CHAPTERS
 from app.services.resource_investigation_service import CHAPTER_DEFINITIONS as RI_CHAPTERS
+from app.services.report_system_prompts import (
+    RA_REPORT_SYSTEM_PROMPT as RA_SYSTEM_PROMPT,
+    RI_REPORT_SYSTEM_PROMPT as RI_SYSTEM_PROMPT,
+)
 from sqlalchemy import select
 
 # System prompts

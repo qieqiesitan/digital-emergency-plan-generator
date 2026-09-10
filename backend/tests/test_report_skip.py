@@ -145,7 +145,6 @@ async def test_generate_risk_assessment_no_500_with_duplicate_rows(monkeypatch):
     draft = MagicMock(id="r1", enterprise_id="e1", title="旧", status="draft")
     db.execute.side_effect = [
         MagicMock(scalar_one_or_none=lambda: ent),
-        MagicMock(scalar_one_or_none=lambda: None),  # generating 检查
         _first_result(draft),  # 报告查询：skipped 被过滤，仅命中 draft
     ]
     monkeypatch.setattr(ra, "build_risk_management_context", AsyncMock(return_value={"total_events": 1}))
@@ -166,7 +165,6 @@ async def test_generate_resource_investigation_no_500_with_duplicate_rows(monkey
     db.execute.side_effect = [
         MagicMock(scalar_one_or_none=lambda: ent),
         MagicMock(scalars=lambda: MagicMock(all=lambda: [MagicMock()])),  # 资源检查
-        MagicMock(scalar_one_or_none=lambda: None),  # generating 检查
         _first_result(draft),  # 报告查询：skipped 被过滤，仅命中 draft
     ]
     monkeypatch.setattr("app.services.ai_config_service.get_system_ai_config", AsyncMock(return_value=MagicMock()))
@@ -216,7 +214,6 @@ async def test_generate_risk_assessment_after_skip_creates_new_row(monkeypatch):
     ent = MagicMock(id="e1", user_id="u1", name="测试企业")
     db.execute.side_effect = [
         MagicMock(scalar_one_or_none=lambda: ent),
-        MagicMock(scalar_one_or_none=lambda: None),  # generating 检查
         _first_result(None),  # skipped 被过滤，未命中
     ]
     monkeypatch.setattr(ra, "build_risk_management_context", AsyncMock(return_value={"total_events": 1}))
@@ -238,7 +235,6 @@ async def test_generate_resource_investigation_after_skip_creates_new_row(monkey
     db.execute.side_effect = [
         MagicMock(scalar_one_or_none=lambda: ent),
         MagicMock(scalars=lambda: MagicMock(all=lambda: [MagicMock()])),  # 资源检查
-        MagicMock(scalar_one_or_none=lambda: None),  # generating 检查
         _first_result(None),  # skipped 被过滤，未命中
     ]
     monkeypatch.setattr("app.services.ai_config_service.get_system_ai_config", AsyncMock(return_value=MagicMock()))
