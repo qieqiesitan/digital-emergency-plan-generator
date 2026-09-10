@@ -48,6 +48,28 @@ def _risk_source_item(zone: RiskZone, obj: RiskObject, unit: RiskUnit | None, ev
     }
 
 
+def _sort_key(item) -> tuple:
+    """稳定排序键：sort_order → created_at → id（缺失字段退化为空值）。"""
+    return (
+        getattr(item, "sort_order", 0) or 0,
+        str(getattr(item, "created_at", "") or ""),
+        str(getattr(item, "id", "") or ""),
+    )
+
+
+def build_risk_sources(zones) -> list[dict]:
+    """按 分区→对象→单元→事件 稳定展开风险源清单。"""
+    ordered: list[dict] = []
+    for zone in sorted(zones or [], key=_sort_key):
+        for obj in sorted(getattr(zone, "objects", []) or [], key=_sort_key):
+            for event in sorted(getattr(obj, "events", []) or [], key=_sort_key):
+                ordered.append(_risk_source_item(zone, obj, None, event))
+            for unit in sorted(getattr(obj, "units", []) or [], key=_sort_key):
+                for event in sorted(getattr(unit, "events", []) or [], key=_sort_key):
+                    ordered.append(_risk_source_item(zone, obj, unit, event))
+    return ordered
+
+
 async def build_risk_management_context(enterprise_id: str, db: AsyncSession) -> dict:
     """从五层表构建企业风险管控上下文。
 
@@ -88,30 +110,16 @@ async def build_risk_management_context(enterprise_id: str, db: AsyncSession) ->
             .selectinload(RiskUnit.events)
             .selectinload(RiskEvent.measures)
         )
-        .order_by(RiskZone.sort_order)
+        .order_by(RiskZone.sort_order, RiskZone.created_at, RiskZone.id)
     )
     zones = zones_result.scalars().all()
 
-    # 构建层级化 risk_sources 列表
-    risk_sources_list = []
-
-    for zone in zones:
-        for obj in zone.objects:
-            # 对象下直接挂载的事件（无单元场景，如"消防泵房"直接关联"设备故障"）
-            for event in obj.events:
-                risk_sources_list.append(_risk_source_item(zone, obj, None, event))
-
-            # 单元下挂载的事件（标准场景，如"1号储罐 → 罐体 → 储罐泄漏"）
-            for unit in obj.units:
-                for event in unit.events:
-                    risk_sources_list.append(_risk_source_item(zone, obj, unit, event))
+    # 构建层级化 risk_sources 列表（分区→对象→单元→事件，稳定排序）
+    zones = sorted(zones, key=_sort_key)
+    risk_sources_list = build_risk_sources(zones)
 
     # 计算总事件数
-    total_events = sum(
-        len(obj.events) + sum(len(u.events) for u in obj.units)
-        for zone in zones
-        for obj in zone.objects
-    )
+    total_events = len(risk_sources_list)
 
     # 从分区推导企业楼层列表（zones 的 floor 关系已 selectin 预加载；
     # 无分区楼层可空，供疏散图按楼层分组使用）
