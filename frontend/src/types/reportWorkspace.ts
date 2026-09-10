@@ -11,6 +11,7 @@ export interface ReportDocument {
   title: string;
   content: string;
   status: string;
+  generatedAt?: string | null;
   chapters: ReportChapter[];
   stylePreference?: Record<string, string> | null;
   /** 全量生成产出的四色分布图（risk 类型 summary.images 透传） */
@@ -45,5 +46,6 @@ export interface ReportAdapter {
   saveStyle(enterpriseId: string, style: Record<string, string>): Promise<void>;
   merge(enterpriseId: string, chapters: ReportChapter[]): Promise<void>;
   listVersions(enterpriseId: string): Promise<ReportVersionItem[]>;
-  exportUrl(enterpriseId: string): string;
+  /** 导出 Word：blob 下载（不新开窗口），文件名取后端 Content-Disposition */
+  download(enterpriseId: string): Promise<void>;
 }

@@ -4,6 +4,7 @@ import type { ReportVersionItem, SSEEvent } from "@/types/riskAssessment";
 import type { ReportIssue } from "@/types/reportWorkspace";
 import type { ChapterDef } from '@/services/riskAssessmentService';
 import api from "./api";
+import { filenameFromContentDisposition } from "@/utils/download";
 
 export async function getResourceInvestigation(enterpriseId: string): Promise<ResourceInvestigationReport> {
   const res = await api.get(`/enterprises/${enterpriseId}/resource-investigation`);
@@ -29,9 +30,13 @@ export async function downloadResourceInvestigation(enterpriseId: string): Promi
     throw new Error(err.detail || err.message || "download failed");
   }
   const blob = await resp.blob();
+  const name = filenameFromContentDisposition(
+    resp.headers.get("content-disposition") || "",
+    "resource_investigation_report.docx",
+  );
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "resource_investigation_report.docx";
+  link.download = name;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

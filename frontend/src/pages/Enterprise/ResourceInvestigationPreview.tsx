@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Spin, Button, message, Modal, Table, Tag, Input, Space } from "antd";
+import { Spin, Button, message, Modal, Table, Tag, Space } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, SaveOutlined } from "@ant-design/icons";
 import {
   createResourceInvestigationVersion,
@@ -11,6 +11,8 @@ import {
   rollbackResourceInvestigationVersion,
   saveResourceInvestigationContent,
 } from "@/services/resourceInvestigationService";
+import TiptapEditor from "@/components/report/TiptapEditor";
+import { htmlToMarkdown, renderReportMarkdown } from "@/utils/reportMarkdown";
 import type { ReportVersionItem } from "@/types/riskAssessment";
 import type { ResourceInvestigationPreview as RIPreview } from "@/types/resourceInvestigation";
 
@@ -20,7 +22,7 @@ export default function ResourceInvestigationPreview() {
   const [data, setData] = useState<RIPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [editHtml, setEditHtml] = useState("");
   const [saving, setSaving] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
   const [versions, setVersions] = useState<ReportVersionItem[]>([]);
@@ -57,7 +59,7 @@ export default function ResourceInvestigationPreview() {
     if (!id) return;
     try {
       const report = await getResourceInvestigation(id);
-      setDraft(report.content || "");
+      setEditHtml(renderReportMarkdown(report.content || ""));
       setEditing(true);
     } catch (err) {
       message.error(err instanceof Error ? err.message : "加载报告正文失败");
@@ -68,7 +70,7 @@ export default function ResourceInvestigationPreview() {
     if (!id) return;
     setSaving(true);
     try {
-      await saveResourceInvestigationContent(id, draft);
+      await saveResourceInvestigationContent(id, htmlToMarkdown(editHtml));
       message.success("报告正文已保存");
       setEditing(false);
       reloadPreview();
@@ -130,8 +132,11 @@ export default function ResourceInvestigationPreview() {
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: 16 }}>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/enterprises/${id}`)}>
-          返回企业详情
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate(`/enterprises/${id}/modules/investigation`)}
+        >
+          返回工作台
         </Button>
         <Space>
           {!editing ? (
@@ -154,12 +159,10 @@ export default function ResourceInvestigationPreview() {
         </Space>
       </div>
       {editing ? (
-        <Input.TextArea
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          rows={30}
-          style={{ fontFamily: "monospace", fontSize: 13 }}
-          placeholder="报告正文（Markdown 格式）"
+        <TiptapEditor
+          content={editHtml}
+          onChange={setEditHtml}
+          placeholder="编辑报告正文…"
         />
       ) : (
         <div

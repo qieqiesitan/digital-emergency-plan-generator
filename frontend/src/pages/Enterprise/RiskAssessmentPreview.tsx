@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Spin, Button, Typography, message, Table, Tag, Collapse, Statistic, Row, Col, Card, Modal, Input, Space } from "antd";
+import { Spin, Button, Typography, message, Table, Tag, Collapse, Statistic, Row, Col, Card, Modal, Space } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, SaveOutlined } from "@ant-design/icons";
 import {
   createRiskAssessmentVersion,
@@ -12,73 +12,16 @@ import {
   saveRiskAssessmentContent,
 } from "@/services/riskAssessmentService";
 import type { ReportVersionItem, RiskAssessmentPreview } from "@/types/riskAssessment";
+import TiptapEditor from "@/components/report/TiptapEditor";
+import { htmlToMarkdown, renderReportMarkdown } from "@/utils/reportMarkdown";
+import {
+  countByLevel,
+  getRiskLevelTag,
+  parseRiskTable,
+} from "./riskTableParser";
+import type { RiskTableRow } from "./riskTableParser";
 
 const { Title, Text } = Typography;
-
-/* ── 风险等级判定 ── */
-function getRiskLevelTag(r: number) {
-  if (r <= 8)   return { label: "低风险",  color: "green" };
-  if (r <= 12)  return { label: "一般风险", color: "orange" };
-  if (r <= 16)  return { label: "较大风险", color: "volcano" };
-  return                      { label: "重大风险", color: "red" };
-}
-
-/* ── 从 HTML 中解析 L×S 风险评估计算表 ── */
-interface RiskTableRow {
-  key: number;
-  accidentType: string;
-  l: number;
-  s: number;
-  r: number;
-  level: string;
-}
-
-function parseRiskTable(html: string): RiskTableRow[] {
-  const rows: RiskTableRow[] = [];
-  const trRegex = /<tr[^>]*>[\s\S]*?<\/tr>/gi;
-  const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-
-  const matches = html.match(trRegex) || [];
-  for (const tr of matches) {
-    const tds: string[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = tdRegex.exec(tr)) !== null) {
-      tds.push(m[1].replace(/<[^>]+>/g, "").trim());
-    }
-    tdRegex.lastIndex = 0;
-
-    // 需要至少 5 列：事故类型, L, S, R, 风险等级
-    if (tds.length >= 5) {
-      const l = parseInt(tds[1], 10);
-      const s = parseInt(tds[2], 10);
-      const r = parseInt(tds[3], 10);
-      const isHeader =
-        tds[0].includes("事故类型") || tds[0].includes("序号") ||
-        tds[0].includes("风险") && tds[1].includes("L");
-      if (!isNaN(l) && !isNaN(s) && !isNaN(r) && !isHeader) {
-        rows.push({
-          key: rows.length + 1,
-          accidentType: tds[0],
-          l,
-          s,
-          r,
-          level: tds[4] || getRiskLevelTag(r).label,
-        });
-      }
-    }
-  }
-  return rows;
-}
-
-/* ── 统计各风险等级数量 ── */
-function countByLevel(rows: RiskTableRow[]) {
-  const counts: Record<string, number> = { "重大风险": 0, "较大风险": 0, "一般风险": 0, "低风险": 0 };
-  for (const row of rows) {
-    const tag = getRiskLevelTag(row.r);
-    counts[tag.label] = (counts[tag.label] || 0) + 1;
-  }
-  return counts;
-}
 
 const levelColorMap: Record<string, string> = {
   "重大风险": "#cf1322",
@@ -100,7 +43,7 @@ export default function RiskAssessmentPreview() {
   const [data, setData] = useState<RiskAssessmentPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [editHtml, setEditHtml] = useState("");
   const [saving, setSaving] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
   const [versions, setVersions] = useState<ReportVersionItem[]>([]);
@@ -134,7 +77,7 @@ export default function RiskAssessmentPreview() {
     if (!id) return;
     try {
       const report = await getRiskAssessment(id, { skipGlobalError: true });
-      setDraft(report.content || "");
+      setEditHtml(renderReportMarkdown(report.content || ""));
       setEditing(true);
     } catch (err) {
       message.error(err instanceof Error ? err.message : "加载报告正文失败");
@@ -145,7 +88,7 @@ export default function RiskAssessmentPreview() {
     if (!id) return;
     setSaving(true);
     try {
-      await saveRiskAssessmentContent(id, draft, { skipGlobalError: true });
+      await saveRiskAssessmentContent(id, htmlToMarkdown(editHtml), { skipGlobalError: true });
       message.success("报告正文已保存");
       setEditing(false);
       reloadPreview();
@@ -272,8 +215,11 @@ export default function RiskAssessmentPreview() {
     <div style={{ maxWidth: 960, margin: "0 auto", padding: 16 }}>
       {/* 工具栏 */}
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/enterprises/${id}`)}>
-          返回企业详情
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate(`/enterprises/${id}/modules/assessment`)}
+        >
+          返回工作台
         </Button>
         <Space>
           {!editing ? (
@@ -456,12 +402,10 @@ export default function RiskAssessmentPreview() {
           }
         `}</style>
         {editing ? (
-          <Input.TextArea
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            rows={30}
-            style={{ fontFamily: "monospace", fontSize: 13 }}
-            placeholder="报告正文（Markdown 格式）"
+          <TiptapEditor
+            content={editHtml}
+            onChange={setEditHtml}
+            placeholder="编辑报告正文…"
           />
         ) : (
           <div

@@ -3,6 +3,7 @@ import type { RiskAssessmentReport, RiskAssessmentPreview, ReportVersionItem, SS
 import type { ReportIssue } from "@/types/reportWorkspace";
 import api from "./api";
 import type { AxiosRequestConfig } from "axios";
+import { filenameFromContentDisposition } from "@/utils/download";
 
 export async function getRiskAssessment(enterpriseId: string, config?: AxiosRequestConfig): Promise<RiskAssessmentReport> {
   const res = await api.get(`/enterprises/${enterpriseId}/risk-assessment`, config);
@@ -28,9 +29,13 @@ export async function downloadRiskAssessment(enterpriseId: string): Promise<void
     throw new Error(err.detail || err.message || "download failed");
   }
   const blob = await resp.blob();
+  const name = filenameFromContentDisposition(
+    resp.headers.get("content-disposition") || "",
+    "risk_assessment_report.docx",
+  );
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "risk_assessment_report.docx";
+  link.download = name;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

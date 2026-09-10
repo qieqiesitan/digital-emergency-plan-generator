@@ -9,7 +9,6 @@ function chaptersFrom(report: { summary?: { chapters?: ReportChapter[] } }): Rep
 function makeAdapter(
   kind: "risk" | "resource",
 ): ReportAdapter {
-  const path = kind === "risk" ? "risk-assessment" : "resource-investigation";
   return {
     async load(enterpriseId) {
       const doc = kind === "risk"
@@ -20,6 +19,7 @@ function makeAdapter(
         title: doc.title,
         content: doc.content,
         status: doc.status,
+        generatedAt: doc.generated_at ?? null,
         chapters: chaptersFrom(doc),
         stylePreference: doc.style_preference,
         fourColorImages: (doc.summary as
@@ -61,7 +61,9 @@ function makeAdapter(
     listVersions: (enterpriseId) => kind === "risk"
       ? ra.listRiskAssessmentVersions(enterpriseId)
       : ri.listResourceInvestigationVersions(enterpriseId),
-    exportUrl: (enterpriseId) => `/api/v1/enterprises/${enterpriseId}/${path}/export?token=${localStorage.getItem("access_token")}`,
+    download: (enterpriseId) => kind === "risk"
+      ? ra.downloadRiskAssessment(enterpriseId)
+      : ri.downloadResourceInvestigation(enterpriseId),
   };
 }
 
