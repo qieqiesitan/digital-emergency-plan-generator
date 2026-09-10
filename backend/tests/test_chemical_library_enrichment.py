@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.tools.chemical_enrichment.pubchem import map_physical_state, parse_pug_view
 from backend.tools.chemical_enrichment.fetch import CachedFetcher
 from backend.tools.chemical_enrichment.chemblink import parse_product_page
 
@@ -66,3 +67,20 @@ def test_chemblink_ghs_split_into_health_and_fire():
     assert "易燃液体 类别2" in data["fire_hazard"]
     assert "急性毒性 类别3" in data["health_hazard"]
     assert data["un_no"] == "1164"
+
+
+def test_pubchem_extracts_un_state_and_limits():
+    import json
+
+    record = json.loads((FIXTURES / "pubchem_887.json").read_text(encoding="utf-8"))
+    data = parse_pug_view(record)
+    assert data["un_no"] == "1230"
+    assert data["physical_state"] == "液态"
+    assert data["explosion_limit"] == "6%~36.5%"
+
+
+def test_pubchem_state_mapping_rules():
+    assert map_physical_state("A colorless gas with a pungent odor") == "气态"
+    assert map_physical_state("White crystalline solid") == "固态"
+    assert map_physical_state("Oily liquid") == "液态"
+    assert map_physical_state("") == ""
