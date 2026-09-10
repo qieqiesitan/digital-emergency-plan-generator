@@ -36,6 +36,7 @@ from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_
 from app.services.sse_utils import sse_event
 from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, get_additional_diagram_prompt, render_template, ensure_loaded
 from app.services.risk_context_builder import build_risk_management_context
+from app.services.report_data_authority import with_rule
 from app.services.plan_generation_service import (
     collect_batch_context, run_batch_generation, finalize_batch_result,
 )
@@ -230,8 +231,8 @@ def _append_additional_diagram_prompt(prompt: str, plan_type: str, section_key: 
 
 
 def _build_system_prompt(plan_type: str = "*", style_preference: dict | None = None, advanced_overrides: dict | None = None) -> str:
-    """构建系统提示词，优先风格参数，fallback 到数据库模板。"""
-    return build_system_prompt_with_style(plan_type, style_preference, advanced_overrides)
+    """构建系统提示词，优先风格参数，fallback 到数据库模板；固定追加风险数据权威规则。"""
+    return with_rule(build_system_prompt_with_style(plan_type, style_preference, advanced_overrides))
 
 def _get_mermaid_instruction(section_key: str | None, section_title: str, diagram_preference: str = "mermaid") -> str | None:
     """Return a Mermaid-specific prompt instruction if this section needs a flowchart."""

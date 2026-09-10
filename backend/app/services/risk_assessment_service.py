@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # 提示词缓存（延迟导入，避免循环引用）
 from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt, build_system_prompt_with_style
+from app.services.report_data_authority import with_rule
 
 async def build_risk_assessment_context(enterprise_id: str, db: AsyncSession) -> dict:
     return await build_risk_management_context(enterprise_id, db)
@@ -317,7 +318,7 @@ def build_chapter_prompt(
 """ + reg_ctx
     except Exception:
         pass
-    return prompt
+    return with_rule(prompt)
 
 
 def get_chapter_keys():
