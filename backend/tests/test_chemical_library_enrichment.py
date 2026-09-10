@@ -196,6 +196,28 @@ def test_collect_record_tolerates_single_source_failure(tmp_path):
     assert any("pubchem" in error for error in errors)
 
 
+def test_process_rows_preserves_input_order_with_workers():
+    import time
+
+    from backend.tools.enrich_chemical_library import process_rows
+
+    rows = [["id-1", "甲", "1-1-1"], ["id-2", "乙", "2-2-2"],
+            ["id-3", "丙", "3-3-3"], ["id-4", "丁", "4-4-4"]]
+
+    def fake_collect(cas):
+        if cas == "2-2-2":
+            time.sleep(0.05)  # 让慢的排在中间，验证结果仍按输入顺序
+        if cas == "4-4-4":
+            return {}, {}, ["pubchem: HTTP 404"]
+        return {"flash_point": f"{cas}℃"}, {}, []
+
+    results, failed, partial, conflicts = process_rows(rows, fake_collect, workers=4)
+    assert [r["id"] for r in results] == ["id-1", "id-2", "id-3"]
+    assert results[1]["values"]["flash_point"] == "2-2-2℃"
+    assert [f["id"] for f in failed] == ["id-4"]
+    assert failed[0]["error"] == "pubchem: HTTP 404"
+
+
 def test_sql_uses_coalesce_nullif_and_only_present_fields():
     from backend.tools.chemical_enrichment.sqlgen import render_update_sql
 

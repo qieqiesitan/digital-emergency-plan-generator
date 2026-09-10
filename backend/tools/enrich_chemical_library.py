@@ -8,6 +8,7 @@ import argparse
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -102,6 +103,39 @@ def build_report(rows: list, results: list, failed: list, conflicts: list,
     return "\n".join(lines) + "\n"
 
 
+def process_rows(rows: list, collect_fn, workers: int = 4, progress_every: int = 100,
+                 log=print) -> tuple:
+    """并发抓取 + 解析；结果严格按输入顺序返回（失败行跳过并单独记录）。"""
+    def job(item):
+        _index, (row_id, name, cas) = item
+        try:
+            chemblink, pubchem, errors = collect_fn(cas)
+        except Exception as exc:  # 兜底：单行异常不影响整体
+            chemblink, pubchem, errors = {}, {}, [str(exc)[:200]]
+        return row_id, name, cas, chemblink, pubchem, errors
+
+    results, failed, partial, conflicts = [], [], [], []
+    total = len(rows)
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        for done, (row_id, name, cas, chemblink, pubchem, errors) in enumerate(
+                pool.map(job, list(enumerate(rows))), 1):
+            if not chemblink and not pubchem:
+                failed.append({"id": row_id, "name": name, "cas": cas,
+                               "error": "; ".join(errors)[:200]})
+            else:
+                if errors:
+                    partial.append({"id": row_id, "name": name, "cas": cas, "errors": errors})
+                merged = merge_sources(chemblink, pubchem)
+                if merged["conflicts"]:
+                    conflicts.append({"id": row_id, "name": name, "cas": cas,
+                                      "fields": merged["conflicts"]})
+                results.append({"id": row_id, "name": name, "cas": cas,
+                                "values": {field: merged[field] for field in FIELDS}})
+            if progress_every and done % progress_every == 0:
+                log(f"progress {done}/{total}")
+    return results, failed, partial, conflicts
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rows", help="TSV：id\\tname\\tcas（与 --from-db 二选一）")
@@ -110,6 +144,7 @@ def main() -> None:
     parser.add_argument("--cache-dir", default=".cache/chemical_enrichment")
     parser.add_argument("--report", default=str(REPORT_PATH))
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--workers", type=int, default=4)
     args = parser.parse_args()
 
     if args.from_db:
@@ -121,23 +156,8 @@ def main() -> None:
         rows = rows[: args.limit]
 
     fetcher = CachedFetcher(Path(args.cache_dir))
-    results, failed, conflicts, partial = [], [], [], []
-    for index, (row_id, name, cas) in enumerate(rows, 1):
-        chemblink, pubchem, errors = collect_record(fetcher, cas)
-        if not chemblink and not pubchem:
-            failed.append({"id": row_id, "name": name, "cas": cas,
-                           "error": "; ".join(errors)[:200]})
-            continue
-        if errors:
-            partial.append({"id": row_id, "name": name, "cas": cas, "errors": errors})
-        merged = merge_sources(chemblink, pubchem)
-        if merged["conflicts"]:
-            conflicts.append({"id": row_id, "name": name, "cas": cas,
-                              "fields": merged["conflicts"]})
-        results.append({"id": row_id, "name": name, "cas": cas,
-                        "values": {field: merged[field] for field in FIELDS}})
-        if index % 100 == 0:
-            print(f"progress {index}/{len(rows)}", flush=True)
+    results, failed, partial, conflicts = process_rows(
+        rows, lambda cas: collect_record(fetcher, cas), workers=args.workers)
 
     out = Path(args.out_dir)
     write_outputs(results, out / SQL_NAME, out / "data" / JSON_NAME)

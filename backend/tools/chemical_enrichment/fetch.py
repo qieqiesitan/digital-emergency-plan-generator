@@ -17,9 +17,14 @@ class CachedFetcher:
         self.retries = retries
         self._get = get or self._requests_get
         self._last_call = 0.0
+        self._session = None
 
     def _requests_get(self, url: str):
-        return requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
+        # 复用连接池（并发抓取时显著降低 TLS 握手开销）
+        if self._session is None:
+            self._session = requests.Session()
+            self._session.headers.update({"User-Agent": USER_AGENT})
+        return self._session.get(url, timeout=30)
 
     @staticmethod
     def _decode(resp) -> str:
