@@ -10,7 +10,7 @@ import {
   Transformer,
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { Modal, Input, InputNumber, Button, Space, message } from "antd";
+import { Modal, Input, InputNumber, Button, Space } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import {
@@ -134,6 +134,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const regionNodeRefs = useRef<Map<string, any>>(new Map());
   const regionTransformOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
   const groupDragRef = useRef<{ startX: number; startY: number; origin: Map<string, RiskPolygonPoint[]> } | null>(null);
+  const dragWritebackRef = useRef(false);
   const transformerRef = useRef<any>(null);
   const spacePressedRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number; viewX: number; viewY: number } | null>(null);
@@ -289,6 +290,18 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
     return {
       x: Math.min(100, Math.max(0, rounded(toPercent(rawX, canvasWidth)))),
       y: Math.min(100, Math.max(0, rounded(toPercent(rawY, canvasHeight)))),
+    };
+  };
+
+  // 框选使用不做网格吸附的坐标：绘制工具的 5% 吸附会把小范围框选压缩成 0 尺寸。
+  const rawPointFromEvent = (e: KonvaEventObject<MouseEvent>): RiskPolygonPoint => {
+    const stage = e.target.getStage?.() ?? null;
+    const pos = stage?.getPointerPosition?.() ?? null;
+    const rawX = pos ? (pos.x - viewX) / viewScale : (e.evt.offsetX ?? 0);
+    const rawY = pos ? (pos.y - viewY) / viewScale : (e.evt.offsetY ?? 0);
+    return {
+      x: Math.min(100, Math.max(0, Math.round(toPercent(rawX, canvasWidth) * 100) / 100)),
+      y: Math.min(100, Math.max(0, Math.round(toPercent(rawY, canvasHeight) * 100) / 100)),
     };
   };
 
@@ -495,12 +508,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
     }
     if (e.evt.detail > 1) return;
     if (tool === "select") {
-      const selectedZoneId = useRiskMappingWorkbenchStore.getState().selectedZoneId;
-      if (!selectedZoneId) {
-        message.info("请先选择分区后再框选");
-        return;
-      }
-      const p = pointFromEvent(e);
+      const p = rawPointFromEvent(e);
       marqueeShiftRef.current = e.evt.shiftKey;
       marqueeEndRef.current = p;
       setMarqueeStart(p);
@@ -548,7 +556,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
     if (isPanningRef.current) return;
     if (marqueeStart) {
-      const p = pointFromEvent(e);
+      const p = rawPointFromEvent(e);
       marqueeEndRef.current = p;
       setMarqueeEnd(p);
       return;
@@ -599,10 +607,23 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
         if (!append) store.setSelectedRegions([]);
         return;
       }
-      const zone = store.zones.find(z => z.id === store.selectedZoneId);
-      const polygons = zone?.floor_plan_polygon?.polygons ?? [];
-      const hitIds = zone ? collectRegionsInRect(polygons, rect).map(id => `zone:${zone.id}:${id}`) : [];
-      store.setSelectedRegions(hitIds, { append });
+      const hits: { zoneId: string; polygonId: string }[] = [];
+      store.zones.forEach(z => {
+        const polygons = z.floor_plan_polygon?.polygons ?? [];
+        collectRegionsInRect(polygons, rect).forEach(pid => hits.push({ zoneId: z.id, polygonId: pid }));
+      });
+      if (!hits.length) {
+        if (!append) store.setSelectedRegions([]);
+        return;
+      }
+      const countByZone = new Map<string, number>();
+      hits.forEach(h => countByZone.set(h.zoneId, (countByZone.get(h.zoneId) ?? 0) + 1));
+      const [hitZoneId] = [...countByZone.entries()].sort((a, b) => b[1] - a[1])[0];
+      store.setSelectedRegions(
+        hits.filter(h => h.zoneId === hitZoneId).map(h => `zone:${h.zoneId}:${h.polygonId}`),
+        { append },
+      );
+      useRiskMappingWorkbenchStore.setState({ selectedZoneId: hitZoneId });
       return;
     }
     if (tool === "pen" && penCloseCandidateRef.current) {
@@ -1027,6 +1048,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                         });
                         if (!origin.size) origin.set(regionId, p.points);
                         groupDragRef.current = { startX: e.target.x(), startY: e.target.y(), origin };
+                        dragWritebackRef.current = false;
                       }}
                       onDragMove={e => {
                         const group = groupDragRef.current;
@@ -1039,17 +1061,25 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                         });
                       }}
                       onDragEnd={e => {
-                        const dx = (e.target.x() / canvasWidth) * 100;
-                        const dy = (e.target.y() / canvasHeight) * 100;
+                        const dxPx = e.target.x();
+                        const dyPx = e.target.y();
+                        e.target.position({ x: 0, y: 0 });
+                        // Konva 会为每个选中节点各触发一次 dragEnd：只允许有位移的那次写回，
+                        // 否则后续 0 位移的 dragEnd 会把整体位移覆盖掉。
+                        if (dragWritebackRef.current) return;
+                        if (Math.abs(dxPx) < 0.01 && Math.abs(dyPx) < 0.01) return;
+                        dragWritebackRef.current = true;
+                        const dx = (dxPx / canvasWidth) * 100;
+                        const dy = (dyPx / canvasHeight) * 100;
                         const group = groupDragRef.current;
                         groupDragRef.current = null;
-                        const targets = group?.origin ?? new Map<string, RiskPolygonPoint[]>([[regionId, p.points]]);
+                        const targets =
+                          group?.origin ?? new Map<string, RiskPolygonPoint[]>([[regionId, resolveRegionPoints(regionId) ?? p.points]]);
                         const updates = new Map<string, RiskPolygonPoint[]>();
                         targets.forEach((points, id) => {
                           updates.set(id, points.map(pt => clampPoint({ x: pt.x + dx, y: pt.y + dy })));
                           regionNodeRefs.current.get(id)?.position({ x: 0, y: 0 });
                         });
-                        e.target.position({ x: 0, y: 0 });
                         const store = useRiskMappingWorkbenchStore.getState();
                         const applied = applyRegionPointUpdates(store.zones, store.pendingRegions, updates);
                         commit();
