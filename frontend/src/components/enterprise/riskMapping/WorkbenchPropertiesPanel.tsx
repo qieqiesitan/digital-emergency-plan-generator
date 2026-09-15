@@ -4,7 +4,8 @@ import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import type { RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
-import { transformPolygonPoints } from "@/utils/riskMappingGeometry";
+import { polygonCentroid, transformPolygonPoints } from "@/utils/riskMappingGeometry";
+import { transformRegionsAroundCenter } from "@/utils/riskMappingMarquee";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { zoneDisplayColor, zoneDisplayLevel } from "@/utils/zoneDisplay";
 
@@ -54,6 +55,16 @@ export default function WorkbenchPropertiesPanel() {
     ? `${zoneDisplayLevel(zone)}风险${zoneColorMode === "manual" ? "（手动指定）" : "（自动）"}`
     : "";
   const zoneColorPreview = zone ? zoneDisplayColor(zone, "current") : "#d9d9d9";
+  const multiSelectMode = selectedRegionIds.length > 1;
+  const selectedPolygons = (() => {
+    if (!multiSelectMode) return [];
+    const target = zones.find(z => z.id === selectedZoneId);
+    const polygons = target?.floor_plan_polygon?.polygons ?? [];
+    return polygons.filter(p => selectedRegionIds.includes(`zone:${target!.id}:${p.id}`));
+  })();
+  const multiCenter = selectedPolygons.length
+    ? polygonCentroid(selectedPolygons.flatMap(p => p.points))
+    : null;
   const selectedPending = selectedRegionId?.startsWith("pending:")
     ? pendingRegions.find(r => r.id === selectedRegionId.slice("pending:".length)) ?? null
     : null;
@@ -147,6 +158,36 @@ export default function WorkbenchPropertiesPanel() {
       message.info("已切换为跟随自动：保存后将按分区风险对象最大等级重新着色。");
       updateZone({ floor_plan_polygon: { ...polygon, level_mode: "auto", risk_level: null } });
     }
+  };
+
+  const applyMultiTransform = (options: {
+    scale?: number;
+    rotationDeg?: number;
+    flipX?: boolean;
+    flipY?: boolean;
+  }) => {
+    if (!multiCenter || !selectedPolygons.length) return;
+    const store = useRiskMappingWorkbenchStore.getState();
+    const target = store.zones.find(z => z.id === store.selectedZoneId);
+    if (!target?.floor_plan_polygon) return;
+    const transformed = transformRegionsAroundCenter(selectedPolygons, options, multiCenter);
+    const byId = new Map(transformed.map(t => [t.id, t.points]));
+    commit();
+    setSnapshot({
+      zones: store.zones.map(z =>
+        z.id !== target.id || !z.floor_plan_polygon
+          ? z
+          : {
+              ...z,
+              floor_plan_polygon: {
+                ...z.floor_plan_polygon,
+                polygons: z.floor_plan_polygon.polygons.map(p =>
+                  byId.has(p.id) ? { ...p, points: byId.get(p.id)! } : p,
+                ),
+              },
+            },
+      ),
+    });
   };
 
   const bindSelectedPending = () => {
@@ -305,7 +346,60 @@ export default function WorkbenchPropertiesPanel() {
     <div style={{ background: "#fff", borderRadius: 8, padding: 12, overflow: "auto" }}>
       <h4 style={{ fontSize: 14, marginBottom: 12 }}>属性</h4>
 
-      {selectedPending && (
+      {multiSelectMode && (
+        <div style={{ border: "1px solid #8b5cf6", borderRadius: 6, padding: 8, marginBottom: 12 }}>
+          <strong>已选中 {selectedRegionIds.length} 个区域</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 12, color: "#666" }}>缩放</span>
+            <InputNumber
+              style={{ flex: 1 }}
+              min={10}
+              max={500}
+              value={regionScale}
+              onChange={v => setRegionScale(v ?? 100)}
+              addonAfter="%"
+            />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 12, color: "#666" }}>旋转</span>
+            <InputNumber
+              style={{ flex: 1 }}
+              min={-360}
+              max={360}
+              value={regionRotation}
+              onChange={v => setRegionRotation(v ?? 0)}
+              addonAfter="°"
+            />
+          </div>
+          <Button
+            block
+            type="primary"
+            style={{ marginTop: 6 }}
+            onClick={() => applyMultiTransform({ scale: regionScale / 100, rotationDeg: regionRotation })}
+          >
+            应用变换
+          </Button>
+          <Space.Compact style={{ width: "100%", marginTop: 6 }}>
+            <Button style={{ width: "50%" }} onClick={() => applyMultiTransform({ flipX: true })}>
+              水平翻转
+            </Button>
+            <Button style={{ width: "50%" }} onClick={() => applyMultiTransform({ flipY: true })}>
+              垂直翻转
+            </Button>
+          </Space.Compact>
+          <Button
+            danger
+            block
+            style={{ marginTop: 6 }}
+            icon={<DeleteOutlined />}
+            onClick={() => useRiskMappingWorkbenchStore.getState().deleteSelectedRegions()}
+          >
+            删除选中区域
+          </Button>
+        </div>
+      )}
+
+      {!multiSelectMode && selectedPending && (
         <div style={{ border: "1px dashed #fa8c16", borderRadius: 6, padding: 8, marginBottom: 12 }}>
           <strong>待绑定区域</strong>
           <div style={{ fontSize: 12, color: "#8c8c8c", margin: "4px 0" }}>{selectedPending.points.length} 个顶点</div>
@@ -334,7 +428,7 @@ export default function WorkbenchPropertiesPanel() {
         </div>
       )}
 
-      {selectedZonePolygon?.polygon && selectedZonePolygon.zone && (
+      {!multiSelectMode && selectedZonePolygon?.polygon && selectedZonePolygon.zone && (
         <div style={{ border: "1px solid #d9d9d9", borderRadius: 6, padding: 8, marginBottom: 12 }}>
           <strong>已绑定区域</strong>
           <div style={{ fontSize: 12, color: "#8c8c8c", margin: "4px 0" }}>
@@ -373,7 +467,7 @@ export default function WorkbenchPropertiesPanel() {
         </div>
       )}
 
-      {(selectedPending || selectedZonePolygon) && (
+      {!multiSelectMode && (selectedPending || selectedZonePolygon) && (
         <div style={{ border: "1px solid #8b5cf6", borderRadius: 6, padding: 8, marginBottom: 12 }}>
           <strong>自由变换</strong>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
