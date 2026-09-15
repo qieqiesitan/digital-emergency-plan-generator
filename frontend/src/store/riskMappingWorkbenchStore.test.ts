@@ -340,13 +340,13 @@ describe("riskMappingWorkbenchStore", () => {
           created_at: "2026-01-01T00:00:00Z",
         },
       ],
-      selectedRegionId: "pending:r1",
+      selectedRegionIds: ["pending:r1"],
     });
 
     store.getState().deletePendingRegion("r1");
 
     expect(store.getState().pendingRegions.map(r => r.id)).toEqual(["r2"]);
-    expect(store.getState().selectedRegionId).toBeNull();
+    expect(store.getState().selectedRegionIds).toEqual([]);
   });
 
   it("deleteZonePolygon removes a single polygon from the zone", () => {
@@ -366,14 +366,14 @@ describe("riskMappingWorkbenchStore", () => {
           },
         },
       ],
-      selectedRegionId: "zone:z1:p1",
+      selectedRegionIds: ["zone:z1:p1"],
     });
 
     store.getState().deleteZonePolygon("z1", "p1");
 
     const polygons = store.getState().zones[0].floor_plan_polygon?.polygons ?? [];
     expect(polygons.map(p => p.id)).toEqual(["p2"]);
-    expect(store.getState().selectedRegionId).toBeNull();
+    expect(store.getState().selectedRegionIds).toEqual([]);
   });
 
   it("deleteSelected commits once and removes the selected risk point", () => {
@@ -530,5 +530,75 @@ describe("riskMappingGeometry", () => {
     ];
     expect(simplifyPolygon(degenerate, 10)).toEqual(degenerate);
     expect(simplifyPolygon(degenerate.slice(0, 3))).toEqual(degenerate.slice(0, 3));
+  });
+});
+
+describe("region multi-select", () => {
+  const triangle = (dx = 0, dy = 0) => [
+    { x: dx, y: dy },
+    { x: dx + 1, y: dy },
+    { x: dx + 1, y: dy + 1 },
+  ];
+
+  it("setSelectedRegions 替换选择并清空风险点/文字选择", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({ selectedRegionIds: ["pending:r1"], selectedRiskPointId: "p1", selectedTextId: "t1" });
+    store.getState().setSelectedRegions(["zone:z1:p1", "zone:z1:p2"]);
+    expect(store.getState().selectedRegionIds).toEqual(["zone:z1:p1", "zone:z1:p2"]);
+    expect(store.getState().selectedRiskPointId).toBeNull();
+    expect(store.getState().selectedTextId).toBeNull();
+  });
+
+  it("setSelectedRegions append 去重", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({ selectedRegionIds: ["zone:z1:p1"] });
+    store.getState().setSelectedRegions(["zone:z1:p1", "zone:z1:p2"], { append: true });
+    expect(store.getState().selectedRegionIds).toEqual(["zone:z1:p1", "zone:z1:p2"]);
+  });
+
+  it("toggleRegionSelection 在集合中增删", () => {
+    const store = useRiskMappingWorkbenchStore;
+    store.setState({ selectedRegionIds: [] });
+    store.getState().toggleRegionSelection("zone:z1:p1");
+    expect(store.getState().selectedRegionIds).toEqual(["zone:z1:p1"]);
+    store.getState().toggleRegionSelection("zone:z1:p1");
+    expect(store.getState().selectedRegionIds).toEqual([]);
+  });
+
+  it("deleteSelectedRegions 混合删除且只压一步撤销", () => {
+    const store = useRiskMappingWorkbenchStore;
+    const zone: WorkbenchZone = {
+      ...makeZone("z1"),
+      floor_plan_polygon: {
+        version: 2,
+        level_mode: "auto",
+        risk_level: null,
+        polygons: [
+          { id: "p1", label: "p1", points: triangle(0, 0) },
+          { id: "p2", label: "p2", points: triangle(2, 2) },
+        ],
+      },
+    };
+    store.setState({
+      zones: [zone],
+      pendingRegions: [
+        { id: "r1", floor_id: "f1", points: triangle(5, 5), created_at: "2026-09-15T00:00:00+08:00" },
+      ],
+      selectedRegionIds: ["zone:z1:p1", "pending:r1"],
+      past: [],
+      future: [],
+      savedFingerprint: null,
+    });
+
+    store.getState().deleteSelectedRegions();
+
+    expect(store.getState().zones[0].floor_plan_polygon?.polygons.map(p => p.id)).toEqual(["p2"]);
+    expect(store.getState().pendingRegions).toHaveLength(0);
+    expect(store.getState().selectedRegionIds).toEqual([]);
+    expect(store.getState().past).toHaveLength(1);
+
+    undo();
+    expect(store.getState().zones[0].floor_plan_polygon?.polygons.map(p => p.id)).toEqual(["p1", "p2"]);
+    expect(store.getState().pendingRegions).toHaveLength(1);
   });
 });

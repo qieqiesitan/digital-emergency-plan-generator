@@ -90,7 +90,8 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const snapEnabled = useRiskMappingWorkbenchStore(s => s.snapEnabled);
   const guideEnabled = useRiskMappingWorkbenchStore(s => s.guideEnabled);
   const showFloorPlan = useRiskMappingWorkbenchStore(s => s.showFloorPlan);
-  const selectedRegionId = useRiskMappingWorkbenchStore(s => s.selectedRegionId);
+  const selectedRegionIds = useRiskMappingWorkbenchStore(s => s.selectedRegionIds);
+  const selectedRegionId = selectedRegionIds[0] ?? null;
   const selectedTextId = useRiskMappingWorkbenchStore(s => s.selectedTextId);
   const viewScale = useRiskMappingWorkbenchStore(s => s.viewScale);
   const viewX = useRiskMappingWorkbenchStore(s => s.viewX);
@@ -197,7 +198,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
         setPenAnchors([]);
         setPenActive(null);
         setIsDrawing(false);
-        setState({ selectedRegionId: null, selectedRiskPointId: null, selectedTextId: null });
+        setState({ selectedRegionIds: [], selectedRiskPointId: null, selectedTextId: null });
         return;
       }
       if (event.key === "Enter" && ["polygon", "pen"].includes(useRiskMappingWorkbenchStore.getState().tool)) {
@@ -296,7 +297,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
     };
     commit();
     setSnapshot({ pendingRegions: [...useRiskMappingWorkbenchStore.getState().pendingRegions, region] });
-    setState({ selectedRegionId: `pending:${region.id}` });
+    setState({ selectedRegionIds: [`pending:${region.id}`] });
   };
 
   const createRiskPoint = (p: RiskPolygonPoint) => {
@@ -686,7 +687,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
               </>
             )}
             {pendingRegions.map(r => {
-              const selected = selectedRegionId === `pending:${r.id}`;
+              const selected = selectedRegionIds.includes(`pending:${r.id}`);
               return (
                 <Line
                   id={`pending:${r.id}`}
@@ -706,7 +707,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                   }}
                   onClick={e => {
                     e.cancelBubble = true;
-                    setState({ selectedRegionId: `pending:${r.id}`, selectedRiskPointId: null, selectedTextId: null });
+                    setState({ selectedRegionIds: [`pending:${r.id}`], selectedRiskPointId: null, selectedTextId: null });
                   }}
                   onDragStart={() => {
                     pendingDragOriginRef.current.set(r.id, r.points);
@@ -873,7 +874,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
             {zones.map(z =>
               (z.floor_plan_polygon?.polygons || []).map(p => {
                 const regionId = `zone:${z.id}:${p.id}`;
-                const selected = selectedRegionId === regionId;
+                const selected = selectedRegionIds.includes(regionId);
                 const centroid = polygonCentroid(p.points);
                 const labelWidth = z.name.length * 14 + 12;
                 const labelX = toCanvasX(centroid.x, canvasWidth) - labelWidth / 2;
@@ -901,7 +902,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                       onClick={e => {
                         e.cancelBubble = true;
                         setState({
-                          selectedRegionId: regionId,
+                          selectedRegionIds: [regionId],
                           selectedRiskPointId: null,
                           selectedTextId: null,
                           selectedZoneId: z.id,
@@ -978,7 +979,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                   draggable={tool === "select"}
                   onClick={e => {
                     e.cancelBubble = true;
-                    setState({ selectedTextId: t.id, selectedRiskPointId: null, selectedRegionId: null });
+                    setState({ selectedTextId: t.id, selectedRiskPointId: null, selectedRegionIds: [] });
                   }}
                   onDragEnd={e => {
                     commit();
@@ -996,7 +997,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                   }}
                   onDblClick={e => {
                     e.cancelBubble = true;
-                    setState({ selectedTextId: t.id, selectedRiskPointId: null, selectedRegionId: null });
+                    setState({ selectedTextId: t.id, selectedRiskPointId: null, selectedRegionIds: [] });
                     setEditingTextId(t.id);
                     setEditContent(t.content);
                     setEditFontSize(t.font_size);

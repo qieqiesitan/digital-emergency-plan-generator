@@ -26,7 +26,8 @@ export default function WorkbenchPropertiesPanel() {
   const pendingRegions = useRiskMappingWorkbenchStore(s => s.pendingRegions);
   const texts = useRiskMappingWorkbenchStore(s => s.texts);
   const selectedZoneId = useRiskMappingWorkbenchStore(s => s.selectedZoneId);
-  const selectedRegionId = useRiskMappingWorkbenchStore(s => s.selectedRegionId);
+  const selectedRegionIds = useRiskMappingWorkbenchStore(s => s.selectedRegionIds);
+  const selectedRegionId = selectedRegionIds[0] ?? null;
   const selectedRiskPointId = useRiskMappingWorkbenchStore(s => s.selectedRiskPointId);
   const selectedTextId = useRiskMappingWorkbenchStore(s => s.selectedTextId);
   const setState = useRiskMappingWorkbenchStore.setState;
@@ -175,7 +176,7 @@ export default function WorkbenchPropertiesPanel() {
       ),
       pendingRegions: useRiskMappingWorkbenchStore.getState().pendingRegions.filter(r => r.id !== selectedPending.id),
     });
-    setState({ selectedRegionId: null, selectedZoneId: target.id });
+    setState({ selectedRegionIds: [], selectedZoneId: target.id });
   };
 
   const moveSelectedPolygon = () => {
@@ -212,7 +213,7 @@ export default function WorkbenchPropertiesPanel() {
         return z;
       }),
     });
-    setState({ selectedRegionId: null });
+    setState({ selectedRegionIds: [] });
   };
 
   const transformSelectedRegion = (
@@ -297,7 +298,7 @@ export default function WorkbenchPropertiesPanel() {
     commit();
     setSnapshot({ texts: [...useRiskMappingWorkbenchStore.getState().texts, item] });
     setTextContent("");
-    setState({ selectedTextId: item.id, selectedRiskPointId: null, selectedRegionId: null });
+    setState({ selectedTextId: item.id, selectedRiskPointId: null, selectedRegionIds: [] });
   };
 
   return (
@@ -502,7 +503,7 @@ export default function WorkbenchPropertiesPanel() {
             cursor: "pointer",
             border: selectedRiskPointId === p.id ? "1px solid #1677ff" : "1px solid transparent",
           }}
-          onClick={() => setState({ selectedRiskPointId: p.id, selectedRegionId: null, selectedTextId: null })}
+          onClick={() => setState({ selectedRiskPointId: p.id, selectedRegionIds: [], selectedTextId: null })}
         >
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>{p.name}</span>
@@ -594,7 +595,7 @@ export default function WorkbenchPropertiesPanel() {
       {texts.map(t => (
         <div
           key={t.id}
-          onClick={() => setState({ selectedTextId: t.id, selectedRiskPointId: null, selectedRegionId: null })}
+          onClick={() => setState({ selectedTextId: t.id, selectedRiskPointId: null, selectedRegionIds: [] })}
           style={{
             display: "flex",
             justifyContent: "space-between",

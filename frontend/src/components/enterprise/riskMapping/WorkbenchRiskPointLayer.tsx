@@ -25,7 +25,7 @@ export default function WorkbenchRiskPointLayer() {
           y={toCanvasY(p.location_y ?? 0, canvasHeight)}
           onClick={e => {
             e.cancelBubble = true;
-            setState({ selectedRiskPointId: p.id, selectedRegionId: null, selectedTextId: null });
+            setState({ selectedRiskPointId: p.id, selectedRegionIds: [], selectedTextId: null });
           }}
           onDragEnd={e => {
             const x = e.target.x();

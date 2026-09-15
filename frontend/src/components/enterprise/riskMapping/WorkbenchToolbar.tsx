@@ -39,7 +39,7 @@ export default function WorkbenchToolbar() {
   const showFloorPlan = useRiskMappingWorkbenchStore(s => s.showFloorPlan);
   const drawingTool = ["polygon", "pen", "freehand"].includes(tool);
   const hasSelection = useRiskMappingWorkbenchStore(
-    s => Boolean(s.selectedRegionId || s.selectedRiskPointId || s.selectedTextId),
+    s => Boolean(s.selectedRegionIds.length > 0 || s.selectedRiskPointId || s.selectedTextId),
   );
   return (
     <Space wrap>

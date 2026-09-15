@@ -8,7 +8,7 @@ export default function WorkbenchZonePanel() {
   const zones = useRiskMappingWorkbenchStore(s => s.zones);
   const pendingRegions = useRiskMappingWorkbenchStore(s => s.pendingRegions);
   const selectedZoneId = useRiskMappingWorkbenchStore(s => s.selectedZoneId);
-  const selectedRegionId = useRiskMappingWorkbenchStore(s => s.selectedRegionId);
+  const selectedRegionIds = useRiskMappingWorkbenchStore(s => s.selectedRegionIds);
   const setState = useRiskMappingWorkbenchStore.setState;
   const commit = useRiskMappingWorkbenchStore.getState().commit;
 
@@ -88,10 +88,10 @@ export default function WorkbenchZonePanel() {
         pendingRegions.map(r => (
           <div
             key={r.id}
-            onClick={() => setState({ selectedRegionId: `pending:${r.id}`, selectedZoneId: null })}
+            onClick={() => setState({ selectedRegionIds: [`pending:${r.id}`], selectedZoneId: null })}
             style={{
               padding: 6,
-              border: selectedRegionId === `pending:${r.id}` ? "1px solid #1677ff" : "1px dashed #fa8c16",
+              border: selectedRegionIds.includes(`pending:${r.id}`) ? "1px solid #1677ff" : "1px dashed #fa8c16",
               borderRadius: 6,
               marginTop: 4,
               cursor: "pointer",

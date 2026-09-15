@@ -20,7 +20,7 @@ export interface WorkbenchDomainState {
 
 interface WorkbenchState extends WorkbenchDomainState {
   selectedZoneId: string | null;
-  selectedRegionId: string | null;
+  selectedRegionIds: string[];
   selectedRiskPointId: string | null;
   selectedTextId: string | null;
   viewScale: number;
@@ -36,6 +36,9 @@ interface WorkbenchState extends WorkbenchDomainState {
   past: WorkbenchDomainState[];
   future: WorkbenchDomainState[];
   setSnapshot: (data: Partial<WorkbenchDomainState>) => void;
+  setSelectedRegions: (ids: string[], options?: { append?: boolean }) => void;
+  toggleRegionSelection: (id: string) => void;
+  deleteSelectedRegions: () => void;
   commit: () => void;
   markSaved: () => void;
   zoomBy: (factor: number) => void;
@@ -59,7 +62,7 @@ const initial = {
   deletedZoneIds: [],
   deletedRiskPointIds: [],
   selectedZoneId: null,
-  selectedRegionId: null,
+  selectedRegionIds: [],
   selectedRiskPointId: null,
   selectedTextId: null,
   viewScale: 1,
@@ -105,6 +108,53 @@ const fingerprintOf = (state: WorkbenchDomainState) => JSON.stringify(canonicali
 export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) => ({
   ...initial,
   setSnapshot: (data) => set({ ...data }),
+  setSelectedRegions: (ids, options) => set(state => {
+    const next = options?.append ? Array.from(new Set([...state.selectedRegionIds, ...ids])) : ids;
+    return { selectedRegionIds: next, selectedRiskPointId: null, selectedTextId: null };
+  }),
+  toggleRegionSelection: (id) => set(state => {
+    const has = state.selectedRegionIds.includes(id);
+    return {
+      selectedRegionIds: has ? state.selectedRegionIds.filter(x => x !== id) : [...state.selectedRegionIds, id],
+      selectedRiskPointId: null,
+      selectedTextId: null,
+    };
+  }),
+  deleteSelectedRegions: () => {
+    const state = get();
+    if (!state.selectedRegionIds.length) return;
+    state.commit();
+    const current = get();
+    const pendingIds = new Set<string>();
+    const zonePolygons = new Map<string, Set<string>>();
+    for (const id of current.selectedRegionIds) {
+      if (id.startsWith("pending:")) {
+        pendingIds.add(id.slice("pending:".length));
+      } else if (id.startsWith("zone:")) {
+        const body = id.slice("zone:".length);
+        const separator = body.indexOf(":");
+        const zoneId = body.slice(0, separator);
+        const polygonId = body.slice(separator + 1);
+        if (!zonePolygons.has(zoneId)) zonePolygons.set(zoneId, new Set());
+        zonePolygons.get(zoneId)!.add(polygonId);
+      }
+    }
+    set({
+      pendingRegions: current.pendingRegions.filter(r => !pendingIds.has(r.id)),
+      zones: current.zones.map(z => {
+        const removing = zonePolygons.get(z.id);
+        if (!removing || !z.floor_plan_polygon) return z;
+        return {
+          ...z,
+          floor_plan_polygon: {
+            ...z.floor_plan_polygon,
+            polygons: z.floor_plan_polygon.polygons.filter(p => !removing.has(p.id)),
+          },
+        };
+      }),
+      selectedRegionIds: [],
+    });
+  },
   commit: () => {
     const state = get();
     set({ past: [...state.past.slice(-49), snapshotOf(state)], future: [], dirty: true });
@@ -133,9 +183,7 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
       selectedRiskPointId: state.riskPoints.some(p => p.zone_id === zoneId && p.id === state.selectedRiskPointId)
         ? null
         : state.selectedRiskPointId,
-      selectedRegionId: state.selectedRegionId?.startsWith(`zone:${zoneId}:`)
-        ? null
-        : state.selectedRegionId,
+      selectedRegionIds: state.selectedRegionIds.filter(id => !id.startsWith(`zone:${zoneId}:`)),
       deletedZoneIds: isPersisted
         ? [...state.deletedZoneIds, zoneId]
         : state.deletedZoneIds,
@@ -158,7 +206,7 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
     const state = get();
     set({
       pendingRegions: state.pendingRegions.filter(r => r.id !== regionId),
-      selectedRegionId: state.selectedRegionId === `pending:${regionId}` ? null : state.selectedRegionId,
+      selectedRegionIds: state.selectedRegionIds.filter(id => id !== `pending:${regionId}`),
     });
   },
   deleteZonePolygon: (zoneId, polygonId) => {
@@ -174,7 +222,7 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
           },
         };
       }),
-      selectedRegionId: state.selectedRegionId === `zone:${zoneId}:${polygonId}` ? null : state.selectedRegionId,
+      selectedRegionIds: state.selectedRegionIds.filter(id => id !== `zone:${zoneId}:${polygonId}`),
     });
   },
   deleteText: (textId) => {
@@ -186,21 +234,13 @@ export const useRiskMappingWorkbenchStore = create<WorkbenchState>((set, get) =>
   },
   deleteSelected: () => {
     const state = get();
-    if (!state.selectedRegionId && !state.selectedRiskPointId && !state.selectedTextId) return;
+    if (!state.selectedRegionIds.length && !state.selectedRiskPointId && !state.selectedTextId) return;
+    if (state.selectedRegionIds.length) {
+      state.deleteSelectedRegions();
+      return;
+    }
     state.commit();
     const current = get();
-    if (current.selectedRegionId?.startsWith("pending:")) {
-      current.deletePendingRegion(current.selectedRegionId.slice("pending:".length));
-      return;
-    }
-    if (current.selectedRegionId?.startsWith("zone:")) {
-      const body = current.selectedRegionId.slice("zone:".length);
-      const separator = body.indexOf(":");
-      const zoneId = body.slice(0, separator);
-      const polygonId = body.slice(separator + 1);
-      current.deleteZonePolygon(zoneId, polygonId);
-      return;
-    }
     if (current.selectedRiskPointId) {
       current.deleteRiskPoint(current.selectedRiskPointId);
       return;
@@ -218,7 +258,7 @@ export const undo = () => useRiskMappingWorkbenchStore.setState(state => {
   const restored = {
     ...previous,
     selectedZoneId: state.selectedZoneId,
-    selectedRegionId: state.selectedRegionId,
+    selectedRegionIds: state.selectedRegionIds,
     selectedRiskPointId: state.selectedRiskPointId,
     selectedTextId: state.selectedTextId,
     tool: state.tool,
@@ -244,7 +284,7 @@ export const redo = () => useRiskMappingWorkbenchStore.setState(state => {
   const restored = {
     ...next,
     selectedZoneId: state.selectedZoneId,
-    selectedRegionId: state.selectedRegionId,
+    selectedRegionIds: state.selectedRegionIds,
     selectedRiskPointId: state.selectedRiskPointId,
     selectedTextId: state.selectedTextId,
     tool: state.tool,
