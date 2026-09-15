@@ -23,7 +23,7 @@ import {
   toCanvasY,
   toPercent,
 } from "@/utils/riskMappingGeometry";
-import type { RiskPolygonPoint, RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
+import type { PendingRegion, RiskPolygonPoint, RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
 import { zoneDisplayColor } from "@/utils/zoneDisplay";
 import { collectRegionsInRect, rectFromPoints } from "@/utils/riskMappingMarquee";
@@ -92,7 +92,6 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const guideEnabled = useRiskMappingWorkbenchStore(s => s.guideEnabled);
   const showFloorPlan = useRiskMappingWorkbenchStore(s => s.showFloorPlan);
   const selectedRegionIds = useRiskMappingWorkbenchStore(s => s.selectedRegionIds);
-  const selectedRegionId = selectedRegionIds[0] ?? null;
   const selectedTextId = useRiskMappingWorkbenchStore(s => s.selectedTextId);
   const viewScale = useRiskMappingWorkbenchStore(s => s.viewScale);
   const viewX = useRiskMappingWorkbenchStore(s => s.viewX);
@@ -131,10 +130,10 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const [editContent, setEditContent] = useState("");
   const [editFontSize, setEditFontSize] = useState(14);
   const [editColor, setEditColor] = useState("#333333");
-  const zoneDragOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
   const pendingDragOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
   const regionNodeRefs = useRef<Map<string, any>>(new Map());
   const regionTransformOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
+  const groupDragRef = useRef<{ startX: number; startY: number; origin: Map<string, RiskPolygonPoint[]> } | null>(null);
   const transformerRef = useRef<any>(null);
   const spacePressedRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number; viewX: number; viewY: number } | null>(null);
@@ -385,61 +384,104 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
     setIsDrawing(false);
   };
 
-  const handleRegionTransformStart = (regionId: string, points: RiskPolygonPoint[]) => {
-    regionTransformOriginRef.current.set(regionId, points);
-  };
-
-  const handleRegionTransformEnd = (e: KonvaEventObject<Event>) => {
-    const node = e.target as any;
-    const regionId = node?.id?.() as string | undefined;
-    const origin = regionId ? regionTransformOriginRef.current.get(regionId) : undefined;
-    if (!regionId || !origin) return;
-    const transform = node.getTransform();
-    const nextPoints = origin.map(pt => {
-      const canvasPoint = transform.point({
-        x: toCanvasX(pt.x, canvasWidth),
-        y: toCanvasY(pt.y, canvasHeight),
-      });
-      return {
-        x: Math.min(100, Math.max(0, toPercent(canvasPoint.x, canvasWidth))),
-        y: Math.min(100, Math.max(0, toPercent(canvasPoint.y, canvasHeight))),
-      };
-    });
-    node.scale({ x: 1, y: 1 });
-    node.rotation(0);
-    node.position({ x: 0, y: 0 });
-    node.offset({ x: 0, y: 0 });
-    regionTransformOriginRef.current.delete(regionId);
-    commit();
-    if (regionId.startsWith("pending:")) {
-      const pendingId = regionId.slice("pending:".length);
-      setSnapshot({
-        pendingRegions: useRiskMappingWorkbenchStore.getState().pendingRegions.map(r =>
-          r.id === pendingId ? { ...r, points: nextPoints } : r,
-        ),
-      });
-      return;
+  const resolveRegionPoints = (id: string): RiskPolygonPoint[] | null => {
+    const store = useRiskMappingWorkbenchStore.getState();
+    if (id.startsWith("pending:")) {
+      return store.pendingRegions.find(r => r.id === id.slice("pending:".length))?.points ?? null;
     }
-    if (regionId.startsWith("zone:")) {
-      const body = regionId.slice("zone:".length);
+    if (id.startsWith("zone:")) {
+      const body = id.slice("zone:".length);
       const separator = body.indexOf(":");
       const zoneId = body.slice(0, separator);
       const polygonId = body.slice(separator + 1);
-      setSnapshot({
-        zones: useRiskMappingWorkbenchStore.getState().zones.map(z => {
-          if (z.id !== zoneId || !z.floor_plan_polygon) return z;
-          return {
-            ...z,
-            floor_plan_polygon: {
-              ...z.floor_plan_polygon,
-              polygons: z.floor_plan_polygon.polygons.map(p =>
-                p.id === polygonId ? { ...p, points: nextPoints } : p,
-              ),
-            },
-          };
-        }),
-      });
+      const zone = store.zones.find(z => z.id === zoneId);
+      return zone?.floor_plan_polygon?.polygons.find(p => p.id === polygonId)?.points ?? null;
     }
+    return null;
+  };
+
+  const applyRegionPointUpdates = (
+    zones: WorkbenchZone[],
+    pendingRegions: PendingRegion[],
+    updates: Map<string, RiskPolygonPoint[]>,
+  ) => {
+    const zoneUpdates = new Map<string, Map<string, RiskPolygonPoint[]>>();
+    const pendingUpdates = new Map<string, RiskPolygonPoint[]>();
+    updates.forEach((points, id) => {
+      if (id.startsWith("pending:")) {
+        pendingUpdates.set(id.slice("pending:".length), points);
+      } else if (id.startsWith("zone:")) {
+        const body = id.slice("zone:".length);
+        const separator = body.indexOf(":");
+        const zoneId = body.slice(0, separator);
+        const polygonId = body.slice(separator + 1);
+        if (!zoneUpdates.has(zoneId)) zoneUpdates.set(zoneId, new Map());
+        zoneUpdates.get(zoneId)!.set(polygonId, points);
+      }
+    });
+    return {
+      zones: zones.map(z => {
+        const map = zoneUpdates.get(z.id);
+        if (!map || !z.floor_plan_polygon) return z;
+        return {
+          ...z,
+          floor_plan_polygon: {
+            ...z.floor_plan_polygon,
+            polygons: z.floor_plan_polygon.polygons.map(p =>
+              map.has(p.id) ? { ...p, points: map.get(p.id)! } : p,
+            ),
+          },
+        };
+      }),
+      pendingRegions: pendingRegions.map(r =>
+        pendingUpdates.has(r.id) ? { ...r, points: pendingUpdates.get(r.id)! } : r,
+      ),
+    };
+  };
+
+  const handleRegionTransformStart = (regionId: string, points: RiskPolygonPoint[]) => {
+    const store = useRiskMappingWorkbenchStore.getState();
+    const targets = store.selectedRegionIds.length ? store.selectedRegionIds : [regionId];
+    regionTransformOriginRef.current.clear();
+    targets.forEach(id => {
+      const pts = resolveRegionPoints(id);
+      if (pts) regionTransformOriginRef.current.set(id, pts);
+    });
+    if (!regionTransformOriginRef.current.size) {
+      regionTransformOriginRef.current.set(regionId, points);
+    }
+  };
+
+  const handleRegionTransformEnd = () => {
+    const origin = regionTransformOriginRef.current;
+    if (!origin.size) return;
+    const updates = new Map<string, RiskPolygonPoint[]>();
+    origin.forEach((points, id) => {
+      const node = regionNodeRefs.current.get(id);
+      if (!node) return;
+      const transform = node.getTransform();
+      const next = points.map(pt => {
+        const canvasPoint = transform.point({
+          x: toCanvasX(pt.x, canvasWidth),
+          y: toCanvasY(pt.y, canvasHeight),
+        });
+        return clampPoint({
+          x: toPercent(canvasPoint.x, canvasWidth),
+          y: toPercent(canvasPoint.y, canvasHeight),
+        });
+      });
+      node.scale({ x: 1, y: 1 });
+      node.rotation(0);
+      node.position({ x: 0, y: 0 });
+      node.offset({ x: 0, y: 0 });
+      updates.set(id, next);
+    });
+    regionTransformOriginRef.current.clear();
+    if (!updates.size) return;
+    const store = useRiskMappingWorkbenchStore.getState();
+    const applied = applyRegionPointUpdates(store.zones, store.pendingRegions, updates);
+    commit();
+    setSnapshot(applied);
   };
 
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
@@ -973,31 +1015,45 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                           selectedZoneId: z.id,
                         });
                       }}
-                      onDragStart={() => {
-                        zoneDragOriginRef.current.set(`${z.id}:${p.id}`, p.points);
+                      onDragStart={e => {
+                        const store = useRiskMappingWorkbenchStore.getState();
+                        if (!store.selectedRegionIds.includes(regionId)) {
+                          store.setSelectedRegions([regionId]);
+                        }
+                        const origin = new Map<string, RiskPolygonPoint[]>();
+                        useRiskMappingWorkbenchStore.getState().selectedRegionIds.forEach(id => {
+                          const pts = resolveRegionPoints(id);
+                          if (pts) origin.set(id, pts);
+                        });
+                        if (!origin.size) origin.set(regionId, p.points);
+                        groupDragRef.current = { startX: e.target.x(), startY: e.target.y(), origin };
+                      }}
+                      onDragMove={e => {
+                        const group = groupDragRef.current;
+                        if (!group || group.origin.size < 2) return;
+                        const dx = e.target.x() - group.startX;
+                        const dy = e.target.y() - group.startY;
+                        group.origin.forEach((_pts, id) => {
+                          if (id === regionId) return;
+                          regionNodeRefs.current.get(id)?.position({ x: dx, y: dy });
+                        });
                       }}
                       onDragEnd={e => {
-                        const origin = zoneDragOriginRef.current.get(`${z.id}:${p.id}`) ?? p.points;
                         const dx = (e.target.x() / canvasWidth) * 100;
                         const dy = (e.target.y() / canvasHeight) * 100;
-                        const moved = origin.map(pt => clampPoint({ x: pt.x + dx, y: pt.y + dy }));
-                        zoneDragOriginRef.current.delete(`${z.id}:${p.id}`);
-                        e.target.position({ x: 0, y: 0 });
-                        commit();
-                        setSnapshot({
-                          zones: useRiskMappingWorkbenchStore.getState().zones.map(item => {
-                            if (item.id !== z.id || !item.floor_plan_polygon) return item;
-                            return {
-                              ...item,
-                              floor_plan_polygon: {
-                                ...item.floor_plan_polygon,
-                                polygons: item.floor_plan_polygon.polygons.map(pp =>
-                                  pp.id === p.id ? { ...pp, points: moved } : pp,
-                                ),
-                              },
-                            };
-                          }),
+                        const group = groupDragRef.current;
+                        groupDragRef.current = null;
+                        const targets = group?.origin ?? new Map<string, RiskPolygonPoint[]>([[regionId, p.points]]);
+                        const updates = new Map<string, RiskPolygonPoint[]>();
+                        targets.forEach((points, id) => {
+                          updates.set(id, points.map(pt => clampPoint({ x: pt.x + dx, y: pt.y + dy })));
+                          regionNodeRefs.current.get(id)?.position({ x: 0, y: 0 });
                         });
+                        e.target.position({ x: 0, y: 0 });
+                        const store = useRiskMappingWorkbenchStore.getState();
+                        const applied = applyRegionPointUpdates(store.zones, store.pendingRegions, updates);
+                        commit();
+                        setSnapshot(applied);
                       }}
                       onTransformStart={() => handleRegionTransformStart(regionId, p.points)}
                       onTransformEnd={handleRegionTransformEnd}
@@ -1072,12 +1128,15 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
               );
             })}
             <WorkbenchRiskPointLayer />
-            {tool === "select" &&
-              selectedRegionId &&
-              regionNodeRefs.current.get(selectedRegionId) && (
+            {tool === "select" && (() => {
+              const nodes = selectedRegionIds
+                .map(id => regionNodeRefs.current.get(id))
+                .filter(Boolean);
+              if (!nodes.length) return null;
+              return (
                 <Transformer
                   ref={transformerRef}
-                  nodes={[regionNodeRefs.current.get(selectedRegionId)]}
+                  nodes={nodes}
                   rotateEnabled
                   flipEnabled={false}
                   anchorSize={10}
@@ -1085,7 +1144,8 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                   anchorStroke="#1677ff"
                   anchorFill="#ffffff"
                 />
-              )}
+              );
+            })()}
           </Layer>
         </Stage>
       </div>
