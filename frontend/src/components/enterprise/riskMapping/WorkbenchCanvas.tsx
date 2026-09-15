@@ -607,23 +607,18 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
         if (!append) store.setSelectedRegions([]);
         return;
       }
-      const hits: { zoneId: string; polygonId: string }[] = [];
+      const hitIds: string[] = [];
       store.zones.forEach(z => {
         const polygons = z.floor_plan_polygon?.polygons ?? [];
-        collectRegionsInRect(polygons, rect).forEach(pid => hits.push({ zoneId: z.id, polygonId: pid }));
+        collectRegionsInRect(polygons, rect).forEach(pid => hitIds.push(`zone:${z.id}:${pid}`));
       });
-      if (!hits.length) {
+      if (!hitIds.length) {
         if (!append) store.setSelectedRegions([]);
         return;
       }
-      const countByZone = new Map<string, number>();
-      hits.forEach(h => countByZone.set(h.zoneId, (countByZone.get(h.zoneId) ?? 0) + 1));
-      const [hitZoneId] = [...countByZone.entries()].sort((a, b) => b[1] - a[1])[0];
-      store.setSelectedRegions(
-        hits.filter(h => h.zoneId === hitZoneId).map(h => `zone:${h.zoneId}:${h.polygonId}`),
-        { append },
-      );
-      useRiskMappingWorkbenchStore.setState({ selectedZoneId: hitZoneId });
+      store.setSelectedRegions(hitIds, { append });
+      const firstZoneId = hitIds[0].slice("zone:".length).split(":")[0];
+      useRiskMappingWorkbenchStore.setState({ selectedZoneId: firstZoneId });
       return;
     }
     if (tool === "pen" && penCloseCandidateRef.current) {

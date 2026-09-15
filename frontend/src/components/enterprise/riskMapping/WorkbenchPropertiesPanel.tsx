@@ -3,7 +3,7 @@ import { Button, Input, InputNumber, message, Radio, Select, Space } from "antd"
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import type { RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
-import type { RiskObject } from "@/types/riskManagement";
+import type { RiskObject, RiskPolygon } from "@/types/riskManagement";
 import { polygonCentroid, transformPolygonPoints } from "@/utils/riskMappingGeometry";
 import { transformRegionsAroundCenter } from "@/utils/riskMappingMarquee";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
@@ -56,14 +56,21 @@ export default function WorkbenchPropertiesPanel() {
     : "";
   const zoneColorPreview = zone ? zoneDisplayColor(zone, "current") : "#d9d9d9";
   const multiSelectMode = selectedRegionIds.length > 1;
-  const selectedPolygons = (() => {
-    if (!multiSelectMode) return [];
-    const target = zones.find(z => z.id === selectedZoneId);
-    const polygons = target?.floor_plan_polygon?.polygons ?? [];
-    return polygons.filter(p => selectedRegionIds.includes(`zone:${target!.id}:${p.id}`));
+  const selectedPolygonEntries = (() => {
+    if (!multiSelectMode) return [] as { zoneId: string; polygon: RiskPolygon }[];
+    return selectedRegionIds.flatMap(id => {
+      if (!id.startsWith("zone:")) return [];
+      const body = id.slice("zone:".length);
+      const separator = body.indexOf(":");
+      const zoneId = body.slice(0, separator);
+      const polygonId = body.slice(separator + 1);
+      const target = zones.find(z => z.id === zoneId);
+      const polygon = target?.floor_plan_polygon?.polygons.find(p => p.id === polygonId);
+      return polygon ? [{ zoneId, polygon }] : [];
+    });
   })();
-  const multiCenter = selectedPolygons.length
-    ? polygonCentroid(selectedPolygons.flatMap(p => p.points))
+  const multiCenter = selectedPolygonEntries.length
+    ? polygonCentroid(selectedPolygonEntries.flatMap(e => e.polygon.points))
     : null;
   const selectedPending = selectedRegionId?.startsWith("pending:")
     ? pendingRegions.find(r => r.id === selectedRegionId.slice("pending:".length)) ?? null
@@ -166,27 +173,28 @@ export default function WorkbenchPropertiesPanel() {
     flipX?: boolean;
     flipY?: boolean;
   }) => {
-    if (!multiCenter || !selectedPolygons.length) return;
-    const store = useRiskMappingWorkbenchStore.getState();
-    const target = store.zones.find(z => z.id === store.selectedZoneId);
-    if (!target?.floor_plan_polygon) return;
-    const transformed = transformRegionsAroundCenter(selectedPolygons, options, multiCenter);
+    if (!multiCenter || !selectedPolygonEntries.length) return;
+    const transformed = transformRegionsAroundCenter(
+      selectedPolygonEntries.map(e => e.polygon),
+      options,
+      multiCenter,
+    );
     const byId = new Map(transformed.map(t => [t.id, t.points]));
+    const store = useRiskMappingWorkbenchStore.getState();
     commit();
     setSnapshot({
-      zones: store.zones.map(z =>
-        z.id !== target.id || !z.floor_plan_polygon
-          ? z
-          : {
-              ...z,
-              floor_plan_polygon: {
-                ...z.floor_plan_polygon,
-                polygons: z.floor_plan_polygon.polygons.map(p =>
-                  byId.has(p.id) ? { ...p, points: byId.get(p.id)! } : p,
-                ),
-              },
-            },
-      ),
+      zones: store.zones.map(z => {
+        if (!z.floor_plan_polygon) return z;
+        return {
+          ...z,
+          floor_plan_polygon: {
+            ...z.floor_plan_polygon,
+            polygons: z.floor_plan_polygon.polygons.map(p =>
+              byId.has(p.id) ? { ...p, points: byId.get(p.id)! } : p,
+            ),
+          },
+        };
+      }),
     });
   };
 
