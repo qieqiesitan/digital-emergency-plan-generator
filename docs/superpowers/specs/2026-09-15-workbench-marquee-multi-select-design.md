@@ -42,7 +42,7 @@
 
 - 新增 `selectedRegionIds: string[]` 作为**唯一权威**选择集合（元素为 `pending:` / `zone:` 前缀 id）。
 - 移除 `selectedRegionId` 字段；调用处统一用 `selectedRegionIds[0] ?? null` 表达"主选中"（属性面板单选分支、`data-transform-active` 等展示逻辑）。
-- 撤销/重做快照同步调整：`snapshotOf`（store 约 221 / 247 行）中的 `selectedRegionId` 替换为 `selectedRegionIds`，保证撤销后选择状态与数据一致。
+- 撤销/重做适配：`snapshotOf` 只含业务数据（floors/zones/riskPoints/texts/pendingRegions/deleted*），不含选择字段，无需改动；`undo`/`redo` 的 `restored` 对象保留当前选择态，需把其中 `selectedRegionId: state.selectedRegionId` 替换为 `selectedRegionIds: state.selectedRegionIds`。
 - 选择互斥规则不变：选中区域时清空 `selectedRiskPointId` / `selectedTextId`，反之亦然。
 
 ### 新增 store action
