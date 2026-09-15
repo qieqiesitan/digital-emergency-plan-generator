@@ -10,7 +10,7 @@ import {
   Transformer,
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { Modal, Input, InputNumber, Button, Space } from "antd";
+import { Modal, Input, InputNumber, Button, Space, message } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
 import {
@@ -26,6 +26,7 @@ import {
 import type { RiskPolygonPoint, RiskCanvasText, WorkbenchZone } from "@/types/riskMappingWorkbench";
 import type { RiskObject } from "@/types/riskManagement";
 import { zoneDisplayColor } from "@/utils/zoneDisplay";
+import { collectRegionsInRect, rectFromPoints } from "@/utils/riskMappingMarquee";
 import WorkbenchRiskPointLayer from "./WorkbenchRiskPointLayer";
 
 const STAGE_WIDTH = 1200;
@@ -144,6 +145,10 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const [spacePressed, setSpacePressed] = useState(false);
   const canvasBoxRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [marqueeStart, setMarqueeStart] = useState<RiskPolygonPoint | null>(null);
+  const [marqueeEnd, setMarqueeEnd] = useState<RiskPolygonPoint | null>(null);
+  const marqueeEndRef = useRef<RiskPolygonPoint | null>(null);
+  const marqueeShiftRef = useRef(false);
   const zoneColor = (z: WorkbenchZone) => zoneDisplayColor(z, colorMode);
 
   useEffect(() => {
@@ -447,6 +452,19 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
       return;
     }
     if (e.evt.detail > 1) return;
+    if (tool === "select") {
+      const selectedZoneId = useRiskMappingWorkbenchStore.getState().selectedZoneId;
+      if (!selectedZoneId) {
+        message.info("请先选择分区后再框选");
+        return;
+      }
+      const p = pointFromEvent(e);
+      marqueeShiftRef.current = e.evt.shiftKey;
+      marqueeEndRef.current = p;
+      setMarqueeStart(p);
+      setMarqueeEnd(p);
+      return;
+    }
     if (tool === "rect" || tool === "circle") {
       const p = pointFromEvent(e);
       setIsDrawing(true);
@@ -487,6 +505,12 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
 
   const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
     if (isPanningRef.current) return;
+    if (marqueeStart) {
+      const p = pointFromEvent(e);
+      marqueeEndRef.current = p;
+      setMarqueeEnd(p);
+      return;
+    }
     const p = pointFromEvent(e);
     if ((tool === "rect" || tool === "circle") && isDrawing) {
       setDraftEnd(p);
@@ -519,6 +543,24 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
       isPanningRef.current = false;
       setIsPanning(false);
       panStartRef.current = null;
+      return;
+    }
+    if (marqueeStart) {
+      const end = marqueeEndRef.current ?? marqueeStart;
+      const rect = rectFromPoints(marqueeStart, end, (3 / canvasWidth) * 100);
+      const append = marqueeShiftRef.current;
+      setMarqueeStart(null);
+      setMarqueeEnd(null);
+      marqueeEndRef.current = null;
+      const store = useRiskMappingWorkbenchStore.getState();
+      if (!rect) {
+        if (!append) store.setSelectedRegions([]);
+        return;
+      }
+      const zone = store.zones.find(z => z.id === store.selectedZoneId);
+      const polygons = zone?.floor_plan_polygon?.polygons ?? [];
+      const hitIds = zone ? collectRegionsInRect(polygons, rect).map(id => `zone:${zone.id}:${id}`) : [];
+      store.setSelectedRegions(hitIds, { append });
       return;
     }
     if (tool === "pen" && penCloseCandidateRef.current) {
@@ -622,7 +664,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
         data-testid="workbench-canvas"
         data-draft-count={draftPoints.length}
         data-floor-plan={showFloorPlan}
-        data-transform-active={tool === "select" && !!selectedRegionId}
+        data-transform-active={tool === "select" && selectedRegionIds.length > 0}
         data-tool={tool}
         data-space={spacePressed}
         data-view-x={viewX}
@@ -686,6 +728,23 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                 <Line points={[0, canvasHeight / 2, canvasWidth, canvasHeight / 2]} stroke="#f5222d" dash={[8, 6]} strokeWidth={1} opacity={0.45} listening={false} />
               </>
             )}
+            {marqueeStart && marqueeEnd && (() => {
+              const rect = rectFromPoints(marqueeStart, marqueeEnd, (3 / canvasWidth) * 100);
+              if (!rect) return null;
+              return (
+                <Rect
+                  x={toCanvasX(rect.x, canvasWidth)}
+                  y={toCanvasY(rect.y, canvasHeight)}
+                  width={(rect.width / 100) * canvasWidth}
+                  height={(rect.height / 100) * canvasHeight}
+                  fill="rgba(22,119,255,0.12)"
+                  stroke="#1677ff"
+                  dash={[6, 4]}
+                  strokeWidth={1.5}
+                  listening={false}
+                />
+              );
+            })()}
             {pendingRegions.map(r => {
               const selected = selectedRegionIds.includes(`pending:${r.id}`);
               return (
@@ -704,6 +763,9 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                     } else {
                       regionNodeRefs.current.delete(`pending:${r.id}`);
                     }
+                  }}
+                  onMouseDown={e => {
+                    e.cancelBubble = true;
                   }}
                   onClick={e => {
                     e.cancelBubble = true;
@@ -898,6 +960,9 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
                         } else {
                           regionNodeRefs.current.delete(regionId);
                         }
+                      }}
+                      onMouseDown={e => {
+                        e.cancelBubble = true;
                       }}
                       onClick={e => {
                         e.cancelBubble = true;
