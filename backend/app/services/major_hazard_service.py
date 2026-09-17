@@ -60,28 +60,25 @@ async def _next_seq(db: AsyncSession, unit_id: str) -> int:
     return int(current or 0) + 1
 
 
-async def compute_unit_snapshot(
-    db: AsyncSession,
-    *,
-    unit_id: str,
-    exposed_population: int,
-    user_id: str | None = None,
-) -> dict:
-    """对指定单元执行一次计算并写入不可变快照，返回快照内容。"""
+async def _load_unit_and_chemicals(db: AsyncSession, unit_id: str):
+    """取单元与其品种清单；缺任一则抛 MajorHazardRuleError。"""
     unit_res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
     unit = unit_res.scalar_one_or_none()
     if unit is None:
         raise MajorHazardRuleError("重大危险源单元不存在")
-
     chem_res = await db.execute(
         select(MajorHazardUnitChemical).where(MajorHazardUnitChemical.unit_id == unit_id)
     )
     chemicals = list(chem_res.scalars().all())
     if not chemicals:
         raise MajorHazardRuleError("该单元尚未录入危险化学品，无法计算")
+    return unit, chemicals
 
+
+def _run_engine(chemicals, exposed_population: int):
+    """把 DB 行转成引擎输入并计算；输入不合法统一转成 MajorHazardRuleError。"""
     try:
-        result = compute(
+        return compute(
             [
                 ChemicalInput(
                     name=c.chemical_name,
@@ -96,6 +93,43 @@ async def compute_unit_snapshot(
     except CalcInputError as exc:
         raise MajorHazardRuleError(str(exc)) from exc
 
+
+async def preview_unit_calculation(
+    db: AsyncSession,
+    *,
+    unit_id: str,
+    exposed_population: int,
+) -> dict:
+    """只计算并返回结果，**不写任何快照**。供前端"实时预览"使用。
+
+    快照是不可变的审计凭证，必须由用户显式点「固化」才产生；
+    预览走这条路径，保证"改数字看结果"不会污染历史。
+    """
+    _, chemicals = await _load_unit_and_chemicals(db, unit_id)
+    result = _run_engine(chemicals, exposed_population)
+    return {
+        "s_value": round(result.s_value, 6),
+        "r_value": round(result.r_value, 6),
+        "alpha": result.alpha,
+        "exposed_population": exposed_population,
+        "is_major_hazard": result.is_major_hazard,
+        "level": result.level,
+        "formula_version": FORMULA_VERSION,
+        "standard": STANDARD,
+        "chemicals": list(result.items),
+    }
+
+
+async def compute_unit_snapshot(
+    db: AsyncSession,
+    *,
+    unit_id: str,
+    exposed_population: int,
+    user_id: str | None = None,
+) -> dict:
+    """对指定单元执行一次计算并写入不可变快照，返回快照内容。"""
+    _, chemicals = await _load_unit_and_chemicals(db, unit_id)
+    result = _run_engine(chemicals, exposed_population)
     seq = await _next_seq(db, unit_id)
     snapshot = {
         "seq": seq,

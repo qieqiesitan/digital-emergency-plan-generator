@@ -28,7 +28,11 @@ from app.schemas.major_hazard import (
     UnitOut,
 )
 from app.services.evidence_service import EvidenceInput, attach_evidence, list_evidence
-from app.services.major_hazard_service import MajorHazardRuleError, compute_unit_snapshot
+from app.services.major_hazard_service import (
+    MajorHazardRuleError,
+    compute_unit_snapshot,
+    preview_unit_calculation,
+)
 
 router = APIRouter(prefix="/major-hazard", tags=["MajorHazard"])
 
@@ -160,6 +164,26 @@ async def compute_unit(
             unit_id=unit_id,
             exposed_population=payload.exposed_population,
             user_id=getattr(user, "id", None),
+        )
+    except MajorHazardRuleError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ok(snapshot)
+
+
+@router.post("/units/{unit_id}/preview")
+async def preview_unit(
+    unit_id: str,
+    payload: ComputeIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """实时预览：只计算不写快照。前端在输入变化（防抖）时调用。
+
+    与 /compute 的区别只有一个：不写 major_hazard_calculations。
+    快照是审计凭证，必须由用户显式点「固化」才产生。
+    """
+    try:
+        snapshot = await preview_unit_calculation(
+            db, unit_id=unit_id, exposed_population=payload.exposed_population
         )
     except MajorHazardRuleError as exc:
         raise HTTPException(422, str(exc)) from exc
