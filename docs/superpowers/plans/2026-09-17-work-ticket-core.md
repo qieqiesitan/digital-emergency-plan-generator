@@ -1319,3 +1319,311 @@ cd backend && python -m pytest tests/test_work_ticket_flow.py -v
 git add backend/app/services/work_ticket_flow.py backend/tests/test_work_ticket_flow.py
 git commit -m "feat(work-ticket): 轻量审批引擎（状态机+受限条件分支+会签+法定环节保护）（任务 4/8）"
 ```
+
+---
+
+## 任务 5：实例层 ORM 与迁移
+
+**文件：**
+
+- 修改：`backend/app/models/work_ticket.py`（追加实例层与留痕层）
+- 修改：`backend/db_migration_20260917_work_ticket.sql`（追加 DDL）
+- 测试：`backend/tests/test_work_ticket_models.py`（追加）
+
+**设计要点：**
+
+- `level` 存在实例上——它是**审批条件分支的依据字段**（`level == 特级` 决定走哪个节点），不能只留在 `values` JSONB 里靠字符串搜。
+- `code` 的唯一约束是 `(enterprise_id, code)`——**编号并发防重靠数据库，不靠应用层查重**。
+- `valid_from` / `valid_to` + `ix_wti_valid_to` 索引：有效期到期扫描要能走索引，否则票据一多调度器会慢。
+
+- [ ] **步骤 1：编写失败的测试（追加）**
+
+```python
+from app.models.work_ticket import (
+    WorkTicketAuditLog,
+    WorkTicketGasTest,
+    WorkTicketInstance,
+    WorkTicketNodeRecord,
+    WorkTicketPrintSnapshot,
+)
+
+
+def test_instance_tablenames():
+    assert WorkTicketInstance.__tablename__ == "work_ticket_instances"
+    assert WorkTicketNodeRecord.__tablename__ == "work_ticket_node_records"
+    assert WorkTicketGasTest.__tablename__ == "work_ticket_gas_tests"
+    assert WorkTicketAuditLog.__tablename__ == "work_ticket_audit_logs"
+    assert WorkTicketPrintSnapshot.__tablename__ == "work_ticket_print_snapshots"
+
+
+def test_instance_has_level_for_condition_branching():
+    """level 必须是独立列——审批条件分支依赖它，藏在 JSONB 里搜不动。"""
+    cols = WorkTicketInstance.__table__.columns
+    assert "level" in cols
+    assert "current_order" in cols
+    assert "valid_to" in cols
+    assert cols["status"].nullable is False
+
+
+def test_instance_enterprise_code_unique():
+    names = {c.name for c in WorkTicketInstance.__table__.constraints if hasattr(c, "name")}
+    assert "uq_wti_ent_code" in names
+
+
+def test_gas_test_requires_sampled_at():
+    cols = WorkTicketGasTest.__table__.columns
+    assert cols["sampled_at"].nullable is False
+
+
+def test_print_snapshot_has_hash_and_version():
+    cols = WorkTicketPrintSnapshot.__table__.columns
+    assert cols["content_hash"].nullable is False
+    assert cols["snapshot"].nullable is False
+
+
+def test_migration_creates_instance_tables():
+    for t in (
+        "work_ticket_instances",
+        "work_ticket_node_records",
+        "work_ticket_gas_tests",
+        "work_ticket_audit_logs",
+        "work_ticket_print_snapshots",
+    ):
+        assert re.search(rf"CREATE TABLE IF NOT EXISTS\s+{t}\b", SQL), t
+
+
+def test_migration_indexes_valid_to():
+    """有效期到期扫描要走索引，否则票据一多调度器就慢。"""
+    assert re.search(r"INDEX[^\n]*work_ticket_instances\s*\(valid_to\)", SQL, re.I)
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_models.py -q
+```
+
+预期：`ImportError: cannot import name 'WorkTicketInstance'`
+
+- [ ] **步骤 3：追加 ORM（到 `backend/app/models/work_ticket.py` 末尾）**
+
+```python
+class WorkTicketInstance(Base):
+    """作业票实例。编号规则 {类型}-{企业码}-{YYYYMMDD}-{4位序号}。"""
+
+    __tablename__ = "work_ticket_instances"
+    __table_args__ = (
+        UniqueConstraint("enterprise_id", "code", name="uq_wti_ent_code"),
+        Index("idx_wti_enterprise_status", "enterprise_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    enterprise_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
+    )
+    template_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_templates.id", ondelete="RESTRICT"), nullable=False
+    )
+    flow_template_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_flow_templates.id", ondelete="SET NULL")
+    )
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    ticket_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    level: Mapped[Optional[str]] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    current_node_key: Mapped[Optional[str]] = mapped_column(String(60))
+    current_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    values: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    valid_from: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    valid_to: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    extend_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cancel_reason: Mapped[Optional[str]] = mapped_column(Text)
+    submitted_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class WorkTicketNodeRecord(Base):
+    """节点办理记录。"""
+
+    __tablename__ = "work_ticket_node_records"
+    __table_args__ = (Index("idx_wtnr_instance", "instance_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    node_key: Mapped[str] = mapped_column(String(60), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    opinion: Mapped[Optional[str]] = mapped_column(Text)
+    acted_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkTicketGasTest(Base):
+    """气体检测记录。动火/受限空间类为提交前必填，一次作业可多次取样。"""
+
+    __tablename__ = "work_ticket_gas_tests"
+    __table_args__ = (Index("idx_wtgt_instance", "instance_id", "sampled_at"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    sampled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    location: Mapped[Optional[str]] = mapped_column(String(200))
+    gas_type: Mapped[Optional[str]] = mapped_column(String(100))
+    result: Mapped[Optional[str]] = mapped_column(String(100))
+    tester: Mapped[Optional[str]] = mapped_column(String(100))
+    conclusion: Mapped[Optional[str]] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkTicketAuditLog(Base):
+    """全状态变更留痕（对齐 HazardAuditLog）。"""
+
+    __tablename__ = "work_ticket_audit_logs"
+    __table_args__ = (Index("idx_wtal_instance", "instance_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    from_status: Mapped[Optional[str]] = mapped_column(String(20))
+    to_status: Mapped[Optional[str]] = mapped_column(String(20))
+    detail: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    acted_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkTicketPrintSnapshot(Base):
+    """打印快照。打印即固化，之后只能新建版本。"""
+
+    __tablename__ = "work_ticket_print_snapshots"
+    __table_args__ = (UniqueConstraint("instance_id", "version", name="uq_wtps_instance_version"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    printed_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+```
+
+- [ ] **步骤 4：追加迁移 DDL（到 `backend/db_migration_20260917_work_ticket.sql` 末尾）**
+
+```sql
+CREATE TABLE IF NOT EXISTS work_ticket_instances (
+    id UUID PRIMARY KEY,
+    enterprise_id UUID NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+    template_id UUID NOT NULL REFERENCES work_ticket_templates(id) ON DELETE RESTRICT,
+    flow_template_id UUID REFERENCES work_ticket_flow_templates(id) ON DELETE SET NULL,
+    code VARCHAR(64) NOT NULL,
+    ticket_type VARCHAR(20) NOT NULL,
+    level VARCHAR(20),
+    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    current_node_key VARCHAR(60),
+    current_order INTEGER NOT NULL DEFAULT 0,
+    values JSONB NOT NULL DEFAULT '{}'::jsonb,
+    valid_from TIMESTAMPTZ,
+    valid_to TIMESTAMPTZ,
+    extend_count INTEGER NOT NULL DEFAULT 0,
+    cancel_reason TEXT,
+    submitted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_wti_ent_code UNIQUE (enterprise_id, code)
+);
+CREATE INDEX IF NOT EXISTS idx_wti_enterprise_status ON work_ticket_instances (enterprise_id, status);
+CREATE INDEX IF NOT EXISTS ix_wti_valid_to ON work_ticket_instances (valid_to);
+
+CREATE TABLE IF NOT EXISTS work_ticket_node_records (
+    id UUID PRIMARY KEY,
+    instance_id UUID NOT NULL REFERENCES work_ticket_instances(id) ON DELETE CASCADE,
+    node_key VARCHAR(60) NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    opinion TEXT,
+    acted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_wtnr_instance ON work_ticket_node_records (instance_id, created_at);
+
+CREATE TABLE IF NOT EXISTS work_ticket_gas_tests (
+    id UUID PRIMARY KEY,
+    instance_id UUID NOT NULL REFERENCES work_ticket_instances(id) ON DELETE CASCADE,
+    sampled_at TIMESTAMPTZ NOT NULL,
+    location VARCHAR(200),
+    gas_type VARCHAR(100),
+    result VARCHAR(100),
+    tester VARCHAR(100),
+    conclusion VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_wtgt_instance ON work_ticket_gas_tests (instance_id, sampled_at);
+
+CREATE TABLE IF NOT EXISTS work_ticket_audit_logs (
+    id UUID PRIMARY KEY,
+    instance_id UUID NOT NULL REFERENCES work_ticket_instances(id) ON DELETE CASCADE,
+    action VARCHAR(30) NOT NULL,
+    from_status VARCHAR(20),
+    to_status VARCHAR(20),
+    detail JSONB NOT NULL DEFAULT '{}'::jsonb,
+    acted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_wtal_instance ON work_ticket_audit_logs (instance_id, created_at);
+
+CREATE TABLE IF NOT EXISTS work_ticket_print_snapshots (
+    id UUID PRIMARY KEY,
+    instance_id UUID NOT NULL REFERENCES work_ticket_instances(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL DEFAULT 1,
+    content_hash VARCHAR(64) NOT NULL,
+    snapshot JSONB NOT NULL,
+    printed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_wtps_instance_version UNIQUE (instance_id, version)
+);
+```
+
+- [ ] **步骤 5：运行测试验证通过**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_models.py -v
+```
+
+预期：`12 passed`（模板层 5 + 实例层 7）
+
+- [ ] **步骤 6：验证迁移幂等**
+
+```bash
+docker exec -i emergency-plan-db psql -U postgres -d emergency_plan -v ON_ERROR_STOP=1 < backend/db_migration_20260917_work_ticket.sql
+docker exec -i emergency-plan-db psql -U postgres -d emergency_plan -v ON_ERROR_STOP=1 < backend/db_migration_20260917_work_ticket.sql
+docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "\dt work_ticket*"
+```
+
+预期：两次执行均无报错；列出 10 张 `work_ticket_*` 表
+
+- [ ] **步骤 7：Commit**
+
+```bash
+git add backend/app/models/work_ticket.py backend/db_migration_20260917_work_ticket.sql backend/tests/test_work_ticket_models.py
+git commit -m "feat(work-ticket): 实例层 ORM 与迁移（实例/节点记录/气体检测/留痕/打印快照）（任务 5/8）"
+```
