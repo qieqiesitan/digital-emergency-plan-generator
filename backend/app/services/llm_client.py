@@ -29,6 +29,23 @@ API_BASE_MAP: dict[str, str] = {
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 DEFAULT_MAX_RETRIES = 3
 
+# httpx 的超时在下层 _post_with_retry / _stream_response 里已被包成 LLMError(0, str(e))，
+# 因此上层无法再按异常类型区分超时与连接失败。这里用消息特征判定。
+TIMEOUT_MARKERS = ("timed out", "timeout", "ReadTimeout", "ConnectTimeout", "PoolTimeout")
+
+
+def is_timeout_error(exc: "LLMError") -> bool:
+    """判断 LLMError(status_code=0) 是否源自超时。
+
+    为什么要这个函数：`except httpx.TimeoutException` 在这个模块里是死代码——
+    超时在更底层就被转成了 LLMError，永远走不到那个分支，
+    结果超时和连接失败都被映射成 500 + "AI调用失败: 0"，用户看不出该重试还是该改配置。
+    """
+    if exc.status_code != 0:
+        return False
+    text = str(exc).lower()
+    return any(marker.lower() in text for marker in TIMEOUT_MARKERS)
+
 
 class LLMError(Exception):
     """LLM 调用失败（非 200）。携带状态码与响应文本，供调用方按原文案重建。"""
@@ -237,14 +254,16 @@ async def llm_text_completion(
     try:
         data = await llm_chat_completion(messages, ai_config, stream=False, timeout=timeout)
         return data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    except httpx.TimeoutException:
-        raise HTTPException(504, f"AI 响应超时（{timeout}s），请稍后重试")
     except HTTPException:
         raise
     except LLMError as e:
         if e.status_code == 401:
             raise HTTPException(500, "AI API Key 无效或已过期，请在系统设置中重新配置 AI 模型")
-        raise HTTPException(500, str(e))
+        if is_timeout_error(e):
+            raise HTTPException(504, f"AI 响应超时（{timeout}s），请稍后重试") from e
+        if e.status_code == 0:
+            raise HTTPException(502, f"AI 服务连接失败: {e}") from e
+        raise HTTPException(500, str(e)) from e
     except Exception as e:
         raise HTTPException(502, f"AI 服务连接失败: {e}")
 
