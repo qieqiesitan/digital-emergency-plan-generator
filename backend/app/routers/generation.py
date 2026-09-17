@@ -36,6 +36,21 @@ from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_
 from app.services.sse_utils import sse_event
 from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, get_additional_diagram_prompt, render_template, ensure_loaded
 from app.services.risk_context_builder import build_risk_management_context
+from app.services.major_hazard_context import build_major_hazard_brief
+
+
+async def _attach_major_hazard(ent_data: dict, enterprise_id: str, db) -> dict:
+    """把重大危险源清单挂进企业数据，供提示词注入。
+
+    ent_data 在 _build_section_prompt 里会被整体 json.dumps 进提示词，
+    所以这里只要加一个键就能让每个章节都看到清单，不用逐章改动。
+
+    只在有清单时挂载（text 非空）——没有重大危险源的企业不该被塞一个空标题。
+    """
+    brief = await build_major_hazard_brief(db, enterprise_id=enterprise_id)
+    if brief.get("text"):
+        ent_data["major_hazard"] = brief
+    return ent_data
 from app.services.report_data_authority import with_rule
 from app.services.plan_generation_service import (
     collect_batch_context, run_batch_generation, finalize_batch_result,
@@ -1065,6 +1080,8 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
     chemicals = {c.id: c for c in chemicals_rows}
     org_members = await _load_org_members(db, p.enterprise_id) if ent else []
     ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
+    if ent:
+        ent_data = await _attach_major_hazard(ent_data, p.enterprise_id, db)
 
     if ent:
 
@@ -1258,6 +1275,8 @@ async def regenerate_selection(
     org_members = await _load_org_members(db, p.enterprise_id) if ent else []
     ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
     if ent:
+        ent_data = await _attach_major_hazard(ent_data, p.enterprise_id, db)
+    if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
     # 收集全文上下文
@@ -1369,6 +1388,8 @@ async def generate_preview(
     chemicals = {c.id: c for c in chemicals_rows}
     org_members = await _load_org_members(db, p.enterprise_id) if ent else []
     ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
+    if ent:
+        ent_data = await _attach_major_hazard(ent_data, p.enterprise_id, db)
     if ent:
         ent_data = await _enrich_with_reports(ent_data, p.enterprise_id, db)
 
