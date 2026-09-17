@@ -79,6 +79,8 @@ def test_list_units_returns_items():
     unit.responsible_person = None
     unit.responsible_phone = None
     unit.risk_object_id = None
+    unit.floor_id = None
+    unit.polygon = None
     unit.created_at = None
 
     async def handler(stmt, *a, **k):

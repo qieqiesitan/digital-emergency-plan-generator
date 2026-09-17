@@ -14,8 +14,62 @@ export interface MajorHazardUnit {
   responsible_person?: string | null;
   responsible_phone?: string | null;
   risk_object_id?: string | null;
+  floor_id?: string | null;
+  polygon?: MajorHazardUnitPolygon | null;
   is_active: boolean;
   created_at?: string | null;
+}
+
+/** 单元平面图落点的顶点。坐标为百分比（0-100），与四色图工作台约定一致。 */
+export interface MajorHazardUnitPolygonPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * 单元在平面图上的落点。
+ *
+ * 只存一个多边形（单元边界就是一条闭合界线），不套用四色图的
+ * RiskZoneFloorPlanPolygon——那个结构带 level_mode/risk_level 等风险分级语义，
+ * 对重大危险源单元没有意义。两者共用的是坐标约定与几何算法。
+ */
+export interface MajorHazardUnitPolygon {
+  version: 1;
+  points: MajorHazardUnitPolygonPoint[];
+}
+
+/** 可关联的风险点（`GET /major-hazard/linkable/risk-objects`）。 */
+export interface LinkableRiskObject {
+  id: string;
+  name: string;
+  zone_id?: string | null;
+  floor_id?: string | null;
+}
+
+/** 危化品台账条目（`GET /major-hazard/ledger/chemicals`）。 */
+export interface LedgerChemical {
+  id: string;
+  name: string;
+  cas_no?: string | null;
+  max_storage?: string | null;
+  storage_amount?: number | null;
+  storage_unit?: string | null;
+}
+
+/**
+ * 设计最大量的**建议初值**。
+ *
+ * `requires_confirmation` 恒为 true：建议值来自台账存量口径，
+ * 与 GB 18218 4.2.2 的设计最大量口径不同，必须由人工确认后才落库。
+ */
+export interface DesignMaxSuggestion {
+  chemical_id: string;
+  chemical_name: string;
+  suggested_q: number | null;
+  ledger_text?: string | null;
+  source: "structured" | "text";
+  hint: string;
+  requires_confirmation: boolean;
 }
 
 export interface MajorHazardUnitPayload {
@@ -23,7 +77,7 @@ export interface MajorHazardUnitPayload {
   unit_type: "production" | "storage";
   boundary_desc?: string | null;
   floor_id?: string | null;
-  polygon?: Record<string, unknown> | null;
+  polygon?: MajorHazardUnitPolygon | null;
   address?: string | null;
   longitude?: number | null;
   latitude?: number | null;

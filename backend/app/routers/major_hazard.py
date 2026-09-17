@@ -305,6 +305,35 @@ class LinkChemicalIn(BaseModel):
     chemical_id: Optional[str] = None
 
 
+class UnitPolygonIn(BaseModel):
+    """平面图落点。传 null 表示清空落点。"""
+
+    floor_id: Optional[str] = None
+    polygon: Optional[dict] = None
+
+
+@router.put("/units/{unit_id}/polygon")
+async def api_set_unit_polygon(
+    unit_id: str, payload: UnitPolygonIn, db: AsyncSession = Depends(get_db)
+):
+    """设置单元在平面图上的落点。polygon 结构与 RiskZone.floor_plan_polygon 一致。
+
+    floor_id 与 polygon 必须同时给或同时清空——只改一个会让单元落到错误的楼层上。
+    """
+    if (payload.floor_id is None) != (payload.polygon is None):
+        raise HTTPException(422, "floor_id 与 polygon 必须同时提供或同时清空")
+
+    res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
+    unit = res.scalar_one_or_none()
+    if unit is None:
+        raise HTTPException(404, "重大危险源单元不存在")
+
+    unit.floor_id = payload.floor_id
+    unit.polygon = payload.polygon
+    await db.commit()
+    return _ok({"unit_id": unit_id, "floor_id": payload.floor_id})
+
+
 @router.get("/linkable/risk-objects")
 async def api_list_linkable_risk_objects(
     enterprise_id: str = Query(...),

@@ -4,13 +4,17 @@ import type { ApiResponse } from "@/types/common";
 import type {
   ChemicalDefinition,
   CriticalQuantity,
+  DesignMaxSuggestion,
   EvidenceItem,
+  LedgerChemical,
+  LinkableRiskObject,
   MajorHazardCalculation,
   MajorHazardPreviewResult,
   MajorHazardRecord,
   MajorHazardUnit,
   MajorHazardUnitChemical,
   MajorHazardUnitChemicalPayload,
+  MajorHazardUnitPolygon,
   MajorHazardUnitPayload,
 } from "@/types/majorHazard";
 
@@ -64,6 +68,53 @@ export const updateUnit = (unitId: string, payload: MajorHazardUnitPayload) =>
     .then((r) => r.data.data);
 
 export const deleteUnit = (unitId: string) => api.delete(`${BASE}/units/${unitId}`);
+
+/** 保存单元在平面图上的落点。floor_id 与 polygon 必须成对（同时给或同时清空）。 */
+export const setUnitPolygon = (
+  unitId: string,
+  payload: { floor_id: string | null; polygon: MajorHazardUnitPolygon | null },
+) =>
+  api
+    .put<ApiResponse<{ unit_id: string; floor_id: string | null }>>(
+      `${BASE}/units/${unitId}/polygon`,
+      payload,
+    )
+    .then((r) => r.data.data);
+
+// --- 跨模块关联（计划 7） ---
+/** 本企业可关联的风险点（`is_risk_point=true`）。 */
+export const listLinkableRiskObjects = (enterpriseId: string) =>
+  api
+    .get<ApiResponse<LinkableRiskObject[]>>(`${BASE}/linkable/risk-objects`, {
+      params: { enterprise_id: enterpriseId },
+    })
+    .then((r) => r.data.data);
+
+/** 关联/解除风险点；传 null 表示解除。后端做同企业校验。 */
+export const linkRiskObject = (unitId: string, riskObjectId: string | null) =>
+  api
+    .put<ApiResponse<{ unit_id: string; risk_object_id: string | null }>>(
+      `${BASE}/units/${unitId}/risk-object`,
+      { risk_object_id: riskObjectId },
+    )
+    .then((r) => r.data.data);
+
+/** 本企业危化品台账条目（供单元品种关联）。 */
+export const listLedgerChemicals = (enterpriseId: string) =>
+  api
+    .get<ApiResponse<LedgerChemical[]>>(`${BASE}/ledger/chemicals`, {
+      params: { enterprise_id: enterpriseId },
+    })
+    .then((r) => r.data.data);
+
+/** 取设计最大量建议初值。只读，不写库——落库要等用户在界面上确认后保存。 */
+export const suggestDesignMaxFromLedger = (chemicalId: string, enterpriseId: string) =>
+  api
+    .get<ApiResponse<DesignMaxSuggestion>>(
+      `${BASE}/ledger/chemicals/${chemicalId}/suggest-design-max`,
+      { params: { enterprise_id: enterpriseId } },
+    )
+    .then((r) => r.data.data);
 
 // --- 单元品种 ---
 export const listUnitChemicals = (unitId: string) =>

@@ -166,3 +166,92 @@ async def test_suggest_design_max_rejects_cross_enterprise():
     db = _db(chem=_chem(ent="e2"))
     with pytest.raises(LinkageError):
         await suggest_design_max_from_ledger(db, chemical_id="c4", enterprise_id="e1")
+
+
+# --- 任务 3：单元在平面图上的落点 -------------------------------------------
+
+
+def _client(unit):
+    """给 polygon 端点搭一个最小 FastAPI 应用。"""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.database import get_db
+    from app.dependencies import get_current_user
+    from app.routers import major_hazard
+
+    app = FastAPI()
+    app.include_router(major_hazard.router, prefix="/api/v1")
+
+    async def _db():
+        db = MagicMock()
+        db.execute = AsyncMock(return_value=_Result([unit] if unit else []))
+        db.commit = AsyncMock()
+        yield db
+
+    async def _user():
+        return MagicMock(id="u1")
+
+    app.dependency_overrides[get_db] = _db
+    app.dependency_overrides[get_current_user] = _user
+    return TestClient(app)
+
+
+def test_polygon_endpoint_rejects_partial_payload():
+    """只给 floor_id 不给 polygon（或反之）必须被拒。
+
+    只改一个会让单元落到错误的楼层上——平面图上的位置与楼层是同一个事实的两半。
+    """
+    client = _client(MagicMock())
+    resp = client.put("/api/v1/major-hazard/units/u1/polygon", json={"floor_id": "f1"})
+    assert resp.status_code == 422
+    assert "同时" in resp.json()["detail"]
+
+
+def test_polygon_endpoint_rejects_polygon_without_floor():
+    client = _client(MagicMock())
+    resp = client.put(
+        "/api/v1/major-hazard/units/u1/polygon",
+        json={"polygon": {"points": [[0, 0], [1, 0], [1, 1]]}},
+    )
+    assert resp.status_code == 422
+    assert "同时" in resp.json()["detail"]
+
+
+def test_polygon_endpoint_saves_pair():
+    unit = MagicMock()
+    unit.floor_id = None
+    unit.polygon = None
+    client = _client(unit)
+    poly = {"points": [[0, 0], [10, 0], [10, 10], [0, 10]]}
+    resp = client.put(
+        "/api/v1/major-hazard/units/u1/polygon",
+        json={"floor_id": "f1", "polygon": poly},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["floor_id"] == "f1"
+    assert unit.floor_id == "f1"
+    assert unit.polygon == poly
+
+
+def test_polygon_endpoint_allows_clearing_pair():
+    unit = MagicMock()
+    unit.floor_id = "f1"
+    unit.polygon = {"points": [[0, 0], [1, 0], [1, 1]]}
+    client = _client(unit)
+    resp = client.put(
+        "/api/v1/major-hazard/units/u1/polygon",
+        json={"floor_id": None, "polygon": None},
+    )
+    assert resp.status_code == 200
+    assert unit.floor_id is None
+    assert unit.polygon is None
+
+
+def test_polygon_endpoint_404_when_unit_missing():
+    client = _client(None)
+    resp = client.put(
+        "/api/v1/major-hazard/units/nope/polygon",
+        json={"floor_id": "f1", "polygon": {"points": [[0, 0], [1, 0], [1, 1]]}},
+    )
+    assert resp.status_code == 404

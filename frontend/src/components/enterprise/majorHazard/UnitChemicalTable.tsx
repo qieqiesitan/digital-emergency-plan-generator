@@ -2,8 +2,18 @@ import { useMemo, useState } from "react";
 import { AutoComplete, Button, InputNumber, Select, Space, Table, Tooltip, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { DeleteOutlined, PlusOutlined, QuestionCircleOutlined } from "@ant-design/icons";
-import { listCriticalQuantities, lookupChemical } from "@/services/majorHazardService";
-import type { HazardSymbolOption, MajorHazardUnitChemicalPayload } from "@/types/majorHazard";
+import { useQuery } from "@tanstack/react-query";
+import {
+  listCriticalQuantities,
+  listLedgerChemicals,
+  lookupChemical,
+  suggestDesignMaxFromLedger,
+} from "@/services/majorHazardService";
+import type {
+  DesignMaxSuggestion,
+  HazardSymbolOption,
+  MajorHazardUnitChemicalPayload,
+} from "@/types/majorHazard";
 import { formatQty, toNumber } from "@/utils/majorHazardFormat";
 
 const { Text } = Typography;
@@ -23,6 +33,8 @@ interface Row extends MajorHazardUnitChemicalPayload {
 }
 
 interface Props {
+  /** 企业 id，用于拉取危化品台账候选。 */
+  enterpriseId: string;
   value: MajorHazardUnitChemicalPayload[];
   /** 保存回调。由本组件自己持有行数据，故保存按钮也放在这里——避免父组件用 effect 同步状态。 */
   onSave: (rows: MajorHazardUnitChemicalPayload[]) => Promise<void> | void;
@@ -35,7 +47,7 @@ const nextKey = () => `row-${Date.now()}-${seq++}`;
 /** 把后端返回的数值型字段统一成"字符串或空"，避免 InputNumber 与字符串混用。 */
 const asNumString = (v: number | null | undefined): string => (v === null || v === undefined ? "" : String(v));
 
-export default function UnitChemicalTable({ value, onSave, saving }: Props) {
+export default function UnitChemicalTable({ enterpriseId, value, onSave, saving }: Props) {
   const [rows, setRows] = useState<Row[]>(() =>
     value.map((r) => ({ ...r, key: nextKey() })),
   );
@@ -47,6 +59,18 @@ export default function UnitChemicalTable({ value, onSave, saving }: Props) {
    * `onSearch` 的返回值会被忽略，必须把结果写进 options 才能显示下拉。
    */
   const [nameOptions, setNameOptions] = useState<Record<string, { value: string }[]>>({});
+  /**
+   * 每行的台账设计最大量建议。仅当用户主动从台账选入条目后才出现，
+   * 且**不自动写进输入框**——设计最大量与台账存量是两个口径，
+   * 必须由人看过提示后点「采用」才落到 q_design_max 上。
+   */
+  const [suggestions, setSuggestions] = useState<Record<string, DesignMaxSuggestion>>({});
+
+  const { data: ledger = [] } = useQuery({
+    queryKey: ["ledger-chemicals", enterpriseId],
+    queryFn: () => listLedgerChemicals(enterpriseId),
+    enabled: !!enterpriseId,
+  });
 
   const push = (next: Row[]) => {
     setRows(next);
@@ -88,6 +112,34 @@ export default function UnitChemicalTable({ value, onSave, saving }: Props) {
     ]);
 
   const removeRow = (key: string) => push(rows.filter((r) => r.key !== key));
+
+  /** 选中台账条目：只写引用（chemical_id），顺带取回设计最大量建议供人工采纳。 */
+  const handleLedgerSelect = async (key: string, chemicalId?: string) => {
+    const entry = chemicalId ? ledger.find((c) => c.id === chemicalId) : undefined;
+    const row = rows.find((r) => r.key === key);
+    const nextPatch: Partial<Row> = { chemical_id: chemicalId ?? null };
+    // 品种名还空着时用台账名称带出，省一次输入；已有名称不覆盖（可能是标准名）
+    if (entry && row && !row.chemical_name.trim()) nextPatch.chemical_name = entry.name;
+    patch(key, nextPatch);
+
+    if (!chemicalId) {
+      setSuggestions((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+    try {
+      const suggestion = await suggestDesignMaxFromLedger(chemicalId, enterpriseId);
+      setSuggestions((prev) => ({ ...prev, [key]: suggestion }));
+    } catch {
+      // 全局拦截器已提示
+    }
+  };
+
+  const applySuggestion = (key: string, suggestedQ: number) =>
+    patch(key, { q_design_max: asNumString(suggestedQ) });
 
   /** 选中/输入品种名后查标准值，自动带出 Q 与 β。 */
   const resolveStandard = async (key: string, name: string, hazardSymbol?: string) => {
@@ -159,6 +211,23 @@ export default function UnitChemicalTable({ value, onSave, saving }: Props) {
       ),
     },
     {
+      title: "关联台账",
+      width: 200,
+      render: (_, r) => (
+        <Select
+          showSearch
+          allowClear
+          optionFilterProp="label"
+          placeholder="选择台账条目"
+          style={{ width: "100%" }}
+          value={r.chemical_id ?? undefined}
+          onChange={(v) => handleLedgerSelect(r.key, v)}
+          notFoundContent="本企业暂无危化品台账"
+          options={ledger.map((c) => ({ value: c.id, label: c.name }))}
+        />
+      ),
+    },
+    {
       title: (
         <Space size={4}>
           设计最大量(t)
@@ -168,20 +237,41 @@ export default function UnitChemicalTable({ value, onSave, saving }: Props) {
         </Space>
       ),
       width: 200,
-      render: (_, r) => (
-        <div>
-          <InputNumber
-            min={0}
-            step={0.1}
-            style={{ width: "100%" }}
-            value={r.q_design_max === "" ? null : Number(r.q_design_max)}
-            onChange={(v) => patch(r.key, { q_design_max: asNumString(v ?? undefined) })}
-          />
-          <div style={{ fontSize: 11, color: "#b45309", lineHeight: 1.4, marginTop: 2 }}>
-            {DESIGN_MAX_HINT}
+      render: (_, r) => {
+        const suggested = suggestions[r.key]?.suggested_q ?? null;
+        return (
+          <div>
+            <InputNumber
+              min={0}
+              step={0.1}
+              style={{ width: "100%" }}
+              value={r.q_design_max === "" ? null : Number(r.q_design_max)}
+              onChange={(v) => patch(r.key, { q_design_max: asNumString(v ?? undefined) })}
+            />
+            <div style={{ fontSize: 11, color: "#b45309", lineHeight: 1.4, marginTop: 2 }}>
+              {DESIGN_MAX_HINT}
+            </div>
+            {suggestions[r.key] && suggested !== null && (
+              <div style={{ fontSize: 11, color: "#1677ff", marginTop: 2 }}>
+                台账建议 {formatQty(suggested)} t
+                <Button
+                  type="link"
+                  size="small"
+                  style={{ padding: "0 4px", height: "auto" }}
+                  onClick={() => applySuggestion(r.key, suggested)}
+                >
+                  采用
+                </Button>
+              </div>
+            )}
+            {suggestions[r.key] && suggested === null && (
+              <div style={{ fontSize: 11, color: "#8c8c8c", marginTop: 2 }}>
+                台账无可解析存量，请手工填写
+              </div>
+            )}
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: "临界量 Q(t)",
@@ -250,7 +340,14 @@ export default function UnitChemicalTable({ value, onSave, saving }: Props) {
 
   return (
     <div>
-      <Table<Row> rowKey="key" size="small" dataSource={rows} columns={columns} pagination={false} />
+      <Table<Row>
+        rowKey="key"
+        size="small"
+        dataSource={rows}
+        columns={columns}
+        pagination={false}
+        scroll={{ x: 1100 }}
+      />
       <Space style={{ marginTop: 8 }}>
         <Button type="dashed" icon={<PlusOutlined />} onClick={addRow}>
           添加品种

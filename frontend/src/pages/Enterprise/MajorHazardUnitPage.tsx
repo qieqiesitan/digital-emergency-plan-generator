@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { App as AntApp, Button, Card, Form, Input, Select, Space, Spin, Tabs } from "antd";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
+import RiskObjectPicker from "@/components/enterprise/majorHazard/RiskObjectPicker";
 import UnitChemicalTable from "@/components/enterprise/majorHazard/UnitChemicalTable";
+import UnitPolygonEditor from "@/components/enterprise/majorHazard/UnitPolygonEditor";
 import {
   listUnitChemicals,
   listUnits,
@@ -20,6 +22,7 @@ export default function MajorHazardUnitPage() {
   const navigate = useNavigate();
   const [sp] = useSearchParams();
   const { message } = AntApp.useApp();
+  const queryClient = useQueryClient();
   const [form] = Form.useForm<MajorHazardUnitPayload>();
   const [savingChem, setSavingChem] = useState(false);
 
@@ -38,6 +41,9 @@ export default function MajorHazardUnitPage() {
     queryFn: () => listUnitChemicals(effectiveUnitId),
     enabled: !!effectiveUnitId,
   });
+
+  const invalidateUnits = () =>
+    queryClient.invalidateQueries({ queryKey: ["major-hazard-units", id] });
 
   if (isLoading) return <Spin />;
   if (!effectiveUnitId) return <Card>未指定单元</Card>;
@@ -120,41 +126,57 @@ export default function MajorHazardUnitPage() {
             key: "basic",
             label: "基本信息",
             children: (
-              <Card>
-                <Form
-                  form={form}
-                  layout="vertical"
-                  style={{ maxWidth: 560 }}
-                  initialValues={basicInitial}
-                >
-                  <Form.Item name="name" label="单元名称" rules={[{ required: true }]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item name="unit_type" label="单元类型" rules={[{ required: true }]}>
-                    <Select
-                      options={[
-                        { value: "production", label: "生产单元" },
-                        { value: "storage", label: "储存单元" },
-                      ]}
-                    />
-                  </Form.Item>
-                  <Form.Item name="address" label="所在位置">
-                    <Input />
-                  </Form.Item>
-                  <Form.Item name="department" label="责任部门">
-                    <Input />
-                  </Form.Item>
-                  <Form.Item name="responsible_person" label="责任人">
-                    <Input />
-                  </Form.Item>
-                  <Form.Item name="responsible_phone" label="联系电话">
-                    <Input />
-                  </Form.Item>
-                  <Button type="primary" onClick={saveBasic}>
-                    保存
-                  </Button>
-                </Form>
-              </Card>
+              <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                <Card>
+                  <Form
+                    form={form}
+                    layout="vertical"
+                    style={{ maxWidth: 560 }}
+                    initialValues={basicInitial}
+                  >
+                    <Form.Item name="name" label="单元名称" rules={[{ required: true }]}>
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="unit_type" label="单元类型" rules={[{ required: true }]}>
+                      <Select
+                        options={[
+                          { value: "production", label: "生产单元" },
+                          { value: "storage", label: "储存单元" },
+                        ]}
+                      />
+                    </Form.Item>
+                    <Form.Item name="address" label="所在位置">
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="department" label="责任部门">
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="responsible_person" label="责任人">
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="responsible_phone" label="联系电话">
+                      <Input />
+                    </Form.Item>
+                    <Button type="primary" onClick={saveBasic}>
+                      保存
+                    </Button>
+                  </Form>
+                </Card>
+                <Card size="small" title="关联风险点">
+                  <RiskObjectPicker
+                    enterpriseId={id!}
+                    unitId={effectiveUnitId}
+                    riskObjectId={unit.risk_object_id}
+                  />
+                </Card>
+                <UnitPolygonEditor
+                  enterpriseId={id!}
+                  unitId={effectiveUnitId}
+                  floorId={unit.floor_id}
+                  polygon={unit.polygon}
+                  onSaved={invalidateUnits}
+                />
+              </Space>
             ),
           },
           {
@@ -164,6 +186,7 @@ export default function MajorHazardUnitPage() {
               <Card loading={chemLoading}>
                 <UnitChemicalTable
                   key={effectiveUnitId}
+                  enterpriseId={id!}
                   value={chemicalRows}
                   onSave={saveChemicals}
                   saving={savingChem}

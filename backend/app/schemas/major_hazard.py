@@ -29,6 +29,8 @@ class UnitOut(BaseModel):
     name: str
     unit_type: str
     address: Optional[str] = None
+    floor_id: Optional[str] = None
+    polygon: Optional[dict] = None
     department: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_phone: Optional[str] = None
