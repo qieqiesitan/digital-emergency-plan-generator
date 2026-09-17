@@ -28,6 +28,7 @@ from app.schemas.major_hazard import (
     UnitOut,
 )
 from app.services.evidence_service import EvidenceInput, attach_evidence, list_evidence
+from app.services.major_hazard_lookup import lookup_chemical_definition
 from app.services.major_hazard_service import (
     MajorHazardRuleError,
     compute_unit_snapshot,
@@ -263,3 +264,19 @@ async def upsert_unit_record(
     await db.commit()
     await db.refresh(record)
     return _ok(RecordOut.model_validate(record))
+
+
+@router.get("/definitions/lookup")
+async def api_lookup_chemical(
+    name: str = Query(..., min_length=1, description="危险化学品名称"),
+    hazard_symbol: Optional[str] = Query(
+        default=None, description="危险性类别符号（如 W5.1），用于按表4 反查 β"
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """按品种名查临界量 Q 与校正系数 β。
+
+    前端录入品种时用它自动带出 Q 与 β；β 查不到（表3 未命中）时返回
+    `needs_hazard_symbol=true` 与表4 的类别清单，让用户选完再查一次。
+    """
+    return _ok(await lookup_chemical_definition(db, name=name, hazard_symbol=hazard_symbol))
