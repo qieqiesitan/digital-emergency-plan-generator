@@ -224,7 +224,14 @@ async def upsert_unit_record(
     res = await db.execute(select(MajorHazardRecord).where(MajorHazardRecord.unit_id == unit_id))
     record = res.scalar_one_or_none()
     if record is None:
-        record = MajorHazardRecord(unit_id=unit_id, enterprise_id=enterprise_id)
+        # attachments / completeness 的模型默认值在 flush 时才生效，
+        # 构造期显式给空字典，避免本请求内序列化到 None。
+        record = MajorHazardRecord(
+            unit_id=unit_id,
+            enterprise_id=enterprise_id,
+            attachments={},
+            completeness={},
+        )
         db.add(record)
     for key, value in payload.model_dump(exclude_unset=True).items():
         if value is not None:
