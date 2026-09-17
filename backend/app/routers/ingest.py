@@ -10,7 +10,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.ingest import IngestItem, IngestJob, IngestSource
 from app.schemas.ingest import ConfirmIn, ItemOut, JobOut, SourceIn, SourceOut
-from app.services.ingest_service import IngestError, confirm_items
+from app.services.ingest_service import IngestError, confirm_items, skip_items
 
 router = APIRouter(prefix="/ingest", tags=["Ingest"])
 
@@ -73,6 +73,7 @@ async def list_items(
             source_locator=it.source_locator,
             raw_payload=it.raw_payload,
             error=it.error,
+            review_note=it.review_note,
             default_checked=it.confidence in ("high", "medium") and it.status == "pending",
         )
         out.append(row)
@@ -89,6 +90,22 @@ async def confirm(
     try:
         out = await confirm_items(
             db, item_ids=payload.item_ids, approved_by=getattr(user, "id", None)
+        )
+    except IngestError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ok(out)
+
+
+@router.post("/items/skip")
+async def skip(
+    payload: ConfirmIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """跳过选中条目（标记 skipped，不删除、不写正式表）。"""
+    try:
+        out = await skip_items(
+            db, item_ids=payload.item_ids, reviewed_by=getattr(user, "id", None)
         )
     except IngestError as exc:
         raise HTTPException(422, str(exc)) from exc

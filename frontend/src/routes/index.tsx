@@ -39,6 +39,8 @@ import SystemConfigPage from "@/pages/Settings/SystemConfigPage";
 import RegulationManagePage from "@/pages/Settings/RegulationManagePage";
 import DataDictManagePage from "@/pages/Settings/DataDictManagePage";
 import ChemicalLibraryManagePage from "@/pages/Settings/ChemicalLibraryManagePage";
+import DataHubPage from "@/pages/Settings/DataHubPage";
+import DataHubReviewPage from "@/pages/Settings/DataHubReviewPage";
 import RiskAssessmentPreview from "@/pages/Enterprise/RiskAssessmentPreview";
 import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigationPreview";
 import RiskOverviewPage from "@/pages/Enterprise/RiskOverviewPage";
@@ -179,6 +181,8 @@ const contentRoutes = [
   { path: "/settings/regulations", element: <RegulationManagePage /> },
   { path: "/settings/data-dicts", element: <DataDictManagePage /> },
   { path: "/settings/chemical-library", element: <ChemicalLibraryManagePage /> },
+  { path: "/settings/data-hub", element: <DataHubPage /> },
+  { path: "/settings/data-hub/:jobId/review", element: <DataHubReviewPage /> },
 ];
 
 // 对 MENU_MAP 中收录的路由套用菜单权限守卫（如直接输入 /settings/users 等）

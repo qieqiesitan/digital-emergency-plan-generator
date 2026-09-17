@@ -84,6 +84,7 @@ def test_review_list_defaults_low_confidence_unchecked():
     hi.source_locator = "报告.pdf P12"
     hi.target_entity = "major_hazard_unit_chemical"
     hi.error = None
+    hi.review_note = None
     lo = MagicMock()
     lo.id = "i2"
     lo.job_id = "j1"
@@ -93,6 +94,7 @@ def test_review_list_defaults_low_confidence_unchecked():
     lo.source_locator = "报告.pdf P15"
     lo.target_entity = "major_hazard_unit_chemical"
     lo.error = None
+    lo.review_note = None
 
     async def handler(stmt, *a, **k):
         return _Result([hi, lo])
@@ -112,3 +114,12 @@ def test_confirm_endpoint_returns_counts():
     client = _client(handler)
     resp = client.post("/api/v1/ingest/items/confirm", json={"item_ids": []})
     assert resp.status_code == 422  # 空选择应被拒
+
+
+def test_skip_endpoint_rejects_empty_selection():
+    async def handler(stmt, *a, **k):
+        return _Result([])
+
+    client = _client(handler)
+    resp = client.post("/api/v1/ingest/items/skip", json={"item_ids": []})
+    assert resp.status_code == 422

@@ -10,6 +10,7 @@ from app.services.ingest_service import (
     confirm_items,
     create_item,
     register_target_writer,
+    skip_items,
     update_job_counts,
 )
 
@@ -23,6 +24,8 @@ def _db(existing=None):
     async def execute(stmt, *a, **k):
         res = MagicMock()
         res.scalar_one_or_none.return_value = existing
+        # 默认没有需要回填计数的任务（避免迭代 MagicMock）
+        res.scalars.return_value.all.return_value = []
         return res
 
     db.execute = execute
@@ -106,6 +109,7 @@ async def test_confirm_items_only_processes_selected():
         rendered = str(stmt.compile(compile_kwargs={"literal_binds": True}))
         res = MagicMock()
         res.scalar_one_or_none.return_value = item_ok if "i1" in rendered else item_skip
+        res.scalars.return_value.all.return_value = []
         return res
 
     db.execute = execute
@@ -182,3 +186,66 @@ async def test_update_job_counts_derives_from_items():
     assert out["pending_review"] == 3
     assert out["imported"] == 5
     assert job.status == "partial", "有失败项时任务状态为 partial"
+
+
+@pytest.mark.asyncio
+async def test_skip_items_marks_skipped_without_deleting():
+    """跳过是标记不是删除——raw_payload 永久保留，"为什么没入库"也要有答案。"""
+    item = MagicMock()
+    item.id = "i1"
+    item.status = "pending"
+    db = _db(existing=item)
+    out = await skip_items(db, item_ids=["i1"], reviewed_by="u1")
+    assert out["skipped"] == 1
+    assert item.status == "skipped"
+    assert item.reviewed_by == "u1"
+
+
+@pytest.mark.asyncio
+async def test_skip_items_rejects_already_reviewed():
+    done = MagicMock()
+    done.id = "i1"
+    done.status = "imported"
+    db = _db(existing=done)
+    with pytest.raises(IngestError):
+        await skip_items(db, item_ids=["i1"], reviewed_by="u1")
+
+
+@pytest.mark.asyncio
+async def test_skip_items_requires_selection():
+    db = _db(existing=None)
+    with pytest.raises(IngestError):
+        await skip_items(db, item_ids=[], reviewed_by="u1")
+
+
+@pytest.mark.asyncio
+async def test_skip_items_refreshes_job_counts():
+    """跳过之后任务计数必须同步，否则列表页一直显示旧的"待确认 N 条"。"""
+    item = MagicMock()
+    item.id = "i1"
+    item.job_id = "j1"
+    item.status = "pending"
+    job = MagicMock()
+    job.id = "j1"
+
+    db = MagicMock()
+    db.commit = AsyncMock()
+    calls: list[str] = []
+
+    async def execute(stmt, *a, **k):
+        calls.append(str(stmt))
+        res = MagicMock()
+        if len(calls) == 1:
+            res.scalar_one_or_none.return_value = item
+        elif len(calls) == 2:
+            res.scalars.return_value.all.return_value = [job]
+        else:
+            res.all.return_value = [("skipped", 1)]
+        return res
+
+    db.execute = execute
+    out = await skip_items(db, item_ids=["i1"], reviewed_by="u1")
+    assert out["skipped"] == 1
+    assert job.skipped == 1
+    assert job.pending_review == 0
+    assert db.commit.await_count == 2

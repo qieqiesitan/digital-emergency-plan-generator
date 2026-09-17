@@ -18,6 +18,7 @@ import {
   DatabaseOutlined,
   FileProtectOutlined,
   GlobalOutlined,
+  ApiOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import FloatingChat from "@/components/common/FloatingChat";
@@ -81,7 +82,8 @@ export function MainLayout() {
     hasMenu("/settings/roles") ||
     hasMenu("/settings/system") ||
     hasMenu("/settings/data-dicts") ||
-    hasMenu("/settings/chemical-library");
+    hasMenu("/settings/chemical-library") ||
+    hasMenu("/settings/data-hub");
   const showAIGroup = hasMenu("/settings/prompts");
 
   const settingsChildren = [
@@ -106,6 +108,7 @@ export function MainLayout() {
             ...(hasMenu("/settings/system") ? [{ key: "/settings/system", icon: <SettingOutlined />, label: "系统配置" }] : []),
             ...(hasMenu("/settings/data-dicts") ? [{ key: "/settings/data-dicts", icon: <DatabaseOutlined />, label: "数据字典管理" }] : []),
             ...(hasMenu("/settings/chemical-library") ? [{ key: "/settings/chemical-library", icon: <DatabaseOutlined />, label: "化学品库管理" }] : []),
+            ...(hasMenu("/settings/data-hub") ? [{ key: "/settings/data-hub", icon: <ApiOutlined />, label: "数据接入" }] : []),
           ],
         }]
       : []),

@@ -71,3 +71,32 @@ CREATE TABLE IF NOT EXISTS ingest_reconciliations (
     checksum VARCHAR(80),
     checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 菜单权限补种：数据接入（super_admin / admin 默认可见）
+INSERT INTO permissions (id, code, name, resource, action, category) VALUES
+  (gen_random_uuid(), 'menu:data_hub', '数据接入', 'menu', 'data_hub', 'menu')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p.code = 'menu:data_hub'
+WHERE r.code IN ('super_admin', 'admin')
+ON CONFLICT DO NOTHING;
+
+-- 补数据库级默认值：启动迁移器会先执行 Base.metadata.create_all，
+-- 已存在的表不会走上面的 CREATE TABLE，ORM 的 Python 默认值只在本进程生效。
+-- 这里显式 SET DEFAULT，保证裸 SQL 插入（运维/外部排障）也不会写出 NULL。
+ALTER TABLE ingest_sources ALTER COLUMN is_active SET DEFAULT TRUE;
+ALTER TABLE ingest_jobs ALTER COLUMN trigger SET DEFAULT 'manual';
+ALTER TABLE ingest_jobs ALTER COLUMN status SET DEFAULT 'running';
+ALTER TABLE ingest_jobs ALTER COLUMN total SET DEFAULT 0;
+ALTER TABLE ingest_jobs ALTER COLUMN imported SET DEFAULT 0;
+ALTER TABLE ingest_jobs ALTER COLUMN skipped SET DEFAULT 0;
+ALTER TABLE ingest_jobs ALTER COLUMN failed SET DEFAULT 0;
+ALTER TABLE ingest_jobs ALTER COLUMN pending_review SET DEFAULT 0;
+ALTER TABLE ingest_items ALTER COLUMN status SET DEFAULT 'pending';
+ALTER TABLE ingest_items ALTER COLUMN confidence SET DEFAULT 'medium';
+ALTER TABLE field_mappings ALTER COLUMN status SET DEFAULT 'active';
+ALTER TABLE ingest_reconciliations ALTER COLUMN expected_count SET DEFAULT 0;
+ALTER TABLE ingest_reconciliations ALTER COLUMN actual_count SET DEFAULT 0;

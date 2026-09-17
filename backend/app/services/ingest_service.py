@@ -94,6 +94,18 @@ async def _persist_target(
     return await writer(db, raw_payload, item)
 
 
+async def _refresh_job_counts(db: AsyncSession, job_ids: set[str]) -> None:
+    """审完条目后回填相关任务的计数。
+
+    不做这一步，任务列表会一直显示旧的"待确认 N 条"，点进去却是空的。
+    """
+    if not job_ids:
+        return
+    res = await db.execute(select(IngestJob).where(IngestJob.id.in_(job_ids)))
+    for job in res.scalars().all():
+        await update_job_counts(db, job=job)
+
+
 async def confirm_items(
     db: AsyncSession,
     *,
@@ -109,6 +121,7 @@ async def confirm_items(
         raise IngestError("没有选中任何条目")
     confirmed = 0
     failed: list[dict] = []
+    touched_jobs: set[str] = set()
     for item_id in item_ids:
         res = await db.execute(select(IngestItem).where(IngestItem.id == item_id))
         item = res.scalar_one_or_none()
@@ -117,6 +130,7 @@ async def confirm_items(
             continue
         if item.status != "pending":
             raise IngestError(f"条目 {item_id} 当前状态为 {item.status}，不能重复确认")
+        touched_jobs.add(item.job_id)
         try:
             target_id = await _persist_target(
                 db,
@@ -134,6 +148,7 @@ async def confirm_items(
             item.error = str(exc)[:2000]
             failed.append({"item_id": item_id, "reason": str(exc)[:300]})
     await db.commit()
+    await _refresh_job_counts(db, touched_jobs)
     return {"confirmed": confirmed, "failed": failed}
 
 
@@ -164,3 +179,34 @@ async def update_job_counts(db: AsyncSession, *, job: IngestJob) -> dict:
         "failed": job.failed,
         "pending_review": job.pending_review,
     }
+
+
+async def skip_items(
+    db: AsyncSession,
+    *,
+    item_ids: Sequence[str],
+    reviewed_by: Optional[str] = None,
+) -> dict:
+    """把选中的待确认条目标记为 skipped（人工判断这条不该入库）。
+
+    与 confirm_items 一样只处理传入的 item_ids，且只允许 pending。
+    不做删除——raw_payload 永久保留，"为什么没入库"也要有答案。
+    """
+    if not item_ids:
+        raise IngestError("没有选中任何条目")
+    skipped = 0
+    touched_jobs: set[str] = set()
+    for item_id in item_ids:
+        res = await db.execute(select(IngestItem).where(IngestItem.id == item_id))
+        item = res.scalar_one_or_none()
+        if item is None:
+            continue
+        if item.status != "pending":
+            raise IngestError(f"条目 {item_id} 当前状态为 {item.status}，不能跳过")
+        item.status = "skipped"
+        item.reviewed_by = reviewed_by
+        skipped += 1
+        touched_jobs.add(item.job_id)
+    await db.commit()
+    await _refresh_job_counts(db, touched_jobs)
+    return {"skipped": skipped}

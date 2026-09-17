@@ -47,6 +47,7 @@ class ItemOut(BaseModel):
     source_locator: Optional[str] = None
     raw_payload: dict
     error: Optional[str] = None
+    review_note: Optional[str] = None
     """前端用于决定复选框默认状态：仅 high/medium 默认勾选。"""
     default_checked: bool = True
 

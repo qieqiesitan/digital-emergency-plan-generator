@@ -16,4 +16,5 @@ export const MENU_MAP: Record<string, string> = {
   "/settings/regulations": "menu:regulations",
   "/settings/data-dicts": "menu:data_dicts",
   "/settings/chemical-library": "menu:chemical_library",
+  "/settings/data-hub": "menu:data_hub",
 };
