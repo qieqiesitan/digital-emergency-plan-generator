@@ -179,6 +179,7 @@ class RecordCreate(BaseModel):
     hazard_type: Optional[str] = None
     object_id: Optional[str] = None
     measure_id: Optional[str] = None
+    major_hazard_unit_id: Optional[str] = None
     title: str = Field(..., max_length=255)
     description: str = Field(..., min_length=1)
     photo_urls: Optional[list[str]] = None
@@ -358,6 +359,7 @@ def _record_dict(record) -> dict:
         "source_item_id": record.source_item_id,
         "object_id": record.object_id,
         "measure_id": record.measure_id,
+        "major_hazard_unit_id": getattr(record, "major_hazard_unit_id", None),
         "title": record.title,
         "description": record.description,
         "photo_urls": record.photo_urls,
@@ -1078,6 +1080,27 @@ async def _validate_object_ref(db: AsyncSession, enterprise_id: str, object_id: 
         raise HTTPException(422, "风险点不属于该企业")
 
 
+async def _validate_major_hazard_unit(
+    db: AsyncSession, enterprise_id: str, unit_id: Optional[str]
+) -> None:
+    """major_hazard_unit_id 可选：若提供必须属于该企业。
+
+    跨企业关联会让隐患列表/详情泄露其他企业的单元名称，属数据越界，直接拒。
+    """
+    if not unit_id:
+        return
+    from app.models.major_hazard import MajorHazardUnit
+
+    row = (await db.execute(
+        select(MajorHazardUnit.id).where(
+            MajorHazardUnit.id == unit_id,
+            MajorHazardUnit.enterprise_id == enterprise_id,
+        )
+    )).first()
+    if not row:
+        raise HTTPException(422, "重大危险源单元不属于该企业")
+
+
 async def _validate_measure_ref(db: AsyncSession, enterprise_id: str, measure_id: str) -> None:
     """measure_id 可选：若提供必须属于该企业。
 
@@ -1162,6 +1185,7 @@ async def create_record(
         await _validate_object_ref(db, enterprise_id, body.object_id)
     if body.measure_id:
         await _validate_measure_ref(db, enterprise_id, body.measure_id)
+    await _validate_major_hazard_unit(db, enterprise_id, body.major_hazard_unit_id)
     if body.source_task_id:
         await _validate_source_task(db, enterprise_id, body.source_task_id)
     if body.source_item_id:
@@ -1175,6 +1199,7 @@ async def create_record(
         source_item_id=body.source_item_id,
         object_id=body.object_id,
         measure_id=body.measure_id,
+        major_hazard_unit_id=body.major_hazard_unit_id,
         title=title[:255],
         description=description,
         photo_urls=list(body.photo_urls or []),
@@ -1279,6 +1304,7 @@ async def list_records(
     source_type: Optional[str] = Query(None),
     scope: Optional[str] = Query(None),
     q: Optional[str] = Query(None, max_length=200),
+    major_hazard_unit_id: Optional[str] = Query(None),
     stats: Optional[bool] = Query(True),
     current_user=Depends(get_current_user),
     db=Depends(get_db),
@@ -1310,6 +1336,8 @@ async def list_records(
         stmt = stmt.where(HazardRecord.level == level)
     if source_type:
         stmt = stmt.where(HazardRecord.source_type == source_type)
+    if major_hazard_unit_id:
+        stmt = stmt.where(HazardRecord.major_hazard_unit_id == major_hazard_unit_id)
     if scope == "overdue":
         stmt = stmt.where(
             HazardRecord.status == "rectifying",
@@ -1378,6 +1406,15 @@ async def get_record_detail(
         measure_name = (await db.execute(
             select(RiskMeasure.description).where(RiskMeasure.id == record.measure_id)
         )).scalar_one_or_none()
+    major_hazard_unit_name = None
+    if getattr(record, "major_hazard_unit_id", None):
+        from app.models.major_hazard import MajorHazardUnit
+
+        major_hazard_unit_name = (await db.execute(
+            select(MajorHazardUnit.name).where(
+                MajorHazardUnit.id == record.major_hazard_unit_id
+            )
+        )).scalar_one_or_none()
     rectifications = list((await db.execute(
         select(HazardRectification)
         .where(HazardRectification.record_id == record.id)
@@ -1408,6 +1445,7 @@ async def get_record_detail(
         "level_label": level_labels.get(record.level or "", record.level or ""),
         "object_name": object_name,
         "measure_name": measure_name,
+        "major_hazard_unit_name": major_hazard_unit_name,
         "rectifications": [_rectification_dict(r) for r in rectifications],
         "reviews": [_review_dict(r) for r in reviews],
         "approvals": [_approval_dict(r) for r in approvals],

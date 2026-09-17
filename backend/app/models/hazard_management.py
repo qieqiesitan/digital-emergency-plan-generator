@@ -144,6 +144,10 @@ class HazardRecord(Base):
         UUID(as_uuid=False), ForeignKey("risk_objects.id", ondelete="SET NULL"), nullable=True)
     measure_id: Mapped[Optional[str]] = mapped_column(
         UUID(as_uuid=False), ForeignKey("risk_measures.id", ondelete="SET NULL"), nullable=True)
+    # 隐患来源可追溯到重大危险源单元（可空：多数隐患与单元无关，
+    # 强制关联会逼用户乱选，那样"重大危险源区域隐患数"就不可信了）
+    major_hazard_unit_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("major_hazard_units.id", ondelete="SET NULL"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     photo_urls: Mapped[Optional[list]] = mapped_column(JSONB, default=list)

@@ -26,6 +26,7 @@ export interface HazardRecord {
   source_item_id: string | null;
   object_id: string | null;
   measure_id: string | null;
+  major_hazard_unit_id: string | null;
   title: string;
   description: string;
   photo_urls: string[] | null;
@@ -70,6 +71,8 @@ export interface HazardRecordCreate {
   hazard_type?: string | null;
   object_id?: string | null;
   measure_id?: string | null;
+  /** 可空：多数隐患与重大危险源单元无关，强制关联会逼用户乱选。 */
+  major_hazard_unit_id?: string | null;
   title: string;
   description: string;
   photo_urls?: string[];
@@ -129,6 +132,8 @@ export interface HazardRecordDetail extends HazardRecord {
   level_label: string;
   object_name: string | null;
   measure_name: string | null;
+  /** 关联单元的显示名（详情接口联表带回，避免前端二次请求）。 */
+  major_hazard_unit_name: string | null;
   rectifications: HazardRectification[];
   reviews: HazardReview[];
   approvals: HazardApproval[];

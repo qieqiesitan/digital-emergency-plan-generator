@@ -685,6 +685,21 @@ export default function HazardRecordDetailPage() {
           <Descriptions.Item label="位置">{record.location || "—"}</Descriptions.Item>
           <Descriptions.Item label="关联风险点">{record.object_name || "—"}</Descriptions.Item>
           <Descriptions.Item label="关联管控措施">{record.measure_name || "—"}</Descriptions.Item>
+          <Descriptions.Item label="关联重大危险源单元">
+            {record.major_hazard_unit_name && record.major_hazard_unit_id ? (
+              <a
+                onClick={() =>
+                  navigate(
+                    `/enterprises/${enterpriseId}/major-hazard/units/${record.major_hazard_unit_id}`,
+                  )
+                }
+              >
+                {record.major_hazard_unit_name}
+              </a>
+            ) : (
+              "—"
+            )}
+          </Descriptions.Item>
           <Descriptions.Item label="整改责任人">
             {record.rectification_user_id ? memberNameMap[record.rectification_user_id] || "—" : "—"}
           </Descriptions.Item>

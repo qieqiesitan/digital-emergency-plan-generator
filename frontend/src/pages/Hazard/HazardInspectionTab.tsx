@@ -33,6 +33,7 @@ import {
   getHazardDashboard,
   listRecords,
 } from "@/services/hazardService";
+import { listUnits } from "@/services/majorHazardService";
 import { uploadFile } from "@/services/enterpriseService";
 import type { HazardRecordListItem, HazardSourceType } from "@/types/hazard";
 
@@ -117,6 +118,12 @@ export default function HazardInspectionTab({ enterpriseId, embedded }: Props) {
   const { data: dashboard } = useQuery({
     queryKey: ["hazard-dashboard", enterpriseId],
     queryFn: () => getHazardDashboard(enterpriseId),
+    enabled: !!enterpriseId,
+  });
+  // 关联重大危险源单元用：登记时可选（多数隐患不需要关联）
+  const { data: majorHazardUnits = [] } = useQuery({
+    queryKey: ["major-hazard-units", enterpriseId],
+    queryFn: () => listUnits(enterpriseId),
     enabled: !!enterpriseId,
   });
 
@@ -204,6 +211,7 @@ export default function HazardInspectionTab({ enterpriseId, embedded }: Props) {
         description: String(values.description || "").trim(),
         hazard_type: (values.hazard_type as string | undefined) || null,
         location: (values.location as string | undefined)?.trim() || null,
+        major_hazard_unit_id: (values.major_hazard_unit_id as string | undefined) || null,
         photo_urls: photoUrls.length ? photoUrls : undefined,
       });
       message.success("隐患登记成功");
@@ -405,6 +413,19 @@ export default function HazardInspectionTab({ enterpriseId, embedded }: Props) {
           </Form.Item>
           <Form.Item name="location" label="位置">
             <Input maxLength={500} placeholder="隐患位置（可选）" />
+          </Form.Item>
+          <Form.Item
+            name="major_hazard_unit_id"
+            label="关联重大危险源单元"
+            extra="仅当隐患发生在重大危险源单元所在区域内时才选择；多数隐患无需关联"
+          >
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="不关联"
+              options={majorHazardUnits.map(u => ({ value: u.id, label: u.name }))}
+            />
           </Form.Item>
           <Form.Item label="现场照片">
             <Upload {...uploadProps} accept="image/*">
