@@ -85,3 +85,19 @@ CREATE TABLE IF NOT EXISTS major_hazard_records (
     CONSTRAINT uq_mhr_ent_code UNIQUE (enterprise_id, hazard_code)
 );
 CREATE INDEX IF NOT EXISTS ix_mhr_enterprise_id ON major_hazard_records (enterprise_id);
+
+-- 依据层：任意业务数据挂到法规条文（多态引用，不给每个业务表加外键）
+-- 条文原文不冗余存储，实时按 article_anchor 从法规体系取，避免法规修订后引用过期。
+CREATE TABLE IF NOT EXISTS evidence_refs (
+    id UUID PRIMARY KEY,
+    owner_type VARCHAR(40) NOT NULL,
+    owner_id UUID NOT NULL,
+    regulation_id VARCHAR(64),
+    article_anchor VARCHAR(200) NOT NULL,
+    relation VARCHAR(20) NOT NULL DEFAULT '依据',
+    note TEXT,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_evidence_owner_anchor UNIQUE (owner_type, owner_id, article_anchor, relation)
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_owner ON evidence_refs (owner_type, owner_id);
