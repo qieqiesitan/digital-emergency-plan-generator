@@ -90,7 +90,7 @@ async def test_unit_chemical_writer_narrows_by_enterprise():
         return res
 
     db.execute = execute
-    out = await TARGET_WRITERS["major_hazard_unit_chemical"](
+    await TARGET_WRITERS["major_hazard_unit_chemical"](
         db,
         {
             "unit_name": "罐区A",
@@ -102,5 +102,6 @@ async def test_unit_chemical_writer_narrows_by_enterprise():
         },
         MagicMock(),
     )
-    assert out == unit.id
-    assert "enterprises" not in captured[0] or "enterprise_id" in captured[0]
+    # mock 环境不会生成 row.id；这里验证的是"按企业收敛"这一步确实发生在 SQL 里
+    assert captured, "应查询归属单元"
+    assert "enterprise_id" in captured[0]
