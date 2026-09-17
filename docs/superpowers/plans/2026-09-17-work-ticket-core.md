@@ -295,3 +295,715 @@ python scripts/clean_gb30871_text.py --check
 git add scripts/clean_gb30871_text.py backend/tests/test_gb30871_clean.py backend/app/regulations/data/texts/reg_gb30871_2022.md
 git commit -m "fix(work-ticket): GB30871 标准文本 OCR 讹字清洗（式/Ⅱ），含备份与判据（任务 1/8）"
 ```
+
+---
+
+## 任务 2：模板层 ORM 与迁移
+
+**文件：**
+
+- 创建：`backend/app/models/work_ticket.py`
+- 创建：`backend/db_migration_20260917_work_ticket.sql`
+- 测试：`backend/tests/test_work_ticket_models.py`
+
+**设计要点：**
+
+- **模板驱动**：8 类票的差异落在数据里（字段定义、措施库、流程节点），不落在代码里。这是"骨架没跑通不透支 6 类"能成立的前提。
+- **`is_statutory` 标记法定环节**：这是视觉走查第 2 条约束（法定环节锁定，可加不可删）的代码落点。有这个标记，服务层才能拒绝对法定节点的删除。
+
+- [ ] **步骤 1：编写失败的测试**
+
+```python
+"""作业票模板层表结构断言。"""
+
+import re
+from pathlib import Path
+
+from app.models.work_ticket import (
+    WorkTicketFlowNode,
+    WorkTicketFlowTemplate,
+    WorkTicketTemplate,
+    WorkTicketTemplateField,
+    WorkTicketTemplateMeasure,
+)
+
+BACKEND = Path(__file__).resolve().parents[1]
+SQL = (BACKEND / "db_migration_20260917_work_ticket.sql").read_text(encoding="utf-8")
+
+
+def test_tablenames():
+    assert WorkTicketTemplate.__tablename__ == "work_ticket_templates"
+    assert WorkTicketTemplateField.__tablename__ == "work_ticket_template_fields"
+    assert WorkTicketTemplateMeasure.__tablename__ == "work_ticket_template_measures"
+    assert WorkTicketFlowTemplate.__tablename__ == "work_ticket_flow_templates"
+    assert WorkTicketFlowNode.__tablename__ == "work_ticket_flow_nodes"
+
+
+def test_flow_node_has_statutory_flag():
+    """法定环节标记是"可加不可删"约束的落点，不能省。"""
+    cols = WorkTicketFlowNode.__table__.columns
+    assert "is_statutory" in cols
+    assert cols["is_statutory"].nullable is False
+    assert cols["sign_policy"].nullable is False
+
+
+def test_measure_has_article_anchor():
+    """每条安全措施必须能追溯到标准条款——这是本平台的差异化能力。"""
+    cols = WorkTicketTemplateMeasure.__table__.columns
+    assert "article_anchor" in cols
+    assert cols["article_anchor"].nullable is False
+    assert cols["measure_text"].nullable is False
+
+
+def test_migration_creates_five_tables():
+    for t in (
+        "work_ticket_templates",
+        "work_ticket_template_fields",
+        "work_ticket_template_measures",
+        "work_ticket_flow_templates",
+        "work_ticket_flow_nodes",
+    ):
+        assert re.search(rf"CREATE TABLE IF NOT EXISTS\s+{t}\b", SQL), t
+
+
+def test_migration_has_node_order_unique():
+    """同一流程内节点顺序必须唯一，否则审批链会出现并列。"""
+    assert re.search(r"UNIQUE\s*\(flow_template_id,\s*sort_order\s*\)", SQL, re.I)
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_models.py -q
+```
+
+预期：FAIL，`ModuleNotFoundError: No module named 'app.models.work_ticket'`
+
+- [ ] **步骤 3：编写 ORM**
+
+```python
+"""作业票模板层 ORM：票面字段、措施库、审批流程。
+
+设计要点：
+- **模板驱动**——8 类票的差异落在数据里，不落在代码里；
+- `is_statutory` 标记法定审批环节，服务层据此拒绝删除（视觉走查确认的"可加不可删"）；
+- 每条安全措施带 `article_anchor`，可点开看 GB 30871 原文条款。
+"""
+
+from datetime import datetime
+from typing import Optional
+from uuid import uuid4
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+class WorkTicketTemplate(Base):
+    """作业票模板。一个作业类型可有多条（如动火票按特级/一级/二级分）。"""
+
+    __tablename__ = "work_ticket_templates"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    code: Mapped[str] = mapped_column(String(20), nullable=False)  # DHZY/YXKJ/MBCD/GCZY/QZDZ/LSYD/PTZY/DLZY
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    level: Mapped[Optional[str]] = mapped_column(String(20))  # 特级/一级/二级 或 Ⅰ级/Ⅱ级…；不分级票为空
+    is_graded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    standard_ref: Mapped[str] = mapped_column(String(80), nullable=False, default="GB 30871-2022")
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    fields = relationship(
+        "WorkTicketTemplateField", back_populates="template", cascade="all, delete-orphan", lazy="selectin"
+    )
+    measures = relationship(
+        "WorkTicketTemplateMeasure", back_populates="template", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class WorkTicketTemplateField(Base):
+    """票面字段定义。"""
+
+    __tablename__ = "work_ticket_template_fields"
+    __table_args__ = (
+        UniqueConstraint("template_id", "field_key", name="uq_wttf_template_key"),
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    template_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_templates.id", ondelete="CASCADE"), nullable=False
+    )
+    field_key: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    field_type: Mapped[str] = mapped_column(String(20), nullable=False, default="text")
+    group_name: Mapped[str] = mapped_column(String(40), nullable=False, default="基本信息")
+    is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    options: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    validation: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    allow_ai_prefill: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    template = relationship("WorkTicketTemplate", back_populates="fields", lazy="selectin")
+
+
+class WorkTicketTemplateMeasure(Base):
+    """该模板的必备安全措施，逐条来自 GB 30871 第 5~12 章。"""
+
+    __tablename__ = "work_ticket_template_measures"
+    __table_args__ = (Index("idx_wttm_template_order", "template_id", "sort_order"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    template_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_templates.id", ondelete="CASCADE"), nullable=False
+    )
+    measure_text: Mapped[str] = mapped_column(Text, nullable=False)
+    article_anchor: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_mandatory: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    template = relationship("WorkTicketTemplate", back_populates="measures", lazy="selectin")
+
+
+class WorkTicketFlowTemplate(Base):
+    """审批流程模板。企业可对同一作业票类型配多条流程。"""
+
+    __tablename__ = "work_ticket_flow_templates"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    template_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_templates.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    nodes = relationship(
+        "WorkTicketFlowNode",
+        back_populates="flow_template",
+        cascade="all, delete-orphan",
+        order_by="WorkTicketFlowNode.sort_order",
+        lazy="selectin",
+    )
+
+
+class WorkTicketFlowNode(Base):
+    """审批节点。
+
+    `is_statutory=True` 表示该节点由 GB 30871 附录B 表B.1 法定要求，
+    企业可以改绑定的角色、可以在其前后插入自有节点，**但不能删除**。
+    """
+
+    __tablename__ = "work_ticket_flow_nodes"
+    __table_args__ = (
+        UniqueConstraint("flow_template_id", "sort_order", name="uq_wtfn_flow_order"),
+        UniqueConstraint("flow_template_id", "node_key", name="uq_wtfn_flow_key"),
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    flow_template_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_flow_templates.id", ondelete="CASCADE"), nullable=False
+    )
+    node_key: Mapped[str] = mapped_column(String(60), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    role_code: Mapped[Optional[str]] = mapped_column(String(30))  # 绑定既有 Role.code
+    sign_policy: Mapped[str] = mapped_column(String(10), nullable=False, default="any")  # any|all
+    condition_expr: Mapped[Optional[str]] = mapped_column(String(200))  # 受限表达式
+    reject_to: Mapped[str] = mapped_column(String(20), nullable=False, default="previous")  # previous|submitter
+    is_statutory: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    timeout_hours: Mapped[Optional[int]] = mapped_column(Integer)
+
+    flow_template = relationship("WorkTicketFlowTemplate", back_populates="nodes", lazy="selectin")
+```
+
+- [ ] **步骤 4：编写迁移 DDL**
+
+```sql
+-- 20260917 作业票模板层（票面字段 / 措施库 / 审批流程 / 流程节点）
+-- 要点：is_statutory 标记法定审批环节，服务层据此拒绝删除（"可加不可删"）。
+
+CREATE TABLE IF NOT EXISTS work_ticket_templates (
+    id UUID PRIMARY KEY,
+    code VARCHAR(20) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    level VARCHAR(20),
+    is_graded BOOLEAN NOT NULL DEFAULT FALSE,
+    standard_ref VARCHAR(80) NOT NULL DEFAULT 'GB 30871-2022',
+    is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_wtt_code_level
+    ON work_ticket_templates (code, COALESCE(level, ''));
+
+CREATE TABLE IF NOT EXISTS work_ticket_template_fields (
+    id UUID PRIMARY KEY,
+    template_id UUID NOT NULL REFERENCES work_ticket_templates(id) ON DELETE CASCADE,
+    field_key VARCHAR(60) NOT NULL,
+    label VARCHAR(200) NOT NULL,
+    field_type VARCHAR(20) NOT NULL DEFAULT 'text',
+    group_name VARCHAR(40) NOT NULL DEFAULT '基本信息',
+    is_required BOOLEAN NOT NULL DEFAULT FALSE,
+    options JSONB NOT NULL DEFAULT '{}'::jsonb,
+    validation JSONB NOT NULL DEFAULT '{}'::jsonb,
+    allow_ai_prefill BOOLEAN NOT NULL DEFAULT FALSE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT uq_wttf_template_key UNIQUE (template_id, field_key)
+);
+
+CREATE TABLE IF NOT EXISTS work_ticket_template_measures (
+    id UUID PRIMARY KEY,
+    template_id UUID NOT NULL REFERENCES work_ticket_templates(id) ON DELETE CASCADE,
+    measure_text TEXT NOT NULL,
+    article_anchor VARCHAR(120) NOT NULL,
+    is_mandatory BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_wttm_template_order
+    ON work_ticket_template_measures (template_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS work_ticket_flow_templates (
+    id UUID PRIMARY KEY,
+    template_id UUID NOT NULL REFERENCES work_ticket_templates(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS work_ticket_flow_nodes (
+    id UUID PRIMARY KEY,
+    flow_template_id UUID NOT NULL REFERENCES work_ticket_flow_templates(id) ON DELETE CASCADE,
+    node_key VARCHAR(60) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    sort_order INTEGER NOT NULL,
+    role_code VARCHAR(30),
+    sign_policy VARCHAR(10) NOT NULL DEFAULT 'any',
+    condition_expr VARCHAR(200),
+    reject_to VARCHAR(20) NOT NULL DEFAULT 'previous',
+    is_statutory BOOLEAN NOT NULL DEFAULT FALSE,
+    timeout_hours INTEGER,
+    CONSTRAINT uq_wtfn_flow_order UNIQUE (flow_template_id, sort_order),
+    CONSTRAINT uq_wtfn_flow_key UNIQUE (flow_template_id, node_key)
+);
+```
+
+- [ ] **步骤 5：运行测试验证通过**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_models.py -v
+```
+
+预期：`5 passed`
+
+- [ ] **步骤 6：Commit**
+
+```bash
+git add backend/app/models/work_ticket.py backend/db_migration_20260917_work_ticket.sql backend/tests/test_work_ticket_models.py
+git commit -m "feat(work-ticket): 模板层 ORM 与迁移（字段/措施/流程/节点，含法定环节标记）（任务 2/8）"
+```
+
+---
+
+## 任务 3：GB 30871 附录A/B 数据化（种子生成器）
+
+**文件：**
+
+- 创建：`backend/app/services/work_ticket_seed_data.py`（人工整理的常量，附条款出处）
+- 创建：`backend/seed_work_ticket_templates.py`（生成确定性 UUID5 的种子 SQL）
+- 创建：`backend/db_migration_20260917_work_ticket_seed.sql`（由脚本生成）
+- 测试：`backend/tests/test_work_ticket_seed.py`
+
+**为什么是"半自动"而不是纯解析：**
+
+附录A 的表格是从 PDF 转出来的 markdown，结构不完全规整（合并单元格、跨行说明、图片公式）。纯自动解析**票面字段**与**审批矩阵**容易错，而这两块体量很小（每类票约 15 个字段、审批矩阵 4 行）——**人工抄录并标注出处，比写解析器更快也更可靠**。
+
+而**措施清单**数量大（动火票 20+ 条），且格式规整（表格每行一条），适合解析。
+
+结论：字段与审批矩阵用常量表；措施清单自动解析。
+
+- [ ] **步骤 1：编写失败的测试**
+
+```python
+"""作业票种子：常量表结构与措施解析。"""
+
+import importlib.util
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load(name: str, rel: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / rel)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_seed_data_covers_two_types_with_levels():
+    mod = _load("wt_seed", "backend/app/services/work_ticket_seed_data.py")
+    codes = {t["code"] for t in mod.TEMPLATES}
+    assert codes == {"DHZY", "YXKJ"}, "计划 8 只做动火与受限空间"
+    dhzy_levels = {t["level"] for t in mod.TEMPLATES if t["code"] == "DHZY"}
+    assert dhzy_levels == {"特级", "一级", "二级"}, "动火票按等级分三种模板"
+
+
+def test_every_field_has_group_and_key():
+    mod = _load("wt_seed", "backend/app/services/work_ticket_seed_data.py")
+    for tpl in mod.TEMPLATES:
+        assert tpl["fields"], f"{tpl['name']} 没有票面字段"
+        for f in tpl["fields"]:
+            assert f["field_key"] and f["label"] and f["group_name"]
+
+
+def test_approval_matrix_matches_standard_table_b1():
+    """审批矩阵必须与 GB 30871 附录B 表B.1 一致。"""
+    mod = _load("wt_seed", "backend/app/services/work_ticket_seed_data.py")
+    m = {(r["code"], r["level"]): r["approver"] for r in mod.APPROVAL_MATRIX}
+    assert m[("DHZY", "特级")] == "主管领导"
+    assert m[("DHZY", "一级")] == "安全管理部门"
+    assert m[("DHZY", "二级")] == "所在基层单位"
+    assert m[("YXKJ", None)] == "所在基层单位"
+
+
+def test_parse_measures_from_appendix_a():
+    mod = _load("wt_seed", "backend/app/services/work_ticket_seed_data.py")
+    text = (ROOT / "backend/app/regulations/data/texts/reg_gb_30871_2022.md").read_text(
+        encoding="utf-8"
+    )
+    measures = mod.parse_measures(text, chapter=5)
+    assert len(measures) >= 10, f"动火作业措施应不少于 10 条，实际 {len(measures)}"
+    for m in measures:
+        assert m["measure_text"] and m["article_anchor"].startswith("GB 30871-2022")
+
+
+def test_parse_measures_rejects_empty_text():
+    mod = _load("wt_seed", "backend/app/services/work_ticket_seed_data.py")
+    assert mod.parse_measures("", chapter=5) == []
+
+
+def test_build_sql_is_deterministic():
+    mod = _load("wt_seed_gen", "backend/seed_work_ticket_templates.py")
+    a = mod.build_sql()
+    b = mod.build_sql()
+    assert a == b, "两次生成必须逐字节一致"
+    assert "ON CONFLICT (id) DO NOTHING" in a
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_seed.py -q
+```
+
+预期：FAIL（模块不存在）
+
+- [ ] **步骤 3：编写常量与解析**
+
+```python
+"""GB 30871-2022 附录A/B 的种子数据与措施解析。
+
+为什么字段与审批矩阵用常量表而不是解析：
+附录A 的表格由 PDF 转换而来，存在合并单元格与跨行说明，纯解析易错，
+而这两块体量很小（每类票约 15 字段、审批矩阵 4 行）。
+人工抄录并标注出处更可靠；数量大的措施清单才值得写解析器。
+"""
+
+from __future__ import annotations
+
+import re
+
+STANDARD_REF = "GB 30871-2022"
+
+# 依据：GB 30871-2022 附录B 表B.1「安全作业票的办理、审批内容」
+# 说明：办理部门一列对动火票统一为"危险化学品企业"，此处不重复存储。
+APPROVAL_MATRIX: list[dict] = [
+    {"code": "DHZY", "level": "特级", "approver": "主管领导"},
+    {"code": "DHZY", "level": "一级", "approver": "安全管理部门"},
+    {"code": "DHZY", "level": "二级", "approver": "所在基层单位"},
+    {"code": "YXKJ", "level": None, "approver": "所在基层单位"},
+]
+
+# 依据：GB 30871-2022 附录A 表A.1（动火安全作业票）、表A.2（受限空间安全作业票）
+# 字段清单为人工抄录，group_name 用于开票向导的分步。
+_COMMON_TAIL_FIELDS = [
+    {"field_key": "risk_identification", "label": "风险辨识结果", "field_type": "textarea",
+     "group_name": "危害因素", "is_required": True, "allow_ai_prefill": True},
+    {"field_key": "related_tickets", "label": "关联的其他特殊作业及安全作业票编号",
+     "field_type": "text", "group_name": "基本信息", "is_required": False},
+]
+
+TEMPLATES: list[dict] = [
+    {
+        "code": "DHZY",
+        "name": "动火安全作业票",
+        "level": "特级",
+        "is_graded": True,
+        "chapter": 5,
+        "fields": [
+            {"field_key": "applicant_unit", "label": "作业申请单位", "field_type": "text",
+             "group_name": "基本信息", "is_required": True},
+            {"field_key": "apply_time", "label": "作业申请时间", "field_type": "datetime",
+             "group_name": "基本信息", "is_required": True},
+            {"field_key": "work_content", "label": "作业内容", "field_type": "textarea",
+             "group_name": "作业内容", "is_required": True, "allow_ai_prefill": True},
+            {"field_key": "fire_location", "label": "动火地点及动火部位", "field_type": "text",
+             "group_name": "作业内容", "is_required": True},
+            {"field_key": "fire_level", "label": "动火作业级别", "field_type": "select",
+             "group_name": "作业内容", "is_required": True,
+             "options": {"choices": ["特级", "一级", "二级"]}},
+            {"field_key": "fire_method", "label": "动火方式", "field_type": "text",
+             "group_name": "作业内容", "is_required": True},
+            {"field_key": "fire_person", "label": "动火人及证书编号", "field_type": "text",
+             "group_name": "人员", "is_required": True},
+            {"field_key": "work_unit", "label": "作业单位", "field_type": "text",
+             "group_name": "基本信息", "is_required": True},
+            {"field_key": "work_leader", "label": "作业负责人", "field_type": "text",
+             "group_name": "人员", "is_required": True},
+            {"field_key": "work_period", "label": "动火作业实施时间", "field_type": "datetimerange",
+             "group_name": "基本信息", "is_required": True},
+            *_COMMON_TAIL_FIELDS,
+        ],
+    },
+    {
+        "code": "YXKJ",
+        "name": "受限空间安全作业票",
+        "level": None,
+        "is_graded": False,
+        "chapter": 6,
+        "fields": [
+            {"field_key": "applicant_unit", "label": "作业申请单位", "field_type": "text",
+             "group_name": "基本信息", "is_required": True},
+            {"field_key": "apply_time", "label": "作业申请时间", "field_type": "datetime",
+             "group_name": "基本信息", "is_required": True},
+            {"field_key": "space_location", "label": "受限空间名称及位置", "field_type": "text",
+             "group_name": "作业内容", "is_required": True},
+            {"field_key": "work_content", "label": "作业内容", "field_type": "textarea",
+             "group_name": "作业内容", "is_required": True, "allow_ai_prefill": True},
+            {"field_key": "work_unit", "label": "作业单位", "field_type": "text",
+             "group_name": "基本信息", "is_required": True},
+            {"field_key": "work_leader", "label": "作业负责人", "field_type": "text",
+             "group_name": "人员", "is_required": True},
+            {"field_key": "guardian", "label": "监护人", "field_type": "text",
+             "group_name": "人员", "is_required": True},
+            {"field_key": "work_period", "label": "作业实施时间", "field_type": "datetimerange",
+             "group_name": "基本信息", "is_required": True},
+            *_COMMON_TAIL_FIELDS,
+        ],
+    },
+]
+
+_MEASURE_ROW = re.compile(r"^\|\s*\d+\s*\|\s*(?P<text>[^|]{4,})\|")
+
+
+def parse_measures(text: str, *, chapter: int) -> list[dict]:
+    """从附录A 的措施表格里抽出措施条目。
+
+    只认「序号 | 措施正文 | 是否涉及 | 确认人」这种四列行；
+    条款锚点按章节号生成（如第 5 章 → GB 30871-2022 5）。
+    """
+    if not text:
+        return []
+    out: list[dict] = []
+    for line in text.splitlines():
+        m = _MEASURE_ROW.match(line.strip())
+        if not m:
+            continue
+        measure = m.group("text").strip()
+        if len(measure) < 6:
+            continue
+        out.append(
+            {
+                "measure_text": measure,
+                "article_anchor": f"{STANDARD_REF} {chapter}",
+                "is_mandatory": True,
+                "sort_order": len(out) + 1,
+            }
+        )
+    return out
+```
+
+- [ ] **步骤 4：编写种子 SQL 生成器**
+
+```python
+"""生成作业票模板种子 SQL（确定性 UUID5，可重复执行）。
+
+用法：python backend/seed_work_ticket_templates.py
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import uuid
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "backend" / "db_migration_20260917_work_ticket_seed.sql"
+STANDARD_TEXT = (
+    ROOT / "backend" / "app" / "regulations" / "data" / "texts" / "reg_gb_30871_2022.md"
+)
+NS = uuid.NAMESPACE_URL
+NS_PREFIX = "work-ticket/GB30871-2022/"
+
+
+def _load_seed():
+    spec = importlib.util.spec_from_file_location(
+        "wt_seed", ROOT / "backend" / "app" / "services" / "work_ticket_seed_data.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _uid(kind: str, key: str) -> str:
+    return str(uuid.uuid5(NS, f"{NS_PREFIX}{kind}/{key}"))
+
+
+def _q(value) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _bool(v: bool) -> str:
+    return "TRUE" if v else "FALSE"
+
+
+def build_sql() -> str:
+    seed = _load_seed()
+    text = STANDARD_TEXT.read_text(encoding="utf-8")
+
+    lines = [
+        "-- 20260917 作业票模板种子（由 backend/seed_work_ticket_templates.py 生成，勿手改）",
+        "-- 依据：GB 30871-2022 附录A（票面样式与措施）、附录B 表B.1（审批矩阵）。",
+        "-- id 使用 uuid5(NAMESPACE_URL, 'work-ticket/GB30871-2022/<表>/<自然键>')，配 ON CONFLICT (id) DO NOTHING。",
+        "",
+    ]
+
+    for tpl in seed.TEMPLATES:
+        tpl_key = f"{tpl['code']}/{tpl['level'] or 'NA'}"
+        tpl_id = _uid("template", tpl_key)
+        lines.append(
+            "INSERT INTO work_ticket_templates "
+            "(id, code, name, level, is_graded, standard_ref, is_enabled, sort_order) "
+            f"VALUES ({_q(tpl_id)}, {_q(tpl['code'])}, {_q(tpl['name'])}, "
+            f"{_q(tpl['level']) if tpl['level'] else 'NULL'}, {_bool(tpl['is_graded'])}, "
+            f"{_q(seed.STANDARD_REF)}, TRUE, {seed.TEMPLATES.index(tpl)}) "
+            "ON CONFLICT (id) DO NOTHING;"
+        )
+
+        for idx, f in enumerate(tpl["fields"], start=1):
+            fid = _uid("field", f"{tpl_key}/{f['field_key']}")
+            options = f.get("options") or {}
+            lines.append(
+                "INSERT INTO work_ticket_template_fields "
+                "(id, template_id, field_key, label, field_type, group_name, "
+                "is_required, options, allow_ai_prefill, sort_order) VALUES "
+                f"({_q(fid)}, {_q(tpl_id)}, {_q(f['field_key'])}, {_q(f['label'])}, "
+                f"{_q(f['field_type'])}, {_q(f['group_name'])}, {_bool(f.get('is_required', False))}, "
+                f"{_q(__import__('json').dumps(options, ensure_ascii=False))}::jsonb, "
+                f"{_bool(f.get('allow_ai_prefill', False))}, {idx}) "
+                "ON CONFLICT (id) DO NOTHING;"
+            )
+
+        for m in seed.parse_measures(text, chapter=tpl["chapter"]):
+            mid = _uid("measure", f"{tpl_key}/{m['sort_order']}")
+            lines.append(
+                "INSERT INTO work_ticket_template_measures "
+                "(id, template_id, measure_text, article_anchor, is_mandatory, sort_order) "
+                f"VALUES ({_q(mid)}, {_q(tpl_id)}, {_q(m['measure_text'])}, "
+                f"{_q(m['article_anchor'])}, TRUE, {m['sort_order']}) "
+                "ON CONFLICT (id) DO NOTHING;"
+            )
+
+        flow_id = _uid("flow", tpl_key)
+        approver = next(
+            (
+                r["approver"]
+                for r in seed.APPROVAL_MATRIX
+                if r["code"] == tpl["code"] and r["level"] == tpl["level"]
+            ),
+            None,
+        )
+        lines.append(
+            "INSERT INTO work_ticket_flow_templates (id, template_id, name, is_active) "
+            f"VALUES ({_q(flow_id)}, {_q(tpl_id)}, {_q(tpl['name'] + ' 审批流程')}, TRUE) "
+            "ON CONFLICT (id) DO NOTHING;"
+        )
+        if approver:
+            node_id = _uid("node", f"{tpl_key}/approve")
+            lines.append(
+                "INSERT INTO work_ticket_flow_nodes "
+                "(id, flow_template_id, node_key, name, sort_order, role_code, "
+                "sign_policy, reject_to, is_statutory) VALUES "
+                f"({_q(node_id)}, {_q(flow_id)}, 'approve', {_q(approver + '审批')}, 1, "
+                f"{_q(approver)}, 'any', 'submitter', TRUE) "
+                "ON CONFLICT (id) DO NOTHING;"
+            )
+
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    sql = build_sql()
+    OUT.write_text(sql, encoding="utf-8", newline="\n")
+    print(f"已生成 {OUT.relative_to(ROOT)}（{len(sql.splitlines())} 行）")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+- [ ] **步骤 5：生成并校验**
+
+运行：
+
+```bash
+python backend/seed_work_ticket_templates.py
+python backend/seed_work_ticket_templates.py && sha256sum backend/db_migration_20260917_work_ticket_seed.sql
+```
+
+预期：两次 sha256 一致（幂等）；文件含 2 个模板、约 22 个字段、若干措施、2 条流程与 2 个法定节点
+
+- [ ] **步骤 6：运行测试验证通过**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_seed.py -v
+```
+
+预期：`6 passed`
+
+- [ ] **步骤 7：人工核对种子内容**
+
+打开生成的 SQL，确认：
+
+1. 动火三个等级的 `work_ticket_templates` 各一行
+2. `work_ticket_flow_nodes` 里 **`is_statutory` 全为 TRUE**（法定环节）
+3. 审批人与表B.1 一致（特级→主管领导、一级→安全管理部门、二级→所在基层单位、受限空间→所在基层单位）
+4. 措施文本里**没有"怯"字**（任务 1 的清洗生效了）
+
+- [ ] **步骤 8：Commit**
+
+```bash
+git add backend/app/services/work_ticket_seed_data.py backend/seed_work_ticket_templates.py backend/db_migration_20260917_work_ticket_seed.sql backend/tests/test_work_ticket_seed.py
+git commit -m "feat(work-ticket): 附录A/B 数据化种子（票面字段+措施库+法定审批矩阵）（任务 3/8）"
+```
