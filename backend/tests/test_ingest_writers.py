@@ -20,6 +20,7 @@ async def test_unit_writer_requires_enterprise_id():
     register_default_writers()
     db = MagicMock()
     db.add = MagicMock()
+    db.flush = AsyncMock()
     db.commit = AsyncMock()
     with pytest.raises(Exception) as ei:
         await TARGET_WRITERS["major_hazard_unit"](db, {"name": "罐区A", "unit_type": "storage"}, MagicMock())
@@ -35,6 +36,7 @@ async def test_unit_chemical_writer_requires_existing_unit():
     async def execute(stmt, *a, **k):
         res = MagicMock()
         res.scalar_one_or_none.return_value = None
+        res.scalars.return_value.all.return_value = []
         return res
 
     db.execute = execute
@@ -45,3 +47,60 @@ async def test_unit_chemical_writer_requires_existing_unit():
             MagicMock(),
         )
     assert "单元" in str(ei.value)
+
+
+@pytest.mark.asyncio
+async def test_unit_chemical_writer_rejects_ambiguous_same_name():
+    """多企业同名单元时明确报错并提示补 enterprise_id——不猜、不崩。"""
+    register_default_writers()
+    db = MagicMock()
+
+    async def execute(stmt, *a, **k):
+        res = MagicMock()
+        res.scalars.return_value.all.return_value = [MagicMock(), MagicMock()]
+        return res
+
+    db.execute = execute
+    with pytest.raises(Exception) as ei:
+        await TARGET_WRITERS["major_hazard_unit_chemical"](
+            db,
+            {"unit_name": "罐区A", "chemical_name": "氯", "q_design_max": 5},
+            MagicMock(),
+        )
+    assert "enterprise_id" in str(ei.value)
+    assert "2" in str(ei.value)
+
+
+@pytest.mark.asyncio
+async def test_unit_chemical_writer_narrows_by_enterprise():
+    """载荷带 enterprise_id 时按企业收敛，单命中即写入。"""
+    register_default_writers()
+    unit = MagicMock()
+    unit.id = "unit-1"
+    captured: list[str] = []
+
+    db = MagicMock()
+    db.add = MagicMock()
+    db.flush = AsyncMock()
+
+    async def execute(stmt, *a, **k):
+        captured.append(str(stmt.compile(compile_kwargs={"literal_binds": True})))
+        res = MagicMock()
+        res.scalars.return_value.all.return_value = [unit]
+        return res
+
+    db.execute = execute
+    out = await TARGET_WRITERS["major_hazard_unit_chemical"](
+        db,
+        {
+            "unit_name": "罐区A",
+            "enterprise_id": "e1",
+            "chemical_name": "氯",
+            "q_design_max": 5,
+            "critical_quantity_t": 5,
+            "beta": 4,
+        },
+        MagicMock(),
+    )
+    assert out == unit.id
+    assert "enterprises" not in captured[0] or "enterprise_id" in captured[0]

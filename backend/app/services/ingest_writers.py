@@ -50,10 +50,9 @@ async def write_major_hazard_unit_chemical(db: AsyncSession, payload: dict, item
     unit_name = payload.get("unit_name")
     if not unit_name:
         raise WriterPayloadError("写入单元品种需要 unit_name 以确定归属单元")
-    res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.name == unit_name))
-    unit = res.scalar_one_or_none()
-    if unit is None:
-        raise WriterPayloadError(f"未找到名称为「{unit_name}」的重大危险源单元")
+    unit = await _find_unit(
+        db, unit_name=unit_name, enterprise_id=payload.get("enterprise_id")
+    )
 
     if payload.get("critical_quantity_t") is None:
         raise WriterPayloadError(
@@ -82,6 +81,30 @@ async def write_major_hazard_unit_chemical(db: AsyncSession, payload: dict, item
 
 
 _REGISTERED = False
+
+
+async def _find_unit(
+    db: AsyncSession, *, unit_name: str, enterprise_id: str | None = None
+) -> MajorHazardUnit:
+    """按名称找归属单元；多企业同名时**不猜**。
+
+    多企业部署下「罐区A」这种名字必然重名。原实现用 scalar_one_or_none()，
+    多命中会抛 MultipleResultsFound（技术错误暴露给用户）；这里改为显式报错，
+    提示补充 enterprise_id——宁可让人再确认一次，也不能把品种写到别的企业去。
+    """
+    stmt = select(MajorHazardUnit).where(MajorHazardUnit.name == unit_name)
+    if enterprise_id:
+        stmt = stmt.where(MajorHazardUnit.enterprise_id == enterprise_id)
+    res = await db.execute(stmt)
+    units = list(res.scalars().all())
+    if not units:
+        raise WriterPayloadError(f"未找到名称为「{unit_name}」的重大危险源单元")
+    if len(units) > 1:
+        raise WriterPayloadError(
+            f"存在 {len(units)} 个名称为「{unit_name}」的单元，无法确定归属；"
+            "请在载荷中补充 enterprise_id 或改用唯一名称"
+        )
+    return units[0]
 
 
 def register_default_writers() -> None:
