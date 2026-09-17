@@ -1007,3 +1007,315 @@ cd backend && python -m pytest tests/test_work_ticket_seed.py -v
 git add backend/app/services/work_ticket_seed_data.py backend/seed_work_ticket_templates.py backend/db_migration_20260917_work_ticket_seed.sql backend/tests/test_work_ticket_seed.py
 git commit -m "feat(work-ticket): 附录A/B 数据化种子（票面字段+措施库+法定审批矩阵）（任务 3/8）"
 ```
+
+---
+
+## 任务 4：轻量审批引擎
+
+**文件：**
+
+- 创建：`backend/app/services/work_ticket_flow.py`
+- 测试：`backend/tests/test_work_ticket_flow.py`
+
+**沿用 `hazard_state_machine.py` 的范式**（`TRANSITIONS` + `ROLE_GATE`），保持两个模块的一致性——同一个项目里两套状态机写法会让人困惑。
+
+**三件事是本引擎特有的：**
+
+1. **会签 vs 或签**（`sign_policy`：`all` 需全部通过，`any` 一人通过即可）
+2. **受限条件分支**（只支持字段比较，不引入通用表达式引擎）
+3. **法定环节不可删**（`is_statutory=True` 的节点拒绝删除）
+
+- [ ] **步骤 1：编写失败的测试**
+
+```python
+"""作业票审批引擎：状态机、会签、条件分支、法定环节保护。"""
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.services.work_ticket_flow import (
+    FlowError,
+    TRANSITIONS,
+    can_transition,
+    evaluate_condition,
+    is_node_active,
+    next_node,
+    sign_requirement_met,
+    validate_node_deletion,
+)
+
+
+def _node(key, order, policy="any", cond=None, statutory=False, role="mgr"):
+    n = MagicMock()
+    n.node_key = key
+    n.sort_order = order
+    n.sign_policy = policy
+    n.condition_expr = cond
+    n.is_statutory = statutory
+    n.role_code = role
+    n.name = key
+    return n
+
+
+def test_transitions_table_shape():
+    assert set(TRANSITIONS) >= {
+        "draft", "submitted", "approving", "approved",
+        "rejected", "cancelled", "working", "finished", "closed", "expired",
+    }
+    assert "approve" in TRANSITIONS["approving"]
+    assert "reject" in TRANSITIONS["approving"]
+
+
+def test_can_transition_allows_legal_action():
+    assert can_transition("approving", "approve") is True
+
+
+def test_can_transition_rejects_illegal_action():
+    """已归档的票不能再审批。"""
+    assert can_transition("closed", "approve") is False
+
+
+def test_can_transition_rejects_expired_resume():
+    """已过期的票不能直接进入作业中，必须重新开票。"""
+    assert can_transition("expired", "start") is False
+
+
+def test_evaluate_condition_simple_equality():
+    assert evaluate_condition("level == 特级", {"level": "特级"}) is True
+    assert evaluate_condition("level == 特级", {"level": "一级"}) is False
+
+
+def test_evaluate_condition_in_operator():
+    assert evaluate_condition("level in [特级, 一级]", {"level": "一级"}) is True
+    assert evaluate_condition("level in [特级, 一级]", {"level": "二级"}) is False
+
+
+def test_evaluate_condition_boolean_field():
+    assert evaluate_condition("is_cross_dept == true", {"is_cross_dept": True}) is True
+    assert evaluate_condition("is_cross_dept == true", {"is_cross_dept": False}) is False
+
+
+def test_evaluate_condition_empty_means_always_active():
+    assert evaluate_condition(None, {}) is True
+    assert evaluate_condition("", {}) is True
+
+
+def test_evaluate_condition_unknown_field_is_false_not_crash():
+    """字段不存在时返回 False，不抛异常——流程不能因为少一个字段就崩。"""
+    assert evaluate_condition("level == 特级", {}) is False
+
+
+def test_evaluate_condition_rejects_unsupported_syntax():
+    """不支持的语法必须报错，不能静默放行——静默放行等于绕过审批。"""
+    with pytest.raises(FlowError):
+        evaluate_condition("__import__('os').system('ls')", {"level": "一级"})
+
+
+def test_is_node_active_uses_condition():
+    assert is_node_active(_node("a", 1, cond="level == 一级"), {"level": "一级"}) is True
+    assert is_node_active(_node("a", 1, cond="level == 一级"), {"level": "二级"}) is False
+
+
+def test_sign_requirement_met_any():
+    node = _node("a", 1, policy="any")
+    assert sign_requirement_met(node, signed_users=["u1"], eligible_users=[]) is True
+
+
+def test_sign_requirement_met_all_needs_everyone():
+    node = _node("a", 1, policy="all")
+    assert sign_requirement_met(node, signed_users=["u1"], eligible_users=["u1", "u2"]) is False
+    assert sign_requirement_met(node, signed_users=["u1", "u2"], eligible_users=["u1", "u2"]) is True
+
+
+def test_sign_requirement_met_all_with_no_eligible_users():
+    """节点没配人时不能判定为已签，否则审批会被空跳过。"""
+    node = _node("a", 1, policy="all")
+    assert sign_requirement_met(node, signed_users=[], eligible_users=[]) is False
+
+
+def test_next_node_skips_inactive_branches():
+    nodes = [
+        _node("approve_special", 1, cond="level == 特级"),
+        _node("approve_first", 2, cond="level == 一级"),
+        _node("approve_second", 3, cond="level == 二级"),
+    ]
+    nxt = next_node(nodes, current_order=0, ctx={"level": "一级"})
+    assert nxt.node_key == "approve_first"
+
+
+def test_next_node_returns_none_when_finished():
+    nodes = [_node("approve", 1)]
+    assert next_node(nodes, current_order=1, ctx={}) is None
+
+
+def test_validate_node_deletion_blocks_statutory():
+    """法定环节不可删——这是"平台不提供绕过合规的开关"的代码落点。"""
+    with pytest.raises(FlowError) as ei:
+        validate_node_deletion(_node("approve", 1, statutory=True))
+    assert "法定" in str(ei.value)
+
+
+def test_validate_node_deletion_allows_custom():
+    validate_node_deletion(_node("custom", 2, statutory=False))
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_flow.py -q
+```
+
+预期：FAIL，`ModuleNotFoundError`
+
+- [ ] **步骤 3：编写实现**
+
+```python
+"""作业票轻量审批引擎。
+
+三次设计决策（见 spec §7.4）：
+1. **不引入 BPMN 引擎**——8 类票的流程本质是固定骨架 + 少量条件分支，
+   且标准附录B 表B.1 已给定审批人；Flowable/Camunda 是 Java 服务，
+   与 Python 栈不匹配且 AI 难介入解释；
+2. **条件表达式受限**——只支持字段比较，不引入通用表达式引擎。
+   安全是次要的，主要理由是"人一眼能看懂这条分支为什么这么走"；
+3. **法定环节不可删**——`is_statutory=True` 的节点拒绝删除，
+   与"法定必填项一律阻断"同属一条原则：平台不提供绕过合规的开关。
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any, Optional, Sequence
+
+
+class FlowError(ValueError):
+    """流程配置或流转非法。"""
+
+
+# 状态机。与 app/services/hazard_state_machine.py 同构，保持项目内一致性。
+TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"submit", "cancel"},
+    "submitted": {"start_review", "cancel"},
+    "approving": {"approve", "reject", "cancel"},
+    "rejected": {"submit", "cancel"},
+    "approved": {"start", "cancel", "expire"},
+    "working": {"finish"},
+    "finished": {"close"},
+    "closed": set(),
+    "cancelled": set(),
+    "expired": set(),  # 已过期只能重新开票，不能恢复
+}
+
+
+def can_transition(status: str, action: str) -> bool:
+    return action in TRANSITIONS.get(status, set())
+
+
+# --- 条件表达式（受限） ---------------------------------------------------
+
+_EQ = re.compile(r"^(?P<field>[a-zA-Z_][a-zA-Z0-9_]*)\s*==\s*(?P<value>.+)$")
+_IN = re.compile(r"^(?P<field>[a-zA-Z_][a-zA-Z0-9_]*)\s+in\s+\[(?P<items>[^\]]*)\]$")
+
+
+def _norm(value: Any) -> str:
+    """统一比较口径：布尔转小写字符串，其余去空白转字符串。"""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value).strip()
+
+
+def evaluate_condition(expr: Optional[str], ctx: dict) -> bool:
+    """求值受限条件表达式。空表达式恒为真；字段缺失返回 False。"""
+    if not expr or not expr.strip():
+        return True
+    text = expr.strip()
+
+    m = _EQ.match(text)
+    if m:
+        field, expected = m.group("field"), m.group("value").strip()
+        if field not in ctx:
+            return False
+        return _norm(ctx[field]) == _norm(expected)
+
+    m = _IN.match(text)
+    if m:
+        field = m.group("field")
+        if field not in ctx:
+            return False
+        items = [i.strip() for i in m.group("items").split(",") if i.strip()]
+        return _norm(ctx[field]) in {_norm(i) for i in items}
+
+    raise FlowError(
+        f"不支持的条件表达式：{expr!r}。只允许 `字段 == 值` 或 `字段 in [值1, 值2]` 两种形式"
+    )
+
+
+def is_node_active(node, ctx: dict) -> bool:
+    """该节点在当前作业票数据下是否需要走（条件分支命中与否）。"""
+    return evaluate_condition(getattr(node, "condition_expr", None), ctx)
+
+
+# --- 会签 -----------------------------------------------------------------
+
+
+def sign_requirement_met(node, *, signed_users: Sequence[str], eligible_users: Sequence[str]) -> bool:
+    """判断节点签署是否已完成。
+
+    - `any`：有一人签即可；
+    - `all`：所有有资格的人都要签。**没配有资格的人时判定为未完成**——
+      否则一个空节点会被当成"已通过"，审批被静默跳过。
+    """
+    policy = getattr(node, "sign_policy", "any")
+    signed = {u for u in signed_users if u}
+    if policy == "any":
+        return bool(signed)
+    if policy == "all":
+        eligible = {u for u in eligible_users if u}
+        if not eligible:
+            return False
+        return eligible <= signed
+    raise FlowError(f"未知会签策略：{policy!r}，只允许 any / all")
+
+
+# --- 节点推进 -------------------------------------------------------------
+
+
+def next_node(nodes: Sequence, *, current_order: int, ctx: dict):
+    """返回 current_order 之后第一个「条件命中」的节点；没有则返回 None（流程结束）。"""
+    ordered = sorted(nodes, key=lambda n: n.sort_order)
+    for node in ordered:
+        if node.sort_order <= current_order:
+            continue
+        if is_node_active(node, ctx):
+            return node
+    return None
+
+
+def validate_node_deletion(node) -> None:
+    """删除节点前的校验。法定环节一律拒绝。"""
+    if getattr(node, "is_statutory", False):
+        raise FlowError(
+            f"节点「{getattr(node, 'name', '')}」是 GB 30871 附录B 规定的法定审批环节，"
+            "不允许删除；如需调整可改绑定的角色或在其前后插入自有节点"
+        )
+```
+
+- [ ] **步骤 4：运行测试验证通过**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_flow.py -v
+```
+
+预期：`18 passed`
+
+- [ ] **步骤 5：Commit**
+
+```bash
+git add backend/app/services/work_ticket_flow.py backend/tests/test_work_ticket_flow.py
+git commit -m "feat(work-ticket): 轻量审批引擎（状态机+受限条件分支+会签+法定环节保护）（任务 4/8）"
+```
