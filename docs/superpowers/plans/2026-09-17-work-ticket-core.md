@@ -2524,3 +2524,516 @@ cd backend && python -m pytest tests/test_work_ticket_docx.py -v
 git add backend/app/services/work_ticket_docx.py backend/tests/test_work_ticket_docx.py
 git commit -m "feat(work-ticket): 法定票面 DOCX 渲染与打印快照（含内容 hash 与三联标注）（任务 7/8）"
 ```
+
+---
+
+## 任务 8：API 与前端（单入口导航 + 开票向导 + 审批工作台）
+
+**文件：**
+
+- 创建：`backend/app/schemas/work_ticket.py`
+- 创建：`backend/app/routers/work_ticket.py`
+- 修改：`backend/app/main.py`
+- 创建：`frontend/src/types/workTicket.ts`、`frontend/src/services/workTicketService.ts`
+- 创建：4 个前端页面 + `GasTestTable.tsx`
+- 修改：`ModuleNav.tsx`（12 → 13）、`enterpriseNavConfig.ts`、`routes/index.tsx`
+- 测试：`backend/tests/test_work_ticket_api.py`
+
+**视觉走查第 1 条约束的落点：** 侧边栏**只有一个「特殊作业」入口**，8 类票在页面内用类型筛选，未启用的类型灰显。不做 8 个独立菜单。
+
+- [ ] **步骤 1：后端 schemas 与路由**
+
+```python
+"""作业票出入参。"""
+
+from datetime import datetime
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
+
+
+class OpenTicketIn(BaseModel):
+    enterprise_id: str
+    enterprise_code: str = Field(min_length=1, max_length=20)
+    ticket_type: str = Field(pattern="^(DHZY|YXKJ)$", description="本计划只开放这两类")
+    template_id: str
+    level: Optional[str] = None
+    values: dict = Field(default_factory=dict)
+
+
+class GasTestIn(BaseModel):
+    sampled_at: datetime
+    location: Optional[str] = None
+    gas_type: Optional[str] = None
+    result: Optional[str] = None
+    tester: Optional[str] = None
+    conclusion: Optional[str] = None
+
+
+class NodeActionIn(BaseModel):
+    action: str = Field(pattern="^(approve|reject)$")
+    opinion: Optional[str] = None
+
+
+class TicketOut(BaseModel):
+    id: str
+    code: str
+    ticket_type: str
+    level: Optional[str] = None
+    status: str
+    current_node_key: Optional[str] = None
+    values: dict = Field(default_factory=dict)
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+```
+
+```python
+"""作业票 API。"""
+
+import os
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.work_ticket import (
+    WorkTicketGasTest,
+    WorkTicketInstance,
+    WorkTicketNodeRecord,
+    WorkTicketPrintSnapshot,
+    WorkTicketTemplate,
+)
+from app.schemas.work_ticket import GasTestIn, NodeActionIn, OpenTicketIn, TicketOut
+from app.services.work_ticket_docx import build_snapshot, content_hash, render_ticket_docx
+from app.services.work_ticket_service import (
+    SubmitValidationError,
+    WorkTicketError,
+    act_on_node,
+    open_ticket,
+    submit_ticket,
+)
+
+router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"])
+
+
+def _ok(data):
+    return {"success": True, "code": 200, "message": "success", "data": data}
+
+
+@router.get("/templates")
+async def list_templates(db: AsyncSession = Depends(get_db)):
+    """列出启用的作业票模板（本计划只有动火/受限空间）。"""
+    res = await db.execute(
+        select(WorkTicketTemplate)
+        .where(WorkTicketTemplate.is_enabled.is_(True))
+        .order_by(WorkTicketTemplate.sort_order)
+    )
+    return _ok(
+        [
+            {
+                "id": t.id,
+                "code": t.code,
+                "name": t.name,
+                "level": t.level,
+                "is_graded": t.is_graded,
+                "fields": [
+                    {
+                        "field_key": f.field_key,
+                        "label": f.label,
+                        "field_type": f.field_type,
+                        "group_name": f.group_name,
+                        "is_required": f.is_required,
+                        "options": f.options,
+                    }
+                    for f in sorted(t.fields, key=lambda x: x.sort_order)
+                ],
+                "measures": [
+                    {
+                        "sort_order": m.sort_order,
+                        "measure_text": m.measure_text,
+                        "article_anchor": m.article_anchor,
+                    }
+                    for m in sorted(t.measures, key=lambda x: x.sort_order)
+                ],
+            }
+            for t in res.scalars().all()
+        ]
+    )
+
+
+@router.get("/tickets")
+async def list_tickets(
+    enterprise_id: str = Query(...),
+    ticket_type: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """票列表。单入口 + 类型筛选的落点：前端只调这一个端点换筛选条件。"""
+    stmt = select(WorkTicketInstance).where(WorkTicketInstance.enterprise_id == enterprise_id)
+    if ticket_type:
+        stmt = stmt.where(WorkTicketInstance.ticket_type == ticket_type)
+    if status:
+        stmt = stmt.where(WorkTicketInstance.status == status)
+    stmt = stmt.order_by(WorkTicketInstance.created_at.desc())
+    res = await db.execute(stmt)
+    return _ok([TicketOut.model_validate(t) for t in res.scalars().all()])
+
+
+@router.post("/tickets")
+async def api_open_ticket(
+    payload: OpenTicketIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    try:
+        instance = await open_ticket(
+            db,
+            enterprise_id=payload.enterprise_id,
+            enterprise_code=payload.enterprise_code,
+            ticket_type=payload.ticket_type,
+            template_id=payload.template_id,
+            level=payload.level,
+            values=payload.values,
+            user_id=getattr(user, "id", None),
+        )
+    except WorkTicketError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ok(TicketOut.model_validate(instance))
+
+
+@router.post("/tickets/{ticket_id}/gas-tests")
+async def api_add_gas_test(
+    ticket_id: str, payload: GasTestIn, db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(select(WorkTicketInstance).where(WorkTicketInstance.id == ticket_id))
+    if res.scalar_one_or_none() is None:
+        raise HTTPException(404, "作业票不存在")
+    db.add(WorkTicketGasTest(instance_id=ticket_id, **payload.model_dump()))
+    await db.commit()
+    return _ok({"ticket_id": ticket_id})
+
+
+@router.post("/tickets/{ticket_id}/submit")
+async def api_submit(
+    ticket_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    try:
+        out = await submit_ticket(db, instance_id=ticket_id, user_id=getattr(user, "id", None))
+    except SubmitValidationError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except WorkTicketError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _ok(out)
+
+
+@router.post("/tickets/{ticket_id}/node-action")
+async def api_node_action(
+    ticket_id: str,
+    payload: NodeActionIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    try:
+        out = await act_on_node(
+            db,
+            instance_id=ticket_id,
+            action=payload.action,
+            user_id=getattr(user, "id", None) or "",
+            opinion=payload.opinion,
+        )
+    except WorkTicketError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _ok(out)
+
+
+@router.get("/tickets/{ticket_id}/print.docx")
+async def api_print_ticket(ticket_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+    """打印法定票面。**每次打印生成一份不可变快照**，版本号递增。"""
+    res = await db.execute(select(WorkTicketInstance).where(WorkTicketInstance.id == ticket_id))
+    instance = res.scalar_one_or_none()
+    if instance is None:
+        raise HTTPException(404, "作业票不存在")
+
+    tpl_res = await db.execute(
+        select(WorkTicketTemplate).where(WorkTicketTemplate.id == instance.template_id)
+    )
+    template = tpl_res.scalar_one_or_none()
+
+    rec_res = await db.execute(
+        select(WorkTicketNodeRecord)
+        .where(WorkTicketNodeRecord.instance_id == ticket_id)
+        .order_by(WorkTicketNodeRecord.created_at)
+    )
+    node_records = [
+        {
+            "node_key": r.node_key,
+            "action": r.action,
+            "acted_by": r.acted_by,
+            "opinion": r.opinion,
+            "created_at": r.created_at,
+        }
+        for r in rec_res.scalars().all()
+    ]
+    gas_res = await db.execute(
+        select(WorkTicketGasTest)
+        .where(WorkTicketGasTest.instance_id == ticket_id)
+        .order_by(WorkTicketGasTest.sampled_at)
+    )
+    gas_tests = [
+        {
+            "sampled_at": g.sampled_at,
+            "location": g.location,
+            "gas_type": g.gas_type,
+            "result": g.result,
+            "tester": g.tester,
+            "conclusion": g.conclusion,
+        }
+        for g in gas_res.scalars().all()
+    ]
+
+    snapshot = build_snapshot(
+        instance=instance, template=template, node_records=node_records, gas_tests=gas_tests
+    )
+    snap_res = await db.execute(
+        select(WorkTicketPrintSnapshot)
+        .where(WorkTicketPrintSnapshot.instance_id == ticket_id)
+        .order_by(WorkTicketPrintSnapshot.version.desc())
+        .limit(1)
+    )
+    latest = snap_res.scalar_one_or_none()
+    db.add(
+        WorkTicketPrintSnapshot(
+            instance_id=ticket_id,
+            version=(latest.version + 1) if latest else 1,
+            content_hash=content_hash(snapshot),
+            snapshot=snapshot,
+            printed_by=getattr(user, "id", None),
+        )
+    )
+    await db.commit()
+
+    try:
+        doc = render_ticket_docx(snapshot=snapshot)
+        os.makedirs(settings.EXPORT_DIR, exist_ok=True)
+        safe = re.sub(r'[\\/*?:"<>|]', "_", instance.code)
+        filename = f"{safe}.docx"
+        filepath = os.path.join(settings.EXPORT_DIR, filename)
+        doc.save(filepath)
+    except Exception as exc:
+        raise HTTPException(500, f"票面生成失败: {exc}") from exc
+
+    return FileResponse(
+        filepath,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+```
+
+- [ ] **步骤 2：注册路由**
+
+`backend/app/main.py` 第 14 行 import 列表末尾加 `, work_ticket`；在 `app.include_router(extraction.router, prefix="/api/v1")` 之后加：
+
+```python
+app.include_router(work_ticket.router, prefix="/api/v1")
+```
+
+- [ ] **步骤 3：编写端点测试**
+
+```python
+"""作业票 API 测试。"""
+
+from unittest.mock import AsyncMock, MagicMock
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.routers import work_ticket
+
+
+class _Scalars:
+    def __init__(self, items):
+        self._items = items
+
+    def all(self):
+        return self._items
+
+
+class _Result:
+    def __init__(self, items):
+        self._items = items
+
+    def scalars(self):
+        return _Scalars(self._items)
+
+    def scalar_one_or_none(self):
+        return self._items[0] if self._items else None
+
+
+def _client(handler):
+    app = FastAPI()
+    app.include_router(work_ticket.router, prefix="/api/v1")
+
+    async def _db():
+        db = MagicMock()
+        db.execute = AsyncMock(side_effect=handler)
+        db.commit = AsyncMock()
+        db.add = MagicMock()
+        db.flush = AsyncMock()
+        yield db
+
+    async def _user():
+        return MagicMock(id="u1")
+
+    app.dependency_overrides[get_db] = _db
+    app.dependency_overrides[get_current_user] = _user
+    return TestClient(app)
+
+
+def test_list_tickets_filters_by_type():
+    t = MagicMock()
+    t.id = "wt1"
+    t.code = "DHZY-A-20260917-0001"
+    t.ticket_type = "DHZY"
+    t.level = "一级"
+    t.status = "approving"
+    t.current_node_key = "approve"
+    t.values = {}
+    t.valid_from = None
+    t.valid_to = None
+    t.created_at = None
+
+    async def handler(stmt, *a, **k):
+        return _Result([t])
+
+    client = _client(handler)
+    resp = client.get(
+        "/api/v1/work-ticket/tickets", params={"enterprise_id": "e1", "ticket_type": "DHZY"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"][0]["ticket_type"] == "DHZY"
+
+
+def test_open_ticket_rejects_unimplemented_type():
+    """本计划只开放动火/受限空间两类，其余类型必须被 schema 拒掉。"""
+    async def handler(stmt, *a, **k):
+        return _Result([])
+
+    client = _client(handler)
+    resp = client.post(
+        "/api/v1/work-ticket/tickets",
+        json={
+            "enterprise_id": "e1",
+            "enterprise_code": "A",
+            "ticket_type": "GCZY",
+            "template_id": "t1",
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_submit_returns_422_on_validation_failure():
+    async def handler(stmt, *a, **k):
+        return _Result([])
+
+    client = _client(handler)
+    resp = client.post("/api/v1/work-ticket/tickets/missing/submit")
+    assert resp.status_code in (409, 422)
+```
+
+- [ ] **步骤 4：运行后端测试**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_api.py tests/test_work_ticket_service.py tests/test_work_ticket_flow.py tests/test_work_ticket_models.py tests/test_work_ticket_docx.py tests/test_gb30871_clean.py -q
+```
+
+预期：全绿（约 55 例）
+
+- [ ] **步骤 5：前端服务层与页面**
+
+`workTicketService.ts` 封装上列端点；页面按视觉走查确认的形态实现：
+
+| 页面 | 关键行为 |
+|---|---|
+| `WorkTicketListPage` | **单入口**：顶部类型筛选（动火 / 受限空间；其余 6 类渲染为灰色禁用标签并提示"未启用"）+ 状态筛选 + 「+ 开票」按钮 |
+| `WorkTicketNewPage` | 6 步向导：1 选类型与级别 → 2 填票面字段（按 `group_name` 分组）→ 3 气体检测（`GasTestTable`）→ 4 安全措施逐条确认 → 5 JSA（计划 2 的 AI 能力，未配置时留空可跳过）→ 6 人员与提交（提交前调 `/submit`，422 时把问题清单逐条列给用户） |
+| `WorkTicketDetailPage` | 票面只读视图 + 审批记录时间线 + 气体检测表 + 措施确认状态 + 「打印票面」按钮（下载 docx） |
+| `WorkTicketApprovalPage` | 我的待办：按 `status=approving` + 当前节点角色筛选；每条显示"当前节点 / 待签人数"；操作「同意」「退回」并填意见 |
+
+**级别一选，审批链自动定**——向导第 1 步选级别后，第 6 步展示"将按 XX 审批"，让用户提前知道要经过谁。
+
+- [ ] **步骤 6：注册入口与路由**
+
+`ModuleNav.tsx` 在「特殊作业」位置插入模块（12 → 13）；`enterpriseNavConfig.ts` 加 `workTicketNavGroups`（只列「作业票」「审批工作台」两项，**不列 8 类**）；`routes/index.tsx` 加 4 条路由。
+
+- [ ] **步骤 7：验证**
+
+运行：
+
+```bash
+docker exec -w /app emergency-plan-frontend npx tsc -b
+docker exec -w /app emergency-plan-frontend npx vitest run
+docker exec -w /app emergency-plan-frontend npx eslint src/pages/Enterprise/WorkTicketListPage.tsx src/pages/Enterprise/WorkTicketNewPage.tsx src/pages/Enterprise/WorkTicketDetailPage.tsx src/pages/Enterprise/WorkTicketApprovalPage.tsx
+```
+
+预期：`tsc` exit 0；vitest 全绿；eslint 无新增错误
+
+- [ ] **步骤 8：真实浏览器端到端（两条路径都要走）**
+
+**正常路径：**
+1. 开一张一级动火票 → 填票面 → 录气体检测（当前时间）→ 确认全部措施 → 提交
+2. 审批工作台看到待办 → 同意 → 状态变为 `approved`
+3. 打印票面 → 下载 docx 能打开、内容完整
+
+**阻断路径（关键）：**
+4. 再开一张，**不录气体检测**直接提交 → 应被拒并提示"必须至少录入一次气体检测记录"
+5. 录一条 3 小时前的检测记录再提交 → 应被拒并提示"超过 30 分钟"
+6. 少确认一条措施 → 应被拒并指出是哪条
+7. 必填项留空 → 应被拒并指出字段名
+
+> 第 4~7 步是本计划最重要的验收：**法定必填项一律阻断**，不受任何开关影响。
+
+- [ ] **步骤 9：Commit**
+
+```bash
+git add backend/app/schemas/work_ticket.py backend/app/routers/work_ticket.py backend/app/main.py backend/tests/test_work_ticket_api.py frontend/src/types/workTicket.ts frontend/src/services/workTicketService.ts frontend/src/pages/Enterprise/WorkTicketListPage.tsx frontend/src/pages/Enterprise/WorkTicketNewPage.tsx frontend/src/pages/Enterprise/WorkTicketDetailPage.tsx frontend/src/pages/Enterprise/WorkTicketApprovalPage.tsx frontend/src/components/enterprise/workTicket/GasTestTable.tsx frontend/src/pages/Enterprise/enterpriseNavConfig.ts frontend/src/components/enterprise/cockpit/ModuleNav.tsx frontend/src/routes/index.tsx
+git commit -m "feat(work-ticket): API 与前端（单入口导航 + 6 步开票向导 + 审批工作台）（任务 8/8）"
+```
+
+---
+
+## 验收清单
+
+- [ ] `cd backend && python -m pytest tests/ -q` 失败数不高于 4 个既有失败
+- [ ] `docker exec -w /app emergency-plan-frontend npx tsc -b` exit 0，vitest 全绿
+- [ ] **标准文本已清洗**：`reg_gb30871_2022.md` 中"式"计数 > 0、"怯" = 0、"聂" = 0，且人工抽检语义通顺
+- [ ] **种子幂等**：`seed_work_ticket_templates.py` 连跑两次 sha256 一致
+- [ ] **迁移幂等**：`db_migration_20260917_work_ticket.sql` 与 `_seed.sql` 连跑两次无报错
+- [ ] **审批链由级别自动定**：一级动火 → 安全管理部门；二级动火 → 所在基层单位；受限空间 → 所在基层单位
+- [ ] **法定环节不可删**：尝试删除 `is_statutory=True` 的节点应被拒并给出可读原因
+- [ ] **会签语义**：`all` 节点在未全部签署时不流转；没配合格人员时判为未完成
+- [ ] **条件分支正确**：不同级别的票走不同审批节点（用三种级别各开一张验证）
+- [ ] **提交阻断四项**（缺气体检测 / 检测超 30 分钟 / 措施未确认 / 必填项为空）全部生效
+- [ ] **过期不可恢复**：`valid_to` 已过的票被置为 `expired`，且无法再提交或开始
+- [ ] **打印即固化**：连打两次产生 version 1、2 两份快照；内容不变时 hash 相同，内容变化时 hash 不同
+- [ ] **导航是单入口**：侧边栏只有「特殊作业」与「基础设置」，其余类型在页面内灰显
+- [ ] 真实浏览器走通正常路径与四条阻断路径
+
+## 未纳入本计划
+
+- **其余 6 类作业票**（盲板抽堵、高处、吊装、临时用电、动土、断路）：计划 9，靠模板驱动复制
+- **JSA 自动生成与提交前 AI 合规校验**：属计划 2 的 AI 能力接入，本计划在向导第 5 步预留位置
+- **移动端开票**：现有移动端路由 `/m/*` 未接入
+- **作业过程影像留存**（标准 B.3 要求影像至少留存一个月）：需要移动端配合，后置
+- **电子签名 / CA 签章**：设计明确采用"电子化流程 + 打印纸质签字"混合模式
