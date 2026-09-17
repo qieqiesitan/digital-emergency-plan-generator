@@ -225,7 +225,7 @@ export default function PromptManagePage() {
         dataSource={prompts}
         rowKey="id"
         loading={isLoading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20 }}
       />
 
       {/* 编辑弹窗 */}

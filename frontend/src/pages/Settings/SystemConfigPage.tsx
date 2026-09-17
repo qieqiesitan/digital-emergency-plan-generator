@@ -100,7 +100,7 @@ export default function SystemConfigPage() {
         dataSource={configs}
         rowKey="config_key"
         loading={isLoading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20 }}
       />
 
       <Modal

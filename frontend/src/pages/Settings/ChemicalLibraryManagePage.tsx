@@ -45,6 +45,7 @@ export default function ChemicalLibraryManagePage() {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<ChemicalLibraryItem | null>(null);
   const [collectOpen, setCollectOpen] = useState(false);
@@ -57,8 +58,8 @@ export default function ChemicalLibraryManagePage() {
   const [form] = Form.useForm();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["chemical-library", keyword, page],
-    queryFn: () => listLibrary(keyword || undefined, { page, page_size: 20 }),
+    queryKey: ["chemical-library", keyword, page, pageSize],
+    queryFn: () => listLibrary(keyword || undefined, { page, page_size: pageSize }),
   });
 
   const invalidate = () => {
@@ -217,9 +218,9 @@ export default function ChemicalLibraryManagePage() {
         dataSource={data?.data.items || []}
         pagination={{
           current: page,
-          pageSize: 20,
+          pageSize,
           total: data?.data.total || 0,
-          onChange: setPage,
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps); },
           showTotal: (t) => `共 ${t} 条`,
         }}
         scroll={{ x: 1200 }}

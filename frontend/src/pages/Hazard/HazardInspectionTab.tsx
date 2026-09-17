@@ -362,7 +362,7 @@ export default function HazardInspectionTab({ enterpriseId, embedded }: Props) {
         columns={columns}
         dataSource={items}
         loading={isLoading}
-        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
+        pagination={{ defaultPageSize: 20, showTotal: t => `共 ${t} 条` }}
       />
 
       <Modal

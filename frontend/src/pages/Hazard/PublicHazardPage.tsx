@@ -157,7 +157,7 @@ export default function PublicHazardPage() {
         columns={columns}
         size="middle"
         scroll={{ x: 760 }}
-        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
+        pagination={{ defaultPageSize: 20, showTotal: t => `共 ${t} 条` }}
         locale={{ emptyText: "暂无公示数据" }}
       />
       <div style={{ color: "#8c8c8c", fontSize: 12, marginTop: 16, textAlign: "center" }}>

@@ -265,7 +265,7 @@ export default function RiskPublicityPage() {
               columns={columns}
               size="small"
               scroll={{ x: 1120 }}
-              pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
+              pagination={{ defaultPageSize: 20, showTotal: t => `共 ${t} 条` }}
               locale={{ emptyText: "暂无重大风险" }}
             />
           </Card>

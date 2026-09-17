@@ -295,7 +295,7 @@ export default function HazardTemplatePage() {
         columns={columns}
         size="middle"
         loading={isLoading}
-        pagination={{ pageSize: 10, showTotal: t => `共 ${t} 条` }}
+        pagination={{ defaultPageSize: 10, showTotal: t => `共 ${t} 条` }}
         locale={{
           emptyText: (
             <AppEmpty

@@ -38,7 +38,14 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider locale={zhCN} theme={{ token: themeToken }}>
+      <ConfigProvider
+        locale={zhCN}
+        theme={{ token: themeToken }}
+        // 列表分页统一默认：antd 默认只有 total>50 才显示「每页条数」下拉，
+        // 这里全站常显（默认选项 10/20/50/100），保证任何列表都能调整显示条数；
+        // 需要走服务端分页的页面自行把 pageSize 落库到查询参数。
+        pagination={{ showSizeChanger: true }}
+      >
         <AntApp>
           <AuthProvider>
             <EnterpriseProvider>

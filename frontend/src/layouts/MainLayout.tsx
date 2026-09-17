@@ -154,6 +154,13 @@ export function MainLayout() {
         theme="light"
         style={{
           borderRight: `1px solid ${themeToken.colorBorderSecondary}`,
+          // 左右分栏解耦：左栏固定视口高度并自身滚动，
+          // 右侧工作区滚动时菜单不再跟着整体滑走（原先整页滚动会把菜单一起带走）。
+          position: "sticky",
+          top: 0,
+          height: "100vh",
+          flexShrink: 0,
+          overflow: "hidden",
         }}
       >
         <div
@@ -169,15 +176,17 @@ export function MainLayout() {
             {collapsed ? "预案" : "数字化预案系统"}
           </span>
         </div>
-        <Menu
-          key={proMode ? "pro" : "basic"}
-          mode="inline"
-          selectedKeys={selectedMenuKeys}
-          defaultOpenKeys={defaultOpenKeys}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-          style={{ borderInlineEnd: "none" }}
-        />
+        <div style={{ height: "calc(100vh - 64px)", overflowY: "auto", overflowX: "hidden" }}>
+          <Menu
+            key={proMode ? "pro" : "basic"}
+            mode="inline"
+            selectedKeys={selectedMenuKeys}
+            defaultOpenKeys={defaultOpenKeys}
+            items={menuItems}
+            onClick={({ key }) => navigate(key)}
+            style={{ borderInlineEnd: "none" }}
+          />
+        </div>
       </Sider>
       <Layout>
         <Header

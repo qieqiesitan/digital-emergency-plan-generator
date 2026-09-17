@@ -102,7 +102,7 @@ export default function PublicRiskPage() {
         columns={columns}
         size="middle"
         scroll={{ x: 900 }}
-        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
+        pagination={{ defaultPageSize: 20, showTotal: t => `共 ${t} 条` }}
         locale={{ emptyText: "暂无重大风险公示数据" }}
       />
       <div style={{ color: "#8c8c8c", fontSize: 12, marginTop: 16, textAlign: "center" }}>

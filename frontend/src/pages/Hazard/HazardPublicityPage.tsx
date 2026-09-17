@@ -238,7 +238,7 @@ function HazardPublicityContent({ enterpriseId }: { enterpriseId: string }) {
             columns={columns}
             size="middle"
             scroll={{ x: 760 }}
-            pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
+            pagination={{ defaultPageSize: 20, showTotal: t => `共 ${t} 条` }}
             locale={{ emptyText: "暂无公示数据" }}
           />
         )}

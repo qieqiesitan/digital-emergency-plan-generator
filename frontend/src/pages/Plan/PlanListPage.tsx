@@ -22,7 +22,7 @@ export default function PlanListPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(20);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   // enterprise info (only when scoped to one enterprise)
@@ -220,8 +220,7 @@ export default function PlanListPage() {
           pageSize,
           total,
           showTotal: (t: number) => `共 ${t} 条`,
-          showSizeChanger: false,
-          onChange: (p: number) => setPage(p),
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps); },
         }}
         onRow={(record) => ({
           style: { cursor: "pointer" },

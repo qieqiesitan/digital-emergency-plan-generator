@@ -42,11 +42,12 @@ export function RegulationList({ onAdd, onView, onAbolish }: Props) {
   const [st, setSt] = useState<string>("all");
   const [nt, setNt] = useState<string>("all");
   const [pg, setPg] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["regulations", kw, st, nt, pg],
-    queryFn: () => fetchRegulations({ keyword: kw, status: st, node_type: nt, page: pg, page_size: 15 }),
+    queryKey: ["regulations", kw, st, nt, pg, pageSize],
+    queryFn: () => fetchRegulations({ keyword: kw, status: st, node_type: nt, page: pg, page_size: pageSize }),
   });
 
   const { data: sts } = useQuery({
@@ -224,8 +225,9 @@ export function RegulationList({ onAdd, onView, onAbolish }: Props) {
           rowKey="id"
           loading={isLoading}
           pagination={{
-            current: pg, total: data?.total || 0, pageSize: 15, onChange: setPg,
-            showTotal: (t) => `共 ${t} 条法规`, showSizeChanger: false,
+            current: pg, total: data?.total || 0, pageSize,
+            onChange: (p: number, ps: number) => { setPg(p); setPageSize(ps); },
+            showTotal: (t) => `共 ${t} 条法规`,
           }}
           size="middle"
         />

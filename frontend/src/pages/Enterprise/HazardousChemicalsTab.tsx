@@ -195,7 +195,7 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
         rowKey="id"
         columns={columns(handleEdit, handleDelete)}
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20 }}
         scroll={{ x: 800 }}
         size="small"
       />

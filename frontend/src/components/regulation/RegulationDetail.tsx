@@ -99,7 +99,7 @@ export function RegulationDetail({ id, onClose }: Props) {
             <>
               <h4 style={{ marginTop: 16 }}>法规条文（{reg.articles.length} 条）</h4>
               <Table columns={articleCols} dataSource={reg.articles} rowKey="number" size="small"
-                pagination={{ pageSize: 10 }} />
+                pagination={{ defaultPageSize: 10 }} />
             </>
           )}
 

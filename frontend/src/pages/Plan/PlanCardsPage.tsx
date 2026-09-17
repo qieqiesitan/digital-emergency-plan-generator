@@ -43,9 +43,10 @@ function PlanListTable({
   onPageChange: (page: number) => void;
 }) {
   const navigate = useNavigate();
+  const [pageSize, setPageSize] = useState(20);
   const listQuery = useQuery({
-    queryKey: ["plans", "list", listPage, listSearch],
-    queryFn: () => listPlans({ page: listPage, page_size: 20, search: listSearch || undefined }),
+    queryKey: ["plans", "list", listPage, listSearch, pageSize],
+    queryFn: () => listPlans({ page: listPage, page_size: pageSize, search: listSearch || undefined }),
   });
 
   const plans = listQuery.data?.data.items || [];
@@ -114,11 +115,10 @@ function PlanListTable({
       loading={listQuery.isLoading}
       pagination={{
         current: listPage,
-        pageSize: 20,
+        pageSize,
         total: listQuery.data?.data.total || 0,
-        showSizeChanger: false,
         showTotal: (t: number) => `共 ${t} 条`,
-        onChange: onPageChange,
+        onChange: (p: number, ps: number) => { onPageChange(p); setPageSize(ps); },
       }}
       onRow={(record) => ({
         style: { cursor: "pointer" },

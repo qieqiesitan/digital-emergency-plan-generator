@@ -382,7 +382,7 @@ export default function EnterpriseDictConfigPage() {
             dataSource={rows}
             columns={columns}
             scroll={{ x: 860 }}
-            pagination={{ pageSize: 20, showTotal: total => `共 ${total} 条` }}
+            pagination={{ defaultPageSize: 20, showTotal: total => `共 ${total} 条` }}
             locale={{
               emptyText: isError
                 ? "加载失败，请稍后重试"

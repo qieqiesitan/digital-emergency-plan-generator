@@ -16,11 +16,12 @@ export default function EnterpriseListPage() {
   const [search, setSearch] = useState("");
   const [industry, setIndustry] = useState<string | undefined>();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["enterprises", { page, search, industry }],
-    queryFn: () => listEnterprises({ page, page_size: 20, search: search || undefined, industry }),
+    queryKey: ["enterprises", { page, pageSize, search, industry }],
+    queryFn: () => listEnterprises({ page, page_size: pageSize, search: search || undefined, industry }),
   });
 
   const deleteMutation = useMutation({
@@ -109,9 +110,9 @@ export default function EnterpriseListPage() {
         loading={isLoading}
         pagination={{
           current: page,
-          pageSize: 20,
+          pageSize,
           total: data?.data.total || 0,
-          onChange: setPage,
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps); },
         }}
       />
 

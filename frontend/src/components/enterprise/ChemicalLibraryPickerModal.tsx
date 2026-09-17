@@ -16,15 +16,16 @@ export default function ChemicalLibraryPickerModal({ open, onSelect, onManual, o
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [pageSize, setPageSize] = useState(20);
 
-  const fetch = async (kw: string, pg: number) => {
+  const fetch = async (kw: string, pg: number, ps: number = pageSize) => {
     setLoading(true);
     try {
-      const res = await listLibrary(kw, { page: pg, page_size: PAGE_SIZE });
+      const res = await listLibrary(kw, { page: pg, page_size: ps });
       setItems(res.data.items || []);
       setTotal(res.data.total || 0);
       setPage(pg);
+      setPageSize(ps);
     } finally {
       setLoading(false);
     }
@@ -77,9 +78,9 @@ export default function ChemicalLibraryPickerModal({ open, onSelect, onManual, o
         loading={loading}
         pagination={{
           current: page,
-          pageSize: PAGE_SIZE,
+          pageSize,
           total,
-          onChange: (p) => fetch(keyword, p),
+          onChange: (p, ps) => fetch(keyword, p, ps),
           showTotal: (t) => `共 ${t} 条`,
         }}
         onRow={(record) => ({

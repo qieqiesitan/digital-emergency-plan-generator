@@ -128,7 +128,7 @@ export default function RoleManagePage() {
         dataSource={roles}
         rowKey="id"
         loading={isLoading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20 }}
       />
 
       <Modal
