@@ -2196,3 +2196,331 @@ cd backend && python -m pytest tests/test_work_ticket_service.py -v
 git add backend/app/services/work_ticket_service.py backend/tests/test_work_ticket_service.py
 git commit -m "feat(work-ticket): 服务编排（编号/提交校验/审批推进/会签/过期扫描）（任务 6/8）"
 ```
+
+---
+
+## 任务 7：法定票面打印与归档
+
+**文件：**
+
+- 创建：`backend/app/services/work_ticket_docx.py`
+- 修改：`backend/app/routers/work_ticket.py`（导出端点，任务 8 里一起加）
+- 测试：`backend/tests/test_work_ticket_docx.py`
+
+**核心约束：打印即固化。** 每次打印生成一份不可变快照（含内容 hash），之后修改票据内容只能产生新的打印版本——**这是审计追溯的底线**。没有这条，"票面被事后改过"就无法证明。
+
+**票面按 GB 30871 附录A 的样式渲染**：复用 `app/services/docx_template.py` 的公文能力（表格、签字页、页眉页脚），不重写版式。
+
+- [ ] **步骤 1：编写失败的测试**
+
+```python
+"""法定票面渲染与打印快照。"""
+
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from app.services.work_ticket_docx import (
+    build_snapshot,
+    content_hash,
+    render_ticket_docx,
+)
+
+
+def _instance():
+    i = MagicMock()
+    i.id = "wt1"
+    i.code = "DHZY-TYKJ-20260917-0001"
+    i.ticket_type = "DHZY"
+    i.level = "一级"
+    i.status = "approved"
+    i.values = {"work_content": "焊接", "fire_location": "罐区A 北侧管廊"}
+    i.valid_from = datetime(2026, 9, 17, 9, 0, tzinfo=timezone.utc)
+    i.valid_to = datetime(2026, 9, 17, 17, 0, tzinfo=timezone.utc)
+    return i
+
+
+def _template():
+    t = MagicMock()
+    t.name = "动火安全作业票"
+    f1 = MagicMock()
+    f1.field_key = "work_content"
+    f1.label = "作业内容"
+    f1.sort_order = 1
+    f2 = MagicMock()
+    f2.field_key = "fire_location"
+    f2.label = "动火地点及动火部位"
+    f2.sort_order = 2
+    t.fields = [f1, f2]
+    m1 = MagicMock()
+    m1.measure_text = "动火设备内部构件清洗干净"
+    m1.article_anchor = "GB 30871-2022 5"
+    m1.sort_order = 1
+    t.measures = [m1]
+    return t
+
+
+def test_build_snapshot_contains_faces_and_measures():
+    snap = build_snapshot(
+        instance=_instance(),
+        template=_template(),
+        node_records=[{"node_key": "approve", "action": "approve", "acted_by": "u1", "opinion": "同意"}],
+        gas_tests=[{"sampled_at": "2026-09-17T08:40:00+00:00", "result": "合格"}],
+    )
+    assert snap["code"] == "DHZY-TYKJ-20260917-0001"
+    assert snap["fields"][0]["label"] == "作业内容"
+    assert snap["measures"][0]["article_anchor"] == "GB 30871-2022 5"
+    assert snap["node_records"][0]["opinion"] == "同意"
+    assert snap["copies"] == ["第一联 监护人/作业单位", "第二联 所在基层单位", "第三联 存档"]
+
+
+def test_content_hash_is_stable_and_changes_on_content():
+    snap1 = {"a": 1, "b": [1, 2]}
+    snap2 = {"b": [1, 2], "a": 1}  # 键序不同
+    assert content_hash(snap1) == content_hash(snap2), "键序变化不应改变 hash"
+    assert content_hash(snap1) != content_hash({"a": 1, "b": [1, 3]})
+
+
+def test_snapshot_excludes_nothing_sensitive_field_keys():
+    """票面可能含人名电话，快照要留痕但不额外存无关字段。"""
+    snap = build_snapshot(
+        instance=_instance(), template=_template(), node_records=[], gas_tests=[]
+    )
+    assert set(snap) == {
+        "code", "ticket_type", "level", "status", "valid_from", "valid_to",
+        "fields", "measures", "node_records", "gas_tests", "copies",
+    }
+
+
+def test_render_ticket_docx_calls_docx_template():
+    with patch("app.services.work_ticket_docx.build_table") as bt, patch(
+        "app.services.work_ticket_docx.Document"
+    ) as doc:
+        doc.return_value = MagicMock()
+        render_ticket_docx(snapshot=build_snapshot(
+            instance=_instance(), template=_template(), node_records=[], gas_tests=[]
+        ))
+        assert bt.call_count >= 2, "票面字段表与措施表都要渲染成表格"
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_docx.py -q
+```
+
+预期：FAIL，`ModuleNotFoundError`
+
+- [ ] **步骤 3：编写实现**
+
+```python
+"""作业票法定票面 DOCX 渲染与打印快照。
+
+打印即固化：每次打印生成不可变快照（含内容 hash），之后修改票据内容
+只能产生新的打印版本。没有这条，"票面被事后改过"就无法证明。
+
+票面结构依据 GB 30871-2022 附录A 表A.1~A.8；三联标注依据附录B 表B.2。
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+from datetime import datetime
+from typing import Any, Optional, Sequence
+
+from docx import Document
+from docx.shared import Pt
+
+from app.services.docx_template import (
+    add_body_title,
+    add_normal_paragraph,
+    build_table,
+    register_all_styles,
+    set_page_margins,
+)
+
+logger = logging.getLogger("work_ticket_docx")
+
+# 依据 GB 30871-2022 附录B 表B.2「安全作业票的持有及保存」
+THREE_COPIES = [
+    "第一联 监护人/作业单位",
+    "第二联 所在基层单位",
+    "第三联 存档",
+]
+
+
+def _iso(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def build_snapshot(
+    *,
+    instance,
+    template,
+    node_records: Sequence[dict],
+    gas_tests: Sequence[dict],
+) -> dict:
+    """构造打印快照。只包含票面所需字段，不塞无关数据。"""
+    values = instance.values or {}
+    fields = sorted(getattr(template, "fields", []) or [], key=lambda f: f.sort_order)
+    measures = sorted(getattr(template, "measures", []) or [], key=lambda m: m.sort_order)
+    confirmed = set(values.get("confirmed_measures", []) or [])
+    return {
+        "code": instance.code,
+        "ticket_type": instance.ticket_type,
+        "level": instance.level,
+        "status": instance.status,
+        "valid_from": _iso(instance.valid_from),
+        "valid_to": _iso(instance.valid_to),
+        "fields": [
+            {
+                "label": f.label,
+                "value": values.get(f.field_key),
+            }
+            for f in fields
+        ],
+        "measures": [
+            {
+                "sort_order": m.sort_order,
+                "measure_text": m.measure_text,
+                "article_anchor": m.article_anchor,
+                "confirmed": m.sort_order in confirmed,
+            }
+            for m in measures
+        ],
+        "node_records": [
+            {
+                "node_key": r.get("node_key"),
+                "action": r.get("action"),
+                "acted_by": r.get("acted_by"),
+                "opinion": r.get("opinion"),
+                "created_at": _iso(r.get("created_at")),
+            }
+            for r in node_records
+        ],
+        "gas_tests": [
+            {
+                "sampled_at": _iso(g.get("sampled_at")),
+                "location": g.get("location"),
+                "gas_type": g.get("gas_type"),
+                "result": g.get("result"),
+                "tester": g.get("tester"),
+                "conclusion": g.get("conclusion"),
+            }
+            for g in gas_tests
+        ],
+        "copies": list(THREE_COPIES),
+    }
+
+
+def content_hash(snapshot: dict) -> str:
+    """内容 hash。按键排序序列化，保证键序变化不影响结果。"""
+    body = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def render_ticket_docx(*, snapshot: dict, company_name: str = "") -> Document:
+    """渲染法定票面。版式复用 docx_template 的公文能力。"""
+    doc = Document()
+    register_all_styles(doc)
+    section = doc.sections[0]
+    set_page_margins(section, 2.0, 2.0, 2.0, 2.0)
+
+    title = f"{snapshot.get('ticket_type', '')} 安全作业票"
+    add_body_title(doc, title)
+    if company_name:
+        add_normal_paragraph(doc, f"单位名称：{company_name}")
+    add_normal_paragraph(doc, f"编号：{snapshot.get('code', '')}")
+    if snapshot.get("level"):
+        add_normal_paragraph(doc, f"作业级别：{snapshot['level']}")
+
+    build_table(
+        doc,
+        ["项目", "内容"],
+        [[f["label"], "" if f["value"] is None else str(f["value"])] for f in snapshot["fields"]],
+    )
+
+    if snapshot["gas_tests"]:
+        add_normal_paragraph(doc, "气体检测记录")
+        build_table(
+            doc,
+            ["取样时间", "地点", "气体", "结果", "分析人", "结论"],
+            [
+                [
+                    g["sampled_at"] or "",
+                    g["location"] or "",
+                    g["gas_type"] or "",
+                    g["result"] or "",
+                    g["tester"] or "",
+                    g["conclusion"] or "",
+                ]
+                for g in snapshot["gas_tests"]
+            ],
+        )
+
+    add_normal_paragraph(doc, "安全措施确认")
+    build_table(
+        doc,
+        ["序号", "安全措施", "依据条款", "是否确认"],
+        [
+            [str(m["sort_order"]), m["measure_text"], m["article_anchor"],
+             "已确认" if m["confirmed"] else "未确认"]
+            for m in snapshot["measures"]
+        ],
+    )
+
+    if snapshot["node_records"]:
+        add_normal_paragraph(doc, "审批记录")
+        build_table(
+            doc,
+            ["节点", "动作", "办理人", "意见", "时间"],
+            [
+                [r["node_key"] or "", r["action"] or "", r["acted_by"] or "",
+                 r["opinion"] or "", r["created_at"] or ""]
+                for r in snapshot["node_records"]
+            ],
+        )
+
+    add_normal_paragraph(doc, "作业票份数：" + "；".join(snapshot["copies"]))
+    add_normal_paragraph(doc, "注：本票应至少保存一年（GB 30871-2022 附录B.3）。")
+    return doc
+```
+
+> `render_ticket_docx` 的 import 以 `docx_template.py` 实际导出名为准。
+> 若 `set_page_margins` 签名是位置参数而非关键字，按其实际签名调整。
+
+- [ ] **步骤 4：运行测试验证通过**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_docx.py -v
+```
+
+预期：`4 passed`
+
+- [ ] **步骤 5：真实文档目视验收**
+
+造一张已批准的动火票（含 2 条措施、2 条气体检测、1 条审批记录），渲染 DOCX 后用 Word 打开检查：
+
+1. 标题、编号、级别正确
+2. 票面字段表两列对齐、无错位
+3. 措施表四列（序号/措施/依据条款/是否确认）完整
+4. 气体检测表与审批记录表都在
+5. 末尾三联标注与"至少保存一年"提示可见
+
+- [ ] **步骤 6：Commit**
+
+```bash
+git add backend/app/services/work_ticket_docx.py backend/tests/test_work_ticket_docx.py
+git commit -m "feat(work-ticket): 法定票面 DOCX 渲染与打印快照（含内容 hash 与三联标注）（任务 7/8）"
+```
