@@ -28,6 +28,11 @@ const MODULES: ModuleItem[] = [
     icon: <AppIcon name="chem" size={24} />,
   },
   {
+    key: "majorHazard", label: "重大危险源", en: "MAJOR", hot: true,
+    to: (id) => `/enterprises/${id}/major-hazard`,
+    icon: <AppIcon name="safety" size={24} />,
+  },
+  {
     key: "risk", label: "风险管控", en: "RISK", hot: true, to: (id) => `/enterprises/${id}/risk-management`,
     icon: <AppIcon name="risk" size={24} />,
   },

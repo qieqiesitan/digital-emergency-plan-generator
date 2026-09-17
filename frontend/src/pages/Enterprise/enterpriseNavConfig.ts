@@ -42,3 +42,36 @@ export function hazardNavGroups(id: string): SideNavGroup[] {
     },
   ];
 }
+
+/**
+ * 重大危险源模块侧导航。
+ *
+ * 三页对应一条线：建单元 → 录品种并算 R 值 → 建档备案。
+ * 与作业票模块不同，这里不做"单入口 + 类型筛选"，因为重大危险源没有类型分叉，
+ * 只有流程阶段，所以按阶段分页更直观。
+ */
+export function majorHazardNavGroups(id: string): SideNavGroup[] {
+  return [
+    {
+      label: "台账",
+      items: [
+        { key: "list", label: "单元台账", to: `/enterprises/${id}/major-hazard` },
+      ],
+    },
+    {
+      label: "分析与备案",
+      items: [
+        {
+          key: "compute",
+          label: "计算与分级",
+          to: `/enterprises/${id}/major-hazard/compute`,
+        },
+        {
+          key: "record",
+          label: "档案与备案",
+          to: `/enterprises/${id}/major-hazard/record`,
+        },
+      ],
+    },
+  ];
+}
