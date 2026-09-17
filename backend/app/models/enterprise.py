@@ -247,6 +247,9 @@ class AIConfig(Base):
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
     max_tokens: Mapped[int] = mapped_column(Integer, default=16384)
     top_p: Mapped[float] = mapped_column(Float, default=1.0)
+    # 能力级模型覆盖：{"extract": {"model": "small"}, "report": {"model": "big"}}
+    # 只认白名单键（见 ai_config_service.ALLOWED_OVERRIDE_KEYS），其余键被忽略。
+    capability_overrides: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False, server_default=text("'{}'::jsonb"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_test_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
