@@ -18,7 +18,11 @@ import EnterpriseModulePage from "@/pages/Enterprise/EnterpriseModulePage";
 import ModulePageShell from "@/components/enterprise/cockpit/ModulePageShell";
 import RiskManagementTab from "@/pages/Enterprise/RiskManagementTab";
 import HazardInspectionTab from "@/pages/Hazard/HazardInspectionTab";
-import { riskNavGroups, hazardNavGroups } from "@/pages/Enterprise/enterpriseNavConfig";
+import {
+  riskNavGroups,
+  hazardNavGroups,
+  majorHazardNavGroups,
+} from "@/pages/Enterprise/enterpriseNavConfig";
 import PlanCardsPage from "@/pages/Plan/PlanCardsPage";
 import PlanListPage from "@/pages/Plan/PlanListPage";
 import PlanCreatePage from "@/pages/Plan/PlanCreatePage";
@@ -55,6 +59,7 @@ import HazardRecordDetailPage from "@/pages/Hazard/HazardRecordDetailPage";
 import HazardDashboardPage from "@/pages/Hazard/HazardDashboardPage";
 import HazardTemplatePage from "@/pages/Hazard/HazardTemplatePage";
 import HazardPublicityPage from "@/pages/Hazard/HazardPublicityPage";
+import MajorHazardListPage from "@/pages/Enterprise/MajorHazardListPage";
 import PublicHazardReportPage from "@/pages/Hazard/PublicHazardReportPage";
 import PublicHazardPage from "@/pages/Hazard/PublicHazardPage";
 import ChatPage from "@/pages/Chat";
@@ -125,6 +130,19 @@ const contentRoutes = [
       { path: "dashboard", element: <HazardDashboardPage /> },
       { path: "publicity", element: <HazardPublicityPage /> },
       { path: "records/:rid", element: <HazardRecordDetailPage /> },
+    ],
+  },
+  {
+    path: "/enterprises/:id/major-hazard",
+    element: (
+      <ModulePageShell
+        title="重大危险源"
+        en="MAJOR HAZARD"
+        groups={majorHazardNavGroups}
+      />
+    ),
+    children: [
+      { index: true, element: <MajorHazardListPage /> },
     ],
   },
   { path: "/enterprises/:id/risk-assessment/preview", element: <RiskAssessmentPreview /> },
