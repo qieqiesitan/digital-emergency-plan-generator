@@ -56,6 +56,19 @@ class LLMError(Exception):
         super().__init__(f"AI调用失败: {status_code} {text[:300]}")
 
 
+class LLMStreamTruncatedError(RuntimeError):
+    """流式响应未正常结束（未收到 [DONE]）——结果不完整，调用方不得落库。
+
+    为什么要单独一个异常类型：供应商中途断连时，`_stream_response` 原本直接 return，
+    调用方把半截正文当完整结果落库，系统还标记成功。用户拿到半截报告却没有任何提示，
+    这是最危险的一类错误——没人会去查一个"成功"的请求。
+    """
+
+    def __init__(self, received_chars: int = 0):
+        super().__init__(f"LLM 流式响应中断：未收到结束标记，已收到 {received_chars} 字符")
+        self.received_chars = received_chars
+
+
 def _get_api_base(provider: str, base_url: str | None) -> str:
     """获取 API base URL。自定义 base_url 优先，否则使用内置映射。"""
     if base_url:
@@ -172,6 +185,7 @@ async def _stream_response(
 ) -> AsyncGenerator[str, None]:
     """内部：流式响应处理（建连/首响应前可重试，中途断流不重试）。"""
     headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
+    received = 0
     for attempt in range(max_retries + 1):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -183,11 +197,13 @@ async def _stream_response(
                             await asyncio.sleep(min(8, 2 ** attempt) + random.uniform(0, 0.5))
                             continue
                         raise LLMError(resp.status_code, err.decode("utf-8", errors="replace"))
+                    finished = False
                     async for line in resp.aiter_lines():
                         if line.startswith("data: "):
                             data = line[6:]
                             if data == "[DONE]":
-                                return
+                                finished = True
+                                break
                             try:
                                 chunk = json.loads(data)
                                 delta = chunk.get("choices", [{}])[0].get("delta", {})
@@ -198,10 +214,15 @@ async def _stream_response(
                                     except Exception:
                                         logger.exception("reasoning_cb failed")
                                 if content:
+                                    received += len(content)
                                     yield content
                             except json.JSONDecodeError:
                                 pass
-                    return
+                    if finished:
+                        return
+                    # 未收到 [DONE] 就结束：供应商中途断连。已产出的分片无法收回，
+                    # 因此不重试（重试会导致内容重复），而是抛错让调用方决定如何处理。
+                    raise LLMStreamTruncatedError(received)
         except (httpx.TransportError, httpx.TimeoutException) as e:
             if attempt < max_retries:
                 await asyncio.sleep(min(8, 2 ** attempt) + random.uniform(0, 0.5))
