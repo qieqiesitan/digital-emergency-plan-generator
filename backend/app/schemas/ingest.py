@@ -22,6 +22,13 @@ class SourceOut(SourceIn):
     model_config = {"from_attributes": True}
 
 
+class JobIn(BaseModel):
+    """开一次接入执行。source_id 可空（无来源的一次性导入）。"""
+
+    source_id: Optional[str] = Field(default=None, max_length=60)
+    trigger: str = Field(default="manual", min_length=1, max_length=20)
+
+
 class JobOut(BaseModel):
     id: str
     source_id: Optional[str] = None

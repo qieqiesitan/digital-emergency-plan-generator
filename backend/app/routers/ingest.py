@@ -1,6 +1,7 @@
 """DataHub API：来源、任务、待确认队列、确认入库、对账。"""
 
 from typing import Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.ingest import IngestItem, IngestJob, IngestSource
-from app.schemas.ingest import ConfirmIn, ItemOut, JobOut, SourceIn, SourceOut
+from app.schemas.ingest import ConfirmIn, ItemOut, JobIn, JobOut, SourceIn, SourceOut
 from app.services.ingest_service import IngestError, confirm_items, skip_items
 
 router = APIRouter(prefix="/ingest", tags=["Ingest"])
@@ -45,6 +46,35 @@ async def list_jobs(
         stmt = stmt.where(IngestJob.source_id == source_id)
     res = await db.execute(stmt)
     return _ok([JobOut.model_validate(j) for j in res.scalars().all()])
+
+
+@router.post("/jobs")
+async def create_job(
+    payload: JobIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """开一次接入执行。
+
+    导入向导必须先拿到 job_id 才能触发抽取——`ingest_items.job_id` 是指向本表的
+    NOT NULL 外键，条目无法挂在一个不存在的任务上。
+    计数显式置 0：ORM 的 `default` 要到 flush 才生效，此处不入库前就要返回给前端。
+    """
+    job = IngestJob(
+        id=str(uuid4()),
+        source_id=payload.source_id,
+        trigger=payload.trigger,
+        status="running",
+        total=0,
+        imported=0,
+        skipped=0,
+        failed=0,
+        pending_review=0,
+        created_by=getattr(user, "id", None),
+    )
+    db.add(job)
+    await db.commit()
+    return _ok(JobOut.model_validate(job))
 
 
 @router.get("/items")
