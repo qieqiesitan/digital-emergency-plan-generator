@@ -582,3 +582,260 @@ cd backend && python -m pytest tests/test_work_ticket_countersign.py tests/test_
 git add backend/app/models/work_ticket.py backend/app/services/work_ticket_service.py backend/app/services/work_ticket_flow.py backend/seed_work_ticket_templates.py backend/db_migration_20260917_work_ticket.sql backend/db_migration_20260917_work_ticket_seed_v2.sql backend/tests/test_work_ticket_countersign.py
 git commit -m "feat(work-ticket): 多单位会签（按部门取资格人，不污染角色体系）（任务 3/6）"
 ```
+
+---
+
+## 任务 4：气体检测必填范围抽成常量
+
+**文件：**
+
+- 修改：`backend/app/services/work_ticket_service.py`
+- 测试：`backend/tests/test_work_ticket_service.py`（追加）
+
+**为什么单独做这一小步：** 计划 8 把"需要气体检测的类型"硬编码成了 `("DHZY", "YXKJ")`。扩到 8 类时必须验证这个集合**没有被顺手放宽**——气体检测是动火与受限空间的法定硬要求，多一类少一类都是错的。
+
+- [ ] **步骤 1：编写失败的测试（追加）**
+
+```python
+def test_gas_test_required_types_is_exactly_two():
+    """只有动火与受限空间强制气体检测；扩到 8 类后这个集合不能变。"""
+    from app.services.work_ticket_service import GAS_TEST_REQUIRED_TYPES
+
+    assert set(GAS_TEST_REQUIRED_TYPES) == {"DHZY", "YXKJ"}
+
+
+def test_other_six_types_do_not_require_gas_test():
+    from app.services.work_ticket_service import requires_gas_test
+
+    for code in ("MBCD", "GCZY", "QZDZ", "LSYD", "PTZY", "DLZY"):
+        assert requires_gas_test(code) is False, code
+    for code in ("DHZY", "YXKJ"):
+        assert requires_gas_test(code) is True, code
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_service.py -q
+```
+
+预期：`ImportError: cannot import name 'GAS_TEST_REQUIRED_TYPES'`
+
+- [ ] **步骤 3：抽出常量与函数**
+
+在 `work_ticket_service.py` 顶部追加：
+
+```python
+# 强制气体检测的作业类型。依据 GB 30871-2022 第 5 章（动火）与第 6 章（受限空间）：
+# 这两类作业在作业前及作业过程中必须进行气体分析。其余类型不作强制。
+GAS_TEST_REQUIRED_TYPES = ("DHZY", "YXKJ")
+
+
+def requires_gas_test(ticket_type: str) -> bool:
+    """该类型是否强制气体检测。"""
+    return ticket_type in GAS_TEST_REQUIRED_TYPES
+```
+
+并把 `submit_ticket` 里的硬编码改为调用：
+
+```python
+        requires_gas_test=requires_gas_test(instance.ticket_type),
+```
+
+- [ ] **步骤 4：运行测试验证通过**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_service.py -v
+```
+
+预期：`14 passed`
+
+- [ ] **步骤 5：Commit**
+
+```bash
+git add backend/app/services/work_ticket_service.py backend/tests/test_work_ticket_service.py
+git commit -m "refactor(work-ticket): 气体检测必填类型抽为常量并加回归守护（任务 4/6）"
+```
+
+---
+
+## 任务 5：前端解禁 8 类与分级联动
+
+**文件：**
+
+- 修改：`frontend/src/pages/Enterprise/WorkTicketListPage.tsx`
+- 修改：`frontend/src/pages/Enterprise/WorkTicketNewPage.tsx`
+- 修改：`backend/app/schemas/work_ticket.py`（放开类型白名单）
+
+- [ ] **步骤 1：放开后端类型白名单**
+
+`OpenTicketIn.ticket_type` 的 `pattern="^(DHZY|YXKJ)$"` 改为覆盖 8 类：
+
+```python
+    ticket_type: str = Field(pattern="^(DHZY|YXKJ|MBCD|GCZY|QZDZ|LSYD|PTZY|DLZY)$")
+```
+
+并同步更新 `test_work_ticket_api.py` 里那条 `test_open_ticket_rejects_unimplemented_type`——它原来用 `GCZY` 断言 422，现在 `GCZY` 已实现，改用真正非法的值（如 `"XXXX"`）来守这条断言。**改断言时必须保留"非法类型被拒"这个语义，不能因为要过测试就把断言删掉。**
+
+- [ ] **步骤 2：列表页解禁 8 类筛选**
+
+`WorkTicketListPage` 的类型筛选从 2 个标签扩到 8 个，**并保留"未启用的类型灰显"能力**：标签的禁用状态由后端 `GET /templates` 返回的实际类型集合驱动，不在前端硬编码。这样将来某类票被企业停用时，界面自动灰显，不用改前端。
+
+```tsx
+// 类型标签由模板列表驱动，不硬编码
+const { data: templates } = useQuery(["wt-templates"], listTemplates);
+const enabledTypes = new Set((templates || []).map((t) => t.code));
+
+{ALL_TICKET_TYPES.map((t) => (
+  <Tag.CheckableTag
+    key={t.code}
+    checked={filter === t.code}
+    onChange={() => setFilter(t.code)}
+    style={enabledTypes.has(t.code) ? undefined : { opacity: 0.45, pointerEvents: "none" }}
+  >
+    {t.label}
+    {!enabledTypes.has(t.code) && <span style={{ fontSize: 11 }}>（未启用）</span>}
+  </Tag.CheckableTag>
+))}
+```
+
+```ts
+// 8 类的展示名（与后端 code 对应）
+export const ALL_TICKET_TYPES = [
+  { code: "DHZY", label: "动火作业" },
+  { code: "YXKJ", label: "受限空间作业" },
+  { code: "MBCD", label: "盲板抽堵作业" },
+  { code: "GCZY", label: "高处作业" },
+  { code: "QZDZ", label: "吊装作业" },
+  { code: "LSYD", label: "临时用电作业" },
+  { code: "PTZY", label: "动土作业" },
+  { code: "DLZY", label: "断路作业" },
+];
+```
+
+- [ ] **步骤 3：开票向导的级别选项按类型联动**
+
+向导第 1 步的"级别"选项**不能写死**，要按所选类型的模板列表生成：
+
+- 动火 → 特级 / 一级 / 二级
+- 高处 → Ⅰ级 / Ⅱ级 / Ⅲ级 / Ⅳ级
+- 吊装 → 一级 / 二级 / 三级
+- 其余 5 类 → 不显示级别选择
+
+```tsx
+const levelsForType = (templates || [])
+  .filter((t) => t.code === selectedType && t.level)
+  .map((t) => t.level as string);
+```
+
+选完级别后，第 6 步预览"将按 XX 审批"——审批人由后端返回的流程节点决定，前端**不自己推断**（审批矩阵是法定数据，推断会失真）。
+
+- [ ] **步骤 4：临时用电与动土的会签提示**
+
+向导第 6 步对带会签的类型显示提示：
+
+- 临时用电：「本票需**配送电单位**会签后审批」
+- 动土：「本票需**水、电、汽、工艺、设备、消防、安全管理**等涉及单位会签后审批」
+- 断路：「本票需**消防、安全管理部门**会签后审批」
+
+提示文案从后端流程节点的 `countersign_units` 生成，不写死在前端。
+
+- [ ] **步骤 5：验证**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_work_ticket_api.py -q
+docker exec -w /app emergency-plan-frontend npx tsc -b
+docker exec -w /app emergency-plan-frontend npx vitest run
+```
+
+预期：后端全绿；`tsc` exit 0；vitest 全绿
+
+- [ ] **步骤 6：真实浏览器端到端（8 类各开一张）**
+
+对 8 类各开一张票并提交，确认：
+
+1. 分级票（动火/高处/吊装）的级别选项**只出现该类型的级别**，不串类
+2. 提交后落到**正确的审批节点**（用三种动火级别 + 四种高处置级别验证分支）
+3. **临时用电与动土出现会签节点**，且会签单位文案与标准一致
+4. 动火/受限空间缺气体检测时**仍被阻断**（扩类后这条不能被破坏）
+5. 其余 6 类**不强制**气体检测（不出现误拦）
+
+- [ ] **步骤 7：Commit**
+
+```bash
+git add backend/app/schemas/work_ticket.py backend/tests/test_work_ticket_api.py frontend/src/pages/Enterprise/WorkTicketListPage.tsx frontend/src/pages/Enterprise/WorkTicketNewPage.tsx frontend/src/types/workTicket.ts
+git commit -m "feat(work-ticket): 前端解禁 8 类（类型标签由后端驱动 + 级别联动 + 会签提示）（任务 5/6）"
+```
+
+---
+
+## 任务 6：8 类回归与验收
+
+**文件：** 无新增，纯验证。
+
+- [ ] **步骤 1：跑全量后端回归**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/ -q
+```
+
+预期：失败数不高于 4 个既有失败；通过数 = 基线 + 本计划新增用例数
+
+- [ ] **步骤 2：核对种子数据与标准的一致性（人工）**
+
+```bash
+docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "SELECT code, level, count(*) FROM work_ticket_templates GROUP BY code, level ORDER BY code, level;"
+docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "SELECT n.node_key, n.name, n.sign_policy, n.is_statutory, n.countersign_units FROM work_ticket_flow_nodes n ORDER BY n.name;"
+```
+
+逐条对照 GB 30871 附录B 表B.1：
+
+1. 15 条模板齐全（动火 3 + 高处 4 + 吊装 3 + 其余 5）
+2. 每条的审批人名与表B.1 一致
+3. **会签节点的 `sign_policy` 是 `all`**、`is_statutory` 为 TRUE
+4. 临时用电/动土/断路的 `countersign_units` 与标准列举的单位一致
+
+- [ ] **步骤 3：确认措施库覆盖到 8 类**
+
+```bash
+docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "SELECT t.code, count(m.id) AS measures FROM work_ticket_templates t LEFT JOIN work_ticket_template_measures m ON m.template_id = t.id GROUP BY t.code ORDER BY t.code;"
+```
+
+预期：8 个类型码的措施数**均大于 0**（动火/受限空间应明显多于其他，因为第 5、6 章条款更细）
+
+- [ ] **步骤 4：Commit（如有遗留改动）**
+
+```bash
+git status --porcelain
+# 如有未提交的验证期修补，按涉及文件逐个 add 后提交
+```
+
+---
+
+## 验收清单
+
+- [ ] 8 个类型码全部可开票；15 条模板与 GB 30871 附录B 表B.1 逐行对应
+- [ ] **分级票的级别选项不串类**：动火只有特/一/二级，高处只有 Ⅰ~Ⅳ，吊装只有一/二/三级
+- [ ] **审批分支正确**：动火三级 + 高处四级共 7 条路径各走一遍，落到正确节点
+- [ ] **多单位会签生效**：动土票在七个单位未全部签署前不流转；临时用电需配送电单位会签
+- [ ] **法定环节保护仍生效**：会签节点与审批节点都标 `is_statutory=TRUE`，删除被拒
+- [ ] **气体检测规则未被放宽**：动火/受限空间缺检测仍被阻断；其余 6 类不误拦
+- [ ] **措施库覆盖 8 类**：每类措施数 > 0，且每条带 `article_anchor`
+- [ ] **类型标签由后端驱动**：停用某类模板后，界面自动灰显该标签（前端不硬编码）
+- [ ] 种子 SQL 连跑两次无报错、sha256 一致
+- [ ] 全量后端回归失败数不高于 4 个既有失败
+
+## 未纳入本计划
+
+- **JSA 与提交前 AI 合规校验接入 6 类新票**：属计划 2 的 AI 能力接线，机制对 8 类通用，接线时机由业务决定
+- **吊装质量 < 10t 可免票的提示**：表B.1 附注提到，但在票面加提示需要先有企业实际使用反馈，先不做
+- **作业过程影像留存**：需移动端配合，与计划 8 一致地后置
+- **票面打印模板的逐类微调**：计划 8 的通用渲染已能出票；若某类票的法定版式差异大（如断路票的交通组织图），按实际验收反馈再调
