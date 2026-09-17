@@ -37,3 +37,21 @@ export const CONFIDENCE_LABELS: Record<string, string> = {
   medium: "中",
   low: "低",
 };
+
+/**
+ * 从解析后的文本里取表头。
+ *
+ * 后端 file_parser 把每行拼成「列 | 列」，xlsx 还会在最前面插一行「【工作表：名】」，
+ * 因此第一条真实数据行才是表头行，标记行与空行都要跳过。
+ */
+export function extractTableHeaders(text: string): string[] {
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("【工作表：")) continue;
+    return trimmed
+      .split("|")
+      .map((cell) => cell.trim())
+      .filter(Boolean);
+  }
+  return [];
+}

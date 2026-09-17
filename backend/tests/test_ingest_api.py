@@ -123,3 +123,20 @@ def test_skip_endpoint_rejects_empty_selection():
     client = _client(handler)
     resp = client.post("/api/v1/ingest/items/skip", json={"item_ids": []})
     assert resp.status_code == 422
+
+
+def test_create_job_returns_running_job():
+    """导入向导在触发抽取前必须先拿到 job_id（ingest_items.job_id 是 NOT NULL 外键）。"""
+
+    async def handler(stmt, *a, **k):
+        return _Result([])
+
+    client = _client(handler)
+    resp = client.post("/api/v1/ingest/jobs", json={"source_id": "s1", "trigger": "file"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["id"]
+    assert data["status"] == "running"
+    assert data["source_id"] == "s1"
+    assert data["trigger"] == "file"
+    assert data["total"] == 0

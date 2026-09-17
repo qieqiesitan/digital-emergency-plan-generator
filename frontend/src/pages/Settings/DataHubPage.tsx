@@ -15,7 +15,7 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { ImportOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
 import { createSource, listJobs, listSources } from "@/services/ingestService";
@@ -127,15 +127,20 @@ export default function DataHubPage() {
         title="数据接入"
         subtitle="外部数据统一进料口：文件抽取 / 表格导入 / 系统对接；人工确认后才写入业务台账"
         extra={
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ["ingest-sources"] });
-              queryClient.invalidateQueries({ queryKey: ["ingest-jobs"] });
-            }}
-          >
-            刷新
-          </Button>
+          <Space>
+            <Button type="primary" icon={<ImportOutlined />} onClick={() => navigate("/settings/data-hub/import")}>
+              导入资料
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["ingest-sources"] });
+                queryClient.invalidateQueries({ queryKey: ["ingest-jobs"] });
+              }}
+            >
+              刷新
+            </Button>
+          </Space>
         }
       />
       <Card>

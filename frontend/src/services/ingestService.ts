@@ -23,6 +23,10 @@ export const listJobs = (sourceId?: string) =>
     })
     .then((r) => r.data.data);
 
+/** 开一次接入执行。抽取条目必须挂在已存在的任务上（job_id 是 NOT NULL 外键）。 */
+export const createJob = (payload: { source_id?: string | null; trigger?: string }) =>
+  api.post<ApiResponse<IngestJob>>(`${BASE}/jobs`, payload).then((r) => r.data.data);
+
 export const listItems = (jobId: string, status?: string) =>
   api
     .get<ApiResponse<IngestItem[]>>(`${BASE}/items`, {
