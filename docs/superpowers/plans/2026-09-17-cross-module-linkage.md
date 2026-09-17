@@ -565,3 +565,500 @@ docker exec -w /app emergency-plan-frontend npx tsc -b
 git add backend/app/services/major_hazard_linkage.py backend/app/routers/major_hazard.py backend/tests/test_major_hazard_linkage.py frontend/src/components/enterprise/majorHazard/ChemicalLibraryPicker.tsx frontend/src/components/enterprise/majorHazard/UnitChemicalTable.tsx
 git commit -m "feat(linkage): 单元品种关联台账 + 设计最大量建议初值（需人工确认）（任务 2/5）"
 ```
+
+---
+
+## 任务 3：单元在平面图上的落点
+
+**文件：**
+
+- 修改：`backend/app/routers/major_hazard.py`
+- 修改：`frontend/src/pages/Enterprise/MajorHazardUnitPage.tsx`
+- 新增组件：`frontend/src/components/enterprise/majorHazard/UnitPolygonEditor.tsx`
+
+**做法：复用四色图工作台的既有机制。** 单元的 `floor_id` + `polygon` 与 `RiskZone.floor_plan_polygon` 同结构，因此**几何计算直接复用 `frontend/src/utils/riskMappingGeometry.ts` 与 `riskMappingMarquee.ts` 的纯函数**，本任务只做"选楼层 + 画/改多边形 + 保存"的薄封装。
+
+**不要重写多边形编辑逻辑**——四色图工作台那套已经过框选、整体变换、批量写回的多轮打磨（含 `dragWritebackRef` 防重复写回这类坑），重写等于把踩过的坑再踩一遍。
+
+- [ ] **步骤 1：后端加落点写入端点**
+
+在 `backend/app/routers/major_hazard.py` 追加：
+
+```python
+class UnitPolygonIn(BaseModel):
+    floor_id: Optional[str] = None
+    polygon: Optional[dict] = None
+
+
+@router.put("/units/{unit_id}/polygon")
+async def api_set_unit_polygon(
+    unit_id: str, payload: UnitPolygonIn, db: AsyncSession = Depends(get_db)
+):
+    """设置单元在平面图上的落点。polygon 结构与 RiskZone.floor_plan_polygon 一致。
+
+    floor_id 与 polygon 必须同时给或同时清空——只改一个会让单元落到错误的楼层上。
+    """
+    if (payload.floor_id is None) != (payload.polygon is None):
+        raise HTTPException(422, "floor_id 与 polygon 必须同时提供或同时清空")
+
+    res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
+    unit = res.scalar_one_or_none()
+    if unit is None:
+        raise HTTPException(404, "重大危险源单元不存在")
+
+    unit.floor_id = payload.floor_id
+    unit.polygon = payload.polygon
+    await db.commit()
+    return _ok({"unit_id": unit_id, "floor_id": payload.floor_id})
+```
+
+- [ ] **步骤 2：编写接口测试**
+
+追加到 `backend/tests/test_major_hazard_linkage.py`：
+
+```python
+def test_polygon_endpoint_rejects_partial_payload():
+    """只给 floor_id 不给 polygon（或反之）必须被拒。"""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.database import get_db
+    from app.dependencies import get_current_user
+    from app.routers import major_hazard
+
+    app = FastAPI()
+    app.include_router(major_hazard.router, prefix="/api/v1")
+
+    async def _db():
+        db = MagicMock()
+        db.execute = AsyncMock(return_value=_Result([MagicMock()]))
+        db.commit = AsyncMock()
+        yield db
+
+    async def _user():
+        return MagicMock(id="u1")
+
+    app.dependency_overrides[get_db] = _db
+    app.dependency_overrides[get_current_user] = _user
+    client = TestClient(app)
+
+    resp = client.put("/api/v1/major-hazard/units/u1/polygon", json={"floor_id": "f1"})
+    assert resp.status_code == 422
+    assert "同时" in resp.json()["detail"]
+```
+
+- [ ] **步骤 3：前端落点编辑器**
+
+`UnitPolygonEditor.tsx` 要点：
+
+1. 楼层下拉（复用 `riskManagementService` 的 `listFloors`）
+2. 画布：加载楼层底图；若单元已有 `polygon` 则渲染为可拖顶点
+3. 交互：拖动顶点改形；`Esc` 取消当前编辑；「保存落点」调 `PUT /units/{id}/polygon`
+4. **复用几何工具**：顶点变换、命中判定从 `utils/riskMappingGeometry.ts` 引入，不在本组件里另写一套
+5. 未选楼层时画布禁用并提示"请先选择楼层"
+
+- [ ] **步骤 4：接入单元详情页**
+
+在 `MajorHazardUnitPage` 的「基本信息」Tab 底部加「平面图落点」区块挂载该编辑器；保存成功后 `invalidateQueries(["major-hazard-units"])`。
+
+- [ ] **步骤 5：验证**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_major_hazard_linkage.py -v
+docker exec -w /app emergency-plan-frontend npx tsc -b
+docker exec -w /app emergency-plan-frontend npx vitest run
+```
+
+预期：后端 `9 passed`；`tsc` exit 0；vitest 全绿
+
+- [ ] **步骤 6：真实浏览器冒烟**
+
+1. 选楼层 → 在图上框出单元范围 → 保存
+2. **刷新后多边形仍在**（验证持久化）
+3. 打开四色图工作台确认该楼层显示正常，**不因新增单元多边形而串位**
+4. 清空落点（传 `{floor_id: null, polygon: null}`）后再刷新，多边形消失
+
+- [ ] **步骤 7：Commit**
+
+```bash
+git add backend/app/routers/major_hazard.py backend/tests/test_major_hazard_linkage.py frontend/src/components/enterprise/majorHazard/UnitPolygonEditor.tsx frontend/src/pages/Enterprise/MajorHazardUnitPage.tsx
+git commit -m "feat(linkage): 单元平面图落点（复用四色图几何工具，落点与楼层必须成对）（任务 3/5）"
+```
+
+---
+
+## 任务 4：隐患可关联重大危险源单元
+
+**文件：**
+
+- 创建：`backend/db_migration_20260917_hazard_unit_link.sql`
+- 修改：`backend/app/models/hazard_management.py`
+- 修改：`backend/app/routers/hazard_management.py`
+- 修改：`frontend/src/pages/Enterprise/HazardRecordDetailPage.tsx`
+- 测试：`backend/tests/test_hazard_linkage_api.py`（新建）
+
+**字段可空是刻意的。** 多数隐患与重大危险源单元无关（比如配电箱门缺失），强制关联会逼用户乱选。只有确实发生在重大危险源所在区域的隐患才需要挂上去——这样"重大危险源区域隐患数"才是可信指标。
+
+- [ ] **步骤 1：加字段与迁移**
+
+在 `backend/app/models/hazard_management.py` 的 `HazardRecord` 类中追加：
+
+```python
+    # 隐患来源可追溯到重大危险源单元（可空：多数隐患与单元无关）
+    major_hazard_unit_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("major_hazard_units.id", ondelete="SET NULL")
+    )
+```
+
+`backend/db_migration_20260917_hazard_unit_link.sql`：
+
+```sql
+-- 20260917 隐患可关联重大危险源单元。
+-- 可空是刻意的：多数隐患与重大危险源单元无关，强制关联会逼用户乱选。
+ALTER TABLE hazard_records
+    ADD COLUMN IF NOT EXISTS major_hazard_unit_id UUID
+    REFERENCES major_hazard_units(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS ix_hazard_records_mh_unit
+    ON hazard_records (major_hazard_unit_id);
+```
+
+- [ ] **步骤 2：编写失败的测试**
+
+```python
+"""隐患关联重大危险源单元：写入与筛选。"""
+
+from unittest.mock import AsyncMock, MagicMock
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.routers import hazard_management
+
+
+class _Scalars:
+    def __init__(self, items):
+        self._items = items
+
+    def all(self):
+        return self._items
+
+
+class _Result:
+    def __init__(self, items):
+        self._items = items
+
+    def scalars(self):
+        return _Scalars(self._items)
+
+    def scalar_one_or_none(self):
+        return self._items[0] if self._items else None
+
+
+def _model_has_field():
+    from app.models.hazard_management import HazardRecord
+
+    return "major_hazard_unit_id" in HazardRecord.__table__.columns
+
+
+def test_hazard_record_has_unit_field():
+    assert _model_has_field()
+
+
+def test_migration_declares_column():
+    from pathlib import Path
+
+    sql = (
+        Path(__file__).resolve().parents[1]
+        / "db_migration_20260917_hazard_unit_link.sql"
+    ).read_text(encoding="utf-8")
+    assert "major_hazard_unit_id" in sql
+    assert "ADD COLUMN IF NOT EXISTS" in sql
+    assert "ON DELETE SET NULL" in sql, "单元删除不应连带删除隐患"
+```
+
+- [ ] **步骤 3：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_hazard_linkage_api.py -q
+```
+
+预期：FAIL（字段不存在 / SQL 文件不存在）
+
+- [ ] **步骤 4：列表支持按单元筛选**
+
+在 `hazard_management.py` 的隐患列表端点加可选 query 参数：
+
+```python
+@router.get("/records")
+async def list_records(
+    # ... 既有参数
+    major_hazard_unit_id: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    # ... 既有 where 条件之后
+    if major_hazard_unit_id:
+        stmt = stmt.where(HazardRecord.major_hazard_unit_id == major_hazard_unit_id)
+```
+
+并在隐患详情返回体里带上单元名称（联表取一次，避免前端二次请求）：
+
+```python
+    # 详情组装处
+    unit_name = None
+    if record.major_hazard_unit_id:
+        from app.models.major_hazard import MajorHazardUnit
+
+        unit_res = await db.execute(
+            select(MajorHazardUnit.name).where(
+                MajorHazardUnit.id == record.major_hazard_unit_id
+            )
+        )
+        unit_name = unit_res.scalar_one_or_none()
+    payload["major_hazard_unit_name"] = unit_name
+```
+
+- [ ] **步骤 5：前端加选择器**
+
+隐患登记/编辑表单加可空的「关联重大危险源单元」下拉（数据源 `GET /major-hazard/units?enterprise_id=`）；详情页若已关联则显示单元名称与跳转链接。
+
+- [ ] **步骤 6：验证**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/ -q -k "hazard"
+docker exec -w /app emergency-plan-frontend npx tsc -b
+```
+
+预期：hazard 相关全绿；`tsc` exit 0
+
+- [ ] **步骤 7：Commit**
+
+```bash
+git add backend/db_migration_20260917_hazard_unit_link.sql backend/app/models/hazard_management.py backend/app/routers/hazard_management.py backend/tests/test_hazard_linkage_api.py frontend/src/pages/Enterprise/HazardRecordDetailPage.tsx
+git commit -m "feat(linkage): 隐患可关联重大危险源单元并支持筛选（任务 4/5）"
+```
+
+---
+
+## 任务 5：预案生成时引用重大危险源清单
+
+**文件：**
+
+- 创建：`backend/app/services/major_hazard_context.py`
+- 修改：`backend/app/services/risk_context_builder.py`
+- 测试：`backend/tests/test_major_hazard_context.py`
+
+**为什么这条重要：** 重大危险源辨识结果是应急预案编制的法定输入（编制导则要求预案基于风险评估与重大危险源辨识结论）。没有这条，用户得手工把清单抄进提示词。
+
+- [ ] **步骤 1：编写失败的测试**
+
+```python
+"""预案上下文应包含重大危险源摘要。"""
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.services.major_hazard_context import build_major_hazard_brief
+
+
+def _db(units, latest):
+    db = MagicMock()
+
+    async def execute(stmt, *a, **k):
+        res = MagicMock()
+        text = str(stmt)
+        if "major_hazard_units" in text:
+            res.scalars.return_value.all.return_value = units
+        else:
+            res.scalar_one_or_none.return_value = latest
+        return res
+
+    db.execute = execute
+    return db
+
+
+@pytest.mark.asyncio
+async def test_brief_lists_units_with_level():
+    unit = MagicMock()
+    unit.id = "u1"
+    unit.name = "罐区A"
+    unit.unit_type = "storage"
+    latest = MagicMock()
+    latest.level = "二级"
+    latest.is_major_hazard = True
+    latest.r_value = 62.5
+    latest.seq = 3
+
+    brief = await build_major_hazard_brief(_db([unit], latest), enterprise_id="e1")
+    assert "罐区A" in brief["text"]
+    assert "二级" in brief["text"]
+    assert brief["units"][0]["level"] == "二级"
+
+
+@pytest.mark.asyncio
+async def test_brief_marks_unidentified_units():
+    """没有计算快照的单元必须标「尚未辨识」，不能默认成「不构成」。"""
+    unit = MagicMock()
+    unit.id = "u1"
+    unit.name = "锅炉房"
+    unit.unit_type = "production"
+    brief = await build_major_hazard_brief(_db([unit], None), enterprise_id="e1")
+    assert "尚未辨识" in brief["text"]
+    assert "不构成" not in brief["text"]
+    assert brief["units"][0]["level"] is None
+
+
+@pytest.mark.asyncio
+async def test_brief_empty_when_no_units():
+    brief = await build_major_hazard_brief(_db([], None), enterprise_id="e1")
+    assert brief["units"] == []
+    assert brief["text"] == ""
+```
+
+- [ ] **步骤 2：运行测试验证失败**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_major_hazard_context.py -q
+```
+
+预期：FAIL，`ModuleNotFoundError`
+
+- [ ] **步骤 3：编写实现**
+
+```python
+"""预案生成上下文：重大危险源摘要。
+
+预案编制必须基于重大危险源辨识结果，这里把清单与最近一次结论提供给生成链路。
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.major_hazard import MajorHazardCalculation, MajorHazardUnit
+
+UNIT_TYPE_LABEL = {"production": "生产单元", "storage": "储存单元"}
+
+
+async def build_major_hazard_brief(db: AsyncSession, *, enterprise_id: str) -> dict:
+    """返回 {units: [...], text: 供提示词注入的纯文本}。没有单元时 text 为空串。"""
+    res = await db.execute(
+        select(MajorHazardUnit).where(MajorHazardUnit.enterprise_id == enterprise_id)
+    )
+    units = list(res.scalars().all())
+    if not units:
+        return {"units": [], "text": ""}
+
+    rows: list[dict] = []
+    for u in units:
+        calc_res = await db.execute(
+            select(MajorHazardCalculation)
+            .where(MajorHazardCalculation.unit_id == u.id)
+            .order_by(MajorHazardCalculation.seq.desc())
+            .limit(1)
+        )
+        latest = calc_res.scalar_one_or_none()
+        if latest is None:
+            conclusion, level = "尚未辨识", None
+        elif latest.is_major_hazard:
+            conclusion, level = "构成重大危险源", latest.level
+        else:
+            conclusion, level = "不构成重大危险源", None
+        rows.append(
+            {
+                "id": u.id,
+                "name": u.name,
+                "unit_type": UNIT_TYPE_LABEL.get(u.unit_type, u.unit_type),
+                "level": level,
+                "conclusion": conclusion,
+                "r_value": (
+                    float(latest.r_value) if latest is not None and latest.is_major_hazard else None
+                ),
+            }
+        )
+
+    lines = ["【重大危险源清单】"]
+    for r in rows:
+        level_part = f"，{r['level']}" if r["level"] else ""
+        lines.append(f"- {r['name']}（{r['unit_type']}）：{r['conclusion']}{level_part}")
+    lines.append(
+        "说明：清单中标注「尚未辨识」的单元不得在预案中作出构成或不构成的判断。"
+    )
+    return {"units": rows, "text": "\n".join(lines)}
+```
+
+- [ ] **步骤 4：接线到上下文构建器**
+
+在 `app/services/risk_context_builder.py` 的上下文拼装处追加：
+
+```python
+from app.services.major_hazard_context import build_major_hazard_brief
+
+# ... 既有上下文片段拼装完成后
+_mh = await build_major_hazard_brief(db, enterprise_id=enterprise_id)
+if _mh["text"]:
+    context_parts.append(_mh["text"])
+```
+
+> 变量名以该文件实际写法为准；关键是**只在 `text` 非空时追加**，
+> 否则会给没有重大危险源的企业塞一个空标题进提示词。
+
+- [ ] **步骤 5：运行测试验证通过**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/test_major_hazard_context.py tests/test_risk_context_builder.py tests/test_risk_context_ordering.py -v
+```
+
+预期：全绿
+
+- [ ] **步骤 6：跑后端全量**
+
+运行：
+
+```bash
+cd backend && python -m pytest tests/ -q
+```
+
+预期：失败数不高于 4 个既有失败
+
+- [ ] **步骤 7：Commit**
+
+```bash
+git add backend/app/services/major_hazard_context.py backend/app/services/risk_context_builder.py backend/tests/test_major_hazard_context.py
+git commit -m "feat(linkage): 预案上下文注入重大危险源清单（未辨识不做判断）（任务 5/5）"
+```
+
+---
+
+## 验收清单
+
+- [ ] `cd backend && python -m pytest tests/ -q` 失败数不高于 4 个既有失败
+- [ ] `docker exec -w /app emergency-plan-frontend npx tsc -b` exit 0，vitest 全绿
+- [ ] **同企业校验**：跨企业关联风险点 / 台账条目均被拒（422 + 可读原因）
+- [ ] **设计最大量只给建议**：接口返回 `requires_confirmation: true` 与口径提示，且**接口自身不写库**
+- [ ] **落点成对**：只传 `floor_id` 或只传 `polygon` 被拒（422）
+- [ ] 单元落点保存后刷新仍在，四色图工作台显示不受影响
+- [ ] 隐患可关联单元、可按单元筛选；**未关联的隐患仍能正常保存**（字段可空是刻意的）
+- [ ] 预案生成上下文包含重大危险源清单
+- [ ] **「尚未辨识」不被误判**：无快照的单元在上下文与界面上都显示"尚未辨识"，**不出现"不构成"字样**
+
+## 未纳入本计划
+
+- **风险点反向显示所属单元**（在风险点详情显示"属于重大危险源罐区A"）：价值明确但优先级低
+- **单元与应急资源的关联**：弱关联，暂无明确需求
+- **单元变更时自动通知关联隐患/预案更新**：属工作流通知范畴
+- **单元落点的四色图等级着色**：本计划只做几何落点，不参与四色分区渲染
