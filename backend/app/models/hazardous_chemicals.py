@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Optional
-from sqlalchemy import String, Text, DateTime, ForeignKey, func
+from sqlalchemy import String, Text, DateTime, ForeignKey, Numeric, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -37,5 +37,8 @@ class HazardousChemical(Base):
     protective_measures: Mapped[Optional[str]] = mapped_column(Text)
     location: Mapped[Optional[str]] = mapped_column(String(300))
     max_storage: Mapped[Optional[str]] = mapped_column(String(100))
+    # 结构化存量（R 值法计算输入）；max_storage 保留为原始文本，兼容既有数据与接口
+    storage_amount: Mapped[Optional[float]] = mapped_column(Numeric(18, 6))
+    storage_unit: Mapped[Optional[str]] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
