@@ -1,0 +1,22 @@
+[
+  {
+    "level": "一级",
+    "r_expression": "R≥100",
+    "source_page": 11
+  },
+  {
+    "level": "二级",
+    "r_expression": "100>R≥50",
+    "source_page": 11
+  },
+  {
+    "level": "三级",
+    "r_expression": "50>R≥10",
+    "source_page": 11
+  },
+  {
+    "level": "四级",
+    "r_expression": "R<10",
+    "source_page": 11
+  }
+]

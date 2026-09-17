@@ -1,0 +1,146 @@
+[
+  {
+    "category": "急性毒性",
+    "symbol": "J1",
+    "beta": "4",
+    "source_page": 10
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J2",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J3",
+    "beta": "2",
+    "source_page": 10
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J4",
+    "beta": "2",
+    "source_page": 10
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J5",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "爆炸物",
+    "symbol": "W1.1",
+    "beta": "2",
+    "source_page": 10
+  },
+  {
+    "category": "爆炸物",
+    "symbol": "W1.2",
+    "beta": "2",
+    "source_page": 10
+  },
+  {
+    "category": "爆炸物",
+    "symbol": "W1.3",
+    "beta": "2",
+    "source_page": 10
+  },
+  {
+    "category": "易燃气体",
+    "symbol": "W2",
+    "beta": "1.5",
+    "source_page": 10
+  },
+  {
+    "category": "气溶胶",
+    "symbol": "W3",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "氧化性气体",
+    "symbol": "W4",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.1",
+    "beta": "1.5",
+    "source_page": 10
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.2",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.3",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.4",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "自反应物质和混合物",
+    "symbol": "W6.1",
+    "beta": "1.5",
+    "source_page": 10
+  },
+  {
+    "category": "自反应物质和混合物",
+    "symbol": "W6.2",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "有机过氧化物",
+    "symbol": "W7.1",
+    "beta": "1.5",
+    "source_page": 10
+  },
+  {
+    "category": "有机过氧化物",
+    "symbol": "W7.2",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "自燃液体和自燃固体",
+    "symbol": "W8",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "氧化性固体和液体",
+    "symbol": "W9.1",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "氧化性固体和液体",
+    "symbol": "W9.2",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "易燃固体",
+    "symbol": "W10",
+    "beta": "1",
+    "source_page": 10
+  },
+  {
+    "category": "遇水放出易燃气体的物质和混合物",
+    "symbol": "W11",
+    "beta": "1",
+    "source_page": 10
+  }
+]

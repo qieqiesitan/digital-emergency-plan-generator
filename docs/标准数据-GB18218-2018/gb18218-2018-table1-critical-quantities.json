@@ -1,0 +1,1189 @@
+[
+  {
+    "seq": 1,
+    "name": "氨",
+    "name_overridden": false,
+    "alias": "液氨;氨气",
+    "alias_inherited_from": null,
+    "cas_raw": "7664-41-7",
+    "cas": [
+      "7664-41-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 4
+  },
+  {
+    "seq": 2,
+    "name": "二氟化氧",
+    "name_overridden": false,
+    "alias": "一氧化二氟",
+    "alias_inherited_from": null,
+    "cas_raw": "7783-41-7",
+    "cas": [
+      "7783-41-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 4
+  },
+  {
+    "seq": 3,
+    "name": "二氧化氮",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "10102-44-0",
+    "cas": [
+      "10102-44-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 4
+  },
+  {
+    "seq": 4,
+    "name": "二氧化硫",
+    "name_overridden": false,
+    "alias": "亚硫酸酐",
+    "alias_inherited_from": null,
+    "cas_raw": "7446-09-5",
+    "cas": [
+      "7446-09-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 4
+  },
+  {
+    "seq": 5,
+    "name": "氟",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7782-41-4",
+    "cas": [
+      "7782-41-4"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 6,
+    "name": "碳酰氯",
+    "name_overridden": false,
+    "alias": "光气",
+    "alias_inherited_from": null,
+    "cas_raw": "75-44-5",
+    "cas": [
+      "75-44-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "0.3",
+    "source_page": 5
+  },
+  {
+    "seq": 7,
+    "name": "环氧乙烷",
+    "name_overridden": false,
+    "alias": "氧化乙烯",
+    "alias_inherited_from": null,
+    "cas_raw": "75-21-8",
+    "cas": [
+      "75-21-8"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 5
+  },
+  {
+    "seq": 8,
+    "name": "甲醛(含量>90%)",
+    "name_overridden": false,
+    "alias": "蚁醛",
+    "alias_inherited_from": null,
+    "cas_raw": "50-00-0",
+    "cas": [
+      "50-00-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 5
+  },
+  {
+    "seq": 9,
+    "name": "磷化氢",
+    "name_overridden": false,
+    "alias": "磷化三氢;膦",
+    "alias_inherited_from": null,
+    "cas_raw": "7803-51-2",
+    "cas": [
+      "7803-51-2"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 10,
+    "name": "硫化氢",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7783-06-4",
+    "cas": [
+      "7783-06-4"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 5
+  },
+  {
+    "seq": 11,
+    "name": "氯化氢(无水)",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7647-01-0",
+    "cas": [
+      "7647-01-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 12,
+    "name": "氯",
+    "name_overridden": false,
+    "alias": "液氯;氯气",
+    "alias_inherited_from": null,
+    "cas_raw": "7782-50-5",
+    "cas": [
+      "7782-50-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 5
+  },
+  {
+    "seq": 13,
+    "name": "煤气(CO,CO和H₂、CH₄的混合物等)",
+    "name_overridden": true,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": null,
+    "cas": [],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 14,
+    "name": "砷化氢",
+    "name_overridden": false,
+    "alias": "砷化三氢、胂",
+    "alias_inherited_from": null,
+    "cas_raw": "7784-42-1",
+    "cas": [
+      "7784-42-1"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 15,
+    "name": "锑化氢",
+    "name_overridden": false,
+    "alias": "三氢化锑;锑化三氢;",
+    "alias_inherited_from": null,
+    "cas_raw": "7803-52-3",
+    "cas": [
+      "7803-52-3"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 16,
+    "name": "硒化氢",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7783-07-5",
+    "cas": [
+      "7783-07-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 17,
+    "name": "溴甲烷",
+    "name_overridden": false,
+    "alias": "甲基溴",
+    "alias_inherited_from": null,
+    "cas_raw": "74-83-9",
+    "cas": [
+      "74-83-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 5
+  },
+  {
+    "seq": 18,
+    "name": "丙酮氰醇",
+    "name_overridden": false,
+    "alias": "丙酮合氰化氢;2-羟基异丁腈;氰丙醇",
+    "alias_inherited_from": null,
+    "cas_raw": "75-86-5",
+    "cas": [
+      "75-86-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 19,
+    "name": "丙烯醛",
+    "name_overridden": false,
+    "alias": "烯丙醛;败脂醛",
+    "alias_inherited_from": null,
+    "cas_raw": "107-02-8",
+    "cas": [
+      "107-02-8"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 20,
+    "name": "氟化氢",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7664-39-3",
+    "cas": [
+      "7664-39-3"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 21,
+    "name": "1-氯-2,3-环氧丙烷",
+    "name_overridden": false,
+    "alias": "环氧氯丙烷(3-氯-1,2-环氧丙烷)",
+    "alias_inherited_from": null,
+    "cas_raw": "106-89-8",
+    "cas": [
+      "106-89-8"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 22,
+    "name": "3-溴-1,2-环氧丙烷",
+    "name_overridden": false,
+    "alias": "环氧溴丙烷;溴甲基环氧乙烷;表溴醇",
+    "alias_inherited_from": null,
+    "cas_raw": "3132-64-7",
+    "cas": [
+      "3132-64-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 23,
+    "name": "甲苯二异氰酸酯",
+    "name_overridden": false,
+    "alias": "二异氰酸甲苯酯;TDI",
+    "alias_inherited_from": null,
+    "cas_raw": "26471-62-5",
+    "cas": [
+      "26471-62-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "100",
+    "source_page": 5
+  },
+  {
+    "seq": 24,
+    "name": "一氯化硫",
+    "name_overridden": false,
+    "alias": "氯化硫",
+    "alias_inherited_from": null,
+    "cas_raw": "10025-67-9",
+    "cas": [
+      "10025-67-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 25,
+    "name": "氰化氢",
+    "name_overridden": false,
+    "alias": "无水氢氰酸",
+    "alias_inherited_from": null,
+    "cas_raw": "74-90-8",
+    "cas": [
+      "74-90-8"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 5
+  },
+  {
+    "seq": 26,
+    "name": "三氧化硫",
+    "name_overridden": false,
+    "alias": "硫酸酐",
+    "alias_inherited_from": null,
+    "cas_raw": "7446-11-9",
+    "cas": [
+      "7446-11-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "75",
+    "source_page": 5
+  },
+  {
+    "seq": 27,
+    "name": "3-氨基丙烯",
+    "name_overridden": false,
+    "alias": "烯丙胺",
+    "alias_inherited_from": null,
+    "cas_raw": "107-11-9",
+    "cas": [
+      "107-11-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 28,
+    "name": "溴",
+    "name_overridden": false,
+    "alias": "溴素",
+    "alias_inherited_from": null,
+    "cas_raw": "7726-95-6",
+    "cas": [
+      "7726-95-6"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 29,
+    "name": "乙撑亚胺",
+    "name_overridden": false,
+    "alias": "吖丙啶;1-氮杂环丙烷;氮丙啶",
+    "alias_inherited_from": null,
+    "cas_raw": "151-56-4",
+    "cas": [
+      "151-56-4"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 5
+  },
+  {
+    "seq": 30,
+    "name": "异氰酸甲酯",
+    "name_overridden": false,
+    "alias": "甲基异氰酸酯",
+    "alias_inherited_from": null,
+    "cas_raw": "624-83-9",
+    "cas": [
+      "624-83-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "0.75",
+    "source_page": 5
+  },
+  {
+    "seq": 31,
+    "name": "叠氮化钡",
+    "name_overridden": false,
+    "alias": "叠氮钡",
+    "alias_inherited_from": null,
+    "cas_raw": "18810-58-7",
+    "cas": [
+      "18810-58-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "0.5",
+    "source_page": 5
+  },
+  {
+    "seq": 32,
+    "name": "叠氮化铅",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "13424-46-9",
+    "cas": [
+      "13424-46-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "0.5",
+    "source_page": 5
+  },
+  {
+    "seq": 33,
+    "name": "雷汞",
+    "name_overridden": false,
+    "alias": "二雷酸汞;雷酸汞",
+    "alias_inherited_from": null,
+    "cas_raw": "628-86-4",
+    "cas": [
+      "628-86-4"
+    ],
+    "cas_suspect": [],
+    "critical_t": "0.5",
+    "source_page": 5
+  },
+  {
+    "seq": 34,
+    "name": "三硝基苯甲醚",
+    "name_overridden": false,
+    "alias": "三硝基茴香醚",
+    "alias_inherited_from": null,
+    "cas_raw": "28653-16-9",
+    "cas": [
+      "28653-16-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 5
+  },
+  {
+    "seq": 35,
+    "name": "2,4,6-三硝基甲苯",
+    "name_overridden": false,
+    "alias": "梯恩梯;TNT",
+    "alias_inherited_from": null,
+    "cas_raw": "118-96-7",
+    "cas": [
+      "118-96-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 5
+  },
+  {
+    "seq": 36,
+    "name": "硝化甘油",
+    "name_overridden": false,
+    "alias": "硝化丙三醇;甘油三硝酸酯",
+    "alias_inherited_from": null,
+    "cas_raw": "55-63-0",
+    "cas": [
+      "55-63-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 6
+  },
+  {
+    "seq": 37,
+    "name": "硝化纤维素［干的或含水(或乙醇)<25%］",
+    "name_overridden": false,
+    "alias": "硝化棉",
+    "alias_inherited_from": null,
+    "cas_raw": "9004-70-0",
+    "cas": [
+      "9004-70-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 6
+  },
+  {
+    "seq": 38,
+    "name": "硝化纤维素(未改型的,或增塑的,含增塑剂<18%)",
+    "name_overridden": false,
+    "alias": "硝化棉",
+    "alias_inherited_from": 37,
+    "cas_raw": "9004-70-0",
+    "cas": [
+      "9004-70-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 6
+  },
+  {
+    "seq": 39,
+    "name": "硝化纤维素(含乙醇≥25%)",
+    "name_overridden": false,
+    "alias": "硝化棉",
+    "alias_inherited_from": 37,
+    "cas_raw": "9004-70-0",
+    "cas": [
+      "9004-70-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 6
+  },
+  {
+    "seq": 40,
+    "name": "硝化纤维素(含氮≤12.6%)",
+    "name_overridden": false,
+    "alias": "硝化棉",
+    "alias_inherited_from": 37,
+    "cas_raw": "9004-70-0",
+    "cas": [
+      "9004-70-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 41,
+    "name": "硝化纤维素(含水≥25%)",
+    "name_overridden": false,
+    "alias": "硝化棉",
+    "alias_inherited_from": 37,
+    "cas_raw": "9004-70-0",
+    "cas": [
+      "9004-70-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 42,
+    "name": "硝化纤维素溶液(含氮量≤12.6%,含硝化纤维素≤55%)",
+    "name_overridden": false,
+    "alias": "硝化棉溶液",
+    "alias_inherited_from": null,
+    "cas_raw": "9004-70-0",
+    "cas": [
+      "9004-70-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 43,
+    "name": "硝酸铵(含可燃物>0.2%,包括以碳计算的任何有机物,但不包括任何其他添加剂)",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "6484-52-2",
+    "cas": [
+      "6484-52-2"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 6
+  },
+  {
+    "seq": 44,
+    "name": "硝酸铵(含可燃物≤0.2%)",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "6484-52-2",
+    "cas": [
+      "6484-52-2"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 45,
+    "name": "硝酸铵肥料(含可燃物≤0.4%)",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": null,
+    "cas": [],
+    "cas_suspect": [],
+    "critical_t": "200",
+    "source_page": 6
+  },
+  {
+    "seq": 46,
+    "name": "硝酸钾",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7757-79-1",
+    "cas": [
+      "7757-79-1"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1000",
+    "source_page": 6
+  },
+  {
+    "seq": 47,
+    "name": "1,3-丁二烯",
+    "name_overridden": false,
+    "alias": "联乙烯",
+    "alias_inherited_from": null,
+    "cas_raw": "106-99-0",
+    "cas": [
+      "106-99-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 6
+  },
+  {
+    "seq": 48,
+    "name": "二甲醚",
+    "name_overridden": false,
+    "alias": "甲醚",
+    "alias_inherited_from": null,
+    "cas_raw": "115-10-6",
+    "cas": [
+      "115-10-6"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 49,
+    "name": "甲烷,天然气",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "74-82-8(甲烷)8006-14-2(天然气)",
+    "cas": [
+      "74-82-8(甲烷)",
+      "8006-14-2(天然气)"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 50,
+    "name": "氯乙烯",
+    "name_overridden": false,
+    "alias": "乙烯基氯",
+    "alias_inherited_from": null,
+    "cas_raw": "75-01-4",
+    "cas": [
+      "75-01-4"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 51,
+    "name": "氢",
+    "name_overridden": false,
+    "alias": "氢气",
+    "alias_inherited_from": null,
+    "cas_raw": "1333-74-0",
+    "cas": [
+      "1333-74-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 6
+  },
+  {
+    "seq": 52,
+    "name": "液化石油气(含丙烷、丁烷及其混合物)",
+    "name_overridden": false,
+    "alias": "石油气(液化的)",
+    "alias_inherited_from": null,
+    "cas_raw": "68476-85-774-98-6(丙烷)106-97-8(丁烷)",
+    "cas": [
+      "68476-85-7",
+      "74-98-6(丙烷)",
+      "106-97-8(丁烷)"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 53,
+    "name": "一甲胺",
+    "name_overridden": false,
+    "alias": "氨基甲烷;甲胺",
+    "alias_inherited_from": null,
+    "cas_raw": "74-89-5",
+    "cas": [
+      "74-89-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "5",
+    "source_page": 6
+  },
+  {
+    "seq": 54,
+    "name": "乙炔",
+    "name_overridden": false,
+    "alias": "电石气",
+    "alias_inherited_from": null,
+    "cas_raw": "74-86-2",
+    "cas": [
+      "74-86-2"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 6
+  },
+  {
+    "seq": 55,
+    "name": "乙烯",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "74-85-1",
+    "cas": [
+      "74-85-1"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 56,
+    "name": "氧(压缩的或液化的)",
+    "name_overridden": false,
+    "alias": "液氧;氧气",
+    "alias_inherited_from": null,
+    "cas_raw": "7782-44-7",
+    "cas": [
+      "7782-44-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "200",
+    "source_page": 6
+  },
+  {
+    "seq": 57,
+    "name": "苯",
+    "name_overridden": false,
+    "alias": "纯苯",
+    "alias_inherited_from": null,
+    "cas_raw": "71-43-2",
+    "cas": [
+      "71-43-2"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 58,
+    "name": "苯乙烯",
+    "name_overridden": false,
+    "alias": "乙烯苯",
+    "alias_inherited_from": null,
+    "cas_raw": "100-42-5",
+    "cas": [
+      "100-42-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 6
+  },
+  {
+    "seq": 59,
+    "name": "丙酮",
+    "name_overridden": false,
+    "alias": "二甲基酮",
+    "alias_inherited_from": null,
+    "cas_raw": "67-64-1",
+    "cas": [
+      "67-64-1"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 6
+  },
+  {
+    "seq": 60,
+    "name": "2-丙烯腈",
+    "name_overridden": false,
+    "alias": "丙烯腈;乙烯基氰;氰基乙烯",
+    "alias_inherited_from": null,
+    "cas_raw": "107-13-1",
+    "cas": [
+      "107-13-1"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 61,
+    "name": "二硫化碳",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "75-15-0",
+    "cas": [
+      "75-15-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 6
+  },
+  {
+    "seq": 62,
+    "name": "环己烷",
+    "name_overridden": false,
+    "alias": "六氢化苯",
+    "alias_inherited_from": null,
+    "cas_raw": "110-82-7",
+    "cas": [
+      "110-82-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 6
+  },
+  {
+    "seq": 63,
+    "name": "1,2-环氧丙烷",
+    "name_overridden": false,
+    "alias": "氧化丙烯;甲基环氧乙烷",
+    "alias_inherited_from": null,
+    "cas_raw": "75-56-9",
+    "cas": [
+      "75-56-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 6
+  },
+  {
+    "seq": 64,
+    "name": "甲苯",
+    "name_overridden": false,
+    "alias": "甲基苯;苯基甲烷",
+    "alias_inherited_from": null,
+    "cas_raw": "108-88-3",
+    "cas": [
+      "108-88-3"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 7
+  },
+  {
+    "seq": 65,
+    "name": "甲醇",
+    "name_overridden": false,
+    "alias": "木醇;木精",
+    "alias_inherited_from": null,
+    "cas_raw": "67-56-1",
+    "cas": [
+      "67-56-1"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 7
+  },
+  {
+    "seq": 66,
+    "name": "汽油(乙醇汽油、甲醇汽油)",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "86290-81-5(汽油)",
+    "cas": [
+      "86290-81-5(汽油)"
+    ],
+    "cas_suspect": [],
+    "critical_t": "200",
+    "source_page": 7
+  },
+  {
+    "seq": 67,
+    "name": "乙醇",
+    "name_overridden": false,
+    "alias": "酒精",
+    "alias_inherited_from": null,
+    "cas_raw": "64-17-5",
+    "cas": [
+      "64-17-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 7
+  },
+  {
+    "seq": 68,
+    "name": "乙醚",
+    "name_overridden": false,
+    "alias": "二乙基醚",
+    "alias_inherited_from": null,
+    "cas_raw": "60-29-7",
+    "cas": [
+      "60-29-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 7
+  },
+  {
+    "seq": 69,
+    "name": "乙酸乙酯",
+    "name_overridden": false,
+    "alias": "醋酸乙酯",
+    "alias_inherited_from": null,
+    "cas_raw": "141-78-6",
+    "cas": [
+      "141-78-6"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 7
+  },
+  {
+    "seq": 70,
+    "name": "正己烷",
+    "name_overridden": false,
+    "alias": "己烷",
+    "alias_inherited_from": null,
+    "cas_raw": "110-54-3",
+    "cas": [
+      "110-54-3"
+    ],
+    "cas_suspect": [],
+    "critical_t": "500",
+    "source_page": 7
+  },
+  {
+    "seq": 71,
+    "name": "过乙酸",
+    "name_overridden": false,
+    "alias": "过醋酸;过氧乙酸;乙酰过氧化氢",
+    "alias_inherited_from": null,
+    "cas_raw": "79-21-0",
+    "cas": [
+      "79-21-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 7
+  },
+  {
+    "seq": 72,
+    "name": "过氧化甲基乙基酮(10%<有效氧含量≤10.7%,含A型稀释剂≥48%)",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "1338-23-4",
+    "cas": [
+      "1338-23-4"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 7
+  },
+  {
+    "seq": 73,
+    "name": "白磷",
+    "name_overridden": false,
+    "alias": "黄磷",
+    "alias_inherited_from": null,
+    "cas_raw": "12185-10-3",
+    "cas": [
+      "12185-10-3"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 7
+  },
+  {
+    "seq": 74,
+    "name": "烷基铝",
+    "name_overridden": false,
+    "alias": "三烷基铝",
+    "alias_inherited_from": null,
+    "cas_raw": null,
+    "cas": [],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 7
+  },
+  {
+    "seq": 75,
+    "name": "戊硼烷",
+    "name_overridden": false,
+    "alias": "五硼烷",
+    "alias_inherited_from": null,
+    "cas_raw": "19624-22-7",
+    "cas": [
+      "19624-22-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 7
+  },
+  {
+    "seq": 76,
+    "name": "过氧化钾",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "17014-71-0",
+    "cas": [
+      "17014-71-0"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 7
+  },
+  {
+    "seq": 77,
+    "name": "过氧化钠",
+    "name_overridden": false,
+    "alias": "双氧化钠;二氧化钠",
+    "alias_inherited_from": null,
+    "cas_raw": "1313-60-6",
+    "cas": [
+      "1313-60-6"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 7
+  },
+  {
+    "seq": 78,
+    "name": "氯酸钾",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "3811-04-9",
+    "cas": [
+      "3811-04-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "100",
+    "source_page": 7
+  },
+  {
+    "seq": 79,
+    "name": "氯酸钠",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7775-09-9",
+    "cas": [
+      "7775-09-9"
+    ],
+    "cas_suspect": [],
+    "critical_t": "100",
+    "source_page": 7
+  },
+  {
+    "seq": 80,
+    "name": "发烟硝酸",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "52583-42-3",
+    "cas": [
+      "52583-42-3"
+    ],
+    "cas_suspect": [],
+    "critical_t": "20",
+    "source_page": 7
+  },
+  {
+    "seq": 81,
+    "name": "硝酸(发红烟的除外,含硝酸>70%)",
+    "name_overridden": false,
+    "alias": null,
+    "alias_inherited_from": null,
+    "cas_raw": "7697-37-2",
+    "cas": [
+      "7697-37-2"
+    ],
+    "cas_suspect": [],
+    "critical_t": "100",
+    "source_page": 7
+  },
+  {
+    "seq": 82,
+    "name": "硝酸胍",
+    "name_overridden": false,
+    "alias": "硝酸亚氨脲",
+    "alias_inherited_from": null,
+    "cas_raw": "506-93-4",
+    "cas": [
+      "506-93-4"
+    ],
+    "cas_suspect": [],
+    "critical_t": "50",
+    "source_page": 7
+  },
+  {
+    "seq": 83,
+    "name": "碳化钙",
+    "name_overridden": false,
+    "alias": "电石",
+    "alias_inherited_from": null,
+    "cas_raw": "75-20-7",
+    "cas": [
+      "75-20-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "100",
+    "source_page": 7
+  },
+  {
+    "seq": 84,
+    "name": "钾",
+    "name_overridden": false,
+    "alias": "金属钾",
+    "alias_inherited_from": null,
+    "cas_raw": "7440-09-7",
+    "cas": [
+      "7440-09-7"
+    ],
+    "cas_suspect": [],
+    "critical_t": "1",
+    "source_page": 7
+  },
+  {
+    "seq": 85,
+    "name": "钠",
+    "name_overridden": false,
+    "alias": "金属钠",
+    "alias_inherited_from": null,
+    "cas_raw": "7440-23-5",
+    "cas": [
+      "7440-23-5"
+    ],
+    "cas_suspect": [],
+    "critical_t": "10",
+    "source_page": 7
+  }
+]

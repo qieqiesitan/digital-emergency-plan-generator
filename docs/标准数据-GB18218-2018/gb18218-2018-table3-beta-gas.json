@@ -1,0 +1,72 @@
+[
+  {
+    "name": "一氧化碳",
+    "beta": "2",
+    "source_page": 9
+  },
+  {
+    "name": "二氧化硫",
+    "beta": "2",
+    "source_page": 9
+  },
+  {
+    "name": "氨",
+    "beta": "2",
+    "source_page": 9
+  },
+  {
+    "name": "环氧乙烷",
+    "beta": "2",
+    "source_page": 9
+  },
+  {
+    "name": "氯化氢",
+    "beta": "3",
+    "source_page": 9
+  },
+  {
+    "name": "溴甲烷",
+    "beta": "3",
+    "source_page": 9
+  },
+  {
+    "name": "氯",
+    "beta": "4",
+    "source_page": 9
+  },
+  {
+    "name": "硫化氢",
+    "beta": "5",
+    "source_page": 9
+  },
+  {
+    "name": "氟化氢",
+    "beta": "5",
+    "source_page": 9
+  },
+  {
+    "name": "二氧化氮",
+    "beta": "10",
+    "source_page": 9
+  },
+  {
+    "name": "氰化氢",
+    "beta": "10",
+    "source_page": 9
+  },
+  {
+    "name": "碳酰氯",
+    "beta": "20",
+    "source_page": 10
+  },
+  {
+    "name": "磷化氢",
+    "beta": "20",
+    "source_page": 10
+  },
+  {
+    "name": "异氰酸甲酯",
+    "beta": "20",
+    "source_page": 10
+  }
+]

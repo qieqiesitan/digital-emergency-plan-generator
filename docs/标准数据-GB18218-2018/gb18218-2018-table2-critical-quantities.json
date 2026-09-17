@@ -1,0 +1,184 @@
+[
+  {
+    "category": "健康危害",
+    "symbol": "J(健康危害性符号)",
+    "description": "—",
+    "critical_t": "—",
+    "source_page": 7
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J1",
+    "description": "类别1,所有暴露途径,气体",
+    "critical_t": "5",
+    "source_page": 7
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J2",
+    "description": "类别1,所有暴露途径,固体、液体",
+    "critical_t": "50",
+    "source_page": 7
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J3",
+    "description": "类别2、类别3,所有暴露途径,气体",
+    "critical_t": "50",
+    "source_page": 7
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J4",
+    "description": "类别2、类别3,吸入途径,液体(沸点≤35℃)",
+    "critical_t": "50",
+    "source_page": 7
+  },
+  {
+    "category": "急性毒性",
+    "symbol": "J5",
+    "description": "类别2,所有暴露途径,液体(除J4外)、固体",
+    "critical_t": "500",
+    "source_page": 7
+  },
+  {
+    "category": "物理危险",
+    "symbol": "W(物理危险性符号)",
+    "description": "—",
+    "critical_t": "—",
+    "source_page": 8
+  },
+  {
+    "category": "爆炸物",
+    "symbol": "W1.1",
+    "description": "—不稳定爆炸物—1.1项爆炸物",
+    "critical_t": "1",
+    "source_page": 8
+  },
+  {
+    "category": "爆炸物",
+    "symbol": "W1.2",
+    "description": "1.2、1.3、1.5、1.6项爆炸物",
+    "critical_t": "10",
+    "source_page": 8
+  },
+  {
+    "category": "爆炸物",
+    "symbol": "W1.3",
+    "description": "1.4项爆炸物",
+    "critical_t": "50",
+    "source_page": 8
+  },
+  {
+    "category": "易燃气体",
+    "symbol": "W2",
+    "description": "类别1和类别2",
+    "critical_t": "10",
+    "source_page": 8
+  },
+  {
+    "category": "气溶胶",
+    "symbol": "W3",
+    "description": "类别1和类别2",
+    "critical_t": "150(净重)",
+    "source_page": 8
+  },
+  {
+    "category": "氧化性气体",
+    "symbol": "W4",
+    "description": "类别1",
+    "critical_t": "50",
+    "source_page": 8
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.1",
+    "description": "—类别1—类别2和3,工作温度高于沸点",
+    "critical_t": "10",
+    "source_page": 8
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.2",
+    "description": "—类别2和3,具有引发重大事故的特殊工艺条件包括危险化工工艺、爆炸极限范围或附近操作、操作压力大于1.6MPa等",
+    "critical_t": "50",
+    "source_page": 8
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.3",
+    "description": "—不属于W5.1或W5.2的其他类别2",
+    "critical_t": "1000",
+    "source_page": 8
+  },
+  {
+    "category": "易燃液体",
+    "symbol": "W5.4",
+    "description": "—不属于W5.1或W5.2的其他类别3",
+    "critical_t": "5000",
+    "source_page": 8
+  },
+  {
+    "category": "自反应物质和混合物",
+    "symbol": "W6.1",
+    "description": "A型和B型自反应物质和混合物",
+    "critical_t": "10",
+    "source_page": 8
+  },
+  {
+    "category": "自反应物质和混合物",
+    "symbol": "W6.2",
+    "description": "C型、D型、E型自反应物质和混合物",
+    "critical_t": "50",
+    "source_page": 8
+  },
+  {
+    "category": "有机过氧化物",
+    "symbol": "W7.1",
+    "description": "A型和B型有机过氧化物",
+    "critical_t": "10",
+    "source_page": 8
+  },
+  {
+    "category": "有机过氧化物",
+    "symbol": "W7.2",
+    "description": "C型、D型、E型、F型有机过氧化物",
+    "critical_t": "50",
+    "source_page": 8
+  },
+  {
+    "category": "自燃液体和自燃固体",
+    "symbol": "W8",
+    "description": "类别1自燃液体类别1自燃固体",
+    "critical_t": "50",
+    "source_page": 8
+  },
+  {
+    "category": "氧化性固体和液体",
+    "symbol": "W9.1",
+    "description": "类别1",
+    "critical_t": "50",
+    "source_page": 8
+  },
+  {
+    "category": "氧化性固体和液体",
+    "symbol": "W9.2",
+    "description": "类别2、类别3",
+    "critical_t": "200",
+    "source_page": 8
+  },
+  {
+    "category": "易燃固体",
+    "symbol": "W10",
+    "description": "类别1易燃固体",
+    "critical_t": "200",
+    "source_page": 8
+  },
+  {
+    "category": "遇水放出易燃气体的物质和混合物",
+    "symbol": "W11",
+    "description": "类别1和类别2",
+    "critical_t": "200",
+    "source_page": 8
+  }
+]

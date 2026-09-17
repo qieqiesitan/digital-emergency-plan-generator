@@ -1,0 +1,27 @@
+[
+  {
+    "exposed_population": "100人以上",
+    "alpha": "2.0",
+    "source_page": 11
+  },
+  {
+    "exposed_population": "50~99人",
+    "alpha": "1.5",
+    "source_page": 11
+  },
+  {
+    "exposed_population": "30~49人",
+    "alpha": "1.2",
+    "source_page": 11
+  },
+  {
+    "exposed_population": "1~29人",
+    "alpha": "1.0",
+    "source_page": 11
+  },
+  {
+    "exposed_population": "0人",
+    "alpha": "0.5",
+    "source_page": 11
+  }
+]
