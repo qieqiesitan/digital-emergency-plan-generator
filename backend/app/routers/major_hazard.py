@@ -3,6 +3,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +30,13 @@ from app.schemas.major_hazard import (
 )
 from app.services.evidence_service import EvidenceInput, attach_evidence, list_evidence
 from app.services.major_hazard_lookup import lookup_chemical_definition
+from app.services.major_hazard_linkage import (
+    LinkageError,
+    link_risk_object,
+    link_unit_chemical_to_ledger,
+    list_linkable_risk_objects,
+    suggest_design_max_from_ledger,
+)
 from app.services.major_hazard_service import (
     MajorHazardRuleError,
     compute_unit_snapshot,
@@ -280,3 +288,111 @@ async def api_lookup_chemical(
     `needs_hazard_symbol=true` 与表4 的类别清单，让用户选完再查一次。
     """
     return _ok(await lookup_chemical_definition(db, name=name, hazard_symbol=hazard_symbol))
+
+
+# --- 跨模块关联（计划 7）---------------------------------------------------
+
+
+class LinkRiskObjectIn(BaseModel):
+    """传 null 表示解除关联。"""
+
+    risk_object_id: Optional[str] = None
+
+
+class LinkChemicalIn(BaseModel):
+    """传 null 表示解除台账引用。"""
+
+    chemical_id: Optional[str] = None
+
+
+@router.get("/linkable/risk-objects")
+async def api_list_linkable_risk_objects(
+    enterprise_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出本企业可关联的风险点。"""
+    return _ok(await list_linkable_risk_objects(db, enterprise_id=enterprise_id))
+
+
+@router.put("/units/{unit_id}/risk-object")
+async def api_link_risk_object(
+    unit_id: str,
+    payload: LinkRiskObjectIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """把单元关联到风险点（同企业校验）。"""
+    try:
+        out = await link_risk_object(
+            db, unit_id=unit_id, risk_object_id=payload.risk_object_id
+        )
+    except LinkageError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ok(out)
+
+
+@router.get("/ledger/chemicals")
+async def api_list_ledger_chemicals(
+    enterprise_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出本企业危化品台账条目，供单元品种关联选择。"""
+    from app.models.hazardous_chemicals import HazardousChemical
+
+    res = await db.execute(
+        select(HazardousChemical)
+        .where(HazardousChemical.enterprise_id == enterprise_id)
+        .order_by(HazardousChemical.name)
+    )
+    return _ok(
+        [
+            {
+                "id": c.id,
+                "name": c.name,
+                "cas_no": c.cas_no,
+                "max_storage": c.max_storage,
+                "storage_amount": (
+                    float(c.storage_amount)
+                    if getattr(c, "storage_amount", None) is not None
+                    else None
+                ),
+                "storage_unit": c.storage_unit,
+            }
+            for c in res.scalars().all()
+        ]
+    )
+
+
+@router.get("/ledger/chemicals/{chemical_id}/suggest-design-max")
+async def api_suggest_design_max(
+    chemical_id: str,
+    enterprise_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """返回设计最大量的**建议初值** + 口径提示。
+
+    注意语义：本接口只给建议，不写库。真正落库要等用户在界面上确认后保存品种清单。
+    因为设计最大量与台账最大储存量在标准里是两个口径，直接采用会算小导致漏判。
+    """
+    try:
+        out = await suggest_design_max_from_ledger(
+            db, chemical_id=chemical_id, enterprise_id=enterprise_id
+        )
+    except LinkageError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ok(out)
+
+
+@router.put("/unit-chemicals/{unit_chemical_id}/ledger-link")
+async def api_link_unit_chemical(
+    unit_chemical_id: str,
+    payload: LinkChemicalIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """把单元品种行关联到危化品台账条目（只写引用，不改数量）。"""
+    try:
+        out = await link_unit_chemical_to_ledger(
+            db, unit_chemical_id=unit_chemical_id, chemical_id=payload.chemical_id
+        )
+    except LinkageError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ok(out)
