@@ -139,6 +139,10 @@ async def lifespan(app: FastAPI):
         sys.exit(1)
     from app.services.third_party_config import import_seed_configs
     await import_seed_configs()
+    # 计划 6 任务 3：注册 DataHub 目标实体写入器（确认后落正式表的唯一通路）。
+    # 不注册则 confirm_items 会报「目标实体尚未注册写入器」，确认链路整体不可用。
+    from app.services.ingest_writers import register_default_writers
+    register_default_writers()
     # 任务 8：APScheduler 隐患定时扫描（每 5 分钟）。依赖缺失/启动异常仅告警降级，
     # 不阻塞服务启动（规格 §16）；外部 cron 可退化为调用 run_hazard_scans 的内部端点。
     scheduler = None
