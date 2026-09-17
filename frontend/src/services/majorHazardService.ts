@@ -2,6 +2,7 @@ import api from "./api";
 import type { AxiosRequestConfig } from "axios";
 import type { ApiResponse } from "@/types/common";
 import type {
+  ChemicalDefinition,
   CriticalQuantity,
   EvidenceItem,
   MajorHazardCalculation,
@@ -25,6 +26,19 @@ export const listCriticalQuantities = (keyword?: string) =>
     .then((r) => r.data.data);
 
 // --- 单元 ---
+/**
+ * 按品种名查标准值（Q 与 β）。
+ *
+ * β 查不到时（表3 未命中）返回 needs_hazard_symbol=true 与表4 的类别清单，
+ * 前端让用户选类别后再调一次本函数并传 hazard_symbol。
+ */
+export const lookupChemical = (name: string, hazardSymbol?: string) =>
+  api
+    .get<ApiResponse<ChemicalDefinition>>(`${BASE}/definitions/lookup`, {
+      params: { name, hazard_symbol: hazardSymbol },
+    })
+    .then((r) => r.data.data);
+
 export const listUnits = (enterpriseId: string) =>
   api
     .get<ApiResponse<MajorHazardUnit[]>>(`${BASE}/units`, {

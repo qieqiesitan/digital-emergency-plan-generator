@@ -127,3 +127,29 @@ export interface EvidenceItem {
   relation: string;
   note?: string | null;
 }
+
+/** 表4 的一条危险性类别（用于 β 查不到时让用户选）。 */
+export interface HazardSymbolOption {
+  symbol: string;
+  category?: string | null;
+  beta?: number | null;
+}
+
+/**
+ * 按品种名查出的标准值。
+ *
+ * `needs_hazard_symbol=true` 表示表3（按名称）没查到 β，
+ * 需要用户从 `hazard_symbol_options`（表4）里选一个危险性类别再查。
+ */
+export interface ChemicalDefinition {
+  chemical_name: string;
+  alias?: string | null;
+  cas_no?: string | null;
+  table_no?: string | null;
+  critical_quantity_t?: number | null;
+  critical_note?: string | null;
+  beta?: number | null;
+  beta_source?: "table3" | "table4" | null;
+  needs_hazard_symbol: boolean;
+  hazard_symbol_options: HazardSymbolOption[];
+}

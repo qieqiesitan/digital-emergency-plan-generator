@@ -60,6 +60,7 @@ import HazardDashboardPage from "@/pages/Hazard/HazardDashboardPage";
 import HazardTemplatePage from "@/pages/Hazard/HazardTemplatePage";
 import HazardPublicityPage from "@/pages/Hazard/HazardPublicityPage";
 import MajorHazardListPage from "@/pages/Enterprise/MajorHazardListPage";
+import MajorHazardUnitPage from "@/pages/Enterprise/MajorHazardUnitPage";
 import PublicHazardReportPage from "@/pages/Hazard/PublicHazardReportPage";
 import PublicHazardPage from "@/pages/Hazard/PublicHazardPage";
 import ChatPage from "@/pages/Chat";
@@ -143,6 +144,7 @@ const contentRoutes = [
     ),
     children: [
       { index: true, element: <MajorHazardListPage /> },
+      { path: "units/:unitId", element: <MajorHazardUnitPage /> },
     ],
   },
   { path: "/enterprises/:id/risk-assessment/preview", element: <RiskAssessmentPreview /> },
