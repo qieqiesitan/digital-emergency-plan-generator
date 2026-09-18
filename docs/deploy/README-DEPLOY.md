@@ -152,6 +152,25 @@ curl -s -X POST https://<域名>/api/v1/admin/maintenance/run-scans \
 该端点是幂等的（扫描内部都有防重），可安全地每 5 分钟触发一次；
 `skipped_by_lock=true` 表示本轮被其他 worker 抢到，属正常。
 
+### 7.3 数据库一致性巡检（发布前建议跑一次）
+
+逐条外键做 LEFT JOIN 找孤儿行，并额外检查**没有外键、只靠应用层保证**的隐性引用
+（企业组织树里指向不存在用户的成员、成员挂在别的企业组织节点下、被标记风险点却缺分区
+或坐标、预案/作业票/隐患的状态出现了枚举外的取值）。升级前或排障时用它替代"凭感觉翻库"：
+
+```bash
+# 容器内（能连到 DATABASE_URL 的环境）
+docker exec <backend 容器> sh -c "cd /app && python scripts/check_db_consistency.py"
+# 加 --strict：发现孤儿/非法状态时退出码 1，可挂到发布流水线做门禁
+docker exec <backend 容器> sh -c "cd /app && python scripts/check_db_consistency.py --strict"
+# 输出样例
+#   ✅ 所有外键引用都指向存在的父行
+#   结论：未发现引用完整性/数据一致性问题 ✅
+```
+
+注：`app_runtime_state` 里"已过期未清理"的行数属**惰性清理**（有请求时顺手回收），
+不计为缺陷；脚本会单独列出该计数供参考。
+
 ## 8. 踩坑记录
 
 | # | 坑 | 原因 | 解决 |
