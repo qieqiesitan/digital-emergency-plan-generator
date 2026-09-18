@@ -9,6 +9,7 @@ from io import BytesIO
 
 
 from app.services.llm_client import decrypt_api_key, llm_chat_completion, LLMError
+from app.services.filename_safety import safe_filename
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,7 @@ def _safe_source_filename(filename: str) -> str:
     2026-09-18 审计：`save_source_file` 之前直接拼 `f"{ts}_{filename}"`，
     `filename="../../x.py"` 会写到 uploads 目录之外（管理员权限即可触发）。
     """
-    base = os.path.basename((filename or "").replace("\\", "/")).strip()
-    base = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", base).lstrip(".")
-    return (base or "source")[:120]
+    return safe_filename(filename, fallback="source")
 
 
 def save_source_file(regulation_id: str, file_bytes: bytes, filename: str) -> str:

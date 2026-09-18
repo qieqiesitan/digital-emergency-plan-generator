@@ -29,6 +29,7 @@ from app.services.report_generation_progress import save_generation_progress
 from app.services.report_review_service import review_report_chapters
 from app.services.sse_utils import sse_event
 from app.services.background_stream import BackgroundStream
+from app.services.filename_safety import safe_filename
 from app.services.resource_investigation_service import (
     CHAPTER_DEFINITIONS as RI_CHAPTER_DEFINITIONS,
     build_resource_investigation_context,
@@ -270,7 +271,8 @@ async def export_resource_investigation(
     )
 
     os.makedirs(settings.EXPORT_DIR, exist_ok=True)
-    safe_name = ent.name.replace(" ", "_") if ent else "企业"
+    # 企业名属用户可控输入：统一走文件名安全化（此前仅替换空格，`../../x` 会越界）
+    safe_name = safe_filename(ent.name, fallback="企业") if ent else "企业"
     filename = f"{safe_name}_应急资源调查报告.docx"
     path = os.path.join(settings.EXPORT_DIR, filename)
     doc.save(path)

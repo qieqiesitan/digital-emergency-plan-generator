@@ -1,5 +1,5 @@
 """外部系统接入 API — PROTEGO 商城对接"""
-import logging, os, re
+import logging, os
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
@@ -31,6 +31,7 @@ os.makedirs(EXPORT_DIR, exist_ok=True)
 
 # W2：任务状态改跨 worker 共享（回调/状态查询可能落到不同 worker）
 from app.services.runtime_state import get_state, set_state
+from app.services.filename_safety import safe_filename
 
 EXTERNAL_TASK_TTL_SECONDS = 24 * 3600
 
@@ -284,7 +285,7 @@ async def external_download_file(task_id: str, file_id: str):
 
     async with async_session() as db:
         p = (await db.execute(select(PlanProject).where(PlanProject.id == task_id))).scalar_one_or_none()
-    safe_name = re.sub(r'[\\/*?:"<>|]', "_", (p.title if p else "预案")) + ".docx"
+    safe_name = safe_filename(p.title if p else "预案", fallback="plan") + ".docx"
     return FileResponse(docx_path, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename=safe_name)
 
 

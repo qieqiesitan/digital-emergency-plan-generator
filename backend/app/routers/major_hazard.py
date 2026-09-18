@@ -2,7 +2,6 @@
 
 import logging
 import os
-import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -51,6 +50,7 @@ from app.services.major_hazard_service import (
 from app.services.major_hazard_report_data import ReportNotReadyError, build_chapters
 from app.services.report_docx import generate_report_docx
 from app.services.access_control import ensure_enterprise_owned, ensure_major_hazard_unit_owned
+from app.services.filename_safety import safe_filename
 
 logger = logging.getLogger("major_hazard")
 
@@ -450,7 +450,7 @@ async def export_unit_report(
             report_title="危险化学品重大危险源辨识报告",
         )
         os.makedirs(settings.EXPORT_DIR, exist_ok=True)
-        safe_unit = re.sub(r'[\\/*?:"<>|]', "_", unit.name)
+        safe_unit = safe_filename(unit.name, fallback="单元")
         filename = f"重大危险源辨识报告-{safe_unit}.docx"
         filepath = os.path.join(settings.EXPORT_DIR, filename)
         doc.save(filepath)

@@ -1,7 +1,6 @@
 """作业票 API。"""
 
 import os
-import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -23,6 +22,7 @@ from app.models.work_ticket import (
 from app.schemas.work_ticket import GasTestIn, NodeActionIn, OpenTicketIn, TicketOut
 from app.services.access_control import ensure_enterprise_owned, ensure_ticket_owned
 from app.services.work_ticket_docx import build_snapshot, content_hash, render_ticket_docx
+from app.services.filename_safety import safe_filename
 from app.services.work_ticket_service import (
     SubmitValidationError,
     WorkTicketError,
@@ -329,7 +329,7 @@ async def api_print_ticket(ticket_id: str, db: AsyncSession = Depends(get_db), u
     try:
         doc = render_ticket_docx(snapshot=snapshot)
         os.makedirs(settings.EXPORT_DIR, exist_ok=True)
-        safe = re.sub(r'[\\/*?:"<>|]', "_", instance.code)
+        safe = safe_filename(instance.code, fallback="ticket")
         filename = f"{safe}.docx"
         filepath = os.path.join(settings.EXPORT_DIR, filename)
         doc.save(filepath)

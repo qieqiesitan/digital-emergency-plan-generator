@@ -25,6 +25,7 @@ from app.services.user_preference_service import get_preferences, set_preference
 from app.services.workflow.models import WorkflowRun, WorkflowRunStep
 from app.services.workflow.runner import WorkflowRunner
 from app.services.pagination import clamp_page, clamp_page_size
+from app.services.filename_safety import safe_filename
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
@@ -1090,7 +1091,6 @@ async def _export_plan_docx(db, user, args):
     try:
         from app.routers.export import _build_signers_from_org
         import asyncio
-        import re as _re
         signers = _build_signers_from_org(ent.org_structure or [])
         doc = await asyncio.to_thread(
             generate_plan_docx_func,
@@ -1104,7 +1104,7 @@ async def _export_plan_docx(db, user, args):
         )
         export_dir = os.environ.get("EXPORT_DIR", "/app/exports")
         os.makedirs(export_dir, exist_ok=True)
-        safe_title = _re.sub(r'[\/*?:"<>|]', "_", p.title)
+        safe_title = safe_filename(p.title, fallback="plan")
         filename = f"{safe_title}.docx"
         filepath = os.path.join(export_dir, filename)
         doc.save(filepath)

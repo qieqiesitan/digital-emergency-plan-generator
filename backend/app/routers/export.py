@@ -12,6 +12,7 @@ from app.services.docx_template import (
     generate_plan_docx, fix_markdown_tables, _wrap_raw_mermaid
 )
 from app.services.plan_section_content import strip_section_heading
+from app.services.filename_safety import safe_filename
 
 logger = logging.getLogger(__name__)
 
@@ -387,7 +388,8 @@ async def export_plan_docx(
         )
 
         # W0 安全修复：预案导出不再落盘（避免确定性文件名被任何登录用户/匿名枚举下载）
-        safe_title = re.sub(r'[\/*?:"<>|]', "_", plan.title)
+        # 统一文件名安全化（此前的字符类漏了反斜杠，Windows 下可越界）
+        safe_title = safe_filename(plan.title, fallback="plan")
         filename = f"{safe_title}.docx"
         buf = io.BytesIO()
         doc.save(buf)

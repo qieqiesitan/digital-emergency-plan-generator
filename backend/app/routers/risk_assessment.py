@@ -35,6 +35,7 @@ from app.services.risk_assessment_service import (
     CHAPTER_DEFINITIONS as RA_CHAPTER_DEFINITIONS,
 )
 from app.services.risk_context_builder import build_risk_management_context
+from app.services.filename_safety import safe_filename
 from app.services.risk_assessment_service import (
     build_chapter_prompt,
     get_chapter_keys,
@@ -529,7 +530,8 @@ async def export_risk_assessment(
 
     # ---- Export ----
     os.makedirs(settings.EXPORT_DIR, exist_ok=True)
-    safe_name = ent.name.replace(" ", "_") if ent else "企业"
+    # 企业名属用户可控输入：统一走文件名安全化（此前仅替换空格，`../../x` 会越界）
+    safe_name = safe_filename(ent.name, fallback="企业") if ent else "企业"
     filename = f"{safe_name}_事故风险评估报告.docx"
     path = os.path.join(settings.EXPORT_DIR, filename)
     doc.save(path)
