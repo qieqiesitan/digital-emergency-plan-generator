@@ -382,7 +382,7 @@ export default function HazardDashboardPage() {
       value: m.scan_pending as number | null,
       suffix: "条",
       color: "#faad14",
-      footer: "公开上报 registered 待处理",
+      footer: "公开上报 · 待确认",
     },
   ];
 

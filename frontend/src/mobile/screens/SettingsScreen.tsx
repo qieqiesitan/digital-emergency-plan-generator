@@ -7,6 +7,7 @@ import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import Avatar from "@/mobile/components/ui/Avatar";
 import { useToast } from "@/mobile/components/ui/Toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MENU_ITEMS = [
   {
@@ -32,6 +33,7 @@ const MENU_ITEMS = [
 export default function SettingsScreen() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const handleLogout = () => {
     if (window.confirm("确定退出登录？")) {
@@ -53,10 +55,10 @@ export default function SettingsScreen() {
             className="w-full bg-white rounded-md shadow-card p-md flex items-center gap-md"
             onClick={() => navigate("/m/settings/profile")}
           >
-            <Avatar name="用户" size="md" />
+            <Avatar name={user?.name || user?.email || "用户"} size="md" />
             <div className="flex-1 text-left">
               <p className="text-body font-semibold text-neutral-900">账户信息</p>
-              <p className="text-caption text-neutral-400">user@example.com</p>
+              <p className="text-caption text-neutral-400">{user?.email || "未获取到账号信息"}</p>
             </div>
             <ChevronRight size={16} className="text-neutral-400" />
           </button>
