@@ -398,7 +398,10 @@ export default function PlanEditorScreen() {
     []
   );
 
-  const runBatchGeneration = useCallback(async (keys: string[]) => {
+  const runBatchGeneration = useCallback(async (
+    keys: string[],
+    styleParams?: Record<string, string>
+  ) => {
     if (!planId) return;
     if (keys.length === 0) {
       showToast?.({ type: "info", message: "请至少选择一个章节" });
@@ -407,7 +410,7 @@ export default function PlanEditorScreen() {
     setFailedSections([]);
     setThinkingBrief("");
     try {
-      const res = await generateBatchBackground(planId, keys);
+      const res = await generateBatchBackground(planId, keys, styleParams ?? null);
       showToast?.({ type: "success", message: res.message || "已在后台开始生成" });
       setGenerationBanner({ status: "generating", message: res.message || "已在后台开始生成…" });
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
@@ -425,9 +428,12 @@ export default function PlanEditorScreen() {
     }
   }, [planId, showToast, queryClient, pollGenerationStatus]);
 
-  const handleBatchGenerate = useCallback((selectedKeys: string[]) => {
+  const handleBatchGenerate = useCallback((
+    selectedKeys: string[],
+    styleParams?: Record<string, string>
+  ) => {
     setBatchSheetOpen(false);
-    runBatchGeneration(selectedKeys);
+    runBatchGeneration(selectedKeys, styleParams);
   }, [runBatchGeneration]);
 
   const handleRetryFailed = useCallback(() => {
@@ -699,7 +705,9 @@ export default function PlanEditorScreen() {
               enterpriseName={plan.enterprise_name}
               contextSummary={{ riskCount: 0, resourceCount: 0 }}
               chapters={batchChapters}
-              onGenerate={(selectedKeys) => handleBatchGenerate(selectedKeys)}
+              onGenerate={(selectedKeys, styleParams) =>
+                handleBatchGenerate(selectedKeys, { ...styleParams })
+              }
             />
             <BottomSheet open={reviewSheetOpen} onClose={() => setReviewSheetOpen(false)} height="70%">
               <div className="px-md py-sm">

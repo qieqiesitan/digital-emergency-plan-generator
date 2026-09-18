@@ -36,11 +36,15 @@ export function generateBatchStream(
   sectionKeys: string[] | null,
   onEvent: (event: SSEEvent) => void,
   onError: (error: string) => void,
-  onComplete: () => void
+  onComplete: () => void,
+  stylePreference?: Record<string, string> | null
 ): AbortController {
   const controller = new AbortController();
 
-  const body: GenerateBatchRequest = { section_keys: sectionKeys };
+  const body: GenerateBatchRequest = {
+    section_keys: sectionKeys,
+    style_preference: stylePreference ?? undefined,
+  };
 
   sseFetch({
     path: `/plans/${planId}/generate/batch`,
@@ -65,9 +69,13 @@ export function generateBatchStream(
 
 export async function generateBatchBackground(
   planId: string,
-  sectionKeys: string[] | null
+  sectionKeys: string[] | null,
+  stylePreference?: Record<string, string> | null
 ): Promise<{ code: number; message: string; failed_sections?: Array<{ section_key: string; title: string }> }> {
-  const body: GenerateBatchRequest = { section_keys: sectionKeys };
+  const body: GenerateBatchRequest = {
+    section_keys: sectionKeys,
+    style_preference: stylePreference ?? undefined,
+  };
   return apiJsonFetch<{ code: number; message: string; failed_sections?: Array<{ section_key: string; title: string }> }>({
     path: `/plans/${planId}/generate/batch/background`,
     method: "POST",

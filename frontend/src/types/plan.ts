@@ -172,6 +172,9 @@ export interface GenerateRequest {
 
 export interface GenerateBatchRequest {
   section_keys?: string[] | null;
+  /** 请求级风格覆盖（移动端批量生成用）；缺省时沿用预案已保存的风格 */
+  style_preference?: Record<string, string> | null;
+  advanced_prompt_overrides?: Record<string, unknown> | null;
 }
 
 export interface GenerationStatusData {

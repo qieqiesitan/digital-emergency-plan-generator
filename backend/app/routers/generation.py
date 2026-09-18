@@ -247,6 +247,24 @@ def _build_system_prompt(plan_type: str = "*", style_preference: dict | None = N
     """构建系统提示词，优先风格参数，fallback 到数据库模板；固定追加风险数据权威规则。"""
     return with_rule(build_system_prompt_with_style(plan_type, style_preference, advanced_overrides))
 
+
+def _parse_batch_request(body: object) -> tuple[object, dict | None, dict | None]:
+    """解析批量生成请求体 → (section_keys, style_preference, advanced_prompt_overrides)。
+
+    请求级风格覆盖是为移动端批量生成补的（2026-09-18）：此前 batch 只按预案保存的
+    `style_preference` 生成，前端选了风格也会被静默忽略。这里对非 dict 值一律按
+    "未提供"处理（走预案默认），避免脏载荷把提示词构造炸掉。
+    """
+    if not isinstance(body, dict):
+        return None, None, None
+    style = body.get("style_preference")
+    advanced = body.get("advanced_prompt_overrides")
+    return (
+        body.get("section_keys"),
+        style if isinstance(style, dict) else None,
+        advanced if isinstance(advanced, dict) else None,
+    )
+
 def _get_mermaid_instruction(section_key: str | None, section_title: str, diagram_preference: str = "mermaid") -> str | None:
     """Return a Mermaid-specific prompt instruction if this section needs a flowchart."""
     if diagram_preference == "none":
@@ -813,9 +831,9 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
     p = await _get_plan_or_404(plan_id, current_user, db)
     try:
         body = await request.json()
-        body_keys = body.get("section_keys")
     except Exception:
-        body_keys = None
+        body = {}
+    body_keys, style_override, advanced_override = _parse_batch_request(body)
     p, ai_config, ent_data, target_sections = await collect_batch_context(plan_id, db, keys=body_keys)
 
     p.status = "generating"
@@ -882,8 +900,8 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     bg_db=bg_db, plan_id=plan_id, section_tuples=section_tuples,
                     ai_config=ai_config, ent_data=ent_data,
                     plan_type=p.plan_type, accident_type=p.accident_type,
-                    style_preference=p.style_preference,
-                    advanced_overrides=p.advanced_prompt_overrides,
+                    style_preference=style_override or p.style_preference,
+                    advanced_overrides=advanced_override or p.advanced_prompt_overrides,
                     stream_fn=sse_stream,
                     on_progress=on_progress,
                     on_section_done=on_section_done,
@@ -1002,9 +1020,9 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
             return {"code": 0, "message": "正在生成中"}
     try:
         body = await request.json()
-        body_keys = body.get("section_keys")
     except Exception:
-        body_keys = None
+        body = {}
+    body_keys, style_override, advanced_override = _parse_batch_request(body)
     p, ai_config, ent_data, target_sections = await collect_batch_context(plan_id, db, keys=body_keys)
 
     if not target_sections:
@@ -1030,8 +1048,8 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
                     bg_db=bg_db, plan_id=plan_id, section_tuples=section_ids,
                     ai_config=ai_config, ent_data=ent_data,
                     plan_type=p.plan_type, accident_type=p.accident_type,
-                    style_preference=p.style_preference,
-                    advanced_overrides=p.advanced_prompt_overrides,
+                    style_preference=style_override or p.style_preference,
+                    advanced_overrides=advanced_override or p.advanced_prompt_overrides,
                     stream_fn=None,
                     on_progress=None,
                     should_stop=lambda: _gp.is_cancel_requested(plan_id),
