@@ -75,3 +75,31 @@ export function majorHazardNavGroups(id: string): SideNavGroup[] {
     },
   ];
 }
+
+/**
+ * 作业票模块侧导航。
+ *
+ * 视觉走查第 1 条：侧边栏**只有一个入口**，8 类票在页面内用类型筛选切换，
+ * 不在这里开 8 个菜单——菜单一多，用户找不到东西，将来加类型还要改导航。
+ * 故这里只有两项：作业票（含开票向导）与审批工作台。
+ */
+export function workTicketNavGroups(id: string): SideNavGroup[] {
+  return [
+    {
+      label: "特殊作业",
+      items: [
+        { key: "tickets", label: "作业票", to: `/enterprises/${id}/work-ticket` },
+      ],
+    },
+    {
+      label: "基础设置",
+      items: [
+        {
+          key: "approval",
+          label: "审批工作台",
+          to: `/enterprises/${id}/work-ticket/approval`,
+        },
+      ],
+    },
+  ];
+}

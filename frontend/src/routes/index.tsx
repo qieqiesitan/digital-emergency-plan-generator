@@ -22,6 +22,7 @@ import {
   riskNavGroups,
   hazardNavGroups,
   majorHazardNavGroups,
+  workTicketNavGroups,
 } from "@/pages/Enterprise/enterpriseNavConfig";
 import PlanCardsPage from "@/pages/Plan/PlanCardsPage";
 import PlanListPage from "@/pages/Plan/PlanListPage";
@@ -65,6 +66,10 @@ import HazardPublicityPage from "@/pages/Hazard/HazardPublicityPage";
 import MajorHazardListPage from "@/pages/Enterprise/MajorHazardListPage";
 import MajorHazardUnitPage from "@/pages/Enterprise/MajorHazardUnitPage";
 import MajorHazardComputePage from "@/pages/Enterprise/MajorHazardComputePage";
+import WorkTicketListPage from "@/pages/Enterprise/WorkTicketListPage";
+import WorkTicketNewPage from "@/pages/Enterprise/WorkTicketNewPage";
+import WorkTicketDetailPage from "@/pages/Enterprise/WorkTicketDetailPage";
+import WorkTicketApprovalPage from "@/pages/Enterprise/WorkTicketApprovalPage";
 import MajorHazardRecordPage from "@/pages/Enterprise/MajorHazardRecordPage";
 import PublicHazardReportPage from "@/pages/Hazard/PublicHazardReportPage";
 import PublicHazardPage from "@/pages/Hazard/PublicHazardPage";
@@ -152,6 +157,22 @@ const contentRoutes = [
       { path: "units/:unitId", element: <MajorHazardUnitPage /> },
       { path: "compute", element: <MajorHazardComputePage /> },
       { path: "record", element: <MajorHazardRecordPage /> },
+    ],
+  },
+  {
+    path: "/enterprises/:id/work-ticket",
+    element: (
+      <ModulePageShell
+        title="特殊作业"
+        en="SPECIAL WORK TICKET"
+        groups={workTicketNavGroups}
+      />
+    ),
+    children: [
+      { index: true, element: <WorkTicketListPage /> },
+      { path: "new", element: <WorkTicketNewPage /> },
+      { path: "approval", element: <WorkTicketApprovalPage /> },
+      { path: ":ticketId", element: <WorkTicketDetailPage /> },
     ],
   },
   { path: "/enterprises/:id/risk-assessment/preview", element: <RiskAssessmentPreview /> },

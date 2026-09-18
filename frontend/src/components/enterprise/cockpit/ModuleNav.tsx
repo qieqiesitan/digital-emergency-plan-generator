@@ -33,6 +33,13 @@ const MODULES: ModuleItem[] = [
     icon: <AppIcon name="safety" size={24} />,
   },
   {
+    // 特殊作业（8 类作业票）在模块内是单入口 + 类型筛选，故侧边栏只此一项，
+    // 不按类型拆成 8 个菜单。
+    key: "workTicket", label: "特殊作业", en: "TICKET", hot: true,
+    to: (id) => `/enterprises/${id}/work-ticket`,
+    icon: <AppIcon name="standard" size={24} />,
+  },
+  {
     key: "risk", label: "风险管控", en: "RISK", hot: true, to: (id) => `/enterprises/${id}/risk-management`,
     icon: <AppIcon name="risk" size={24} />,
   },
