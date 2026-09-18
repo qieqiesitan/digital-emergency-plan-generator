@@ -39,3 +39,38 @@ class EnterpriseMember(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MemberPosition(Base):
+    """成员任职关系：一人可挂多个组织节点（一个主岗 + 若干兼岗）。
+
+    enterprise_members.org_node_id 保留为主岗镜像列，由 member_position_service 同步维护，
+    使只认主岗的既有消费方（隐患报表部门列等）零改动。
+    """
+
+    __tablename__ = "member_positions"
+    __table_args__ = (
+        Index("uq_member_positions_member_node", "member_id", "org_node_id", unique=True),
+        # 部分唯一索引：每个成员最多一个主岗
+        Index(
+            "uq_member_positions_primary",
+            "member_id",
+            unique=True,
+            postgresql_where=text("is_primary"),
+        ),
+    )
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("is_primary", False)
+        super().__init__(**kwargs)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    enterprise_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    member_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("enterprise_members.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    org_node_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
