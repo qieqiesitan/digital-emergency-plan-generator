@@ -135,7 +135,7 @@ export default function ResourceImportModal({ enterpriseId, visible, onClose, on
         <div style={{ textAlign: "center", padding: "40px 0" }}>
           <Alert
             type="info"
-            message="第一步：下载模板"
+            title="第一步：下载模板"
             description="下载包含下拉校验的 Excel 模板，按格式填写企业的应急资源数据。每行一个资源，类别可从下拉列表中选取。"
             style={{ marginBottom: 24, textAlign: "left" }}
             showIcon
@@ -151,7 +151,7 @@ export default function ResourceImportModal({ enterpriseId, visible, onClose, on
         <div>
           <Alert
             type="info"
-            message="第二步：上传已填好的文件"
+            title="第二步：上传已填好的文件"
             description="将填写完成的模板文件上传，系统会自动解析并校验每一行数据。"
             style={{ marginBottom: 16 }}
             showIcon
@@ -182,7 +182,7 @@ export default function ResourceImportModal({ enterpriseId, visible, onClose, on
           {errorCount > 0 && (
             <Alert
               type="warning"
-              message={`共 ${previewItems.length} 条数据，${validCount} 条有效、${errorCount} 条有错误。有错误的行将跳过不导入。`}
+              title={`共 ${previewItems.length} 条数据，${validCount} 条有效、${errorCount} 条有错误。有错误的行将跳过不导入。`}
               style={{ marginBottom: 12 }}
               showIcon
             />
@@ -190,7 +190,7 @@ export default function ResourceImportModal({ enterpriseId, visible, onClose, on
           {errorCount === 0 && (
             <Alert
               type="success"
-              message={`共 ${validCount} 条有效数据，确认后将导入数据库`}
+              title={`共 ${validCount} 条有效数据，确认后将导入数据库`}
               style={{ marginBottom: 12 }}
               showIcon
             />

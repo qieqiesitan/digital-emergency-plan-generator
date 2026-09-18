@@ -169,7 +169,7 @@ export default function UnitPolygonEditor({ enterpriseId, unitId, floorId, polyg
 
   return (
     <Card size="small" title="平面图落点">
-      <Space direction="vertical" style={{ width: "100%" }} size="small">
+      <Space orientation="vertical" style={{ width: "100%" }} size="small">
         <Space wrap>
           <Select
             placeholder="选择楼层"
@@ -199,14 +199,14 @@ export default function UnitPolygonEditor({ enterpriseId, unitId, floorId, polyg
         </Space>
 
         {!selectedFloorId && (
-          <Alert type="info" showIcon message="请先选择楼层，再绘制该单元在平面图上的边界。" />
+          <Alert type="info" showIcon title="请先选择楼层，再绘制该单元在平面图上的边界。" />
         )}
 
         {savedShape && selectedFloorId && selectedFloorId !== floorId && (
           <Alert
             type="warning"
             showIcon
-            message="该单元已保存的落点在其它楼层，保存后将以当前楼层的边界为准。"
+            title="该单元已保存的落点在其它楼层，保存后将以当前楼层的边界为准。"
           />
         )}
 

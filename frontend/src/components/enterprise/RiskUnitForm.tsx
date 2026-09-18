@@ -31,7 +31,7 @@ export default function RiskUnitForm({ open, onClose, onSubmit, initialValues, o
       title={initialValues ? "编辑风险单元" : "新增风险单元"}
       open={open}
       onClose={onClose}
-      width={480}
+      size={480}
       extra={
         <Space>
           <Button onClick={onClose}>取消</Button>

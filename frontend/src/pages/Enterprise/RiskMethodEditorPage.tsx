@@ -16,6 +16,7 @@ import {
   computeRiskLS, renderMatrixData, RISK_LEVEL_COLORS,
   computeRiskLEC,
 } from "@/utils/riskMethodEngine";
+import { withRowKeys } from "@/utils/stableRowKey";
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
@@ -320,8 +321,8 @@ export default function RiskMethodEditorPage() {
                         <Button size="small" icon={<PlusOutlined />} onClick={() => addLevel(pi)}>添加等级</Button>
                       </div>
                       <Table
-                        dataSource={param.levels}
-                        rowKey={(_, ri) => `${param.key}-lvl-${ri}`}
+                        dataSource={withRowKeys(param.levels, lv => `${param.key}-lvl-${lv.value}-${lv.label}`)}
+                        rowKey="__rowKey"
                         columns={paramColumns(pi)}
                         size="small"
                         pagination={false}
@@ -342,8 +343,8 @@ export default function RiskMethodEditorPage() {
             extra={<Button size="small" icon={<PlusOutlined />} onClick={addThreshold}>添加等级区间</Button>}
           >
             <Table
-              dataSource={thresholds}
-              rowKey={(_, ri) => `th-${ri}`}
+              dataSource={withRowKeys(thresholds, th => `th-${th.level}-${th.min}-${th.max}`)}
+              rowKey="__rowKey"
               size="small"
               pagination={false}
               rowClassName={(_, ri) => overlapRows.includes(ri) ? "ant-table-row-overlap" : ""}

@@ -8,6 +8,7 @@ import type { OrgGroup, OrgMember } from "@/types/enterprise";
 import OrgStructureEditor from "@/components/enterprise/OrgStructureEditor";
 import ImportDrawer from "./ImportDrawer";
 import type { CandidateItem, ImportResult } from "@/types/onboarding";
+import { withRowKeys } from "@/utils/stableRowKey";
 
 interface Props {
   enterpriseId: string;
@@ -274,8 +275,8 @@ export default function StepOrg({
               <Table
                 size="small"
                 pagination={false}
-                rowKey={(_, i) => `a-${i}`}
-                dataSource={g.members || []}
+                rowKey="__rowKey"
+                dataSource={withRowKeys(g.members || [], m => `a-${m.role ?? ""}`)}
                 columns={[
                   { title: "角色", dataIndex: "role" },
                   {
@@ -322,8 +323,8 @@ export default function StepOrg({
                 <Table
                   size="small"
                   pagination={false}
-                  rowKey={(_, i) => `m-${i}`}
-                  dataSource={members}
+                  rowKey="__rowKey"
+                  dataSource={withRowKeys(members, m => `m-${m.role ?? ""}`)}
                   columns={[
                     { title: "角色", dataIndex: "role" },
                     {

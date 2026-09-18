@@ -102,7 +102,7 @@ export default function ExportPreviewPage() {
         <Alert
           type="error"
           showIcon
-          message="导出前请修复以下问题"
+          title="导出前请修复以下问题"
           description={
             <ul>
               {validation.issues.map((i, idx) => (
@@ -117,7 +117,7 @@ export default function ExportPreviewPage() {
         <Alert
           type="warning"
           showIcon
-          message="质量提示"
+          title="质量提示"
           description={
             <ul>
               {validation.warnings.map((w, idx) => (

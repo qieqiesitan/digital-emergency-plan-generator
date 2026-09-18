@@ -177,7 +177,7 @@ export default function MajorHazardRecordPage() {
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="该单元尚未建立档案"
+          title="该单元尚未建立档案"
           description="填好下面的信息并保存即可建档。"
         />
       )}
@@ -256,7 +256,7 @@ export default function MajorHazardRecordPage() {
               onChange={(v) => setDocs(v as string[])}
               style={{ display: "block" }}
             >
-              <Space direction="vertical">
+              <Space orientation="vertical">
                 {REQUIRED_DOCS.map((d) => (
                   <Checkbox key={d.key} value={d.key}>
                     {d.label}

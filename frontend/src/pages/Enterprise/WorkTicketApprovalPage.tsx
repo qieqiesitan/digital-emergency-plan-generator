@@ -138,11 +138,11 @@ export default function WorkTicketApprovalPage() {
     <div>
       <PageHeader title="审批工作台" subtitle="本企业审批中的作业票" />
 
-      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+      <Space orientation="vertical" size={12} style={{ width: "100%" }}>
         <Alert
           type="info"
           showIcon
-          message="法定审批环节不可跳过"
+          title="法定审批环节不可跳过"
           description="审批人依据 GB 30871-2022 附录B 表B.1；退回后票据回到已退回状态，需修改后重新提交。"
         />
         <Space size={8}>
@@ -172,7 +172,7 @@ export default function WorkTicketApprovalPage() {
         onOk={handleConfirm}
         onCancel={() => setActing(null)}
       >
-        <Space direction="vertical" size={8} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={8} style={{ width: "100%" }}>
           <Text>{acting?.code}</Text>
           <Input.TextArea
             rows={3}

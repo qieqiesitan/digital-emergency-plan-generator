@@ -164,7 +164,7 @@ export default function PlanCreatePage() {
             <Alert
               type="warning"
               showIcon
-              message="请先选择所属企业"
+              title="请先选择所属企业"
               style={{ marginBottom: 16 }}
             />
           )}

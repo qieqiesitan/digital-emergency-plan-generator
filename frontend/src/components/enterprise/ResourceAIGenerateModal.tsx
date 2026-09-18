@@ -239,7 +239,7 @@ export default function ResourceAIGenerateModal({ enterpriseId, visible, onClose
         <div>
           <Alert
             type="info"
-            message="请回答以下问题，帮助 AI 更准确地识别该企业的应急资源需求"
+            title="请回答以下问题，帮助 AI 更准确地识别该企业的应急资源需求"
             style={{ marginBottom: 16 }}
             showIcon
           />
@@ -314,7 +314,7 @@ export default function ResourceAIGenerateModal({ enterpriseId, visible, onClose
           )}
           <Alert
             type="success"
-            message={`AI 生成了 ${generatedItems.length} 个应急资源，可勾选、编辑或删除后确认导入`}
+            title={`AI 生成了 ${generatedItems.length} 个应急资源，可勾选、编辑或删除后确认导入`}
             style={{ marginBottom: 12 }}
             showIcon
           />

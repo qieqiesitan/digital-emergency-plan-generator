@@ -7,6 +7,7 @@ import { fetchPublicRisk } from "@/services/riskManagementService";
 import type { PublicRiskRow } from "@/services/riskManagementService";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { usePageTitle } from "@/routing/usePageTitle";
+import { withRowKeys } from "@/utils/stableRowKey";
 
 function formatTime(iso?: string) {
   if (!iso) return "—";
@@ -85,7 +86,7 @@ export default function PublicRiskPage() {
       <Alert
         type="info"
         showIcon
-        message="公开只读页面 · 数据已脱敏 · 无需登录"
+        title="公开只读页面 · 数据已脱敏 · 无需登录"
         style={{ marginBottom: 20 }}
       />
       <div style={{ marginBottom: 16 }}>
@@ -97,8 +98,8 @@ export default function PublicRiskPage() {
         </Typography.Text>
       </div>
       <Table<PublicRiskRow>
-        rowKey={(record, index) => `${record.zone}-${record.object}-${record.accident}-${index}`}
-        dataSource={data.items}
+        rowKey="__rowKey"
+        dataSource={withRowKeys(data.items, r => `${r.zone}-${r.object}-${r.accident}`)}
         columns={columns}
         size="middle"
         scroll={{ x: 900 }}

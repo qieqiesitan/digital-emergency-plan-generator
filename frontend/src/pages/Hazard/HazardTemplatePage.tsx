@@ -345,7 +345,7 @@ export default function HazardTemplatePage() {
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message="AI 生成结果会预填下方核对项，可继续手动增删改；AI 不可用时不影响手动填写。"
+            title="AI 生成结果会预填下方核对项，可继续手动增删改；AI 不可用时不影响手动填写。"
           />
 
           <Form.Item name="name" label="模板名称" rules={[{ required: true, message: "请输入模板名称" }]}>

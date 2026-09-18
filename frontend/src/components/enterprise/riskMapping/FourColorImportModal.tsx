@@ -249,7 +249,7 @@ export default function FourColorImportModal({
       {stage === "preview" && result && (
         <div>
           {result.warnings.map(w => (
-            <Alert key={w} type="warning" showIcon message={w} style={{ marginBottom: 8 }} />
+            <Alert key={w} type="warning" showIcon title={w} style={{ marginBottom: 8 }} />
           ))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12, minHeight: 320 }}>
             <div

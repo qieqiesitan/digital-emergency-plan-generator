@@ -372,7 +372,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
              type="warning"
              showIcon
              style={{ marginBottom: 12 }}
-             message={`检测到 ${migrationPreview.total} 条旧版风险源数据未迁移`}
+             title={`检测到 ${migrationPreview.total} 条旧版风险源数据未迁移`}
              action={
                <Button size="small" type="primary" onClick={() => setMigrationOpen(true)}>
                  迁移旧风险源

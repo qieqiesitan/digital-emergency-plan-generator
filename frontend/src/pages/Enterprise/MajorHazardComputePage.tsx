@@ -207,12 +207,12 @@ export default function MajorHazardComputePage() {
       {!effectiveUnitId && <Empty description="请先选择要计算的单元" />}
 
       {effectiveUnitId && (
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={12} style={{ width: "100%" }}>
           {isEmptyUnit && (
             <Alert
               type="info"
               showIcon
-              message="该单元尚未录入危险化学品"
+              title="该单元尚未录入危险化学品"
               description="单元内没有任何品种时无法计算——空单元不是“不构成重大危险源”，而是数据未填。"
               action={
                 <Button

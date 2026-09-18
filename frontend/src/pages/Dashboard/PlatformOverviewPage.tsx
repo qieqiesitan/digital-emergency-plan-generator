@@ -33,7 +33,7 @@ export default function PlatformOverviewPage() {
       <Alert
         type="error"
         showIcon
-        message="跨企业总览加载失败"
+        title="跨企业总览加载失败"
         description="网络异常或服务暂不可用，请检查连接后重试。数据未丢失，恢复后会自动显示。"
         action={
           <Button size="small" onClick={() => refetch()}>
@@ -106,7 +106,7 @@ export default function PlatformOverviewPage() {
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        message="平台运营视角"
+        title="平台运营视角"
         description="以下数字是全部企业的合计值。风险点 / 隐患 / 重大危险源 / 作业票都是按企业维度管理的，点击卡片进入企业列表后选择企业查看明细。"
       />
 

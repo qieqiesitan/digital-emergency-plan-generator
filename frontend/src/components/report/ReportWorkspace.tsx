@@ -846,7 +846,7 @@ export default function ReportWorkspace({
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="报告正在后台生成中…"
+          title="报告正在后台生成中…"
           description={`已保存 ${partialChapterCount}/${chapterDefs.length} 章；生成不会因离开页面而中断，可稍后返回查看`}
           action={
             <Button size="small" onClick={() => void loadDocument()}>
@@ -872,7 +872,7 @@ export default function ReportWorkspace({
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message={`${failedChapters.length} 个章节生成失败`}
+          title={`${failedChapters.length} 个章节生成失败`}
           description={failedChapters.map((f) => f.title).join("、")}
           action={
             <Button

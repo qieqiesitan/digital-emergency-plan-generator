@@ -10,6 +10,7 @@ import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppBack } from "@/routing/useAppBack";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
+import { withRowKeys } from "@/utils/stableRowKey";
 
 const LEVEL_OPTIONS = ["重大", "较大", "一般", "低"];
 const CONTROL_LEVEL_OPTIONS = ["岗位", "班组", "部门", "企业"];
@@ -181,9 +182,9 @@ export default function RiskControlListPage() {
       </Space>
 
       <Table<ControlListRow>
-        rowKey={(record, index) => `${record.zone}-${record.object}-${record.accident}-${index}`}
+        rowKey="__rowKey"
         loading={isLoading}
-        dataSource={items}
+        dataSource={withRowKeys(items, r => `${r.zone}-${r.object}-${r.accident}`)}
         columns={columns}
         scroll={{ x: 1220 }}
         locale={{

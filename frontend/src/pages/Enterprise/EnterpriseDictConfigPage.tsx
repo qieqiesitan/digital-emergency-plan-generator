@@ -398,7 +398,7 @@ export default function EnterpriseDictConfigPage() {
             ? `${dictTypeLabel(drawer.source.dict_type)} · ${drawer.mode === "create" ? "覆盖系统默认" : "编辑企业条目"}`
             : ""
         }
-        width={480}
+        size={480}
         open={!!drawer}
         onClose={() => setDrawer(null)}
         extra={

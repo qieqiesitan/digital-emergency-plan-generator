@@ -83,7 +83,7 @@ export default function RiskMeasureForm({
       title={initialValues ? "编辑管控措施" : "新增管控措施"}
       open={open}
       onClose={onClose}
-      width={520}
+      size={520}
       styles={{ body: { paddingBottom: 80 } }}
       extra={
         <Space>

@@ -157,7 +157,7 @@ export default function PublicHazardReportPage() {
       <Alert
         type="info"
         showIcon
-        message="免登录公开上报"
+        title="免登录公开上报"
         description="本页面仅用于隐患上报，不展示企业内部数据；提交后由企业管理员确认处理。"
         style={{ marginBottom: 20 }}
       />
@@ -207,7 +207,7 @@ export default function PublicHazardReportPage() {
               ) : null}
             </Upload>
           </Form.Item>
-          <Space direction="vertical" style={{ width: "100%" }}>
+          <Space orientation="vertical" style={{ width: "100%" }}>
             <Button
               type="primary"
               htmlType="submit"

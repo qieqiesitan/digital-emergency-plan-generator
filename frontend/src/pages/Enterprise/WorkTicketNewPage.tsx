@@ -268,7 +268,7 @@ export default function WorkTicketNewPage() {
       <Steps current={step} size="small" items={STEPS} style={{ marginBottom: 24 }} />
 
       {step === 0 && (
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={16} style={{ width: "100%" }}>
           <div>
             <Text strong>作业类型</Text>
             <div style={{ marginTop: 8 }}>
@@ -312,7 +312,7 @@ export default function WorkTicketNewPage() {
           <Alert
             type={flowChain ? "info" : "warning"}
             showIcon
-            message={
+            title={
               flowChain
                 ? `审批流程：${flowChain}`
                 : "未找到该类型的审批流程配置，请检查模板种子数据"
@@ -351,11 +351,11 @@ export default function WorkTicketNewPage() {
       )}
 
       {step === 2 && (
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={12} style={{ width: "100%" }}>
           <Alert
             type={requiresGasTest ? "info" : "success"}
             showIcon
-            message={
+            title={
               requiresGasTest
                 ? "本类型为法定强制气体检测"
                 : "本类型不强制气体检测"
@@ -371,7 +371,7 @@ export default function WorkTicketNewPage() {
       )}
 
       {step === 3 && (
-        <Space direction="vertical" size={8} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={8} style={{ width: "100%" }}>
           <Space>
             <Button
               size="small"
@@ -403,7 +403,7 @@ export default function WorkTicketNewPage() {
       )}
 
       {step === 4 && (
-        <Space direction="vertical" size={8} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={8} style={{ width: "100%" }}>
           <Text type="secondary">
             JSA（作业危害分析）由 AI 能力生成，本计划未接入；留空可以直接跳过，不影响开票。
           </Text>
@@ -417,11 +417,11 @@ export default function WorkTicketNewPage() {
       )}
 
       {step === 5 && (
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={12} style={{ width: "100%" }}>
           <Alert
             type={flowChain ? "info" : "warning"}
             showIcon
-            message={`审批链：${flowChain || "未配置"}`}
+            title={`审批链：${flowChain || "未配置"}`}
             description={
               countersignHint
                 ? `${countersignHint}。提交后进入审批中，审批人在「审批工作台」办理。`
@@ -437,7 +437,7 @@ export default function WorkTicketNewPage() {
             <Alert
               type="error"
               showIcon
-              message="提交前校验未通过"
+              title="提交前校验未通过"
               description={
                 <ul style={{ margin: 0, paddingLeft: 20 }}>
                   {problems.map((p) => (

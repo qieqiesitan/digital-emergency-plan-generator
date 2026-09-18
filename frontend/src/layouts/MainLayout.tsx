@@ -237,7 +237,7 @@ export function MainLayout() {
               type="warning"
               showIcon
               closable
-              message="部分菜单加载失败，已显示核心菜单"
+              title="部分菜单加载失败，已显示核心菜单"
               style={{ marginBottom: 16 }}
             />
           )}

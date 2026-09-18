@@ -701,7 +701,7 @@ export default function RiskSmartGuideModal({
           <Alert
             type="warning"
             showIcon
-            message="AI 生成数据请核实后确认导入；同名分区/对象/单元/事件将并入现有树（只补充缺失内容），措施按类别与描述去重"
+            title="AI 生成数据请核实后确认导入；同名分区/对象/单元/事件将并入现有树（只补充缺失内容），措施按类别与描述去重"
             style={{ marginBottom: 12 }}
           />
 

@@ -482,7 +482,7 @@ export default function PlanEditorPage() {
             <Input
               defaultValue={plan.title}
               onBlur={(e) => updatePlan(id!, { title: e.target.value })}
-              bordered={false}
+              variant="borderless"
               style={{ fontWeight: 600, fontSize: 16, width: 300 }}
             />
             <PlanStatusTag status={plan.status} />
@@ -555,7 +555,7 @@ export default function PlanEditorPage() {
         <Alert
           type="warning"
           showIcon
-          message={`该企业缺部分数据，${missingDiagrams.length} 张图未生成`}
+          title={`该企业缺部分数据，${missingDiagrams.length} 张图未生成`}
           description={missingDiagrams.join("、")}
           action={
             <Space>
@@ -575,7 +575,7 @@ export default function PlanEditorPage() {
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message="⚠ 部分章节可能未覆盖完整要点"
+          title="⚠ 部分章节可能未覆盖完整要点"
           description={validation.issues.slice(0, 3).map((i) => `「${i.section_title}」${i.issue}`).join("；")}
           action={
             <Button size="small" onClick={() => navigate(planPreviewUrl(id!, { enterpriseId }))}>
@@ -607,7 +607,7 @@ export default function PlanEditorPage() {
         <Alert
           type="warning"
           showIcon
-          message={`${failedSections.length} 个章节生成失败`}
+          title={`${failedSections.length} 个章节生成失败`}
           description={failedSections.map((f) => f.title).join("、")}
           action={
             <Button
@@ -757,7 +757,7 @@ export default function PlanEditorPage() {
         {!reviewResult ? (
           <div style={{ textAlign: "center", padding: 24, color: "#999" }}>暂无审查结果</div>
         ) : reviewResult.issues.length === 0 && reviewResult.warnings.length === 0 ? (
-          <Alert type="success" showIcon message="未发现问题，预案质量良好" />
+          <Alert type="success" showIcon title="未发现问题，预案质量良好" />
         ) : (
           <>
             {reviewGroups.map((g) => (

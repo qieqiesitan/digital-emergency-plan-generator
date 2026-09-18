@@ -383,7 +383,7 @@ export default function RiskEventForm({
       title={initialValues ? "编辑风险事件" : "新增风险事件"}
       open={open}
       onClose={onClose}
-      width={560}
+      size={560}
       styles={{ body: { paddingBottom: 80 } }}
       extra={
         <Space>
@@ -500,7 +500,7 @@ export default function RiskEventForm({
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message={`固有风险（AI 建议采用）：${adoptedInherent.score || "-"} / ${adoptedInherent.level}`}
+            title={`固有风险（AI 建议采用）：${adoptedInherent.score || "-"} / ${adoptedInherent.level}`}
             description={
               methodType === "DIRECT"
                 ? "保存后生效；DIRECT 采用后修改固有等级将覆盖建议值（以手动选择为准），或点击取消恢复按参数预览。"
@@ -761,7 +761,7 @@ export default function RiskEventForm({
           />
         </Form.Item>
 
-        <Space direction="vertical" style={{ width: "100%" }}>
+        <Space orientation="vertical" style={{ width: "100%" }}>
           <Button
             icon={<CalculatorOutlined />}
             onClick={handleConversionReference}
@@ -791,7 +791,7 @@ export default function RiskEventForm({
           <Alert
             type="warning"
             showIcon
-            message={dualError}
+            title={dualError}
             style={{ marginBottom: 8 }}
           />
         )}
@@ -800,7 +800,7 @@ export default function RiskEventForm({
           <Alert
             type="warning"
             showIcon
-            message={conversionError}
+            title={conversionError}
             style={{ marginBottom: 8 }}
           />
         )}
@@ -856,7 +856,7 @@ export default function RiskEventForm({
                 type="info"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message={`现有风险（折算采用）：${adoptedRef.score || "-"} / ${adoptedRef.level}`}
+                title={`现有风险（折算采用）：${adoptedRef.score || "-"} / ${adoptedRef.level}`}
                 description="保存后以后端按现有参数计算为准；可继续调整参数覆盖，或点击取消恢复按参数预览。"
                 action={<Button size="small" onClick={() => setAdoptedRef(null)}>取消采用</Button>}
               />
@@ -1011,7 +1011,7 @@ export default function RiskEventForm({
       footer={<Button onClick={() => setAiModalOpen(false)}>关闭</Button>}
       width={640}
     >
-      <Alert type="info" showIcon message="以下为 AI 分析建议，请逐一审查后采纳，不会自动覆盖已填写内容" style={{ marginBottom: 16 }} />
+      <Alert type="info" showIcon title="以下为 AI 分析建议，请逐一审查后采纳，不会自动覆盖已填写内容" style={{ marginBottom: 16 }} />
       <List
         dataSource={aiResults}
         renderItem={(item, idx) => (
@@ -1056,7 +1056,7 @@ export default function RiskEventForm({
         <Alert
           type="warning"
           showIcon
-          message={dualSuggestion.note || "AI 不可用"}
+          title={dualSuggestion.note || "AI 不可用"}
           description="不阻塞保存：可继续手动评估，或使用自动折算参考获取现有风险参考。"
         />
       )}
@@ -1065,7 +1065,7 @@ export default function RiskEventForm({
           <Alert
             type="info"
             showIcon
-            message="以下为 AI 基于事件描述与管控措施的建议，采用后仍可修改，不会自动覆盖已填写内容"
+            title="以下为 AI 基于事件描述与管控措施的建议，采用后仍可修改，不会自动覆盖已填写内容"
             style={{ marginBottom: 16 }}
           />
           <div style={{ fontSize: 13, lineHeight: 2 }}>

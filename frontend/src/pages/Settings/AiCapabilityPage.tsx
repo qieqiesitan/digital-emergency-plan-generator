@@ -54,7 +54,7 @@ export default function AiCapabilityPage() {
       title: "能力",
       dataIndex: "name",
       render: (name: string, row) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text>{name}</Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {row.code}

@@ -63,7 +63,7 @@ export default function RegulationManagePage() {
         <Alert
           type="error"
           showIcon
-          message="法规库统计加载失败"
+          title="法规库统计加载失败"
           description="法规库索引未初始化或暂时不可用，可点击「重试」重新加载；若持续失败，请使用右上角「一键重建索引」恢复。"
           action={<Button loading={statsLoading} onClick={() => refetchStats()}>重试</Button>}
         />

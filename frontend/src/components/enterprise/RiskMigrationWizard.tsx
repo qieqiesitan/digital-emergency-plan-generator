@@ -257,7 +257,7 @@ export default function RiskMigrationWizard({
           <Alert
             type="info"
             showIcon
-            message={"以下是旧版风险源及 AI 建议的映射关系，请确认或修改后继续"}
+            title={"以下是旧版风险源及 AI 建议的映射关系，请确认或修改后继续"}
             style={{ marginBottom: 16 }}
           />
 
@@ -423,7 +423,7 @@ export default function RiskMigrationWizard({
             type="warning"
             showIcon
             icon={<ExclamationCircleOutlined />}
-            message={"迁移操作将创建新的风险层级结构，不会删除原有数据"}
+            title={"迁移操作将创建新的风险层级结构，不会删除原有数据"}
             style={{ marginBottom: 20 }}
           />
 

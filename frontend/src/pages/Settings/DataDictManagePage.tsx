@@ -268,7 +268,7 @@ export default function DataDictManagePage() {
 
       <Drawer
         title={drawer.editing ? "编辑字典条目" : "新增字典条目"}
-        width={480}
+        size={480}
         open={drawer.open}
         onClose={() => setDrawer({ open: false, editing: null })}
         extra={

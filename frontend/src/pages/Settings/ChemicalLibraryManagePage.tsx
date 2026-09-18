@@ -230,7 +230,7 @@ export default function ChemicalLibraryManagePage() {
         title={editing ? "编辑库条目" : "新增库条目"}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={720}
+        size={720}
         destroyOnHidden
         extra={
           <Space>

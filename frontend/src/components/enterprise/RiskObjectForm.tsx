@@ -57,7 +57,7 @@ export default function RiskObjectForm({ open, onClose, onSubmit, initialValues,
         title={isEdit ? "编辑风险对象" : "新增风险对象"}
         open={open}
         onClose={onClose}
-        width={520}
+        size={520}
         extra={
           <Space>
             <Button onClick={onClose}>取消</Button>

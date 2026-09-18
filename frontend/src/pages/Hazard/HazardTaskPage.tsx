@@ -579,14 +579,14 @@ export default function HazardTaskPage() {
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="AI 只给建议，勾选后才会写入清单；与现有清单重复的项会自动跳过。"
+          title="AI 只给建议，勾选后才会写入清单；与现有清单重复的项会自动跳过。"
         />
         <Checkbox.Group
           value={aiSelected}
           onChange={values => setAiSelected(values as string[])}
           style={{ width: "100%" }}
         >
-          <Space direction="vertical" style={{ width: "100%" }} size={6}>
+          <Space orientation="vertical" style={{ width: "100%" }} size={6}>
             {aiItems.map((it, idx) => (
               <Checkbox key={`${idx}-${it.content}`} value={String(idx)}>
                 <span>{it.content}</span>

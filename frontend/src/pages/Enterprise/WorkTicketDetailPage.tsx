@@ -170,7 +170,7 @@ export default function WorkTicketDetailPage() {
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
-          message="提交前校验未通过"
+          title="提交前校验未通过"
           description={
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {problems.map((p) => (
@@ -181,7 +181,7 @@ export default function WorkTicketDetailPage() {
         />
       )}
 
-      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Space orientation="vertical" size={16} style={{ width: "100%" }}>
         <Card size="small" loading={isLoading} title="票面">
           <Descriptions column={2} size="small">
             <Descriptions.Item label="状态">
@@ -234,7 +234,7 @@ export default function WorkTicketDetailPage() {
               items={(data?.node_records ?? []).map((r) => ({
                 color: r.action === "reject" ? "red" : "green",
                 children: (
-                  <Space direction="vertical" size={2}>
+                  <Space orientation="vertical" size={2}>
                     <Text strong>
                       {nodeLabel(r.node_key, approver)} · {r.action === "approve" ? "同意" : "退回"}
                     </Text>

@@ -244,7 +244,7 @@ export default function RiskSourceAIGenerateModal({ enterpriseId, visible, onClo
         <div>
           <Alert
             type="info"
-            message="请回答以下问题，帮助 AI 更准确地识别该企业的风险源"
+            title="请回答以下问题，帮助 AI 更准确地识别该企业的风险源"
             style={{ marginBottom: 16 }}
             showIcon
           />
@@ -320,7 +320,7 @@ export default function RiskSourceAIGenerateModal({ enterpriseId, visible, onClo
           )}
           <Alert
             type="success"
-            message={`AI 生成了 ${generatedItems.length} 个风险源，可勾选、编辑或删除后确认导入`}
+            title={`AI 生成了 ${generatedItems.length} 个风险源，可勾选、编辑或删除后确认导入`}
             style={{ marginBottom: 12 }}
             showIcon
           />

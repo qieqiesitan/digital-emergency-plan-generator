@@ -829,7 +829,7 @@ export default function RiskNoticeCardPreviewPage() {
         <Alert
           type="warning"
           showIcon
-          message="风险数据已变更，建议重新生成"
+          title="风险数据已变更，建议重新生成"
           style={{ marginBottom: 16 }}
         />
       )}

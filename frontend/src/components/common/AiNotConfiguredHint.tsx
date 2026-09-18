@@ -20,7 +20,7 @@ export default function AiNotConfiguredHint({ onClose }: AiNotConfiguredHintProp
     <Alert
       type="warning"
       showIcon
-      message={AI_NOT_CONFIGURED_HINT}
+      title={AI_NOT_CONFIGURED_HINT}
       closable={!!onClose}
       onClose={onClose}
       action={

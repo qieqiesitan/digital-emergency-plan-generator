@@ -75,7 +75,7 @@ export default function DashboardPage() {
       <Alert
         type="error"
         showIcon
-        message="工作台数据加载失败"
+        title="工作台数据加载失败"
         description="网络异常或服务暂不可用，请检查连接后重试。数据未丢失，恢复后会自动显示。"
         action={
           <Button size="small" onClick={() => dashboardRefetch()}>
@@ -162,7 +162,7 @@ export default function DashboardPage() {
         <Alert
           type="error"
           showIcon
-          message="企业列表加载失败"
+          title="企业列表加载失败"
           description="无法获取企业数据，请检查网络后重试"
           action={
             <Button size="small" onClick={() => enterprisesRefetch()}>
@@ -284,7 +284,7 @@ export default function DashboardPage() {
           <Alert
             type="error"
             showIcon
-            message="企业列表加载失败"
+            title="企业列表加载失败"
             action={
               <Button size="small" onClick={() => enterprisesRefetch()}>
                 重试

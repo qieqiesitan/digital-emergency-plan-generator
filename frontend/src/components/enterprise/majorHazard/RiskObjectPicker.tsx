@@ -38,7 +38,7 @@ export default function RiskObjectPicker({ enterpriseId, unitId, riskObjectId }:
   };
 
   return (
-    <Space direction="vertical" style={{ width: "100%" }} size="small">
+    <Space orientation="vertical" style={{ width: "100%" }} size="small">
       <Select
         showSearch
         allowClear

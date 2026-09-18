@@ -80,7 +80,7 @@ export function AbolishDialog({ record, open, onClose }: Props) {
         <Alert
           type="warning"
           style={{ marginTop: 12 }}
-          message={`废止后将影响 ${affectedCount} 个预案的法规引用`}
+          title={`废止后将影响 ${affectedCount} 个预案的法规引用`}
           description={
             impact.plans && impact.plans.length > 0 ? (
               <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12 }}>

@@ -83,7 +83,7 @@ export default function GasTestTable({ records, onChange, disabled }: GasTestTab
   ];
 
   return (
-    <Space direction="vertical" style={{ width: "100%" }} size={8}>
+    <Space orientation="vertical" style={{ width: "100%" }} size={8}>
       <Text type="secondary">
         动火与受限空间作业必须至少录入一次气体检测；取样时间超过 30 分钟会被拒绝提交。
       </Text>

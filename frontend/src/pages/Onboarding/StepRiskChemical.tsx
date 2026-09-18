@@ -271,7 +271,7 @@ export default function StepRiskChemical({
           setManualOpen(false);
           queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
         }}
-        width={760}
+        size={760}
       >
         <HazardousChemicalsTab enterpriseId={enterpriseId} />
       </Drawer>

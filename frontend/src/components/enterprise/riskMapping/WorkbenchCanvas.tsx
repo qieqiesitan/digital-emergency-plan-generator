@@ -1216,7 +1216,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
         cancelText="取消"
       >
         {editingText && (
-          <Space direction="vertical" style={{ width: "100%" }}>
+          <Space orientation="vertical" style={{ width: "100%" }}>
             <div>
               <div style={{ marginBottom: 4, fontSize: 12, color: "#666" }}>内容</div>
               <Input value={editContent} onChange={e => setEditContent(e.target.value)} />

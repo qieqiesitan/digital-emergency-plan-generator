@@ -90,7 +90,7 @@ export default function ImportDrawer({
         // 抽屉重开时清空上次残留的文件，避免旧文件影响新一次导入
         if (nextOpen) setFileList([]);
       }}
-      width={520}
+      size={520}
     >
       <p style={{ color: "#666", fontSize: 13 }}>
         支持 .xlsx / .csv / .docx / .pdf / .txt，AI 自动提取为候选供逐条核对；

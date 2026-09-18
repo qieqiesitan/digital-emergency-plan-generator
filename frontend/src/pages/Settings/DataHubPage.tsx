@@ -164,7 +164,7 @@ export default function DataHubPage() {
               key: "sources",
               label: "数据源",
               children: (
-                <Space direction="vertical" style={{ width: "100%" }}>
+                <Space orientation="vertical" style={{ width: "100%" }}>
                   <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
                     新建数据源
                   </Button>

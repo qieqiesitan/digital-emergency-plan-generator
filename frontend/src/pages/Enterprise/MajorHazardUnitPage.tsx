@@ -126,7 +126,7 @@ export default function MajorHazardUnitPage() {
             key: "basic",
             label: "基本信息",
             children: (
-              <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
                 <Card>
                   <Form
                     form={form}

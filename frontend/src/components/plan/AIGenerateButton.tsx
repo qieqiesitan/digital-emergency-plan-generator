@@ -196,7 +196,7 @@ export default function AIGenerateButton({
           {status === "error" && (
             <Alert
               type={aiConfigError ? "warning" : "error"}
-              message={errorMsg}
+              title={errorMsg}
               closable
               onClose={() => { setStatus("idle"); setAiConfigError(false); }}
               style={{ marginTop: 8 }}

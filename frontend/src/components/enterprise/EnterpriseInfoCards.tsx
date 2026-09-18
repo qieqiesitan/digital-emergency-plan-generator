@@ -206,7 +206,7 @@ export default function EnterpriseInfoCards({
         </div>
       )}
 
-      <Drawer title="全部字段" open={drawerOpen} onClose={() => setDrawerOpen(false)} width={560}>
+      <Drawer title="全部字段" open={drawerOpen} onClose={() => setDrawerOpen(false)} size={560}>
         <Form form={form} layout="vertical">
           <Collapse
             defaultActiveKey={["basic"]}

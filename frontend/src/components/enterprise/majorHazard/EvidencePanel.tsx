@@ -138,7 +138,7 @@ export default function EvidencePanel({
           dataSource={data ?? []}
           renderItem={(e) => (
             <List.Item>
-              <Space direction="vertical" size={0}>
+              <Space orientation="vertical" size={0}>
                 <Space>
                   <Text strong>{e.article_anchor}</Text>
                   <Tag color={e.relation === "冲突" ? "red" : "blue"}>{e.relation}</Tag>
@@ -155,7 +155,7 @@ export default function EvidencePanel({
         title="添加法规依据"
         onCancel={() => setOpen(false)}
         onOk={submit}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" initialValues={{ relation: "依据" }}>
           <Form.Item

@@ -66,7 +66,7 @@ export default function ReviewDrawer({
   return (
     <Drawer
       title="AI 审查结果"
-      width={560}
+      size={560}
       open={open}
       onClose={() => {
         setCheckedKeys([]);
@@ -111,7 +111,7 @@ export default function ReviewDrawer({
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="勾选章节后点击「生成修订」，系统将逐条给出原文/修订对比，确认后写入草稿。"
+            title="勾选章节后点击「生成修订」，系统将逐条给出原文/修订对比，确认后写入草稿。"
           />
           {groups.map((g) => {
             const checked = checkedKeys.includes(g.sectionKey);

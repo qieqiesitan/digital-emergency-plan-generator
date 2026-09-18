@@ -235,7 +235,7 @@ export default function SurroundingAIGenerateModal({
         <div>
           <Alert
             type="info"
-            message="请回答以下问题，帮助 AI 全面了解该企业的周边环境"
+            title="请回答以下问题，帮助 AI 全面了解该企业的周边环境"
             style={{ marginBottom: 16 }}
             showIcon
           />
@@ -283,7 +283,7 @@ export default function SurroundingAIGenerateModal({
         <div>
           <Alert
             type="success"
-            message="AI 已生成周边环境信息，可编辑或删除后确认保存。蓝色标记项为新增数据。"
+            title="AI 已生成周边环境信息，可编辑或删除后确认保存。蓝色标记项为新增数据。"
             style={{ marginBottom: 12 }}
             showIcon
           />

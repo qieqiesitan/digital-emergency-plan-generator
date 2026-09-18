@@ -130,7 +130,7 @@ export default function WorkTicketListPage() {
         }
       />
 
-      <Space direction="vertical" style={{ width: "100%" }} size={12}>
+      <Space orientation="vertical" style={{ width: "100%" }} size={12}>
         <Space wrap size={8} align="center">
           <Text type="secondary">类型</Text>
           {ALL_TICKET_TYPES.map((t) => (

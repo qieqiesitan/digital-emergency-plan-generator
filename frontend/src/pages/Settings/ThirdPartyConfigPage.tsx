@@ -132,7 +132,7 @@ export default function ThirdPartyConfigPage() {
         <PageHeader title="第三方接口配置" />
         <Alert
           type="error"
-          message="加载配置失败"
+          title="加载配置失败"
           showIcon
           action={<Button onClick={() => refetch()}>重试</Button>}
         />

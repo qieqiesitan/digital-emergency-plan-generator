@@ -32,7 +32,7 @@ const StylePanel: React.FC<StylePanelProps> = ({
     <div style={{ padding: "12px 0" }}>
       <Title level={5} style={{ marginBottom: 12 }}>创作风格</Title>
 
-      <Space direction="vertical" style={{ width: "100%" }} size="small">
+      <Space orientation="vertical" style={{ width: "100%" }} size="small">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Text style={{ minWidth: 72 }}>正式程度</Text>
           <Segmented

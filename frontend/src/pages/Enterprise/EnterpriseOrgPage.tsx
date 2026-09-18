@@ -983,7 +983,7 @@ export default function EnterpriseOrgPage() {
               type="info"
               showIcon
               style={{ marginBottom: 12 }}
-              message="可补充企业特殊情况，帮助 AI 更准确地生成组织架构（可选）。"
+              title="可补充企业特殊情况，帮助 AI 更准确地生成组织架构（可选）。"
             />
             <Input.TextArea
               value={aiExtra}
@@ -1002,7 +1002,7 @@ export default function EnterpriseOrgPage() {
           <Alert
             type="warning"
             showIcon
-            message="AI 建树未成功"
+            title="AI 建树未成功"
             description={aiModal.suggestion.note || "AI 服务异常，请稍后重试或手动维护组织架构。"}
           />
         ) : aiModal.suggestion ? (
@@ -1011,7 +1011,7 @@ export default function EnterpriseOrgPage() {
               type="info"
               showIcon
               style={{ marginBottom: 12 }}
-              message="以下为 AI 建议的组织架构，确认后将合并到左侧组织树（保留已有节点，尚未保存，需手动点击保存）。"
+              title="以下为 AI 建议的组织架构，确认后将合并到左侧组织树（保留已有节点，尚未保存，需手动点击保存）。"
             />
             <Tree treeData={aiTreeData} defaultExpandAll selectable={false} />
           </div>

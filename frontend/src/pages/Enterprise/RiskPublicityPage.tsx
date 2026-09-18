@@ -10,6 +10,7 @@ import { useAppBack } from "@/routing/useAppBack";
 import { RISK_LEVEL_COLORS } from "@/utils/riskMethodEngine";
 import { toCanvasX, toCanvasY } from "@/utils/riskMappingGeometry";
 import { buildPublicUrl } from "@/utils/platform";
+import { withRowKeys } from "@/utils/stableRowKey";
 
 const MAP_WIDTH = 1200;
 const MAP_HEIGHT = 640;
@@ -260,8 +261,8 @@ export default function RiskPublicityPage() {
 
           <Card size="small" title="重大风险清单">
             <Table<ControlListRow>
-              rowKey={(record, index) => `${record.zone}-${record.object}-${record.accident}-${index}`}
-              dataSource={data.items}
+              rowKey="__rowKey"
+              dataSource={withRowKeys(data.items, r => `${r.zone}-${r.object}-${r.accident}`)}
               columns={columns}
               size="small"
               scroll={{ x: 1120 }}

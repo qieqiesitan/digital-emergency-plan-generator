@@ -228,7 +228,7 @@ export default function DataHubImportPage() {
         <Steps current={step} items={steps} style={{ marginBottom: 24 }} />
 
         {step === 0 && (
-          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
             <Text>选择要从这份资料里抽取的对象：</Text>
             <Select
               style={{ maxWidth: 360 }}
@@ -251,7 +251,7 @@ export default function DataHubImportPage() {
         )}
 
         {step === 1 && (
-          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
             <Dragger
               accept=".pdf,.docx,.xlsx,.csv,.txt"
               maxCount={1}
@@ -283,7 +283,7 @@ export default function DataHubImportPage() {
                 </Descriptions.Item>
               </Descriptions>
             )}
-            {error && <Alert type="error" showIcon message={error} />}
+            {error && <Alert type="error" showIcon title={error} />}
             <Space>
               <Button onClick={() => setStep(0)}>上一步</Button>
               {parsed && (
@@ -300,7 +300,7 @@ export default function DataHubImportPage() {
         )}
 
         {step === 2 && tableFile && (
-          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
             <Space>
               <Text strong>列映射建议</Text>
               {mappingSource && (
@@ -314,7 +314,7 @@ export default function DataHubImportPage() {
               <Alert
                 type="warning"
                 showIcon
-                message="未从文件中识别到表头行，请确认文件第一行是列名"
+                title="未从文件中识别到表头行，请确认文件第一行是列名"
               />
             )}
             {entity.value === "major_hazard_unit_chemical" &&
@@ -322,7 +322,7 @@ export default function DataHubImportPage() {
                 <Alert
                   type="info"
                   showIcon
-                  message="「归属单元名称」没有对应列是正常的"
+                  title="「归属单元名称」没有对应列是正常的"
                   description="表格里通常只有物质与数量，单元归属在待确认队列页由人工指定，不影响继续。"
                 />
               )}
@@ -330,7 +330,7 @@ export default function DataHubImportPage() {
               <Alert
                 type="warning"
                 showIcon
-                message={`必填字段尚未映射：${unmappedRequired
+                title={`必填字段尚未映射：${unmappedRequired
                   .map((f) => FIELD_LABELS[f] ?? f)
                   .join("、")}`}
               />
@@ -356,7 +356,7 @@ export default function DataHubImportPage() {
         )}
 
         {step === runStep && (
-          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
             <Descriptions size="small" column={1} bordered>
               <Descriptions.Item label="目标实体">{entity.label}</Descriptions.Item>
               <Descriptions.Item label="文件">{parsed?.filename ?? "—"}</Descriptions.Item>
@@ -368,10 +368,10 @@ export default function DataHubImportPage() {
                 <Alert
                   type="info"
                   showIcon
-                  message="抽取结果会进入「待确认队列」，不会直接写入业务台账"
+                  title="抽取结果会进入「待确认队列」，不会直接写入业务台账"
                   description="每条候选都带来源定位与置信度；低置信度默认不勾选，确认后才入库。"
                 />
-                {error && <Alert type="error" showIcon message={error} />}
+                {error && <Alert type="error" showIcon title={error} />}
                 <Space>
                   <Button onClick={() => setStep(tableFile ? 2 : 1)}>上一步</Button>
                   <Button type="primary" loading={running} onClick={() => void handleRun()}>

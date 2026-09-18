@@ -276,7 +276,7 @@ export default function StepResources({
           setManualOpen(false);
           queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
         }}
-        width={760}
+        size={760}
       >
         <EmergencyResourceForm enterpriseId={enterpriseId} />
       </Drawer>

@@ -80,7 +80,7 @@ export default function AIConfigPage() {
         ) : config?.last_test_at ? (
           <Alert type="success" title={"上次测试：" + new Date(config.last_test_at).toLocaleString()} showIcon />
         ) : (
-          <Alert type="info" message="尚未测试" showIcon />
+          <Alert type="info" title="尚未测试" showIcon />
         )}
       </Card>
       {config && <Button danger style={{ marginTop: 24 }} onClick={() => { deleteAIConfig().then(() => { message.success("已删除"); queryClient.invalidateQueries({ queryKey: ["aiConfig"] }); form.resetFields(); }); }}>删除配置</Button>}

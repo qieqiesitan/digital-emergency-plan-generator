@@ -99,7 +99,7 @@ export default function DataHubReviewPage() {
       dataIndex: "source_locator",
       width: 220,
       render: (v: string | null, row) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text>{v || "—"}</Text>
           {row.confidence === "low" && (
             <Text type="danger" style={{ fontSize: 12 }}>

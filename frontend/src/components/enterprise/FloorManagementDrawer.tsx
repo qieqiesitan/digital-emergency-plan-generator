@@ -107,7 +107,7 @@ export default function FloorManagementDrawer({ enterpriseId, open, onClose, onC
 
   return (
     <>
-      <Drawer title="楼层管理" open={open} onClose={onClose} width={420}>
+      <Drawer title="楼层管理" open={open} onClose={onClose} size={420}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block style={{ marginBottom: 12 }}>
           添加楼层
         </Button>

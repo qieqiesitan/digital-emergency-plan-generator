@@ -207,7 +207,7 @@ export default function MajorHazardListPage() {
         title={editing ? "编辑单元" : "新增重大危险源单元"}
         onCancel={() => setOpen(false)}
         onOk={submit}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" initialValues={{ unit_type: "storage" }}>
           <Form.Item

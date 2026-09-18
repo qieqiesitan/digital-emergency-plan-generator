@@ -84,7 +84,7 @@ export default function RiskZoneForm({ open, onClose, onSubmit, initialValues, f
         title={initialValues?.name ? "编辑风险分区" : "新增风险分区"}
         open={open}
         onClose={onClose}
-        width={520}
+        size={520}
         extra={
           <Space>
             <Button onClick={onClose}>取消</Button>

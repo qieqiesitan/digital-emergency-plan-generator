@@ -323,7 +323,7 @@ export default function RiskMethodListPage({ enterpriseId: propEid }: Props) {
         okText="创建"
         cancelText="取消"
       >
-        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+        <Space orientation="vertical" style={{ width: "100%" }} size="middle">
           <div>
             <Text strong style={{ display: "block", marginBottom: 4 }}>模板</Text>
             <Select

@@ -119,7 +119,7 @@ export default function PublicHazardPage() {
       <Alert
         type="info"
         showIcon
-        message="公开只读页面 · 数据已脱敏 · 无需登录"
+        title="公开只读页面 · 数据已脱敏 · 无需登录"
         style={{ marginBottom: 20 }}
       />
       <div

@@ -247,7 +247,7 @@ export default function HazardousChemicalAIGenerateModal({ enterpriseId, visible
         <div>
           <Alert
             type="info"
-            message="请回答以下问题，帮助 AI 更准确地识别该企业涉及的危险化学品"
+            title="请回答以下问题，帮助 AI 更准确地识别该企业涉及的危险化学品"
             style={{ marginBottom: 16 }}
             showIcon
           />
@@ -328,7 +328,7 @@ export default function HazardousChemicalAIGenerateModal({ enterpriseId, visible
           )}
           <Alert
             type="success"
-            message={`AI 生成了 ${generatedItems.length} 种危险化学品，可勾选、编辑或删除后确认导入`}
+            title={`AI 生成了 ${generatedItems.length} 种危险化学品，可勾选、编辑或删除后确认导入`}
             style={{ marginBottom: 12 }}
             showIcon
           />

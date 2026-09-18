@@ -82,7 +82,7 @@ export default function PlanListPage() {
         <Alert
           type="error"
           showIcon
-          message="预案列表加载失败"
+          title="预案列表加载失败"
           description="网络异常或服务暂不可用，请检查连接后重试。数据未丢失，恢复后会自动显示。"
           action={
             <Button size="small" onClick={() => refetch()}>
