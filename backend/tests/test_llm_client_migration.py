@@ -350,4 +350,6 @@ async def test_generation_stream_llm_chunks_preserves_space_message(monkeypatch)
         async for _ in gen._stream_llm_chunks("prompt", _cfg()):
             pass
     assert exc_info.value.status_code == 500
-    assert exc_info.value.detail == "AI 调用失败: 500 boom"
+    # W3：不再把供应商返回原文回给客户端（只进日志）
+    assert exc_info.value.detail == "AI 调用失败，请稍后重试"
+    assert "boom" not in exc_info.value.detail

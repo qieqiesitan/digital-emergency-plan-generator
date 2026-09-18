@@ -585,8 +585,8 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
     # 第一轮 LLM 调用
     try:
         llm_resp = await _call_llm(messages, ai_config)
-    except Exception as e:
-        raise HTTPException(500, str(e))
+    except Exception:
+        raise HTTPException(500, "AI 服务调用失败，请稍后重试")
 
     choice = llm_resp.get("choices", [{}])[0]
     msg = choice.get("message", {})

@@ -520,11 +520,11 @@ async def get_resource_ai_questions(
 
     except json.JSONDecodeError:
 
-        raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
+        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
 
-    except Exception as e:
+    except Exception:
 
-        raise HTTPException(500, f"AI 调用失败: {str(e)}")
+        raise HTTPException(500, "AI 调用失败，请稍后重试")
 
 
 
@@ -732,11 +732,11 @@ async def generate_resources_ai(
 
     except json.JSONDecodeError:
 
-        raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
+        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
 
-    except Exception as e:
+    except Exception:
 
-        raise HTTPException(500, f"AI 调用失败: {str(e)}")
+        raise HTTPException(500, "AI 调用失败，请稍后重试")
 
 
 

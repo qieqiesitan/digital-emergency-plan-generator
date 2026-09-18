@@ -245,9 +245,9 @@ async def get_surrounding_ai_questions(
     except HTTPException:
         raise
     except json.JSONDecodeError:
-        raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
-    except Exception as e:
-        raise HTTPException(500, f"AI 调用失败: {str(e)}")
+        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
+    except Exception:
+        raise HTTPException(500, "AI 调用失败，请稍后重试")
 
 
 # ---------- AI generate surrounding info ----------
@@ -353,9 +353,9 @@ async def generate_surrounding_ai(
     except HTTPException:
         raise
     except json.JSONDecodeError:
-        raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
-    except Exception as e:
-        raise HTTPException(500, f"AI 调用失败: {str(e)}")
+        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
+    except Exception:
+        raise HTTPException(500, "AI 调用失败，请稍后重试")
 class AmapSearchRequest(BaseModel):
     radius: int = 5000
     types: str | None = None  # comma-separated poi type codes, None = all

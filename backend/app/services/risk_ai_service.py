@@ -55,7 +55,7 @@ def _parse_ai_json(raw: str) -> dict:
         return json.loads(raw)
     except json.JSONDecodeError:
         logger.error(f"AI JSON parse failed: {raw[:200]}")
-        raise HTTPException(500, f"AI 返回格式异常，无法解析 JSON: {raw[:200]}")
+        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
 
 
 def _normalize_measure(item) -> dict:

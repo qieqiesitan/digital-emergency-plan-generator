@@ -456,7 +456,7 @@ async def export_unit_report(
         doc.save(filepath)
     except Exception as exc:  # pragma: no cover - 渲染失败路径
         logger.exception("重大危险源辨识报告生成失败 unit=%s", unit_id)
-        raise HTTPException(500, f"报告生成失败: {exc}") from exc
+        raise HTTPException(500, "报告生成失败，请稍后重试") from exc
 
     return FileResponse(
         filepath,

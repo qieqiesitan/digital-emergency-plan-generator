@@ -420,7 +420,7 @@ async def llm_text_completion(
             raise HTTPException(504, f"AI 响应超时（{timeout}s），请稍后重试") from e
         if e.status_code == 0:
             raise HTTPException(502, f"AI 服务连接失败: {e}") from e
-        raise HTTPException(500, str(e)) from e
+        raise HTTPException(500, "AI 服务调用失败，请稍后重试") from e
     except Exception as e:
         raise HTTPException(502, f"AI 服务连接失败: {e}")
 

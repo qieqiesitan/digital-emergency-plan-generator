@@ -275,9 +275,9 @@ async def parse_regulation(
                 logger.warning("LLM article extraction fallback failed: %s", ex)
                 articles = []
         result["articles"] = articles
-    except Exception as e:
+    except Exception:
         logger.exception("AI解析失败")
-        raise HTTPException(500, f"AI解析失败: {e}")
+        raise HTTPException(500, "AI 解析失败，请稍后重试")
 
     return {"code": 0, "data": result}
 @router.post("")
@@ -330,9 +330,9 @@ async def create_regulation(
     try:
         ingest_regulation(parsed, reg_id, operator=current_user.email or "admin",
                          source_file_bytes=file_bytes, source_filename=filename)
-    except Exception as e:
+    except Exception:
         logger.exception("入库失败")
-        raise HTTPException(500, f"入库失败: {e}")
+        raise HTTPException(500, "入库失败，请稍后重试")
 
     return {"code": 0, "data": {"id": reg_id, "message": f"入库成功，{len(parsed.get('articles', []))} 条条文已保存"}}
 # ── 编辑 ──
@@ -478,9 +478,9 @@ async def rebuild_index(
     ai_config = await _get_ai_config(current_user.id, db)
     try:
         result = await rebuild_index_with_ai(ai_config)
-    except Exception as e:
+    except Exception:
         logger.exception("索引重建失败")
-        raise HTTPException(500, f"索引重建失败: {e}")
+        raise HTTPException(500, "索引重建失败，请稍后重试")
     duration = round(time.time() - start, 1)
     result["duration_seconds"] = duration
     log_event("_system", "reindexed", current_user.email or "admin", result)

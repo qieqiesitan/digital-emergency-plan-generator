@@ -733,10 +733,14 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
     except HTTPException:
         raise
     except LLMError as e:
-        # 保持原 generation 文案（带空格）
-        raise HTTPException(500, f"AI 调用失败: {e.status_code} {e.text[:300]}")
-    except Exception as e:
-        raise HTTPException(500, str(e))
+        # 只回通用文案 + 状态码提示，模型返回原文只进服务端日志（避免外泄内部细节）
+        logger.warning("LLM 调用失败: status=%s", getattr(e, "status_code", None))
+        if getattr(e, "status_code", None) == 429:
+            raise HTTPException(500, "AI 服务限流，请稍后重试")
+        raise HTTPException(500, "AI 调用失败，请稍后重试")
+    except Exception:
+        logger.exception("章节生成异常")
+        raise HTTPException(500, "章节生成失败，请稍后重试")
 
 
 async def _stream_llm_chunks_with_retry(prompt: str, ai_config: AIConfig, plan_type: str = "*",

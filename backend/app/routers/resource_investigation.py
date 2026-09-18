@@ -754,8 +754,8 @@ async def apply_resource_investigation_review(
         try:
             async for chunk_content in _stream_llm_with_messages_chunked(messages, ai_config):
                 revised += chunk_content
-        except Exception as e:
-            raise HTTPException(500, f"AI 修订失败：{e}")
+        except Exception:
+            raise HTTPException(500, "AI 修订失败，请稍后重试")
         if not revised.strip() or len(revised.strip()) < 30:
             continue
         applied.append({

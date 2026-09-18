@@ -68,6 +68,8 @@ def test_ai_generate_prompt_restored():
 
 def test_error_and_empty_messages_restored():
     src = _source()
-    assert "AI 返回格式异常，无法解析 JSON" in src
+    # W3：错误文案改为通用提示，不得把模型原始返回/异常细节回给客户端
+    assert "AI 返回格式异常，请稍后重试" in src
     assert "AI 调用失败" in src
+    assert "raw[:200]" not in src
     assert "至少需要一个危化品" in src

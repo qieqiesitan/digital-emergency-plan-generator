@@ -404,9 +404,9 @@ async def export_plan_docx(
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
         )
-    except Exception as e:
+    except Exception:
         logger.error(f"DOCX generation failed for plan {plan_id}: {traceback.format_exc()}")
-        raise HTTPException(500, f"DOCX 生成失败: {str(e)}")
+        raise HTTPException(500, "DOCX 生成失败，请稍后重试或联系管理员")
 
 
 # Route: Validate Export
