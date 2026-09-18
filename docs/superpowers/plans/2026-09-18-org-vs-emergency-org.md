@@ -17,8 +17,48 @@
 - 数据库容器 `emergency-plan-db`（可用 psql），库 `emergency_plan`
 - 迁移脚本由后端启动时的 `app/services/migration_runner.py` 自动按文件名顺序应用，记录在 `schema_migrations`；因此**新增迁移后需重启 `emergency-plan-backend` 容器**才会应用
 - 只 `git add` 本任务涉及的文件，**严禁 `git add -A`**；`TASKS.md` 永不 commit
+- **永不执行 `git save`**：该别名脚本是 `git add -A` + commit，会把并行会话的未提交文件（如 `frontend/src/mobile/components/plan/ChapterTree.tsx`）一并提交
 - 注释用中文，不要全角空格；React 不要用 effect 同步派生状态；antd 6 用 `titlePlacement`（Divider）等新 API
-- 后端回归基线：1785 passed / 4 failed（4 个历史失败）；前端基线：274 passed + `tsc -b` exit 0
+- 后端回归基线（2026-09-19 实测，master `321e854`）：**1996 passed / 1 skipped / 0 failed**，耗时约 2 分 55 秒；前端基线：**278 passed（44 文件）** + `tsc -b` exit 0
+- 长耗时 AI 调用前必须先把请求级 DB 连接还池（`app/services/db_guard.py::release_request_connection`，压测 N-32）。**若目标文件已接线该函数，应急组织数据必须在调用它之前读成纯 dict**，不得在释放后再改 ORM 对象
+
+### 2026-09-19 复核修订（针对本轮大 BUG 修复）
+
+计划写于 2026-09-18，当日之后仓库合入了大规模 BUG 修复（master 从 `93fa003` 推进到 `321e854`，共 98 个提交）。复核结论：**方案与任务拆分不需要调整**，但以下事实已变化，执行时以本节为准。
+
+| 复核项 | 结果 |
+|---|---|
+| `enterprises.org_structure` 及两条写入路径（`PUT /org-structure`、`PUT /org/nodes`） | 均存在，未改动 |
+| 13 处应急语义消费方 | 全部存在，仅行号小幅后移（见下表） |
+| 公司语义消费方（作业票会签、隐患报表、`/org/available`、Excel 导入） | 全部存在，未改动 |
+| 企业组织页预置播种与 `OrgStructureEditor` | 均存在（`EnterpriseOrgPage.tsx:202/252/362/742`） |
+| 存量库数据 | 4 家企业数字与规格 §7.3 完全一致（37/25/6/1 节点，成员 3/0/0/0） |
+| 后端测试基线 | 1785 passed / 4 failed → **1996 passed / 1 skipped / 0 failed**（4 个历史失败已修复） |
+| 前端测试基线 | 274 → **278 passed** |
+| 新增约束 | `db_guard.release_request_connection()` 已接线 30+ 处 AI 调用点，见下方红线 |
+
+**行号漂移对照（计划文中旧行号 → 现行为）：**
+
+| 文件 | 旧 | 现 |
+|---|---|---|
+| `backend/app/models/enterprise.py` | 30 | 28 |
+| `backend/app/routers/enterprise_org.py` | 123/145/147/171/405/437/459 | 125/147/149/173/408/440/462 |
+| `backend/app/routers/generation.py` | 406/474/612 | 478/492/630 |
+| `backend/app/routers/sections.py` | 14/72/76 | 13/71/75 |
+| `backend/app/routers/export.py` | 282/380 | 276/374 |
+| `backend/app/services/chat_dispatch.py` | 1092 | 1120 |
+| `backend/app/services/onboarding_service.py` | 16/28/48/110/125 | 17/29/49/111/126 |
+| `backend/app/services/resource_investigation_service.py` | 84 | 82 |
+| `backend/app/services/work_ticket_service.py` | 386/407 | 409/448 |
+| `backend/app/routers/hazard_management.py` | 2441 | 2533 |
+
+**db_guard 红线（新增）：** 计划任务 8 要在 `_collect_enterprise_data` / `_enrich_with_reports` 注入应急组织、任务 9 要在质检/资源报告/onboarding 注入。执行时遵守：
+
+1. 应急组织的读取必须发生在同一请求内 `await release_request_connection(db)` **之前**，读出来的必须是纯 dict/list（本计划的 `load_emergency_groups` 正是纯 dict，天然满足）；
+2. 已接线释放的现有代码（`enterprise_org.py:175`、`onboarding_service.py:152/172/204`）在释放前就已构建好 `enterprise_info`，本计划不改这些顺序；
+3. 任何「先读 ORM、再改、再 commit」的流程，不能在释放之后改对象（`db.close()` 会 expunge）。
+
+**与并行会话的边界：** `frontend/src/mobile/components/plan/ChapterTree.tsx` 由另一会话在改，本计划所有 commit 只 `git add` 显式文件列表。
 
 ---
 
@@ -1879,10 +1919,10 @@ git commit -m "feat(org): 存量应急组织搬迁脚本（两种形态、幂等
 
 **文件：**
 - 修改：`backend/app/services/emergency_org_service.py`（新增消费方分组格式）
-- 修改：`backend/app/routers/generation.py:406-480`、`:600-615`
+- 修改：`backend/app/routers/generation.py:478-492`、`:628-632`（行号为 2026-09-19 复核值）
 - 修改：`backend/app/routers/sections.py:72-80`
-- 修改：`backend/app/routers/export.py:282-292`、`:380`、`:354`、`:453`
-- 修改：`backend/app/services/chat_dispatch.py:1092`
+- 修改：`backend/app/routers/export.py:276-290`、`:374`、`:360`、`:459`
+- 修改：`backend/app/services/chat_dispatch.py:1120`
 - 测试：`backend/tests/test_emergency_org.py`、`backend/tests/test_plan_autofill.py`
 
 - [ ] **步骤 1：编写失败的测试**
@@ -2090,7 +2130,7 @@ def build_legacy_groups(units: Iterable[dict]) -> list[dict]:
 
 并作为 `emergency_groups=emergency_groups` 传入。
 
-3. 删除 `_enrich_with_reports` 中「用成员表补 `org_structure` 节点成员」的整段循环（原 `:600-615`），因为应急组织分组已带成员。
+3. 删除 `_enrich_with_reports` 中「用成员表补 `org_structure` 节点成员」的整段循环（现 `:628-632`，即 `for node in enterprise_data.get("org_structure") or []:` 那一段），因为应急组织分组已带成员。
 
 4. `_normalize_org_groups` 与 `_build_org_chart_mermaid` 不改：注入的分组带 `group_name`，会命中原函数的旧格式分支直接通过。
 
@@ -2139,7 +2179,7 @@ def _build_signers_from_org(org_structure: list | None) -> list[dict]:
     return signers
 ```
 
-并在 `:380`（导出 DOCX）与 `:354`、`:453`（`check_plan` 调用处）之前加载应急组织：
+并在 `:374`（导出 DOCX）与 `:360`、`:459`（`check_plan` 调用处）之前加载应急组织：
 
 ```python
     from app.services.emergency_org_service import load_emergency_groups
@@ -2151,7 +2191,7 @@ def _build_signers_from_org(org_structure: list | None) -> list[dict]:
 
 - [ ] **步骤 7：对话通道同步**
 
-`backend/app/services/chat_dispatch.py:1092` 的 `_build_signers_from_org(ent.org_structure or [])` 改为：
+`backend/app/services/chat_dispatch.py:1120` 的 `_build_signers_from_org(ent.org_structure or [])` 改为：
 
 ```python
         from app.services.emergency_org_service import load_emergency_groups
@@ -2181,7 +2221,7 @@ git commit -m "feat(org): 预案生成/章节填充/导出签署页改从应急�
 - 修改：`backend/app/services/plan_quality_service.py:58-70`、`:176-200`、`:276-300`
 - 修改：`backend/app/services/plan_review_service.py`、`backend/app/routers/export.py`（`check_plan` 调用点）
 - 修改：`backend/app/services/onboarding_service.py:16-28`、`:44-50`、`:110-120`
-- 修改：`backend/app/services/resource_investigation_service.py:84`
+- 修改：`backend/app/services/resource_investigation_service.py:82`
 - 修改：`backend/app/services/work_ticket_service.py:379-429`
 - 测试：`backend/tests/test_plan_quality.py`、`backend/tests/test_onboarding_completion.py`、`backend/tests/test_work_ticket_countersign.py`
 
@@ -2311,7 +2351,15 @@ E2 段（`:276-300`）的「档案缺岗位」文案改为：
                 "warning": f"应急组织缺{role}",
 ```
 
-三个调用点（`backend/app/routers/export.py:354`、`:453`、`backend/app/services/plan_review_service.py`）在调用前加载并传入：
+`check_plan` 共有 5 个调用路径，全部需要加载并传入应急组织：`backend/app/routers/export.py:360`、`:459`、`backend/app/routers/review.py:50`、`:100`（后两者经 `plan_review_service.review_plan` 中转）、`backend/app/services/chat_dispatch.py:1375`。因此先把 `backend/app/services/plan_review_service.py:25` 改成同步透传：
+
+```python
+def review_plan(plan, enterprise, sections, emergency_groups: list | None = None) -> dict:
+    ...
+    rules = check_plan(plan, enterprise, sections, emergency_groups=emergency_groups)
+```
+
+再由上述 4 个 async 调用方（`review.py:50`/`:100`、`chat_dispatch.py:1375`、`export.py:360`/`:459`）在调用前加载并传入：
 
 ```python
     from app.services.emergency_org_service import load_emergency_groups
@@ -2354,7 +2402,7 @@ def _org_done(groups: list | None) -> bool:
 
 - [ ] **步骤 5：资源调查报告改口径**
 
-`backend/app/services/resource_investigation_service.py:84` 的 `"org_structure": enterprise.org_structure,` 改为在函数内先加载：
+`backend/app/services/resource_investigation_service.py:82` 的 `"org_structure": enterprise.org_structure,` 改为在函数内先加载：
 
 ```python
     from app.services.emergency_org_service import load_emergency_groups
@@ -3130,10 +3178,22 @@ const unitsFromAccepted = (groups: OrgGroup[]): EmergencyUnit[] => {
       name: g.group_name,
       duties: (g as OrgCandidate).responsibilities ?? "",
       sort_order: gi,
-      roles: [
-        { id: `onboarding-${g.group_key || gi}-chief`, name: "总指挥", duties: "", sort_order: 0, is_required: true, member_ids: [] },
-        { id: `onboarding-${g.group_key || gi}-member`, name: "组员", duties: "", sort_order: 1, is_required: false, member_ids: [] },
-      ],
+      // 角色取自候选组成员出现过的 role 文案（后端 AI 候选输出「总指挥/副总指挥/组长/组员」等中文），
+      // 去重保序；该组没有任何成员时回落到「组长/组员」，避免生成无角色的空组。
+      roles: (() => {
+        const names = Array.from(
+          new Set((g.members ?? []).map(m => String(m.role || "").trim()).filter(Boolean)),
+        );
+        const effective = names.length ? names : ["组长", "组员"];
+        return effective.map((roleName, ri) => ({
+          id: `onboarding-${g.group_key || gi}-role-${ri}`,
+          name: roleName,
+          duties: "",
+          sort_order: ri,
+          is_required: roleName === "总指挥" || roleName === "副总指挥",
+          member_ids: [],
+        }));
+      })(),
     })),
   ];
 };
@@ -3169,7 +3229,7 @@ docker exec -w /app emergency-plan-frontend npx tsc -b
 docker exec -w /app emergency-plan-frontend npx eslint src/pages/Enterprise/EmergencyOrgPage.tsx src/pages/Enterprise/EnterpriseOrgPage.tsx src/pages/Onboarding/StepOrg.tsx src/utils/emergencyOrgPreset.ts src/services/emergencyOrgService.ts
 docker exec -w /app emergency-plan-frontend npx vitest run --reporter=basic
 ```
-预期：`tsc -b` exit 0；`eslint` exit 0；`vitest` 全绿（基线 274 passed，新增用例后更多）。
+预期：`tsc -b` exit 0；`eslint` exit 0；`vitest` 全绿（基线 278 passed，新增用例后更多）。
 
 - [ ] **步骤 8：Commit**
 
@@ -3188,7 +3248,7 @@ git commit -m "feat(org): 应急组织页、公司组织页去预置与任职多
 - [ ] **步骤 1：后端全量回归**
 
 运行：`backend\.venv\Scripts\python.exe -m pytest backend/tests -q`
-预期：passed ≥ 1785 且 failed = 4（4 个历史失败），无新增失败。
+预期：passed ≥ 1996 且 failed = 0（2026-09-19 实测基线：1996 passed / 1 skipped / 0 failed），无新增失败与新增 skip。
 
 - [ ] **步骤 2：前端全量回归**
 
