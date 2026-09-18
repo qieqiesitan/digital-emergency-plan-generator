@@ -1,6 +1,7 @@
 import api from "./api";
-import type { AxiosRequestConfig } from "axios";
+import type { AxiosRequestConfig, AxiosResponse } from "axios";
 import type { ApiResponse } from "@/types/common";
+import { filenameFromContentDisposition } from "@/utils/download";
 import type {
   ChemicalDefinition,
   CriticalQuantity,
@@ -193,3 +194,55 @@ export const attachUnitEvidence = (
   api
     .post<ApiResponse<{ created: number }>>(`${BASE}/units/${unitId}/evidence`, items)
     .then((r) => r.data.data);
+
+// --- 报告导出 ---
+/**
+ * responseType=blob 时后端返回的错误体也是 Blob，先把里面的 detail 读出来。
+ * 读不到就退回通用话术，不要把 "[object Blob]" 抛给用户。
+ */
+async function blobErrorDetail(err: unknown): Promise<string> {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (typeof Blob !== "undefined" && data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text());
+      return parsed?.detail || parsed?.message || "报告导出失败";
+    } catch {
+      return "报告导出失败";
+    }
+  }
+  const message = (err as { detail?: string; message?: string })?.detail
+    || (err as { message?: string })?.message;
+  return message || "报告导出失败";
+}
+
+/**
+ * 下载辨识报告 DOCX。走 blob 避免文件名被 URL 编码破坏，同时复用 axios 的鉴权头。
+ *
+ * 后端在"尚未固化计算结果"时返回 422，故开 skipGlobalError 由调用方自己提示。
+ */
+export const downloadUnitReport = async (
+  unitId: string,
+  fallbackName = "重大危险源辨识报告",
+): Promise<void> => {
+  let resp: AxiosResponse<Blob>;
+  try {
+    resp = await api.get<Blob>(`${BASE}/units/${unitId}/report.docx`, {
+      responseType: "blob",
+      skipGlobalError: true,
+    });
+  } catch (err) {
+    throw new Error(await blobErrorDetail(err), { cause: err });
+  }
+  const name = filenameFromContentDisposition(
+    String(resp.headers?.["content-disposition"] ?? ""),
+    `${fallbackName}.docx`,
+  );
+  const url = URL.createObjectURL(resp.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};

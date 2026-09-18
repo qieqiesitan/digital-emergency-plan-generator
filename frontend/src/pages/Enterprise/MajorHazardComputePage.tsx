@@ -13,14 +13,21 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { CheckCircleOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import {
+  CheckCircleOutlined,
+  FileWordOutlined,
+  ReloadOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
 import {
   computeCalculation,
+  downloadUnitReport,
   listCalculations,
   listUnits,
   previewCalculation,
@@ -59,6 +66,7 @@ export default function MajorHazardComputePage() {
   const [unitId, setUnitId] = useState<string>(sp.get("unitId") ?? "");
   const [population, setPopulation] = useState<number>(0);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const debouncedPopulation = useDebounced(population, 500);
 
@@ -114,6 +122,22 @@ export default function MajorHazardComputePage() {
       // 全局拦截器已提示
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * 导出辨识报告。报告必须有结论，故以"是否已有快照"为准禁用按钮；
+   * 后端仍会再拦一次（422），这里用 warning 显示原因而不是报错。
+   */
+  const doExport = async () => {
+    setExporting(true);
+    try {
+      await downloadUnitReport(effectiveUnitId);
+      message.success("辨识报告已开始下载");
+    } catch (err) {
+      message.warning(err instanceof Error ? err.message : "报告导出失败");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -265,6 +289,22 @@ export default function MajorHazardComputePage() {
               >
                 固化本次结果
               </Button>
+              <Tooltip
+                title={
+                  history?.length
+                    ? undefined
+                    : "请先固化一次计算结果——没有结论的报告不能导出"
+                }
+              >
+                <Button
+                  icon={<FileWordOutlined />}
+                  loading={exporting}
+                  disabled={!history?.length}
+                  onClick={doExport}
+                >
+                  导出辨识报告
+                </Button>
+              </Tooltip>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 快照不可修改；改了数据要重算，会产生新的一条记录
               </Text>
