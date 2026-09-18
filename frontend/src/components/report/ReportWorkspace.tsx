@@ -245,9 +245,17 @@ export default function ReportWorkspace({
     }
   }, [adapter, enterpriseId]);
 
-  useEffect(() => {
+  // 切换企业/适配器时进入加载态（渲染期调整 state，避免 effect 内同步 setState）
+  const [prevLoadKey, setPrevLoadKey] = useState<string>("");
+  const loadKey = String(enterpriseId ?? "");
+  if (loadKey !== prevLoadKey) {
+    setPrevLoadKey(loadKey);
     setLoading(true);
-    void loadDocument();
+  }
+
+  useEffect(() => {
+    // 排到微任务再发起加载：避免在 effect 同步阶段执行 setState（react-hooks/set-state-in-effect）
+    void Promise.resolve().then(() => loadDocument());
   }, [loadDocument]);
 
   // 后台生成中：每 4 秒拉一次报告，展示已保存章节

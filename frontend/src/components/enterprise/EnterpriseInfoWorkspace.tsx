@@ -257,6 +257,7 @@ export default function EnterpriseInfoWorkspace({
         </div>
       </Card>
       <GisMapPicker
+        key={`gis-${gisModalOpen}`}
         visible={gisModalOpen}
         value={effectiveGis}
         onChange={(pos) => {

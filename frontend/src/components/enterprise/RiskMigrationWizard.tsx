@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal, Steps, Button, List, Tag, Input, Alert, Spin, Space, message } from "antd";
 import {
   CheckCircleOutlined,
@@ -62,38 +62,48 @@ export default function RiskMigrationWizard({
   const [editForm, setEditForm] = useState<EditForm>({ zone: "", object: "", event: "" });
   const [loadingPreview, setLoadingPreview] = useState(false);
 
-  useEffect(() => {
+  // 打开即重置并重新加载：重置放渲染期调整（React 官方推荐模式），
+  // 加载函数内不再做同步 setState，避免 effect 触发级联渲染
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setStep(0);
       setItems([]);
       setEditingKey(null);
-      loadPreview();
+      setLoadingPreview(true);
     }
-  }, [open, enterpriseId]);
+  }
 
-  const loadPreview = async () => {
-    setLoadingPreview(true);
-    try {
-      const preview = await getMigrationPreview(enterpriseId);
-      if (!preview || preview.items.length === 0) {
-        message.warning("未检测到可迁移的旧版风险源数据");
-        setItems([]);
-        return;
-      }
-      setItems(mapPreviewData(preview));
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
       try {
-        const aiPreview = await aiMigratePreview(enterpriseId);
-        if (aiPreview?.items?.length) setItems(mapPreviewData(aiPreview));
-      } catch {
-        message.info("AI 建议不可用，已使用默认映射");
+        const preview = await getMigrationPreview(enterpriseId);
+        if (cancelled) return;
+        if (!preview || preview.items.length === 0) {
+          message.warning("未检测到可迁移的旧版风险源数据");
+          setItems([]);
+          return;
+        }
+        setItems(mapPreviewData(preview));
+        try {
+          const aiPreview = await aiMigratePreview(enterpriseId);
+          if (!cancelled && aiPreview?.items?.length) setItems(mapPreviewData(aiPreview));
+        } catch {
+          if (!cancelled) message.info("AI 建议不可用，已使用默认映射");
+        }
+      } catch (e) {
+        if (cancelled) return;
+        message.error("加载迁移预览失败: " + errorMessage(e, "请重试"));
+        setItems([]);
+      } finally {
+        if (!cancelled) setLoadingPreview(false);
       }
-    } catch (e) {
-      message.error("加载迁移预览失败: " + errorMessage(e, "请重试"));
-      setItems([]);
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
+    })();
+    return () => { cancelled = true; };
+  }, [open, enterpriseId]);
 
   const handleAdopt = (key: number) => {
     setItems((prev) =>

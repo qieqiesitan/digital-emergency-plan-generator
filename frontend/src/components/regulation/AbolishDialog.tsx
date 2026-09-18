@@ -35,21 +35,24 @@ export function AbolishDialog({ record, open, onClose }: Props) {
     onError: () => message.error("操作失败"),
   });
 
+  // 开关状态重置放渲染期调整（避免 effect 内同步 setState 造成级联渲染）
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    setImpact(null);
+    if (open) setImpactLoading(true);
+    else setReplacedBy("");
+  }
+
   useEffect(() => {
-    if (!open) {
-      setReplacedBy("");
-      setImpact(null);
-      return;
-    }
+    if (!open || !record?.id) return;
+    let cancelled = false;
     // Fetch impact when dialog opens
-    if (record?.id) {
-      setImpactLoading(true);
-      setImpact(null);
-      fetchImpact(record.id)
-        .then(setImpact)
-        .catch(() => setImpact(null))
-        .finally(() => setImpactLoading(false));
-    }
+    fetchImpact(record.id)
+      .then((r) => { if (!cancelled) setImpact(r); })
+      .catch(() => { if (!cancelled) setImpact(null); })
+      .finally(() => { if (!cancelled) setImpactLoading(false); });
+    return () => { cancelled = true; };
   }, [open, record?.id]);
 
   const options = (data?.items || []).filter(n => n.id !== record?.id && n.status === "effective");

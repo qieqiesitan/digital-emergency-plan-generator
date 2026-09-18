@@ -33,6 +33,11 @@ export default function RichTextEditor({
   const lastSelectionTo = useRef(0);
 
   const [selectionText, setSelectionText] = useState("");
+  // 选中上下文改存 state：渲染期读 ref 会被 React Compiler 规则判为不安全，
+  // 且 ref 变化不会触发重渲染（AI 重写可能拿到过期上下文）。
+  const [contextBefore, setContextBefore] = useState("");
+  const [contextAfter, setContextAfter] = useState("");
+  const [editorReady, setEditorReady] = useState(false);
   const [showRewriteBtn, setShowRewriteBtn] = useState(false);
   const [aiRewriteModalOpen, setAiRewriteModalOpen] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -72,7 +77,7 @@ export default function RichTextEditor({
           readOnly={readOnly}
           placeholder={placeholder}
           maxHeight="calc(100vh - 320px)"
-          onReady={(ed) => { editorRef.current = ed; }}
+          onReady={(ed) => { editorRef.current = ed; setEditorReady(true); }}
           onSelectionUpdate={(ed) => {
             const { from, to } = ed.state.selection;
             lastSelectionFrom.current = from;
@@ -81,31 +86,33 @@ export default function RichTextEditor({
               const text = ed.state.doc.textBetween(from, to);
               if (text.length > 10) {
                 setSelectionText(text);
+                setContextBefore(
+                  ed.state.doc.textBetween(Math.max(0, from - 200), from)
+                );
+                setContextAfter(
+                  ed.state.doc.textBetween(to, Math.min(ed.state.doc.content.size, to + 200))
+                );
                 setShowRewriteBtn(true);
                 return;
               }
             }
             setShowRewriteBtn(false);
             setSelectionText("");
+            setContextBefore("");
+            setContextAfter("");
           }}
         />
       )}
 
-      {editorRef.current && aiRewriteModalOpen && planId && sectionKey && (
+      {editorReady && aiRewriteModalOpen && planId && sectionKey && (
         <AIGenerateButton
           planId={planId}
           sectionKey={sectionKey}
           sectionTitle={sectionTitle}
           mode="selection"
           selectedText={selectionText}
-          contextBefore={editorRef.current.state.doc.textBetween(
-            Math.max(0, lastSelectionFrom.current - 200),
-            lastSelectionFrom.current
-          )}
-          contextAfter={editorRef.current.state.doc.textBetween(
-            lastSelectionTo.current,
-            Math.min(editorRef.current.state.doc.content.size, lastSelectionTo.current + 200)
-          )}
+          contextBefore={contextBefore}
+          contextAfter={contextAfter}
           onContentChunk={() => {
             setIsRegenerating(true);
           }}

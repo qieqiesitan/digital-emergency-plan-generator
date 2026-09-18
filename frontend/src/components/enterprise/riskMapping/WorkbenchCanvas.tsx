@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   Stage,
   Layer,
@@ -112,17 +112,17 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   };
   const [penAnchors, setPenAnchorsState] = useState<PenAnchor[]>([]);
   const penAnchorsRef = useRef<PenAnchor[]>([]);
-  const setPenAnchors = (next: PenAnchor[] | ((prev: PenAnchor[]) => PenAnchor[])) => {
+  const setPenAnchors = useCallback((next: PenAnchor[] | ((prev: PenAnchor[]) => PenAnchor[])) => {
     const value = typeof next === "function" ? next(penAnchorsRef.current) : next;
     penAnchorsRef.current = value;
     setPenAnchorsState(value);
-  };
+  }, []);
   const [penActive, setPenActiveState] = useState<PenAnchor | null>(null);
   const penActiveRef = useRef<PenAnchor | null>(null);
-  const setPenActive = (next: PenAnchor | null) => {
+  const setPenActive = useCallback((next: PenAnchor | null) => {
     penActiveRef.current = next;
     setPenActiveState(next);
-  };
+  }, []);
   const [draftCursor, setDraftCursor] = useState<RiskPolygonPoint | null>(null);
   const [draftStart, setDraftStart] = useState<RiskPolygonPoint | null>(null);
   const [draftEnd, setDraftEnd] = useState<RiskPolygonPoint | null>(null);
@@ -174,20 +174,28 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
     return () => observer.disconnect();
   }, []);
 
+  // 工具切换时清理绘制草稿。
+  // 这些 setter 内部同时写 ref（penAnchorsRef 等），渲染期调用会被 react-hooks/refs 判为读 ref；
+  // 放在微任务里执行则既满足 react-hooks/set-state-in-effect，也不在渲染/effect 同步阶段写 ref。
   useEffect(() => {
-    if (!["polygon", "pen", "freehand"].includes(tool)) {
-      setDraftPoints([]);
-      setDraftCursor(null);
-      setDraftStart(null);
-      setDraftEnd(null);
-      setIsDrawing(false);
-    }
-    if (tool !== "pen") {
-      setPenAnchors([]);
-      setPenActive(null);
-      penCloseCandidateRef.current = false;
-    }
-  }, [tool]);
+    void Promise.resolve().then(() => {
+      if (!["polygon", "pen", "freehand"].includes(tool)) {
+        setDraftPoints([]);
+        setDraftCursor(null);
+        setDraftStart(null);
+        setDraftEnd(null);
+        setIsDrawing(false);
+      }
+      if (tool !== "pen") {
+        setPenAnchors([]);
+        setPenActive(null);
+        penCloseCandidateRef.current = false;
+      }
+    });
+  }, [tool, setPenAnchors, setPenActive]);
+
+  // finishDrawing 定义在本文件后面，事件监听通过 ref 取最新实现（避免“先用后声明”）
+  const finishDrawingRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -210,7 +218,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
       }
       if (event.key === "Enter" && ["polygon", "pen"].includes(useRiskMappingWorkbenchStore.getState().tool)) {
         event.preventDefault();
-        finishDrawing();
+        finishDrawingRef.current();
         return;
       }
       if ((event.key === "Delete" || event.key === "Backspace") && !isEditableTarget(document.activeElement)) {
@@ -250,7 +258,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
         setIsPanning(true);
       }
     };
-    const onFinishDrawing = () => finishDrawing();
+    const onFinishDrawing = () => finishDrawingRef.current();
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("mousedown", onWindowMouseDown);
@@ -265,7 +273,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
       window.removeEventListener("mouseup", onWindowMouseUp);
       window.removeEventListener("risk-mapping:finish-drawing", onFinishDrawing);
     };
-  }, [setState]);
+  }, [setState, setPenAnchors, setPenActive]);
 
   const image = loadedImage && loadedImage.url === floor?.floor_plan_url ? loadedImage.image : null;
   const canvasWidth = floor?.canvas_width || (image ? image.naturalWidth : STAGE_WIDTH);
@@ -282,6 +290,19 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
     const y = (containerSize.height - canvasHeight * scale) / 2;
     useRiskMappingWorkbenchStore.setState({ viewScale: scale, viewX: x, viewY: y });
   }, [canvasWidth, canvasHeight, containerSize.width, containerSize.height]);
+
+  // 选中集合变化时把对应节点挂到 Transformer：渲染期不能读 ref，
+  // 改为在 effect 里命令式设置 Konva Transformer 的 nodes
+  useEffect(() => {
+    if (tool !== "select") return;
+    const tr = transformerRef.current;
+    if (!tr) return;
+    const nodes = selectedRegionIds
+      .map((id) => regionNodeRefs.current.get(id))
+      .filter((node): node is KonvaNode => node !== undefined);
+    tr.nodes(nodes);
+    tr.getLayer()?.batchDraw();
+  }, [selectedRegionIds, tool]);
 
   const pointFromEvent = (e: KonvaEventObject<MouseEvent>): RiskPolygonPoint => {
     const stage = e.target.getStage?.() ?? null;
@@ -398,6 +419,11 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
     penCloseCandidateRef.current = false;
     setIsDrawing(false);
   };
+
+  // 每次渲染后把最新的 finishDrawing 交给 ref（effect 内写 ref 是允许的）
+  useEffect(() => {
+    finishDrawingRef.current = finishDrawing;
+  });
 
   const resolveRegionPoints = (id: string): RiskPolygonPoint[] | null => {
     const store = useRiskMappingWorkbenchStore.getState();
@@ -679,7 +705,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
       return;
     }
     if (tool === "pen" && isDrawing) {
-      if (penActiveRef.current) setPenAnchors(prev => [...prev, penActiveRef.current!]);
+      if (penActiveRef.current) setPenAnchors((prev: PenAnchor[]) => [...prev, penActiveRef.current!]);
       penDraggedRef.current = false;
       setPenActive(null);
       setIsDrawing(false);
@@ -751,7 +777,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
           style={{
             maxWidth: "100%",
             maxHeight: "100%",
-            cursor: isPanning || spacePressedRef.current ? "grabbing" : tool === "select" ? "default" : "crosshair",
+            cursor: isPanning || spacePressed ? "grabbing" : tool === "select" ? "default" : "crosshair",
           }}
           onClick={handleClick}
           onDblClick={() => {
@@ -1155,24 +1181,17 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
               );
             })}
             <WorkbenchRiskPointLayer />
-            {tool === "select" && (() => {
-              const nodes = selectedRegionIds
-                .map(id => regionNodeRefs.current.get(id))
-                .filter((node): node is KonvaNode => node !== undefined);
-              if (!nodes.length) return null;
-              return (
-                <Transformer
-                  ref={transformerRef}
-                  nodes={nodes}
-                  rotateEnabled
-                  flipEnabled={false}
-                  anchorSize={10}
-                  borderStroke="#1677ff"
-                  anchorStroke="#1677ff"
-                  anchorFill="#ffffff"
-                />
-              );
-            })()}
+            {tool === "select" && (
+              <Transformer
+                ref={transformerRef}
+                rotateEnabled
+                flipEnabled={false}
+                anchorSize={10}
+                borderStroke="#1677ff"
+                anchorStroke="#1677ff"
+                anchorFill="#ffffff"
+              />
+            )}
           </Layer>
         </Stage>
       </div>

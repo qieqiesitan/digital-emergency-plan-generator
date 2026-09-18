@@ -31,12 +31,30 @@ export default function ChemicalLibraryPickerModal({ open, onSelect, onManual, o
     }
   };
 
-  useEffect(() => {
+  // 打开时清空关键词并进入加载态：渲染期调整 state（避免 effect 内同步 setState）
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setKeyword("");
-      fetch("", 1);
+      setLoading(true);
     }
-  }, [open]);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    listLibrary("", { page: 1, page_size: pageSize })
+      .then((res) => {
+        if (cancelled) return;
+        setItems(res.data.items || []);
+        setTotal(res.data.total || 0);
+        setPage(1);
+      })
+      .catch(() => { if (!cancelled) setItems([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, pageSize]);
 
   const columns = [
     { title: "化学品名称", dataIndex: "name", key: "name", width: 200 },

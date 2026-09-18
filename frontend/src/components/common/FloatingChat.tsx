@@ -28,10 +28,13 @@ export default function FloatingChat() {
   const startTop = useRef(0);
   const btnRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
+  // 拖拽状态同时进 state：渲染期读 ref 会被 react-hooks/refs 拦截，且 ref 变化不触发重渲染
+  const [isDragging, setIsDragging] = useState(false);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     dragging.current = true;
+    setIsDragging(true);
     startY.current = e.clientY;
     startTop.current = top;
     document.body.style.userSelect = "none";
@@ -47,6 +50,7 @@ export default function FloatingChat() {
     const onUp = () => {
       if (dragging.current) {
         dragging.current = false;
+        setIsDragging(false);
         document.body.style.userSelect = "";
         localStorage.setItem("chat_btn_top", String(top));
       }
@@ -82,7 +86,7 @@ export default function FloatingChat() {
           cursor: "grab",
           zIndex: 1000,
           userSelect: "none",
-          transition: dragging.current ? "none" : "all 0.3s ease",
+          transition: isDragging ? "none" : "all 0.3s ease",
         }}
         title="AI 助手（可上下拖动）"
       >

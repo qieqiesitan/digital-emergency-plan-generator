@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Modal, Button, Input } from "antd";
 import AppIcon from "@/components/common/AppIcon";
 
@@ -14,21 +14,13 @@ interface FloorPlanPickerProps {
 }
 
 export default function FloorPlanPicker({ imageUrl, value, onChange, visible, onClose }: FloorPlanPickerProps) {
-  const [marker, setMarker] = useState<{ x: number; y: number } | null>(null);
-  const [desc, setDesc] = useState("");
+  // 初值直接取 props；父组件用 key 在打开时重挂载，因此不需要 effect 同步 state
+  const [marker, setMarker] = useState<{ x: number; y: number } | null>(() =>
+    value?.x != null && value?.y != null ? { x: value.x, y: value.y } : null
+  );
+  const [desc, setDesc] = useState(() => value?.description || "");
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (visible) {
-      if (value?.x != null && value?.y != null) {
-        setMarker({ x: value.x, y: value.y });
-      } else {
-        setMarker(null);
-      }
-      setDesc(value?.description || "");
-    }
-  }, [visible, value]);
 
   const handleImageClick = useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     if (!imgRef.current) return;

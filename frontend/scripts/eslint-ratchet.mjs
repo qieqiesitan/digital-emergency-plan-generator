@@ -2,9 +2,9 @@
 /**
  * ESLint 债务棘轮：允许历史遗留错误存在，但**不允许增加**。
  *
- * 背景：前端有 245 条历史 eslint error（26 个 @ts-nocheck 文件、56 处 any、
- * 41 处 react-hooks/refs 等）。一次性清零需要大规模补类型，不能阻塞日常交付；
- * 但"新代码继续加债"必须被拦住，否则永远还不完。
+ * 现状（2026-09-18 B1 批次完成）：历史债务已全部清零（errors=0 / warnings=0，
+ * 26 个 @ts-nocheck 已摘除，any 55 处清零，react-hooks 规则族 75 条清零）。
+ * 棘轮从"允许存量、拦住新增"升级为"零容忍"：任何新增 error/warning 都会阻塞 CI。
  *
  * 用法：
  *   node scripts/eslint-ratchet.mjs            # CI/本地检查：超过基线即失败

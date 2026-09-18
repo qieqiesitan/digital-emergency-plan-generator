@@ -77,7 +77,7 @@ export default function DashboardScreen() {
     staleTime: 60000,
   });
 
-  const enterprises = enterprisesQuery.data ?? [];
+  const enterprises = useMemo(() => enterprisesQuery.data ?? [], [enterprisesQuery.data]);
 
   // 自动选择当前企业
   const activeEnterpriseId = useMemo(() => {

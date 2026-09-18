@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Input, InputNumber, message, Radio, Select, Space } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
@@ -91,20 +91,28 @@ export default function WorkbenchPropertiesPanel() {
     : null;
   const selectedText = texts.find(t => t.id === selectedTextId) ?? null;
 
-  useEffect(() => {
+  // 选中项变化时重置面板草稿：渲染期调整 state（React 官方推荐模式，
+  // 避免 4 个 effect 各自同步 setState 造成级联渲染）
+  const regionZoneKey = `${selectedRegionId ?? ""}|${selectedPending}|${selectedZoneId ?? ""}|${zones.length}`;
+  const [prevRegionZoneKey, setPrevRegionZoneKey] = useState(regionZoneKey);
+  if (regionZoneKey !== prevRegionZoneKey) {
+    setPrevRegionZoneKey(regionZoneKey);
     setRegionZoneId(selectedPending ? (selectedZoneId ?? zones[0]?.id ?? null) : null);
-  }, [selectedRegionId, selectedPending, selectedZoneId, zones]);
+  }
 
-  useEffect(() => {
+  const regionDraftKey = String(selectedRegionId ?? "");
+  const [prevRegionDraftKey, setPrevRegionDraftKey] = useState(regionDraftKey);
+  if (regionDraftKey !== prevRegionDraftKey) {
+    setPrevRegionDraftKey(regionDraftKey);
     setRegionScale(100);
     setRegionRotation(0);
-  }, [selectedRegionId]);
-
-  useEffect(() => {
     setTargetZoneId(null);
-  }, [selectedRegionId]);
+  }
 
-  useEffect(() => {
+  const pointDraftKey = `${selectedRiskPointId ?? ""}|${riskPoints.length}`;
+  const [prevPointDraftKey, setPrevPointDraftKey] = useState(pointDraftKey);
+  if (pointDraftKey !== prevPointDraftKey) {
+    setPrevPointDraftKey(pointDraftKey);
     const point = riskPoints.find(p => p.id === selectedRiskPointId);
     setPointDraft(
       point
@@ -120,7 +128,7 @@ export default function WorkbenchPropertiesPanel() {
           }
         : null,
     );
-  }, [selectedRiskPointId, riskPoints]);
+  }
 
   const updateZone = (patch: Partial<WorkbenchZone>) => {
     if (!zone) return;

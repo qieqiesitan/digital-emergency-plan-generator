@@ -47,8 +47,11 @@ export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
   const [editEffectiveDate, setEditEffectiveDate] = useState("");
   const [editTopics, setEditTopics] = useState("");
 
-  // Initialize edit fields from regulation prop
-  useEffect(() => {
+  // 打开/切换法规时用 prop 初始化编辑字段：渲染期调整 state（避免 effect 内同步 setState）
+  const [prevInitKey, setPrevInitKey] = useState("");
+  const initKey = open && regulation ? String(regulation.id) : "";
+  if (initKey !== prevInitKey) {
+    setPrevInitKey(initKey);
     if (regulation && open) {
       setEditCode(regulation.code || "");
       setEditFullName(regulation.full_name || "");
@@ -60,7 +63,16 @@ export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
       setEditTopics((regulation.topics || []).join(", "));
       setEditFile(null);
     }
-  }, [regulation, open]);
+  }
+
+  // 进入预览步骤时查重：加载态放渲染期调整，异步结果用 promise 回调（避免 effect 内同步 setState）
+  const [prevDupKey, setPrevDupKey] = useState("");
+  const dupKey = step === "preview" && parsed ? `${parsed.code}|${parsed.full_name}|${rawText.length}` : "";
+  if (dupKey !== prevDupKey) {
+    setPrevDupKey(dupKey);
+    setDupResult(null);
+    setDupLoading(dupKey !== "");
+  }
 
   // Fetch all regulation codes for AutoComplete
   const { data: allRegs } = useQuery({
@@ -131,17 +143,14 @@ export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
 
   // Auto check duplicate when entering preview
   useEffect(() => {
-    if (step === "preview" && parsed) {
-      setDupLoading(true);
-      setDupResult(null);
-      checkDuplicate(parsed.code, parsed.full_name, rawText)
-        .then(setDupResult)
-        .catch(() => setDupResult(null))
-        .finally(() => setDupLoading(false));
-    } else {
-      setDupResult(null);
-    }
-  }, [step, parsed]);
+    if (step !== "preview" || !parsed) return;
+    let cancelled = false;
+    checkDuplicate(parsed.code, parsed.full_name, rawText)
+      .then((r) => { if (!cancelled) setDupResult(r); })
+      .catch(() => { if (!cancelled) setDupResult(null); })
+      .finally(() => { if (!cancelled) setDupLoading(false); });
+    return () => { cancelled = true; };
+  }, [step, parsed, rawText]);
 
   function reset() {
     setStep("input"); setRawText(""); setFile(null); setParsed(null); setDupResult(null);

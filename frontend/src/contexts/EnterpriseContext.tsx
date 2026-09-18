@@ -28,15 +28,18 @@ export function EnterpriseProvider({ children }: { children: ReactNode }) {
     setCurrentEnterpriseId(id);
   }, []);
 
-  // 如果当前企业不在列表中，自动选择第一个
+  // 当前企业不在列表中时回落到第一个：渲染期派生（避免 effect 内 setState）
+  const effectiveEnterpriseId =
+    enterprises.some((e) => e.id === currentEnterpriseId)
+      ? currentEnterpriseId
+      : (enterprises[0]?.id ?? null);
+
+  // 派生值变化时同步本地存储（只写外部系统，不动 React 状态）
   useEffect(() => {
-    if (enterprises.length > 0) {
-      const exists = enterprises.some((e) => e.id === currentEnterpriseId);
-      if (!exists) {
-        setCurrentEnterprise(enterprises[0].id);
-      }
+    if (effectiveEnterpriseId) {
+      localStorage.setItem("currentEnterpriseId", effectiveEnterpriseId);
     }
-  }, [enterprises, currentEnterpriseId, setCurrentEnterprise]);
+  }, [effectiveEnterpriseId]);
 
   const refreshEnterprises = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["enterprises"] });
@@ -44,7 +47,7 @@ export function EnterpriseProvider({ children }: { children: ReactNode }) {
 
   return (
     <EnterpriseContext.Provider
-      value={{ currentEnterpriseId, enterprises, isLoading, setCurrentEnterprise, refreshEnterprises }}
+      value={{ currentEnterpriseId: effectiveEnterpriseId, enterprises, isLoading, setCurrentEnterprise, refreshEnterprises }}
     >
       {children}
     </EnterpriseContext.Provider>

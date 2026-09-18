@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import { Modal, Button } from "antd";
 import L from "leaflet";
@@ -30,10 +30,6 @@ function MapClickHandler({ onClick }: { onClick: (lat: number, lng: number) => v
 
 export default function GisMapPicker({ value, onChange, visible, onClose }: GisMapPickerProps) {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(value || null);
-
-  useEffect(() => {
-    if (visible) setPosition(value || null);
-  }, [visible, value]);
 
   const handleConfirm = () => {
     onChange?.(position);

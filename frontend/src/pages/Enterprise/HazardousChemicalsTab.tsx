@@ -98,7 +98,13 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
   };
 
   useEffect(() => {
-    fetchData();
+    if (!enterpriseId) return;
+    let cancelled = false;
+    listChemicals(enterpriseId, { page_size: 200 }, { skipGlobalError: true })
+      .then((res) => { if (!cancelled) setData(res.data.items || []); })
+      .catch((err) => { if (!cancelled) message.error(errorMessage(err, "加载失败")); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [enterpriseId]);
 
   const handleAdd = () => {

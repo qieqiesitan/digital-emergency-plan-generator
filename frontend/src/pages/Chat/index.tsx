@@ -59,8 +59,12 @@ export default function ChatPanel({ embedded = false }: ChatPanelProps) {
   }, []);
 
   useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+    let cancelled = false;
+    fetchConversations()
+      .then((list) => { if (!cancelled) setConversations(list); })
+      .catch(() => { /* silent */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // 切换对话 → 加载历史
   const switchConversation = useCallback(async (convId: string) => {

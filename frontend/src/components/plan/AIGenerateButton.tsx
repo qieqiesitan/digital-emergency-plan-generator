@@ -85,11 +85,17 @@ export default function AIGenerateButton({
   }, [checkConfig, form]);
 
   // ponytail: auto-open modal when mounted in selection mode (triggered by RichTextEditor toolbar click)
+  // 配置检查的异步结果用 promise 回调处理，避免 effect 内同步 setState
   useEffect(() => {
-    if (mode === "selection") {
-      handleGenerate();
-    }
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (mode !== "selection") return;
+    let cancelled = false;
+    checkConfig().then((hasConfig) => {
+      if (cancelled || !hasConfig) return;
+      setModalOpen(true);
+      form.resetFields();
+    });
+    return () => { cancelled = true; };
+  }, [mode, checkConfig, form]);
 
   const handleConfirm = useCallback(async () => {
     try {

@@ -145,7 +145,7 @@ export default function FourColorImportModal({
   const handleRestore = (item: FourColorExcludedItem) => {
     const level = COLOR_LEVEL[item.color] ?? "一般";
     const newZone: FourColorDraftZone = {
-      client_id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      client_id: makeDraftZoneId(),
       name: `分区${zones.length + 1}`,
       risk_level: level,
       color: LEVEL_COLORS[level],
@@ -486,4 +486,8 @@ export default function FourColorImportModal({
       )}
     </Modal>
   );
+}
+/** 本地草稿分区 id：放在模块级，避免在组件渲染路径里调用 Date.now/Math.random（purity 规则） */
+function makeDraftZoneId(): string {
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }

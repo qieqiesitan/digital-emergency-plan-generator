@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Modal, Button, Input, Table, Checkbox, message, Alert, Spin, Space, Tag } from "antd";
 import {
   getResourceAIQuestions,
@@ -34,31 +34,38 @@ export default function ResourceAIGenerateModal({ enterpriseId, visible, onClose
   // 用户自行补充描述
   const [customSupplement, setCustomSupplement] = useState("");
 
-  useEffect(() => {
-    if (visible) {
-      loadQuestions();
-    }
-  }, [visible, enterpriseId]);
+  // 打开时回到「加载问题」步骤（渲染期调整 state，避免 effect 内同步 setState）
+  const [prevVisible, setPrevVisible] = useState(visible);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
+    if (visible) setStep("loading-questions");
+  }
 
-  const loadQuestions = async () => {
-    setStep("loading-questions");
-    try {
-      // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
-      const qs = await getResourceAIQuestions(enterpriseId, { skipGlobalError: true });
-      if (qs.length === 0) {
-        message.error("未能生成调查问题，请重试");
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
+        const qs = await getResourceAIQuestions(enterpriseId, { skipGlobalError: true });
+        if (cancelled) return;
+        if (qs.length === 0) {
+          message.error("未能生成调查问题，请重试");
+          onClose();
+          return;
+        }
+        setQuestions(qs);
+        setAnswers({});
+        setCustomSupplement("");
+        setStep("answer");
+      } catch {
+        if (cancelled) return;
+        message.error("AI 服务暂不可用，请检查 AI 配置");
         onClose();
-        return;
       }
-      setQuestions(qs);
-      setAnswers({});
-      setCustomSupplement("");
-      setStep("answer");
-    } catch {
-      message.error("AI 服务暂不可用，请检查 AI 配置");
-      onClose();
-    }
-  };
+    })();
+    return () => { cancelled = true; };
+  }, [visible, enterpriseId, onClose]);
 
   const handleGenerate = async () => {
     setStep("generating");

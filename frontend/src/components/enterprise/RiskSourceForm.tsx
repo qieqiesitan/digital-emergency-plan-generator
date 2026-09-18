@@ -184,6 +184,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
       </Modal>
 
       <FloorPlanPicker
+        key={`floor-${floorPlanOpen}`}
         imageUrl={floorPlanUrl || null}
         visible={floorPlanOpen}
         value={{

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useCallback, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Row, Col, Card, Input, Select, Slider, Table, Collapse, Button,
@@ -96,7 +96,11 @@ export default function RiskMethodEditorPage() {
     enabled: !isCreate && !!enterpriseId && !!methodId,
   });
 
-  useEffect(() => {
+  // 载入方法后初始化表单：渲染期调整 state（避免 effect 内同步 setState）
+  const [prevMethodKey, setPrevMethodKey] = useState("");
+  const methodKey = method ? String(method.id) : "";
+  if (methodKey !== prevMethodKey) {
+    setPrevMethodKey(methodKey);
     if (method) {
       setName(method.name);
       setMethodType(method.method_type);
@@ -110,7 +114,7 @@ export default function RiskMethodEditorPage() {
         min: t.min, max: t.max, level: t.level, color: t.color, action: t.action, deadline: t.deadline,
       })) || []);
     }
-  }, [method]);
+  }
 
   const buildConfig = useCallback((): MethodConfig => ({
     version: "1.0",
@@ -492,7 +496,13 @@ function EditableCell({ value, onChange }: { value: string | number; onChange: (
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
 
-  useEffect(() => { setDraft(String(value)); }, [value]);
+  // 外部值变化时同步草稿：渲染期调整 state（避免 effect 内同步 setState）
+  const valueStr = String(value);
+  const [prevValueStr, setPrevValueStr] = useState(valueStr);
+  if (valueStr !== prevValueStr) {
+    setPrevValueStr(valueStr);
+    setDraft(valueStr);
+  }
 
   const commit = () => { setEditing(false); onChange(draft); };
 

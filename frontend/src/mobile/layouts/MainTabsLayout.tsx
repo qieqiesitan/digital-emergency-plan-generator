@@ -77,7 +77,7 @@ export default function MainTabsLayout() {
   const handleTabChange = useCallback((key: string) => {
     setActiveTab(key as typeof activeTab);
     navigate(TAB_ROUTES[key] || "/m/dashboard");
-  }, [navigate, setActiveTab, activeTab]);
+  }, [navigate, setActiveTab]);
 
   return (
     <ErrorBoundary>

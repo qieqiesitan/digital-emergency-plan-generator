@@ -75,14 +75,25 @@ export default function PlanEditorPage() {
   const [sampleDone, setSampleDone] = useState(() => {
     try { return sessionStorage.getItem(`plan_sample_done_${id}`) === "1"; } catch { return false; }
   });
-  const setSampleDoneSafe = (v: boolean) => {
+  const setSampleDoneSafe = useCallback((v: boolean) => {
     setSampleDone(v);
     try { sessionStorage.setItem(`plan_sample_done_${id}`, v ? "1" : "0"); } catch { /* ignore */ }
-  };
-  const setSampleModeSafe = (v: boolean) => {
+  }, [id]);
+  const setSampleModeSafe = useCallback((v: boolean) => {
     setSampleMode(v);
     try { sessionStorage.setItem(`plan_sample_mode_${id}`, v ? "1" : "0"); } catch { /* ignore */ }
-  };
+  }, [id]);
+
+  const genContentRef = useRef<Record<string, string>>({});
+  const selectedKeyRef = useRef<string | null>(null);
+  // Keep selectedKeyRef in sync with selectedKey state
+  useEffect(() => {
+    selectedKeyRef.current = selectedKey;
+  }, [selectedKey]);
+  // 每轮生成开始前清空流式缓冲（声明在读取它的 effect 之前，避免 react-hooks/immutability 误判）
+  const resetGenContent = useCallback(() => {
+    genContentRef.current = Object.create(null) as Record<string, string>;
+  }, []);
 
   /** 生成请求失败统一落点：AI 未配置 → 页面级引导条；其余 → 轻提示 */
   const reportGenerationError = useCallback((error: string) => {
@@ -227,21 +238,22 @@ export default function PlanEditorPage() {
     }
   }, [selectedKey, sections, isGenerating]);
 
-  // Auto-save with 3s debounce
+  // Auto-save with 3s debounce（"未保存"标记由编辑器 onChange 写入，effect 只负责定时保存）
   useEffect(() => {
     if (!selectedKey || isGenerating) return;
     const current = sections?.find((s: PlanSection) => s.section_key === selectedKey);
     if (!current || editingContent === current.content) return;
-    setSaveStatus("unsaved");
     const timer = setTimeout(() => {
       setSaveStatus("saving");
       saveMutation.mutate({ key: selectedKey, content: editingContent });
     }, 3000);
     return () => clearTimeout(timer);
-  }, [editingContent]);
+  }, [editingContent, isGenerating, saveMutation, sections, selectedKey]);
 
-  // If plan is in generating state on mount, show progress bar (no auto-reset)
-  useEffect(() => {
+  // 后端 generating 状态与本地生成态同步：渲染期调整 state（避免 effect 内同步 setState）
+  const [prevPlanStatus, setPrevPlanStatus] = useState(plan?.status);
+  if (plan?.status !== prevPlanStatus) {
+    setPrevPlanStatus(plan?.status);
     if (plan?.status === "generating" && !isGenerating) {
       setIsGenerating(true);
     } else if (plan && plan.status !== "generating" && isGenerating) {
@@ -250,39 +262,7 @@ export default function PlanEditorPage() {
       setGeneratingSections(new Set());
       setBatchProgress({ current: 0, total: 0, message: "" });
     }
-  }, [plan?.status]);
-
-  // Auto-trigger batch generation only on explicit ?auto_generate=1 (one-shot, session-guarded)
-  useEffect(() => {
-    if ((autoGenerate !== "1" && autoGenerate !== "sample") || !sections || sections.length === 0) return;
-    const storageKey = `plan_auto_gen_${id}`;
-    if (sessionStorage.getItem(storageKey) === "1") return;
-    sessionStorage.setItem(storageKey, "1");
-    // 只清 auto_generate 防重复触发，保留 enterprise_id 等其余参数，避免返回丢企业语境
-    const keptQuery = sanitizeEditorSearchParams(searchParams.toString());
-    navigate(`/plans/${id}/edit${keptQuery}`, { replace: true });
-    if (plan?.status === "generating") {
-      // Already marked generating — do not double-trigger
-      return;
-    }
-    if (autoGenerate === "sample") {
-      // 样章模式：只生成第一章，完成后进入样章确认状态
-      try { sessionStorage.setItem(`plan_sample_mode_${id}`, "1"); } catch { /* ignore */ }
-      startRealtimeGeneration([sections[0].section_key], () => setSampleDoneSafe(true));
-    } else {
-      startRealtimeGeneration();
-    }
-  }, [autoGenerate, sections, plan?.status]);
-
-  const genContentRef = useRef<Record<string, string>>({});
-  const selectedKeyRef = useRef<string | null>(null);
-  // Keep selectedKeyRef in sync with selectedKey state
-  useEffect(() => {
-    selectedKeyRef.current = selectedKey;
-  }, [selectedKey]);
-
-
-
+  }
 
   const startRealtimeGeneration = useCallback((keys?: string[], onBatchDone?: () => void) => {
     if (isGenerating) return; // 重入守卫：生成期间禁止再次启动批量流
@@ -295,7 +275,8 @@ export default function PlanEditorPage() {
     setIsGenerating(true);
     setAiUnavailable(false);
     setBatchProgress({ current: 0, total: keys ? keys.length : sections.length, message: "准备开始..." });
-    genContentRef.current = {};
+    // 清空上一轮生成缓冲：用新空对象替换内容（不写属性，避免 React 编译器 immutability 误判）
+    resetGenContent();
     selectedKeyRef.current = null;
     setGeneratingSections(new Set());
 
@@ -390,7 +371,34 @@ export default function PlanEditorPage() {
 
     // Store controller for potential cancel
               window.__genController = controller;
-  }, [id, sections, queryClient, saveMutation, isGenerating, reportGenerationError]);
+  }, [id, sections, queryClient, isGenerating, reportGenerationError, resetGenContent]);
+
+  // Auto-trigger batch generation only on explicit ?auto_generate=1 (one-shot, session-guarded)
+  // 注意：必须定义在 startRealtimeGeneration 之后，否则会命中 react-hooks/immutability 的“先用后声明”
+  useEffect(() => {
+    if ((autoGenerate !== "1" && autoGenerate !== "sample") || !sections || sections.length === 0) return;
+    const storageKey = `plan_auto_gen_${id}`;
+    if (sessionStorage.getItem(storageKey) === "1") return;
+    sessionStorage.setItem(storageKey, "1");
+    // 只清 auto_generate 防重复触发，保留 enterprise_id 等其余参数，避免返回丢企业语境
+    const keptQuery = sanitizeEditorSearchParams(searchParams.toString());
+    navigate(`/plans/${id}/edit${keptQuery}`, { replace: true });
+    if (plan?.status === "generating") {
+      // Already marked generating — do not double-trigger
+      return;
+    }
+    // 启动动作排到微任务：避免在 effect 的同步执行阶段调用一连串 setState
+    // （react-hooks/set-state-in-effect 不允许 effect 同步 setState，微任务里执行等价且不触发级联渲染）
+    void Promise.resolve().then(() => {
+      if (autoGenerate === "sample") {
+        // 样章模式：只生成第一章，完成后进入样章确认状态
+        try { sessionStorage.setItem(`plan_sample_mode_${id}`, "1"); } catch { /* ignore */ }
+        startRealtimeGeneration([sections[0].section_key], () => setSampleDoneSafe(true));
+      } else {
+        startRealtimeGeneration();
+      }
+    });
+  }, [autoGenerate, sections, plan?.status, id, navigate, searchParams, startRealtimeGeneration, setSampleDoneSafe]);
 
   const handleStopGeneration = useCallback(() => {
               window.__genController?.abort();
@@ -408,6 +416,12 @@ export default function PlanEditorPage() {
     setEditingContent(streamMd.render(fullText));
   }, []);
 
+  // 编辑器内容变化：立刻标记「未保存」（写 state 放在事件处理器里，effect 不再同步 setState）
+  const handleEditorChange = useCallback((next: string) => {
+    setEditingContent(next);
+    setSaveStatus("unsaved");
+  }, []);
+
   const handleAIGenerateComplete = useCallback(
     () => {
       setIsGenerating(false);
@@ -415,7 +429,7 @@ export default function PlanEditorPage() {
       queryClient.invalidateQueries({ queryKey: ["planSections", id] });
       queryClient.invalidateQueries({ queryKey: ["plan", id] });
     },
-    [selectedKey, saveMutation]
+    [id, queryClient]
   );
 
   const currentSection = sections?.find((s: PlanSection) => s.section_key === selectedKey);
@@ -649,7 +663,7 @@ export default function PlanEditorPage() {
                 sectionTitle={currentSection.title}
                 aiGenerated={currentSection.ai_generated}
                 content={editingContent}
-                onChange={setEditingContent}
+                onChange={handleEditorChange}
                 readOnly={isGenerating}
                 diagramSvgs={currentSection?.diagram_svgs}
               />

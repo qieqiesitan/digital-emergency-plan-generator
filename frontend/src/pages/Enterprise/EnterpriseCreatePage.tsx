@@ -117,6 +117,7 @@ export default function EnterpriseCreatePage() {
         </div>
       </Card>
       <GisMapPicker
+        key={`gis-${gisModalOpen}`}
         visible={gisModalOpen}
         value={gisPos}
         onChange={(pos) => setGisPos(pos)}

@@ -60,7 +60,10 @@ export default function TiptapEditor({
 }: TiptapEditorProps) {
   const isInternalChange = useRef(false);
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
+  // 渲染期写 ref 会被 react-hooks/refs 拦截，改为 effect 同步
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   const editor = useEditor({
     extensions: [

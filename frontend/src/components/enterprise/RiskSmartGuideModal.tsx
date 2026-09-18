@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { App as AntApp, Modal, Input, Button, Tree, Alert, Spin } from "antd";
 import type { DataNode } from "antd/es/tree";
 import {
@@ -145,7 +145,10 @@ export default function RiskSmartGuideModal({
   const [editValue, setEditValue] = useState("");
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
 
-  useEffect(() => {
+  // 打开时重置向导：渲染期调整 state（避免 effect 内同步 setState 造成级联渲染）
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setStep("input");
       setDescription("");
@@ -155,7 +158,7 @@ export default function RiskSmartGuideModal({
       setEditingKey(null);
       setNameOverrides({});
     }
-  }, [open]);
+  }
 
   const guideMut = useMutation({
     mutationFn: () => aiSmartGuide(enterpriseId, description),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Spin, Card, Tag, Empty, Tooltip, Segmented, Space, Typography, Button } from "antd";
 import {
   ZoomInOutlined, ZoomOutOutlined, ExpandOutlined,
@@ -29,10 +29,17 @@ function simulate(nodes: SimNode[], edges: { source: string; target: string }[],
   const repulsionK = idealSpacing * idealSpacing;
   const totalIter = 500;
 
-  // Random initial positions — spread across full canvas
+  // 确定性初始位置：由节点 id 派生伪随机（同数据每次布局一致，避免重渲染/切换筛选后跳变）
   for (const n of nodes) {
-    n.x = n.radius + Math.random() * (W - 2 * n.radius);
-    n.y = n.radius + Math.random() * (H - 2 * n.radius);
+    let h = 2166136261;
+    for (let i = 0; i < n.id.length; i++) {
+      h ^= n.id.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    const rx = ((h >>> 0) % 1000) / 1000;
+    const ry = ((h >>> 10) % 1000) / 1000;
+    n.x = n.radius + rx * (W - 2 * n.radius);
+    n.y = n.radius + ry * (H - 2 * n.radius);
     n.vx = 0; n.vy = 0;
   }
 
@@ -88,16 +95,14 @@ export function RegulationGraph() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [ready, setReady] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
-  const simNodes = useRef<SimNode[]>([]);
-  const simEdges = useRef<{ source: string; target: string; relation: string }[]>([]);
 
-  // Store pan/zoom in refs for the native wheel listener to avoid stale closures
+  // 原生 wheel 监听需要最新 pan/zoom：在 effect 中同步 ref（渲染期写 ref 会被规则拦截）
   const panRef = useRef(pan);
-  panRef.current = pan;
   const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
+  useEffect(() => { panRef.current = pan; }, [pan]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -121,8 +126,15 @@ export function RegulationGraph() {
     queryFn: fetchRegulationGraph,
   });
 
-  useEffect(() => {
-    if (!data) return;
+  // 力导布局是纯计算（初始化确定性），放在 useMemo 里：
+  // 既不在渲染期读 ref，也不需要 effect 里 setState（避免多一次级联渲染）
+  const { nodes, edges } = useMemo(() => {
+    if (!data) {
+      return {
+        nodes: [] as SimNode[],
+        edges: [] as { source: string; target: string; relation: string }[],
+      };
+    }
     const W = 1400, H = 900;
     let filtered = data.nodes.filter(
       (n) => n.status !== "abolished" || n.node_type === "topic"
@@ -131,27 +143,21 @@ export function RegulationGraph() {
       filtered = filtered.filter((n) => n.node_type === statusFilter);
     }
     const nodeMap = new Map(filtered.map((n) => [n.id, n]));
-    const nodes: SimNode[] = filtered.map((n) => ({
+    const simNodes: SimNode[] = filtered.map((n) => ({
       id: n.id, x: 0, y: 0, vx: 0, vy: 0,
       radius: n.node_type === "law" ? 26 : n.node_type === "topic" ? 16 : 22,
       data: n,
     }));
-    const edges = data.edges
+    const simEdges = data.edges
       .filter((e) => nodeMap.has(e.source) && nodeMap.has(e.target))
       .map((e) => ({ source: e.source, target: e.target, relation: e.relation }));
-    simulate(nodes, edges, W, H);
-    simNodes.current = nodes;
-    simEdges.current = edges;
-    setReady(true);
-    setSel(null);
+    simulate(simNodes, simEdges, W, H);
+    return { nodes: simNodes, edges: simEdges };
   }, [data, statusFilter]);
 
   if (isLoading) return <Spin style={{ display: "block", textAlign: "center", padding: 80 }} />;
 
-  const nodes = simNodes.current;
-  const edges = simEdges.current;
-
-  if (!ready || !nodes.length) {
+  if (!nodes.length) {
     return (
       <Card style={{ borderRadius: 12 }}>
         <Empty description="暂无图谱数据" image={Empty.PRESENTED_IMAGE_SIMPLE}>
@@ -173,6 +179,7 @@ export function RegulationGraph() {
   const onMouseDown = (e: React.MouseEvent) => {
     if ((e.target as Element).closest("circle") || (e.target as Element).closest("text")) return;
     dragRef.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y };
+    setDragging(true);
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
@@ -183,7 +190,7 @@ export function RegulationGraph() {
     });
   };
 
-  const onMouseUp = () => { dragRef.current = null; };
+  const onMouseUp = () => { dragRef.current = null; setDragging(false); };
 
   const resetView = () => { setPan({ x: 0, y: 0 }); setZoom(1); };
 
@@ -209,7 +216,7 @@ export function RegulationGraph() {
                   { label: "全部", value: "all" },
                   ...nodeTypes.map((t) => ({ label: TYPE_LABELS[t] || t, value: t })),
                 ]}
-                onChange={(v) => setStatusFilter(v as string)}
+                onChange={(v) => { setStatusFilter(v as string); setSel(null); }}
               />
               <Tooltip title="放大"><Button size="small" icon={<ZoomInOutlined />} onClick={() => setZoom((z) => Math.min(4, z * 1.2))} /></Tooltip>
               <Tooltip title="缩小"><Button size="small" icon={<ZoomOutOutlined />} onClick={() => setZoom((z) => Math.max(0.2, z * 0.8))} /></Tooltip>
@@ -226,7 +233,7 @@ export function RegulationGraph() {
               viewBox="0 0 1400 900"
               style={{
                 width: "100%", height: 520, display: "block",
-                cursor: dragRef.current ? "grabbing" : "grab",
+                cursor: dragging ? "grabbing" : "grab",
               }}
               onMouseDown={onMouseDown}
               onMouseMove={onMouseMove}

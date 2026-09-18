@@ -7,14 +7,15 @@ import { fetchMyMenus } from "@/services/roleService";
 import { AuthContext, type AuthState } from "@/contexts/useAuth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
+  // 初始态直接由「本地是否有 token」决定：无 token 时不需要在 effect 里再 setState 收尾
+  const [state, setState] = useState<AuthState>(() => ({
     user: null,
     isAuthenticated: false,
-    isLoading: true,
+    isLoading: !!localStorage.getItem("access_token"),
     menuPermissions: [],
     menuLoading: false,
     menuLoadFailed: false,
-  });
+  }));
 
   const loadMenuPermissions = useCallback(async () => {
     setState((prev) => ({ ...prev, menuLoading: true }));
@@ -46,8 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem("refresh_token");
           setState((prev) => ({ ...prev, user: null, isAuthenticated: false, isLoading: false, menuLoading: false }));
         });
-    } else {
-      setState((prev) => ({ ...prev, isLoading: false }));
     }
   }, [loadMenuPermissions]);
 
@@ -70,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const user = await userService.getProfile();
     setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoading: true, menuLoadFailed: false });
     await loadMenuPermissions();
-  }, []);
+  }, [loadMenuPermissions]);
 
   const register = useCallback(async (data: RegisterRequest) => {
     await authService.register(data);
@@ -80,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const user = await userService.getProfile();
     setState({ user, isAuthenticated: true, isLoading: false, menuPermissions: [], menuLoading: true, menuLoadFailed: false });
     await loadMenuPermissions();
-  }, []);
+  }, [loadMenuPermissions]);
 
   const logout = useCallback(() => {
     const refreshToken = localStorage.getItem("refresh_token");

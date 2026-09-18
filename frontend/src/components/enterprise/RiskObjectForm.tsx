@@ -221,6 +221,7 @@ export default function RiskObjectForm({ open, onClose, onSubmit, initialValues,
       </Drawer>
 
       <FloorPlanPicker
+        key={`floor-${floorPlanOpen}`}
         imageUrl={floorPlanUrl ?? null}
         visible={floorPlanOpen}
         value={{
