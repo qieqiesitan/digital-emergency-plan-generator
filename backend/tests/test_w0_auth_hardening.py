@@ -193,3 +193,56 @@ def test_frontend_static_server_rejects_path_traversal(tmp_path):
         assert b"404" in bad.split(b"\n", 1)[0]
     finally:
         server.shutdown()
+
+
+# ── 6. 作业票：操作人资格（W0-2） ──
+
+@pytest.mark.anyio
+async def test_eligible_users_role_name_matches_org_position():
+    """岗位名（如「主管领导」）应按企业组织树的岗位名称匹配成员，而非系统角色。"""
+    from app.services.work_ticket_service import eligible_users_for_node
+
+    node = MagicMock()
+    node.countersign_units = None
+    node.role_code = "主管领导"
+
+    org = [
+        {"id": "root", "name": "公司", "parent_id": None},
+        {"id": "pos1", "name": "主管领导", "parent_id": "root"},
+        {"id": "pos2", "name": "安全管理", "parent_id": "root"},
+    ]
+    calls = {"n": 0}
+
+    async def execute(stmt, *a, **k):
+        calls["n"] += 1
+        res = MagicMock()
+        if calls["n"] == 1:  # 成员查询
+            res.all.return_value = [("u-boss", "pos1"), ("u-safety", "pos2")]
+        else:  # 组织树查询
+            res.scalar_one_or_none.return_value = org
+        return res
+
+    db = MagicMock()
+    db.execute = execute
+    users = await eligible_users_for_node(db, node, enterprise_id="e1")
+    assert users == ["u-boss"]
+
+
+def test_node_action_returns_403_when_operator_not_eligible(monkeypatch):
+    """非会签资格人执行审批 → 403（原实现会记录其签名并放行）。"""
+    from app.services.work_ticket_service import WorkTicketPermissionError
+
+    async def deny(*a, **k):
+        raise WorkTicketPermissionError("当前用户不是该节点的会签人")
+
+    async def allow_owned(*a, **k):
+        return MagicMock(id="t1", enterprise_id="e1")
+
+    monkeypatch.setattr(work_ticket, "act_on_node", deny)
+    monkeypatch.setattr(work_ticket, "ensure_ticket_owned", allow_owned)
+    client = _client_for(work_ticket.router, user_role="user")
+    resp = client.post(
+        "/api/v1/work-ticket/tickets/t1/node-action",
+        json={"action": "approve", "opinion": "ok"},
+    )
+    assert resp.status_code == 403

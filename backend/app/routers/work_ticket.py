@@ -26,6 +26,7 @@ from app.services.work_ticket_docx import build_snapshot, content_hash, render_t
 from app.services.work_ticket_service import (
     SubmitValidationError,
     WorkTicketError,
+    WorkTicketPermissionError,
     act_on_node,
     open_ticket,
     submit_ticket,
@@ -180,6 +181,8 @@ async def api_submit(
     try:
         await ensure_ticket_owned(db, user, ticket_id)
         out = await submit_ticket(db, instance_id=ticket_id, user_id=getattr(user, "id", None))
+    except WorkTicketPermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
     except SubmitValidationError as exc:
         raise HTTPException(422, str(exc)) from exc
     except WorkTicketError as exc:
@@ -203,6 +206,8 @@ async def api_node_action(
             user_id=getattr(user, "id", None) or "",
             opinion=payload.opinion,
         )
+    except WorkTicketPermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
     except WorkTicketError as exc:
         raise HTTPException(409, str(exc)) from exc
     return _ok(out)

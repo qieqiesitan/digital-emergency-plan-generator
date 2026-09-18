@@ -56,6 +56,10 @@ class WorkTicketError(ValueError):
     """作业票状态或数据错误。"""
 
 
+class WorkTicketPermissionError(WorkTicketError):
+    """当前用户无权执行该审批动作（W0-2：操作人资格校验）。"""
+
+
 _CODE_SEQ = re.compile(r"-(\d{4})$")
 
 
@@ -214,6 +218,11 @@ async def submit_ticket(
         raise WorkTicketError("作业票不存在")
     if not can_transition(instance.status, "submit"):
         raise WorkTicketError(f"当前状态（{instance.status}）不允许提交")
+    owner_id = (await db.execute(
+        select(Enterprise.user_id).where(Enterprise.id == instance.enterprise_id)
+    )).scalar_one_or_none()
+    if user_id and owner_id and user_id != owner_id:
+        raise WorkTicketPermissionError("只有企业所有者可以提交作业票")
 
     tpl_res = await db.execute(
         select(WorkTicketTemplate).where(WorkTicketTemplate.id == instance.template_id)
@@ -295,6 +304,24 @@ async def act_on_node(
     if action not in ("approve", "reject"):
         raise WorkTicketError(f"未知动作：{action}")
 
+    node_res = await db.execute(
+        select(WorkTicketFlowNode).where(
+            WorkTicketFlowNode.flow_template_id == instance.flow_template_id,
+            WorkTicketFlowNode.node_key == instance.current_node_key,
+        )
+    )
+    node = node_res.scalar_one_or_none()
+    if node is None:
+        raise WorkTicketError("当前节点配置缺失")
+
+    eligible = await eligible_users_for_node(db, node, enterprise_id=instance.enterprise_id)
+    if not eligible:
+        raise WorkTicketPermissionError(
+            "当前节点未配置会签资格人，请先在「组织与人员」中为该岗位/单位配置成员"
+        )
+    if not user_id or user_id not in eligible:
+        raise WorkTicketPermissionError("当前用户不是该节点的会签人")
+
     db.add(
         WorkTicketNodeRecord(
             instance_id=instance_id,
@@ -323,16 +350,6 @@ async def act_on_node(
         await db.commit()
         return {"instance_id": instance.id, "status": instance.status}
 
-    node_res = await db.execute(
-        select(WorkTicketFlowNode).where(
-            WorkTicketFlowNode.flow_template_id == instance.flow_template_id,
-            WorkTicketFlowNode.node_key == instance.current_node_key,
-        )
-    )
-    node = node_res.scalar_one_or_none()
-    if node is None:
-        raise WorkTicketError("当前节点配置缺失")
-
     rec_res = await db.execute(
         select(WorkTicketNodeRecord.acted_by).where(
             WorkTicketNodeRecord.instance_id == instance_id,
@@ -341,7 +358,6 @@ async def act_on_node(
         )
     )
     signed = [row[0] for row in rec_res.all()]
-    eligible = await eligible_users_for_node(db, node, enterprise_id=instance.enterprise_id)
     if not sign_requirement_met(node, signed_users=signed, eligible_users=eligible):
         await db.commit()
         return {
@@ -386,55 +402,69 @@ async def eligible_users_for_node(
     本项目的组织节点保存在 `enterprises.org_structure` JSONB，成员通过
     `enterprise_members.org_node_id` 挂到节点，因此按单位取人要沿组织树向上匹配。
     """
-    units = getattr(node, "countersign_units", None)
-    if units:
-        unit_names = {u for u in units if u}
-        if not enterprise_id:
+    units = {u for u in (getattr(node, "countersign_units", None) or []) if u}
+    role_code = (getattr(node, "role_code", None) or "").strip() or None
+
+    async def _by_system_role() -> list[str]:
+        if not role_code:
+            return []
+        # 本项目的用户与角色是"字符串对码"关系（`User.role` 存 `Role.code`），
+        # 不存在 `users.role_id` 外键，因此按值匹配而不是 JOIN。
+        res = await db.execute(select(User.id).where(User.role == role_code))
+        return [row[0] for row in res.all()]
+
+    names = set(units)
+    if role_code and not units:
+        # 标准附录里的审批岗位（如「主管领导」「安全管理部门」）保存在 role_code，
+        # 与系统角色码（admin/user/super_admin）不同名，按组织岗位名匹配成员。
+        names.add(role_code)
+    if not names:
+        return []
+
+    if not enterprise_id:
+        if units:
             res = await db.execute(
                 select(EnterpriseMember.user_id).where(EnterpriseMember.user_id.is_not(None))
             )
             return [row[0] for row in res.all()]
+        return await _by_system_role()
 
-        res = await db.execute(
-            select(EnterpriseMember.user_id, EnterpriseMember.org_node_id).where(
-                EnterpriseMember.enterprise_id == enterprise_id,
-                EnterpriseMember.enabled.is_(True),
-                EnterpriseMember.user_id.is_not(None),
-            )
+    res = await db.execute(
+        select(EnterpriseMember.user_id, EnterpriseMember.org_node_id).where(
+            EnterpriseMember.enterprise_id == enterprise_id,
+            EnterpriseMember.enabled.is_(True),
+            EnterpriseMember.user_id.is_not(None),
         )
-        members = [(row[0], row[1]) for row in res.all()]
-        ent_res = await db.execute(
-            select(Enterprise.org_structure).where(Enterprise.id == enterprise_id)
-        )
-        org_nodes = ent_res.scalar_one_or_none() or []
-        node_map = {
-            n.get("id"): n
-            for n in org_nodes
-            if isinstance(n, dict) and n.get("id")
-        }
+    )
+    members = [(row[0], row[1]) for row in res.all()]
+    ent_res = await db.execute(
+        select(Enterprise.org_structure).where(Enterprise.id == enterprise_id)
+    )
+    org_nodes = ent_res.scalar_one_or_none() or []
+    node_map = {
+        n.get("id"): n
+        for n in org_nodes
+        if isinstance(n, dict) and n.get("id")
+    }
 
-        def _in_units(org_node_id: Optional[str]) -> bool:
-            current = org_node_id
-            seen: set[str] = set()
-            while current and current not in seen:
-                seen.add(current)
-                org_node = node_map.get(current)
-                if not org_node:
-                    return False
-                if org_node.get("name") in unit_names:
-                    return True
-                current = org_node.get("parent_id")
-            return False
+    def _in_names(org_node_id: Optional[str]) -> bool:
+        current = org_node_id
+        seen: set[str] = set()
+        while current and current not in seen:
+            seen.add(current)
+            org_node = node_map.get(current)
+            if not org_node:
+                return False
+            if org_node.get("name") in names:
+                return True
+            current = org_node.get("parent_id")
+        return False
 
-        return [user_id for user_id, org_node_id in members if _in_units(org_node_id)]
-
-    role_code = getattr(node, "role_code", None)
-    if not role_code:
-        return []
-    # 本项目的用户与角色是"字符串对码"关系（`User.role` 存 `Role.code`），
-    # 不存在 `users.role_id` 外键，因此按值匹配而不是 JOIN。
-    res = await db.execute(select(User.id).where(User.role == role_code))
-    return [row[0] for row in res.all()]
+    matched = [user_id for user_id, org_node_id in members if _in_names(org_node_id)]
+    if matched:
+        return matched
+    # 组织树未命中时兼容"role_code 就是系统角色码"的既有配置
+    return await _by_system_role()
 
 
 async def expire_overdue_tickets(db: AsyncSession, *, now: Optional[datetime] = None) -> int:

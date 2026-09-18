@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.dependencies import require_admin
+from app.middleware.rate_limit import rate_limited
 from app.schemas.extraction import RunExtractionIn, SuggestMappingIn
 from app.services.ai_config_service import get_system_ai_config
 from app.services.extraction_prompts import ENTITY_SCHEMAS, ExtractionSchemaError
@@ -33,7 +34,11 @@ async def api_suggest_mapping(payload: SuggestMappingIn, db: AsyncSession = Depe
 
 
 @router.post("/run")
-async def api_run_extraction(payload: RunExtractionIn, db: AsyncSession = Depends(get_db)):
+async def api_run_extraction(
+    payload: RunExtractionIn,
+    db: AsyncSession = Depends(get_db),
+    _: None = rate_limited(limit=60, window_seconds=3600, scope="extraction_run"),
+):
     """对已解析的文本执行抽取，结果落 DataHub 待确认队列。"""
     if payload.target_entity not in ENTITY_SCHEMAS:
         raise HTTPException(422, f"未知目标实体：{payload.target_entity}")
@@ -65,7 +70,10 @@ async def api_run_extraction(payload: RunExtractionIn, db: AsyncSession = Depend
 
 
 @router.post("/parse-file")
-async def api_parse_file(file: UploadFile = File(...)):
+async def api_parse_file(
+    file: UploadFile = File(...),
+    _: None = rate_limited(limit=30, window_seconds=3600, scope="extraction_parse"),
+):
     """上传文件并转成文本，返回文本供前端预览后再触发抽取。"""
     # W0 安全修复：限制单文件大小，避免匿名/超限上传耗尽内存
     max_bytes = 20 * 1024 * 1024
