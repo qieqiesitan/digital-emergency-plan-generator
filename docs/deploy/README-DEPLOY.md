@@ -171,6 +171,24 @@ docker exec <backend 容器> sh -c "cd /app && python scripts/check_db_consisten
 注：`app_runtime_state` 里"已过期未清理"的行数属**惰性清理**（有请求时顺手回收），
 不计为缺陷；脚本会单独列出该计数供参考。
 
+### 7.4 上线前的 LLM 故障注入 / 并发压测（零真实额度）
+
+不接真实模型也能验证"供应商限流、超时、流中断、并发把连接池打满"这些线上最常见的故障形态：
+`backend/scripts/llm_fault_tests/` 提供了一个本地 Mock 供应商（按请求里的 `model` 名模拟
+`429 / 500 / 挂起 / 流中途断开 / 慢流 / 慢推理`），配套 4 个探针：
+
+| 探针 | 覆盖 | 期望 |
+| --- | --- | --- |
+| `probe_client_faults.py` | 客户端层：退避重试、退避时长、超时映射、流截断、慢流 | 15/15 |
+| `probe_ai_endpoints.py` | 18 个 AI 端点（配 `mock-json`） | 全部 200，0 个 5xx |
+| `probe_pool_stress.py` | 24/64 并发聊天 + 每秒采样 `pg_stat_activity` + 只读控制请求 | 全成功；`idle in transaction` 峰值 0 |
+| `kill_mock.py` | 停掉容器内 mock（容器里没 `ps`/`pkill`） | — |
+
+⚠️ 两个坑写在了 `backend/scripts/llm_fault_tests/README.md` 里，务必先读：
+**① 必须先把系统 AI 配置临时指向 mock 再跑需要真实链路的探针**（否则会消耗真实额度；
+2026-09-19 首次使用时因此消耗了 4 次 deepseek 调用）；
+**② `docker restart` 会连带杀掉容器内的 mock，重启后要重新起。**
+
 ## 8. 踩坑记录
 
 | # | 坑 | 原因 | 解决 |
