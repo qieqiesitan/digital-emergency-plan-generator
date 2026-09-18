@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import UploadFile, HTTPException
 from PIL import Image
 from app.config import settings
+from app.services.upload_guard import read_upload_capped
 
 logger = logging.getLogger(__name__)
 UPLOAD_DIR = Path(settings.UPLOAD_DIR if hasattr(settings, "UPLOAD_DIR") else Path(__file__).resolve().parents[2] / "uploads")
@@ -44,9 +45,8 @@ async def save_floor_plan(enterprise_id: str, floor_id: str, file: UploadFile) -
     declared = _declared_size(file)
     if declared is not None and declared > MAX_BYTES:
         raise HTTPException(413, "文件不能超过 20MB")
-    data = await file.read()
-    if len(data) > MAX_BYTES:
-        raise HTTPException(413, "文件不能超过 20MB")
+    # 按上限读取（此前先 read() 全部再判断，字节已全部进内存）
+    data = await read_upload_capped(file, MAX_BYTES, what="平面图")
     # 扩展名按内容类型生成，不接受客户端任意扩展名
     ext = EXT_BY_CONTENT_TYPE.get(file.content_type, ".png")
     target_dir = UPLOAD_DIR / "enterprises" / enterprise_id / "floors" / floor_id

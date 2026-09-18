@@ -159,8 +159,8 @@ class FakeUpload:
         self.size = len(data)
         self.headers = {}
 
-    async def read(self):
-        return self.data
+    async def read(self, size: int = -1):
+        return self.data if size < 0 else self.data[:size]
 
 
 @pytest.mark.asyncio

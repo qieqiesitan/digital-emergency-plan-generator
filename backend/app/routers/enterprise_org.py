@@ -21,6 +21,7 @@ from app.schemas.enterprise_org import (
     OrgTreeUpdate,
 )
 from app.services.risk_ai_service import _get_ai_config
+from app.services.upload_guard import read_upload_capped
 from app.services.enterprise_org_service import (
     IMPORT_HEADERS,
     build_member_import_template,
@@ -353,7 +354,7 @@ async def import_members(
 ):
     """Excel 批量导入成员：有邮箱按账号绑定；无邮箱则登记为未绑定账号成员。部门/班组名查或建节点。"""
     ent = await _get_owned_ent(enterprise_id, current_user.id, db)
-    content = await file.read()
+    content = await read_upload_capped(file, MAX_IMPORT_SIZE, what="导入文件")
     if len(content) > MAX_IMPORT_SIZE:
         raise HTTPException(413, "导入文件过大，请使用 5MB 以内的模板文件")
     # 非 xlsx/损坏文件会抛 InvalidFileException/BadZipFile/解析类异常，统一 400；

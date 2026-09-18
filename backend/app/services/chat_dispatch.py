@@ -24,6 +24,7 @@ from app.services.enterprise_knowledge_service import EnterpriseKnowledgeStore
 from app.services.user_preference_service import get_preferences, set_preferences
 from app.services.workflow.models import WorkflowRun, WorkflowRunStep
 from app.services.workflow.runner import WorkflowRunner
+from app.services.pagination import clamp_page, clamp_page_size
 from app.regulations import get_graph, get_vector_store
 import os
 from app.routers.export import generate_plan_docx as generate_plan_docx_func
@@ -637,8 +638,8 @@ async def _list_regulations(db, user, args):
     """法规列表（从内存图谱读取）"""
     keyword = args.get("keyword", "")
     status = args.get("status", "all")
-    page = args.get("page", 1)
-    page_size = args.get("page_size", 20)
+    page = clamp_page(args.get("page", 1))
+    page_size = clamp_page_size(args.get("page_size", 20))
     graph = get_graph()
     result = graph.list_nodes(
         node_type=None, status=status, keyword=keyword,

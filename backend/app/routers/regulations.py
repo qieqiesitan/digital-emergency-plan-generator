@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.enterprise import AIConfig, PlanProject, PlanSection
 from app.dependencies import get_current_user, require_admin
 from app.regulations import get_graph, get_vector_store
+from app.services.upload_guard import read_upload_capped
 from app.regulations.sync import (
     ai_parse, ingest_regulation, log_event, get_history, get_source_files,
     extract_text, save_source_file, rebuild_index_with_ai,
@@ -236,7 +237,7 @@ async def parse_regulation(
         raw_text = form.get("raw_text", "")
         file = form.get("file")
         if file and hasattr(file, "filename"):
-            file_content = await file.read()
+            file_content = await read_upload_capped(file, 20 * 1024 * 1024, what="法规文件")
             try:
                 raw_text = extract_text(file_content, file.filename)
             except ValueError as e:
@@ -323,7 +324,7 @@ async def create_regulation(
     file_bytes = None
     filename = None
     if file:
-        file_bytes = await file.read()
+        file_bytes = await read_upload_capped(file, 20 * 1024 * 1024, what="法规文件")
         filename = file.filename
 
     try:
@@ -361,7 +362,7 @@ async def update_regulation(
     file_bytes = None
     filename = None
     if file:
-        file_bytes = await file.read()
+        file_bytes = await read_upload_capped(file, 20 * 1024 * 1024, what="法规文件")
         filename = file.filename
         save_source_file(regulation_id, file_bytes, filename)
 

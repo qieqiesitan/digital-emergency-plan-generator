@@ -9,6 +9,7 @@ from app.models.user import User
 from app.routers.hazardous_chemicals import AIGenerateRequest, AIAnswerInput
 from app.schemas.common import ApiResponse
 from app.services.file_parser import parse_file_text
+from app.services.upload_guard import read_upload_capped
 from app.services.onboarding_service import (
     MODULE_SCHEMA_HINTS,
     classify_modules,
@@ -89,9 +90,7 @@ async def onboarding_import(
 ):
     if module != "auto" and module not in MODULE_SCHEMA_HINTS:
         raise HTTPException(400, f"未知模块：{module}")
-    data = await file.read()
-    if len(data) > MAX_IMPORT_BYTES:
-        raise HTTPException(413, "文件过大，最大支持 20MB")
+    data = await read_upload_capped(file, MAX_IMPORT_BYTES, what="文件")
     try:
         text = parse_file_text(file.filename or "", data)
     except ValueError as e:
@@ -114,9 +113,7 @@ async def onboarding_import_batch(
 ):
     results = []
     for file in files:
-        data = await file.read()
-        if len(data) > MAX_IMPORT_BYTES:
-            raise HTTPException(413, "文件过大，最大支持 20MB")
+        data = await read_upload_capped(file, MAX_IMPORT_BYTES, what="文件")
         try:
             text = parse_file_text(file.filename or "", data)
         except ValueError as e:

@@ -209,7 +209,7 @@ def test_import_oversize_413(client):
         files={"file": ("big.txt", io.BytesIO(b"x" * (MAX_IMPORT_BYTES + 1)), "text/plain")},
     )
     assert resp.status_code == 413
-    assert "20MB" in resp.json()["detail"]
+    assert "上限" in resp.json()["detail"]
 
 
 def test_import_batch_two_files_two_results(client, monkeypatch):
@@ -266,4 +266,4 @@ def test_import_batch_oversize_413(client):
         files=[("files", ("big.txt", io.BytesIO(b"x" * (MAX_IMPORT_BYTES + 1)), "text/plain"))],
     )
     assert resp.status_code == 413
-    assert "20MB" in resp.json()["detail"]
+    assert "上限" in resp.json()["detail"]

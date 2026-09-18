@@ -30,6 +30,7 @@ from app.schemas.emergency_resource import EmergencyResourceCreate, EmergencyRes
 from app.schemas.common import ApiResponse
 
 from app.dependencies import get_current_user
+from app.services.upload_guard import read_upload_capped
 
 
 
@@ -248,7 +249,7 @@ async def import_resources(
 
 
 
-    contents = await file.read()
+    contents = await read_upload_capped(file, 20 * 1024 * 1024, what="Excel 文件")
 
     wb = Workbook(io.BytesIO(contents))
 

@@ -38,8 +38,9 @@ async def test_save_valid_png_then_remove(tmp_path, monkeypatch):
     class FakeUpload:
         content_type = "image/png"
         filename = "plan.png"
-        async def read(self):
-            return _png_buf().read()
+        async def read(self, size: int = -1):
+            data = _png_buf().read()
+            return data if size < 0 else data[:size]
 
     url, width, height = await save_floor_plan("e-1", "f-1", FakeUpload())
     assert url.startswith("/uploads/enterprises/e-1/floors/f-1/")
@@ -59,7 +60,7 @@ async def test_reject_oversized_by_content_length(tmp_path, monkeypatch):
         filename = "big.png"
         size = MAX_BYTES + 1
         headers = {}
-        async def read(self):
+        async def read(self, size: int = -1):
             return b""
 
     with pytest.raises(HTTPException) as exc_info:
@@ -77,8 +78,9 @@ async def test_extension_derived_from_content_type(tmp_path, monkeypatch):
     class FakeUpload:
         content_type = "image/jpeg"
         filename = "plan.html"
-        async def read(self):
-            return buf.read()
+        async def read(self, size: int = -1):
+            data = buf.read()
+            return data if size < 0 else data[:size]
 
     url, width, height = await save_floor_plan("e-2", "f-2", FakeUpload())
     assert url.endswith(".jpg")

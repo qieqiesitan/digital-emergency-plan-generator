@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 
 import networkx as nx
 
+from app.services.pagination import clamp_page, clamp_page_size
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -260,6 +262,9 @@ class RegulationGraph:
     def list_nodes(self, node_type: str = None, status: str = None,
                    keyword: str = "", page: int = 1, page_size: int = 20) -> dict:
         """分页列出节点。"""
+        # 夹紧分页参数：调用方（聊天工具/图谱 API）可能传超大 page_size
+        page = clamp_page(page)
+        page_size = clamp_page_size(page_size)
         results = []
         for nid, data in self._g.nodes(data=True):
             node = dict(data)

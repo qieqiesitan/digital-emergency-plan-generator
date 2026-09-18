@@ -33,6 +33,7 @@ from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.enterprise_cleanup_service import delete_floor_risk_mapping, floor_delete_counts
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
+from app.services.upload_guard import read_upload_capped
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises/{enterprise_id}/risk-management", tags=["Risk Management"])
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
@@ -216,7 +217,7 @@ async def analyze_four_color(floor_id: str, enterprise_id: str, file: UploadFile
     floor = (await db.execute(select(EnterpriseFloor).where(EnterpriseFloor.id == floor_id, EnterpriseFloor.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not floor:
         raise HTTPException(404, "楼层不存在")
-    data = await file.read()
+    data = await read_upload_capped(file, 20 * 1024 * 1024, what="四色图")
     try:
         result = recognize_from_bytes(data)
     except Exception:
