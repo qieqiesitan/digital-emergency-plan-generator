@@ -60,12 +60,12 @@ async def test_start_batch_generation_atomic_update_race_lost():
     with patch("app.services.plan_generation_service.collect_batch_context",
                new=AsyncMock(return_value=(p, MagicMock(), {}, [MagicMock(
                    section_key="sec_1", title="章一", content="", )]))), \
-         patch("app.services.plan_generation_service.asyncio.create_task",
-               new=MagicMock()) as create_task:
+         patch("app.services.plan_generation_service.spawn",
+               new=MagicMock()) as spawn_mock:
         out = await start_batch_generation("p1", db, MagicMock(id="u1"), keys=None)
     assert out["started"] is False
     assert "正在生成中" in out["message"]
-    create_task.assert_not_called()
+    spawn_mock.assert_not_called()
     db_result = db.execute.call_args.args[0]
     assert isinstance(db_result, Update)
 
@@ -82,11 +82,11 @@ async def test_start_batch_generation_atomic_update_acquired():
     with patch("app.services.plan_generation_service.collect_batch_context",
                new=AsyncMock(return_value=(p, cfg, ent_data, [MagicMock(
                    section_key="sec_1", title="章一", content="", )]))), \
-         patch("app.services.plan_generation_service.asyncio.create_task",
-               new=MagicMock()) as create_task:
+         patch("app.services.plan_generation_service.spawn",
+               new=MagicMock()) as spawn_mock:
         out = await start_batch_generation("p1", db, MagicMock(id="u1"), keys=None)
     assert out["started"] is True
-    create_task.assert_called_once()
+    spawn_mock.assert_called_once()
     db_result = db.execute.call_args.args[0]
     assert isinstance(db_result, Update)
 

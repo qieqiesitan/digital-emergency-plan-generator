@@ -18,6 +18,7 @@ import AIGenerateButton from "@/components/plan/AIGenerateButton";
 import { StylePanel } from "@/components/plan/StylePanel";
 import { AdvancedStylePanel, type AdvancedPromptOverrides } from "@/components/plan/AdvancedStylePanel";
 import MarkdownIt from "markdown-it";
+import { afterCommit } from "@/utils/afterCommit";
 import { DEFAULT_STYLE, type StylePreference } from "@/components/plan/stylePreference";
 import type { PlanSection, SectionTemplate } from "@/types/plan";
 import type { SSEEvent } from "@/types/plan";
@@ -402,7 +403,7 @@ export default function PlanEditorPage() {
     }
     // 启动动作排到微任务：避免在 effect 的同步执行阶段调用一连串 setState
     // （react-hooks/set-state-in-effect 不允许 effect 同步 setState，微任务里执行等价且不触发级联渲染）
-    void Promise.resolve().then(() => {
+    afterCommit(() => {
       if (autoGenerate === "sample") {
         // 样章模式：只生成第一章，完成后进入样章确认状态
         try { sessionStorage.setItem(`plan_sample_mode_${id}`, "1"); } catch { /* ignore */ }

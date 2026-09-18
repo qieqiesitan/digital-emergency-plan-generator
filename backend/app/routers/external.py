@@ -1,5 +1,5 @@
 """外部系统接入 API — PROTEGO 商城对接"""
-import asyncio, logging, os, re
+import logging, os, re
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
@@ -21,6 +21,7 @@ from app.services.markdown_utils import md_to_html
 from app.services.prompt_cache import ensure_loaded
 from app.services.docx_template import generate_plan_docx
 from app.services.risk_context_builder import build_risk_management_context
+from app.services.task_registry import spawn
 
 logger = logging.getLogger("external_api")
 
@@ -234,11 +235,15 @@ async def external_create_plan(data: ExternalPlanCreate, request: Request):
 
         await db.commit()
 
-    asyncio.create_task(_run_generation_then_callback(
-        plan_id=p.id, user_id=user.id, enterprise_id=enterprise.id,
-        callback_url=data.callback_url, external_order_id=data.external_order_id,
-        plan_type=data.plan_type, accident_type=None,
-    ))
+    # 必须持有强引用（否则任务可能被 GC），异常也要落日志——统一走 task_registry
+    spawn(
+        _run_generation_then_callback(
+            plan_id=p.id, user_id=user.id, enterprise_id=enterprise.id,
+            callback_url=data.callback_url, external_order_id=data.external_order_id,
+            plan_type=data.plan_type, accident_type=None,
+        ),
+        name=f"external-generation:{p.id}",
+    )
 
     return ApiResponse(data=ExternalPlanResponse(task_id=p.id, status="accepted"))
 

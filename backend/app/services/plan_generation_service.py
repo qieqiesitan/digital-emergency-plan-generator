@@ -1,5 +1,4 @@
 """预案批量生成公共实现：从 generation.py 抽取，路由与聊天助手共用。"""
-import asyncio
 import inspect
 import logging
 from datetime import datetime, timedelta, timezone
@@ -15,6 +14,7 @@ from app.services.risk_context_builder import build_risk_management_context
 from app.services.markdown_utils import md_to_html
 from app.services.prompt_cache import ensure_loaded
 from app.routers.versions import _build_snapshot
+from app.services.task_registry import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,6 @@ async def reset_stale_generating_plans() -> int:
     if count:
         logger.warning("启动自愈：%d 份超时 generating 预案已复位为 draft", count)
     return count
-
-
-_background_tasks: dict[str, asyncio.Task] = {}
 
 
 async def get_failed_sections(plan_id: str) -> list:
@@ -104,10 +101,13 @@ async def start_batch_generation(plan_id, db, current_user, keys=None, backgroun
     section_tuples = [(s.section_key, s.title) for s in empty]
     if not background:
         raise NotImplementedError("同步模式由 0.4.1 审查修订依赖实现")
-    task = asyncio.create_task(_run_background(
-        plan_id, p.plan_type, p.accident_type, p.style_preference,
-        p.advanced_prompt_overrides, section_tuples, ai_config, ent_data))
-    _background_tasks[plan_id] = task
+    # 统一走 task_registry：强引用 + 完成即摘除 + 异常落日志
+    spawn(
+        _run_background(
+            plan_id, p.plan_type, p.accident_type, p.style_preference,
+            p.advanced_prompt_overrides, section_tuples, ai_config, ent_data),
+        name=f"plan-chat-batch:{plan_id}",
+    )
     return {
         "started": True, "plan_id": plan_id, "total": len(target_sections),
         "empty": len(empty),
@@ -147,7 +147,6 @@ async def _run_background(plan_id, plan_type, accident_type, style_preference,
         except Exception as rollback_e:
             logger.error(f"Failed to reset plan status after failure: {rollback_e}")
     finally:
-        _background_tasks.pop(plan_id, None)
         from app.services import generation_progress as _gp
         await _gp.clear_progress(plan_id)
 

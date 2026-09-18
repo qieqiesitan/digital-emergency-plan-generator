@@ -15,6 +15,7 @@ import type { Transformer as KonvaTransformer } from "konva/lib/shapes/Transform
 import { Modal, Input, InputNumber, Button, Space } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
+import { afterCommit } from "@/utils/afterCommit";
 import {
   clampPoint,
   cubicBezierPoints,
@@ -178,7 +179,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   // 这些 setter 内部同时写 ref（penAnchorsRef 等），渲染期调用会被 react-hooks/refs 判为读 ref；
   // 放在微任务里执行则既满足 react-hooks/set-state-in-effect，也不在渲染/effect 同步阶段写 ref。
   useEffect(() => {
-    void Promise.resolve().then(() => {
+    afterCommit(() => {
       if (!["polygon", "pen", "freehand"].includes(tool)) {
         setDraftPoints([]);
         setDraftCursor(null);

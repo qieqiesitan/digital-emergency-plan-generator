@@ -67,10 +67,9 @@ router = APIRouter(prefix="/plans", tags=["Generation"])
 
 
 
-_background_tasks: dict[str, asyncio.Task] = {}
-
 # W2：生成状态改为跨 worker 共享（app_runtime_state），不再用进程内 dict
 from app.services import generation_progress as _gp
+from app.services.task_registry import spawn
 
 
 async def _clear_generation_state(plan_id: str) -> None:
@@ -923,9 +922,8 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
 
 
-    task = asyncio.create_task(run_background())
-
-    _background_tasks[plan_id] = task
+    # 后台任务统一走 task_registry：强引用 + 完成即摘除 + 异常落日志
+    spawn(run_background(), name=f"plan-generate:{plan_id}")
 
 
 
@@ -1050,9 +1048,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
             await _clear_generation_state(plan_id)
             await _gp.clear_progress(plan_id)
 
-    task = asyncio.create_task(run_background())
-
-    _background_tasks[plan_id] = task
+    spawn(run_background(), name=f"plan-batch-generate:{plan_id}")
 
     return {"code": 0, "message": f"已在后台开始生成 {len(target_sections)} 个章节"}
 

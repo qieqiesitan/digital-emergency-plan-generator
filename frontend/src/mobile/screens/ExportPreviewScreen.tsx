@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +29,12 @@ export default function ExportPreviewScreen() {
   const [exportPhase, setExportPhase] = useState<ExportPhase>("idle");
   const [exportProgress, setExportProgress] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<number | null>(null);
+
+  // 卸载时清理导出轮询：避免"任务未结束就离开页面"导致定时器常驻 + 对已卸载组件 setState
+  useEffect(() => () => {
+    if (pollRef.current !== null) window.clearInterval(pollRef.current);
+  }, []);
 
   // 获取预案基本信息
   const { data: plan } = useQuery({
@@ -96,23 +102,29 @@ export default function ExportPreviewScreen() {
         showToast?.({ type: "success", message: "文档已开始下载" });
       } else if ("task_id" in result) {
         const taskId = result.task_id;
-        const poll = setInterval(async () => {
+        const stopPoll = () => {
+          if (pollRef.current !== null) {
+            window.clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        };
+        pollRef.current = window.setInterval(async () => {
           try {
             const status = await getExportTaskStatus(taskId);
             setExportProgress(status.progress ?? 0);
             if (status.status === "completed") {
-              clearInterval(poll);
+              stopPoll();
               setExportPhase("done");
               showToast?.({ type: "success", message: "文档已生成" });
               if (status.download_url) {
                 window.open(status.download_url, "_blank");
               }
             } else if (status.status === "failed") {
-              clearInterval(poll);
+              stopPoll();
               setExportPhase("failed");
             }
           } catch {
-            clearInterval(poll);
+            stopPoll();
             setExportPhase("failed");
           }
         }, 2000);

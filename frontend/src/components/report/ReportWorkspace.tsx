@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sanitizeHtml } from "@/utils/sanitize";
+import { afterCommit } from "@/utils/afterCommit";
 import {
   Alert,
   Badge,
@@ -254,8 +255,8 @@ export default function ReportWorkspace({
   }
 
   useEffect(() => {
-    // 排到微任务再发起加载：避免在 effect 同步阶段执行 setState（react-hooks/set-state-in-effect）
-    void Promise.resolve().then(() => loadDocument());
+    // 排到微任务再发起加载：避免在 effect 同步阶段执行 setState（见 utils/afterCommit）
+    afterCommit(() => void loadDocument());
   }, [loadDocument]);
 
   // 后台生成中：每 4 秒拉一次报告，展示已保存章节

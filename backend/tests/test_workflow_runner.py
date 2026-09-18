@@ -1,5 +1,4 @@
 """test_workflow_runner.py — 状态机/重试/确认门控。"""
-import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from app.services.workflow.runner import WorkflowRunner
@@ -115,12 +114,12 @@ async def test_start_workflow_creates_run_and_schedules_background(monkeypatch):
     runner = WorkflowRunner(db)
     spawned = []
 
-    def capture(coro):
+    def capture(coro, name=None):
         spawned.append(coro)
         coro.close()
         return MagicMock()
 
-    monkeypatch.setattr(asyncio, "create_task", capture)
+    monkeypatch.setattr("app.services.workflow.runner.spawn", capture)
     created = []
     db.add = MagicMock(side_effect=lambda obj: created.append(obj))
     run = await runner.start_workflow(user, "create_enterprise_plan", {"name": "测试公司"})
@@ -160,12 +159,12 @@ async def test_confirm_workflow_step_marks_confirmed_and_resumes(monkeypatch):
     db.execute.return_value.scalar_one_or_none = MagicMock(side_effect=[run, step_rec])
     spawned = []
 
-    def capture(coro):
+    def capture(coro, name=None):
         spawned.append(coro)
         coro.close()
         return MagicMock()
 
-    monkeypatch.setattr(asyncio, "create_task", capture)
+    monkeypatch.setattr("app.services.workflow.runner.spawn", capture)
     out = await runner.confirm_workflow_step("r1", "generate_plan")
     assert out is run
     assert step_rec.status == "confirmed"

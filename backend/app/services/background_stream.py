@@ -2,6 +2,8 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable
 
+from app.services.task_registry import spawn
+
 
 class BackgroundStream:
     """生产端（报告逐章生成）在独立任务中运行，事件经队列转发给 SSE 消费端。
@@ -16,7 +18,8 @@ class BackgroundStream:
 
     async def start(self, producer_factory: Callable[[], AsyncGenerator]):
         """启动 producer；producer_factory 每次调用返回新的异步生成器。"""
-        self.task = asyncio.create_task(self._relay(producer_factory))
+        # 统一走 task_registry：强引用 + producer 异常写日志（此前失败会静默结束流）
+        self.task = spawn(self._relay(producer_factory), name="background-stream")
 
     async def _relay(self, producer_factory: Callable[[], AsyncGenerator]) -> None:
         try:

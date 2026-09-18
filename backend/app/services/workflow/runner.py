@@ -19,11 +19,9 @@ from sqlalchemy import select
 
 from app.services.workflow.models import WorkflowRun, WorkflowRunStep
 from app.services.workflow.templates import TEMPLATES
+from app.services.task_registry import spawn
 
 logger = logging.getLogger(__name__)
-
-_background_tasks: dict[str, asyncio.Task] = {}
-
 
 class WorkflowRunner:
     """工作流执行器。db 为 SQLAlchemy AsyncSession（真实运行）或测试替身。"""
@@ -128,12 +126,10 @@ class WorkflowRunner:
         await self._commit_safe()
         if background:
             try:
-                task = asyncio.create_task(self._execute_in_background(run.id))
+                spawn(self._execute_in_background(run.id), name=f"workflow:{run.id}")
             except RuntimeError:
                 # 无运行中事件循环（同步测试环境）：同步执行
                 await self._execute_in_background(run.id)
-            else:
-                _background_tasks[run.id] = task
         else:
             await self._execute_in_background(run.id)
         return run
@@ -159,11 +155,9 @@ class WorkflowRunner:
         run.status = "running"
         await self._commit_safe()
         try:
-            task = asyncio.create_task(self._execute_in_background(run.id))
+            spawn(self._execute_in_background(run.id), name=f"workflow-resume:{run.id}")
         except RuntimeError:
             await self._execute_in_background(run.id)
-        else:
-            _background_tasks[run.id] = task
         return run
 
     async def _execute_in_background(self, run_id: str) -> dict:
