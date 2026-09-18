@@ -7,6 +7,10 @@ from app.services.task_registry import active_task_count, spawn
 
 
 def test_spawn_keeps_reference_then_discards_on_completion():
+    # 注册表是进程级全局：其他用例可能在各自的（已关闭）事件循环里留下在跑任务，
+    # 因此这里断言「增量」而不是绝对值，保证用例之间互不干扰。
+    before = active_task_count()
+
     async def run():
         done = asyncio.Event()
 
@@ -15,15 +19,17 @@ def test_spawn_keeps_reference_then_discards_on_completion():
             done.set()
 
         task = spawn(work(), name="unit-test-ok")
-        assert active_task_count() == 1, "任务执行期间必须被强引用持有"
+        assert active_task_count() == before + 1, "任务执行期间必须被强引用持有"
         await task
         assert done.is_set()
-        assert active_task_count() == 0, "任务完成后必须从注册表摘除（避免累积泄漏）"
+        assert active_task_count() == before, "任务完成后必须从注册表摘除（避免累积泄漏）"
 
     asyncio.run(run())
 
 
 def test_spawn_logs_exception_and_discards(caplog):
+    before = active_task_count()
+
     async def run():
         async def boom():
             raise RuntimeError("boom")
@@ -34,7 +40,7 @@ def test_spawn_logs_exception_and_discards(caplog):
             await task
         except RuntimeError:
             pass
-        assert active_task_count() == 0
+        assert active_task_count() == before
 
     with caplog.at_level(logging.ERROR):
         asyncio.run(run())
