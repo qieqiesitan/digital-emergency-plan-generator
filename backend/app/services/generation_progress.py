@@ -10,6 +10,7 @@
 - failed_sections：最近一次批量生成失败章节
 """
 
+import asyncio
 import logging
 import time
 
@@ -37,7 +38,7 @@ def _failed_key(plan_id: str) -> str:
 # ── 进度 ──
 
 _local_progress: dict[str, dict] = {}
-_flush_tasks: dict[str, "asyncio.Task"] = {}
+_flush_tasks: dict[str, asyncio.Task] = {}
 FLUSH_DEBOUNCE_SECONDS = 0.5
 
 
@@ -48,8 +49,6 @@ def set_progress(plan_id: str, **fields) -> None:
     因此本地立即更新、异步去抖 0.5s 落 app_runtime_state，
     其他 worker 最多 0.5s 后能读到同一进度。
     """
-    import asyncio
-
     state = _local_progress.setdefault(plan_id, {})
     state.update(fields)
     state["updated_at"] = time.time()
@@ -64,8 +63,6 @@ def set_progress(plan_id: str, **fields) -> None:
 
 
 async def _flush_progress(plan_id: str) -> None:
-    import asyncio
-
     try:
         await asyncio.sleep(FLUSH_DEBOUNCE_SECONDS)
         snapshot = dict(_local_progress.get(plan_id) or {})

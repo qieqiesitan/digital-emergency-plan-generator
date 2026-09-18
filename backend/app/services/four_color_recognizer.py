@@ -81,7 +81,6 @@ def mask_to_polygons(mask: np.ndarray, width: int, height: int, min_area: float,
     for cnt in contours:
         if cv2.contourArea(cnt) < min_area:
             continue
-        peri = cv2.arcLength(cnt, True)
         approx = cv2.approxPolyDP(cnt, epsilon, True)
         if len(approx) < 3:
             continue

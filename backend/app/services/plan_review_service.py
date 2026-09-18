@@ -14,7 +14,7 @@ def _regulation_exists(name: str) -> bool:
     name_l = (name or "").strip().lower()
     if not name_l:
         return False
-    for nid, data in graph._g.nodes(data=True):
+    for _nid, data in graph._g.nodes(data=True):
         full = (data.get("full_name") or "").lower()
         label = (data.get("label") or "").lower()
         if (full and (name_l in full or full in name_l)) or (label and name_l in label):

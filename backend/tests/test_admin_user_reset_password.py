@@ -2,13 +2,15 @@ import asyncio
 from unittest.mock import MagicMock, AsyncMock
 
 import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.routers.admin_users import reset_user_password
 from app.schemas.role import AdminResetPassword
 
 
 def test_reset_password_schema_rejects_short_password():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         AdminResetPassword(new_password="123")
 
 
@@ -22,7 +24,7 @@ def test_reset_password_raises_404_when_user_missing():
     result = MagicMock()
     result.scalar_one_or_none.return_value = None
     db.execute.return_value = result
-    with pytest.raises(Exception) as exc:
+    with pytest.raises(HTTPException) as exc:
         asyncio.run(reset_user_password("u1", AdminResetPassword(new_password="newpass123"), _=None, db=db))
     assert exc.value.status_code == 404
 

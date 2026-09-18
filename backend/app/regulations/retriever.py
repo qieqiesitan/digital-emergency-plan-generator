@@ -215,7 +215,7 @@ class RegulationRetriever:
             except Exception:
                 pass
         candidates = []
-        for k, item in all_r.items():
+        for _k, item in all_r.items():
             meta = item.get("metadata",{})
             rid = meta.get("regulation_id","")
             rn = self.graph.get_node(rid) or {}

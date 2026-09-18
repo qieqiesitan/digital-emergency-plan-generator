@@ -131,7 +131,7 @@ async def suggest_objects(
     zone_desc: str,
     enterprise_info: dict,
     ai_config: AIConfig,
-    existing_names: list[str] = [],
+    existing_names: list[str] | None = None,
 ) -> list[dict]:
     """AI 建议分区下的风险分析对象及单元。
 
@@ -145,6 +145,7 @@ async def suggest_objects(
     Returns:
         objects 列表，每项含 name/category/location/description/units
     """
+    existing_names = list(existing_names or [])
     existing_str = "\n".join(f"- {n}" for n in existing_names) if existing_names else "（无已有对象）"
 
     prompt = (
@@ -316,24 +317,24 @@ async def smart_guide(
     if existing_summary:
         prompt += f"企业已有层级（请勿重复生成）：\n{existing_summary}\n"
     prompt += (
-        f"要求：\n"
-        f"1. 解析描述中的实体关系，生成到措施层级\n"
-        f"2. 每个事件使用 LS 矩阵法评估（L: 1-5, S: 1-5），含 risk_level 和 risk_score\n"
-        f"3. 每事件至少 2 条管控措施\n"
-        f"4. 最多生成 5 个分区、50 个对象\n"
-        f"5. 不得生成与现有分区名称相同或语义重复的分区；描述若已对应现有分区，"
-        f"将该分区名写入 summary 的 duplicates 数组，而不是重复生成\n"
-        f"6. 同一区域内多个同类设备用编号区分命名（如「1号储罐」「2号储罐」），避免对象名重复\n"
-        f"7. 所有对象 is_risk_point 一律输出 false（风险点由用户在画布上手动标记）\n\n"
-        f'输出 JSON 格式（完整层级）：\n'
-        f'{{"zones": [{{"name": "...", "description": "...", '
-        f'"objects": [{{"name": "...", "category": "...", '
-        f'"is_risk_point": false, "units": [{{"name": "...", '
-        f'"unit_type": "...", "events": [{{"accident_type": "...", '
-        f'"risk_level": "重大|较大|一般|低", "risk_score": "R=XX", '
-        f'"method_type": "LS", "method_params": {{"l": X, "s": X}}, '
-        f'"measures": [...]}}]}}]}}]}}]}}\n'
-        f"只输出 JSON，不要任何解释。"
+        "要求：\n"
+        "1. 解析描述中的实体关系，生成到措施层级\n"
+        "2. 每个事件使用 LS 矩阵法评估（L: 1-5, S: 1-5），含 risk_level 和 risk_score\n"
+        "3. 每事件至少 2 条管控措施\n"
+        "4. 最多生成 5 个分区、50 个对象\n"
+        "5. 不得生成与现有分区名称相同或语义重复的分区；描述若已对应现有分区，"
+        "将该分区名写入 summary 的 duplicates 数组，而不是重复生成\n"
+        "6. 同一区域内多个同类设备用编号区分命名（如「1号储罐」「2号储罐」），避免对象名重复\n"
+        "7. 所有对象 is_risk_point 一律输出 false（风险点由用户在画布上手动标记）\n\n"
+        '输出 JSON 格式（完整层级）：\n'
+        '{"zones": [{"name": "...", "description": "...", '
+        '"objects": [{"name": "...", "category": "...", '
+        '"is_risk_point": false, "units": [{"name": "...", '
+        '"unit_type": "...", "events": [{"accident_type": "...", '
+        '"risk_level": "重大|较大|一般|低", "risk_score": "R=XX", '
+        '"method_type": "LS", "method_params": {"l": X, "s": X}, '
+        '"measures": [...]}]}]}]}]}\n'
+        "只输出 JSON，不要任何解释。"
     )
 
     messages = [

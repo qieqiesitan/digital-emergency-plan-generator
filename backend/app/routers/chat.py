@@ -345,7 +345,7 @@ async def _execute_pending_tools(pending_tool_calls, db, current_user, round_num
             _run_tool_isolated(tc["function"]["name"], _safe_tool_args(tc), current_user.id)
             for tc in reads
         ])
-        results.extend(zip(reads, outs))
+        results.extend(zip(reads, outs, strict=True))
     for tc in writes:
         fn_name = tc["function"]["name"]
         result_str = await dispatch(db, current_user, fn_name, _safe_tool_args(tc))

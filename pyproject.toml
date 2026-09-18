@@ -1,0 +1,37 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+    "backend/.venv",
+    "backend/scripts/archive",
+    "backend/data",
+    "backend/exports",
+    "backend/uploads",
+    "release",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+# 门禁只选"真 bug"规则：F(pyflakes) + B(bugbear) + 高风险安全子集。
+# 历史风格类规则（UP045 可选注解写法、E702 分号多语句、I001 import 排序等）
+# 全量基线 2000+ 条，属于长期格式化工程，不放进当前 CI 门禁。
+select = ["F", "B", "S"]
+ignore = [
+    "B008",   # FastAPI 的 Depends(...) 就是默认参数调用，属框架惯例
+    "B904",   # 62 处 except 内 raise 未带 from：历史风格，单独排期
+    "S101",   # 测试里大量 assert
+    "S105", "S106", "S107",  # 测试/默认值里的字符串常量误报
+    "S110", "S112",          # try-except-pass/continue：多处是刻意降级，已注释说明
+    "S311",   # 非密码学随机（重试抖动）可接受
+    # F401 不进门禁：本仓库多处 import 是"转出口"或 ORM 表/外键注册（如
+    # risk_notice_card_data 再导出 LEVEL_COLORS），自动删除会静默破坏调用方；
+    # 保留为人工评审项（当前 119 处，多为历史遗留），逐模块清理。
+    "F401",
+]
+
+[tool.ruff.lint.per-file-ignores]
+    "backend/tests/**" = ["S", "F841"]
+    "backend/scripts/**" = ["S"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "fastapi.Form"]

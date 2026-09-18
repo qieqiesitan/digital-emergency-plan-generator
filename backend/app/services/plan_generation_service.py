@@ -220,7 +220,9 @@ async def run_batch_generation(
             if use_section_number:
                 prompt_kwargs["section_number"] = i + 1
             prompt_text = _build_section_prompt(section_title, ent_data, **prompt_kwargs)
-            async def _fetch_full():
+            # B023：闭包显式绑定循环变量，避免变量逃逸后取到最后一轮的章节
+            async def _fetch_full(section_key=section_key, section_title=section_title,
+                                  i=i, prompt_text=prompt_text):
                 if stream_fn is None:
                     state = await _gp.get_progress(plan_id)
                     started_at = state.get("started_at") or _time.time()

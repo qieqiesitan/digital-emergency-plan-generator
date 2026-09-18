@@ -372,7 +372,7 @@ async def import_members(
     for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if row is None or all(v is None or str(v).strip() == "" for v in row):
             continue
-        raw_rows.append((idx, dict(zip(headers, row))))
+        raw_rows.append((idx, dict(zip(headers, row, strict=False))))
 
     parsed = parse_member_rows([r for _, r in raw_rows])
     # N+1 预取：先一次 in_ 批量取邮箱→用户映射，再一次企业成员 in_ 查重，
@@ -403,7 +403,7 @@ async def import_members(
     errors: list[dict] = []
     imported_user_ids: set[str] = set()
     nodes = list(ent.org_structure or [])
-    for (row_num, _), item in zip(raw_rows, parsed):
+    for (row_num, _), item in zip(raw_rows, parsed, strict=True):
         if item.get("error"):
             errors.append({"row": row_num, "reason": item["error"]})
             continue

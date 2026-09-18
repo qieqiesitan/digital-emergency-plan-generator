@@ -247,7 +247,7 @@ def test_attach_diagrams_reassigns_dict_for_sqlalchemy_dirty_flag():
 
 import pytest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from app.services.risk_context_builder import build_risk_management_context
 

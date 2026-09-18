@@ -69,7 +69,7 @@ def test_mermaid_missing_type_declaration_warning():
 
 
 from app.services.plan_quality_service import (
-    check_plan, _extract_address_fragments, _must_have_section_key,
+    _extract_address_fragments, _must_have_section_key,
 )
 
 

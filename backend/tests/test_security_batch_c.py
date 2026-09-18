@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from jose import JWTError
+from pydantic import ValidationError
 
 from app.main import app
 from app.database import get_db
@@ -55,7 +56,7 @@ async def test_revoke_access_token_blocks_decode():
 
 
 def test_register_rejects_invalid_email_format():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RegisterRequest(
             email="not-an-email",
             password="Abcdef12",
@@ -66,16 +67,16 @@ def test_register_rejects_invalid_email_format():
 
 def test_password_over_72_bytes_rejected():
     long_pwd = "A" * 71 + "b1"  # 73 字节 > 72
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RegisterRequest(
             email="a@b.com", password=long_pwd, password_confirm=long_pwd, name="测试"
         )
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         ResetPasswordRequest(token="t", new_password=long_pwd)
 
 
 def test_enterprise_negative_employee_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         EnterpriseCreate(name="测试", employee_count=-1)
 
 

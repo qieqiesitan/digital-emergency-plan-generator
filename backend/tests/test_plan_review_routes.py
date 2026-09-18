@@ -12,7 +12,7 @@ async def test_get_plan_review_requires_ownership():
     result = MagicMock()
     result.scalar_one_or_none.return_value = None
     db.execute.return_value = result
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException):
         await get_plan_review("p1", MagicMock(id="u1"), db)
 
 

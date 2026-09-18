@@ -79,7 +79,7 @@ def autofill_enterprise(company: str):
 
     # 交叉验证
     print(f"\n{'─'*60}")
-    print(f"  交叉验证结果")
+    print("  交叉验证结果")
     print(f"{'─'*60}")
 
     final = {}

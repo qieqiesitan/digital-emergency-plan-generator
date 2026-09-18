@@ -355,6 +355,7 @@ async def _autofill_enterprise(db, user, args):
         ent_name = canonical_name if canonical_name and canonical_name != name else name
     else:
         reason = fill_result.get("reason", "network_error")
+        logger.info("企业自动填充失败（%s），按原名创建：%s", reason, name)
         # 查询失败时仍用原名创建
         ent_name = name
         fields = {}

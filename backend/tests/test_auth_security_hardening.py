@@ -5,6 +5,7 @@
 """
 
 import pytest
+from pydantic import ValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.main import app, _resolve_cors_origins
@@ -14,7 +15,7 @@ from app.schemas.auth import RegisterRequest, ResetPasswordRequest
 # ── S9 密码策略 ──
 
 def test_register_rejects_short_password():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RegisterRequest(email="a@example.com", password="12345", password_confirm="12345", name="测试用户")
 
 
@@ -25,12 +26,12 @@ def test_register_accepts_minimum_length_password():
 
 def test_register_rejects_weak_common_password():
     """P1-9：123456 等常见弱密码必须被拒绝。"""
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RegisterRequest(email="a@example.com", password="12345678", password_confirm="12345678", name="测试用户")
 
 
 def test_register_rejects_pure_letters_password():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RegisterRequest(email="a@example.com", password="abcdefgh", password_confirm="abcdefgh", name="测试用户")
 
 
@@ -40,12 +41,12 @@ def test_register_accepts_letter_and_number_password():
 
 
 def test_register_rejects_mismatched_confirm():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RegisterRequest(email="a@example.com", password="123456", password_confirm="654321", name="测试用户")
 
 
 def test_reset_password_rejects_short_password():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         ResetPasswordRequest(token="tk", new_password="12345")
 
 

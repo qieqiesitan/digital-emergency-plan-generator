@@ -311,7 +311,8 @@ async def create_regulation(
     else:
         # 纯中文或空编号 → 用 full_name 哈希保证唯一
         fn = parsed.get("full_name", "")
-        h = _hl.md5((code + fn).encode()).hexdigest()[:8]
+        # 仅用于生成稳定短 ID（非安全用途），显式声明避免 bandit 误报
+        h = _hl.md5((code + fn).encode(), usedforsecurity=False).hexdigest()[:8]
         reg_id = f"reg_{h}"
     # 兜底防覆盖：如 ID 已存在则追加唯一后缀
     base_rid = reg_id
@@ -460,9 +461,6 @@ async def abolish_regulation(
         "affected_plans": impact["affected_plans"],
         "affected_count": impact["count"],
     }
-
-    return {"code": 0, "data": {"abolished": abolished, "failed": failed, "results": results}}
-
 
 # ── 图谱 ──
 

@@ -27,7 +27,7 @@ async def test_reject_non_image():
             return b"x"
     try:
         await save_floor_plan("e", "f", FakeUpload())
-        assert False
+        raise AssertionError("应抛 422")
     except HTTPException as exc:
         assert exc.status_code == 422
 

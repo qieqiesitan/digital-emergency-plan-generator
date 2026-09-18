@@ -45,7 +45,7 @@ def test_create_sections_copies_metadata_recursively():
 
 from unittest.mock import AsyncMock
 from types import SimpleNamespace
-from app.models.enterprise import PlanProject, PlanSection
+from app.models.enterprise import PlanProject
 from app.routers.plans import duplicate_plan
 
 

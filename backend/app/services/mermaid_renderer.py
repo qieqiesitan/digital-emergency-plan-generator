@@ -301,8 +301,6 @@ def extract_mermaid_from_markdown(md_text: str) -> list[str]:
     return [m.strip() for m in matches if m.strip()]
 
 
-import re
-
 def _clean_mermaid_syntax(code: str) -> str:
     """Fix common AI-generated Mermaid syntax errors before rendering."""
     

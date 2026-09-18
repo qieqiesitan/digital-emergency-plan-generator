@@ -28,8 +28,8 @@ async def test_save_messages_with_tool_trace():
     added = [c.args[0] for c in db.add.call_args_list]
     roles = [getattr(m, "role", None) for m in added]
     assert roles == ["user", "assistant", "assistant", "tool"]
-    assert getattr(added[2], "content") == ""
-    assert getattr(added[3], "name") == "list_enterprises"
+    assert added[2].content == ""
+    assert added[3].name == "list_enterprises"
     db.commit.assert_awaited_once()
 
 
@@ -42,4 +42,4 @@ async def test_save_messages_without_trace_keeps_legacy_shape():
     with patch("app.routers.chat.async_session", return_value=ctx):
         await _save_messages("u1", "c1", "hi", "hello", tool_trace=None)
     added = [c.args[0] for c in db.add.call_args_list]
-    assert [getattr(m, "role") for m in added] == ["user", "assistant"]
+    assert [m.role for m in added] == ["user", "assistant"]

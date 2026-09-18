@@ -170,7 +170,7 @@ class RegulationContextBuilder:
             lines.append("")
             total = 0
             truncated = False
-            for reg_id, scored_articles in by_regulation.items():
+            for _reg_id, scored_articles in by_regulation.items():
                 if not scored_articles:
                     continue
                 sa0 = scored_articles[0]

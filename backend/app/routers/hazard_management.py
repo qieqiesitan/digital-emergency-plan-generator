@@ -2254,7 +2254,7 @@ def _dashboard_payload(
         (_field(row, "user_id", 0), _field(row, "type", 1)) for row in unread_rows
     ]
     unread_by_type: dict[str, int] = {}
-    for uid, ntype in unread_list:
+    for _uid, ntype in unread_list:
         if ntype:
             unread_by_type[ntype] = unread_by_type.get(ntype, 0) + 1
     return {

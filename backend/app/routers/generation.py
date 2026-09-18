@@ -818,7 +818,6 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
     p.status = "generating"
     await db.commit()
     await _gp.set_active(plan_id, True)
-    plan_type = p.plan_type
 
     # Use a queue to stream events from background task to SSE
     event_queue: asyncio.Queue = asyncio.Queue()
@@ -1014,8 +1013,6 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
     await db.commit()
 
     await _gp.set_active(plan_id, True)
-
-    plan_type = p.plan_type
 
     # Collect section keys (these are plain strings, safe to pass to background)
 

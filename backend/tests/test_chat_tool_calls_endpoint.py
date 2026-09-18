@@ -1,5 +1,6 @@
 """test_chat_tool_calls_endpoint.py — 工具轨迹回放端点。"""
 import pytest
+from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock
 
 from app.routers.chat import list_tool_calls
@@ -11,7 +12,7 @@ async def test_list_tool_calls_requires_own_conv():
     result = MagicMock()  # AsyncSession.execute 返回的 Result 的 scalar_one_or_none 是同步方法
     result.scalar_one_or_none.return_value = None
     db.execute.return_value = result
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException):
         await list_tool_calls("c1", MagicMock(id="u1"), db)
 
 

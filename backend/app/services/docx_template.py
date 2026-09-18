@@ -326,7 +326,7 @@ def build_cover(doc: Document, *,
     else:
         default_texts = [
             f"为贯彻落实《中华人民共和国安全生产法》及其他法律法规和有关文件要求，结合{company_name}的安全生产实际和危险性分析及本行业事故案例情况内容，依据《中华人民共和国突发事件应对法》（中华人民共和国主席令第69号）《生产经营单位生产安全事故应急预案编制导则》（GB/T 29639-2020）《生产安全事故应急预案管理办法》（国家应急管理部令第2号）《生产安全事故应急条例》（国务院令第708号）",
-            f"《生产安全事故应急预案》由《综合应急预案》《专项应急预案》和《现场处置方案》组成，我公司邀请相关专家召开了专家评审会议，并通过专家评审，现予以发布，自发布之日起实施。",
+            "《生产安全事故应急预案》由《综合应急预案》《专项应急预案》和《现场处置方案》组成，我公司邀请相关专家召开了专家评审会议，并通过专家评审，现予以发布，自发布之日起实施。",
             "望各部门及全体员工认真学习该预案内容，熟悉预案程序，并严格遵守执行。",
         ]
         for text in default_texts:
@@ -508,7 +508,7 @@ def build_signature_page(doc: Document, signers: list[dict]):
 
 def add_body_title(doc: Document, title: str):
     """添加正文大标题（如"综合应急预案"）。"""
-    p = doc.add_paragraph(title, style=STYLE_BODY_TITLE)
+    doc.add_paragraph(title, style=STYLE_BODY_TITLE)
 
 
 def add_heading(doc: Document, text: str, level: int):

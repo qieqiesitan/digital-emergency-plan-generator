@@ -27,7 +27,7 @@ def test_sign_groups_are_non_empty_and_ordered():
 def test_every_sign_refers_to_known_svg():
     from pathlib import Path
     sign_dir = Path(__file__).resolve().parents[1] / "app" / "static" / "signs"
-    for accident_type, signs in SIGN_GROUPS.items():
+    for _accident_type, signs in SIGN_GROUPS.items():
         for s in signs:
             assert (sign_dir / f"{s['svg_name']}.svg").exists(), s["svg_name"]
 

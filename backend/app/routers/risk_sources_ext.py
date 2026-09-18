@@ -477,7 +477,7 @@ async def get_risk_ai_questions(
 
     if existing_risk_names:
 
-        existing_summary = f"\n该企业已录入的风险源（请避免重复提问）：\n"
+        existing_summary = "\n该企业已录入的风险源（请避免重复提问）：\n"
 
         for r in existing_risks:
 
@@ -639,7 +639,7 @@ async def generate_risk_sources_ai(
 
     if existing_risk_names:
 
-        existing_summary = f"\n该企业已录入的风险源（严禁重复生成）：\n" + "\n".join(f"- {name}" for name in existing_risk_names)
+        existing_summary = "\n该企业已录入的风险源（严禁重复生成）：\n" + "\n".join(f"- {name}" for name in existing_risk_names)
 
 
 
