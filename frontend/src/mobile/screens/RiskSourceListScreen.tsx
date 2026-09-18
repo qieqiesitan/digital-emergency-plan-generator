@@ -12,7 +12,7 @@ import Input from "@/mobile/components/ui/Input";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import FAB from "@/mobile/components/ui/FAB";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import { listRiskSources, createRiskSource, deleteRiskSource } from "@/services/riskSourceService";
 import type { RiskSource } from "@/types/riskSource";
 

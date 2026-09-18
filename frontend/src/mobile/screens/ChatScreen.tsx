@@ -6,7 +6,7 @@ import SafeArea from "@/mobile/components/ui/SafeArea";
 import Spinner from "@/mobile/components/ui/Spinner";
 import Input from "@/mobile/components/ui/Input";
 import Button from "@/mobile/components/ui/Button";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import {
   sendChatMessage,
   fetchConversations,

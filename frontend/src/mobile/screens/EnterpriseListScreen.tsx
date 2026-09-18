@@ -8,7 +8,7 @@ import SafeArea from "@/mobile/components/ui/SafeArea";
 import Input from "@/mobile/components/ui/Input";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import EnterpriseCard from "@/mobile/components/enterprise/EnterpriseCard";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import { listEnterprises, deleteEnterprise } from "@/services/enterpriseService";
 
 export default function EnterpriseListScreen() {

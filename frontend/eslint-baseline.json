@@ -1,5 +1,5 @@
 {
-  "errors": 185,
+  "errors": 157,
   "warnings": 20,
   "byRule": {
     "error:@typescript-eslint/no-explicit-any": 55,
@@ -9,7 +9,6 @@
     "warning:react-hooks/exhaustive-deps": 20,
     "error:react-hooks/immutability": 8,
     "error:react-hooks/purity": 2,
-    "error:react-refresh/only-export-components": 28,
     "error:@typescript-eslint/ban-ts-comment": 26
   },
   "recordedAt": "2026-09-18"

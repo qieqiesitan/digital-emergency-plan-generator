@@ -2,31 +2,30 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { APP_BASE } from "@/utils/platform";
 import { AuthGuard } from "@/mobile/components/auth/AuthGuard";
 import MainTabsLayout from "@/mobile/layouts/MainTabsLayout";
-import { lazy } from "react";
-
-// 懒加载所有 Screen
-const SplashScreen = lazy(() => import("@/mobile/screens/SplashScreen"));
-const LoginScreen = lazy(() => import("@/mobile/screens/LoginScreen"));
-const RegisterScreen = lazy(() => import("@/mobile/screens/RegisterScreen"));
-const DashboardScreen = lazy(() => import("@/mobile/screens/DashboardScreen"));
-const EnterpriseListScreen = lazy(() => import("@/mobile/screens/EnterpriseListScreen"));
-const EnterpriseCreateScreen = lazy(() => import("@/mobile/screens/EnterpriseCreateScreen"));
-const EnterpriseDetailScreen = lazy(() => import("@/mobile/screens/EnterpriseDetailScreen"));
-const EnterpriseEditScreen = lazy(() => import("@/mobile/screens/EnterpriseEditScreen"));
-const RiskManagementListScreen = lazy(() => import("@/mobile/screens/RiskManagementListScreen"));
-const ResourceListScreen = lazy(() => import("@/mobile/screens/ResourceListScreen"));
-const RiskAssessmentScreen = lazy(() => import("@/mobile/screens/RiskAssessmentScreen"));
-const ResourceInvestigationScreen = lazy(() => import("@/mobile/screens/ResourceInvestigationScreen"));
-const PlanCardsScreen = lazy(() => import("@/mobile/screens/PlanCardsScreen"));
-const EnterprisePlanListScreen = lazy(() => import("@/mobile/screens/EnterprisePlanListScreen"));
-const PlanCreateScreen = lazy(() => import("@/mobile/screens/PlanCreateScreen"));
-const PlanEditorScreen = lazy(() => import("@/mobile/screens/PlanEditorScreen"));
-const ExportPreviewScreen = lazy(() => import("@/mobile/screens/ExportPreviewScreen"));
-const VersionListScreen = lazy(() => import("@/mobile/screens/VersionListScreen"));
-const SettingsScreen = lazy(() => import("@/mobile/screens/SettingsScreen"));
-const ProfileScreen = lazy(() => import("@/mobile/screens/ProfileScreen"));
-const ChangePasswordScreen = lazy(() => import("@/mobile/screens/ChangePasswordScreen"));
-const ChatScreen = lazy(() => import("@/mobile/screens/ChatScreen"));
+import {
+  SplashScreen,
+  LoginScreen,
+  RegisterScreen,
+  DashboardScreen,
+  EnterpriseListScreen,
+  EnterpriseCreateScreen,
+  EnterpriseDetailScreen,
+  EnterpriseEditScreen,
+  RiskManagementListScreen,
+  ResourceListScreen,
+  RiskAssessmentScreen,
+  ResourceInvestigationScreen,
+  PlanCardsScreen,
+  EnterprisePlanListScreen,
+  PlanCreateScreen,
+  PlanEditorScreen,
+  ExportPreviewScreen,
+  VersionListScreen,
+  SettingsScreen,
+  ProfileScreen,
+  ChangePasswordScreen,
+  ChatScreen,
+} from "@/mobile/screenRegistry";
 
 export const mobileRouter = createBrowserRouter([
   // 启动屏

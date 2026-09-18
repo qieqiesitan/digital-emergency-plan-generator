@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import Spinner from "@/mobile/components/ui/Spinner";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {

@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { User, Mail, Lock } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import NavBar from "@/mobile/components/ui/NavBar";
 import Input from "@/mobile/components/ui/Input";
 import Button from "@/mobile/components/ui/Button";
 import Chip from "@/mobile/components/ui/Chip";
 import SafeArea from "@/mobile/components/ui/SafeArea";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 
 export default function RegisterScreen() {
   const navigate = useNavigate();

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Result, Spin } from "antd";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 
 /**
  * 菜单权限路由守卫：无对应 menuPermissions 时显示「无权限」页，

@@ -1,18 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Enterprise } from "@/types/enterprise";
 import { listEnterprises } from "@/services/enterpriseService";
-import { useAuth } from "@/contexts/AuthContext";
-
-interface EnterpriseContextValue {
-  currentEnterpriseId: string | null;
-  enterprises: Enterprise[];
-  isLoading: boolean;
-  setCurrentEnterprise: (id: string) => void;
-  refreshEnterprises: () => Promise<void>;
-}
-
-const EnterpriseContext = createContext<EnterpriseContextValue | null>(null);
+import { useAuth } from "@/contexts/useAuth";
+import { EnterpriseContext } from "@/contexts/useCurrentEnterprise";
 
 export function EnterpriseProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -61,8 +51,3 @@ export function EnterpriseProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useCurrentEnterprise(): EnterpriseContextValue {
-  const ctx = useContext(EnterpriseContext);
-  if (!ctx) throw new Error("useCurrentEnterprise must be used within EnterpriseProvider");
-  return ctx;
-}

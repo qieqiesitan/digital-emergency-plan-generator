@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import EnterpriseForm from "@/mobile/components/enterprise/EnterpriseForm";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import type { EnterpriseFormData } from "@/mobile/components/enterprise/EnterpriseForm";
 import { createEnterprise } from "@/services/enterpriseService";
 

@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { Spin } from "antd";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { buildLoginPath } from "@/routing/loginRedirect";
 import { stripAppBase } from "@/utils/platform";
 

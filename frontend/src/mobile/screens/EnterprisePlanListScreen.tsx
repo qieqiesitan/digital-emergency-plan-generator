@@ -16,7 +16,7 @@ import EmptyState from "@/mobile/components/ui/EmptyState";
 import FAB from "@/mobile/components/ui/FAB";
 import Spinner from "@/mobile/components/ui/Spinner";
 import Input from "@/mobile/components/ui/Input";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import { listPlans, deletePlan } from "@/services/planService";
 import { getEnterprise } from "@/services/enterpriseService";
 import { fromNow } from "@/utils/formatters";

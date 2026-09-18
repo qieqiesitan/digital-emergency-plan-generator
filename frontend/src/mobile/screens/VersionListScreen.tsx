@@ -10,7 +10,7 @@ import Card from "@/mobile/components/ui/Card";
 import Badge from "@/mobile/components/ui/Badge";
 import Spinner from "@/mobile/components/ui/Spinner";
 import EmptyState from "@/mobile/components/ui/EmptyState";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import { listVersions, rollbackVersion } from "@/services/planService";
 
 export default function VersionListScreen() {

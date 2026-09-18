@@ -20,7 +20,7 @@ import {
   GlobalOutlined,
   ApiOutlined,
 } from "@ant-design/icons";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import FloatingChat from "@/components/common/FloatingChat";
 import { stripAppBase } from "@/utils/platform";
 import { MENU_MAP } from "@/utils/menuMap";

@@ -40,9 +40,11 @@ import { createResourceInvestigationVersion } from "@/services/resourceInvestiga
 import TiptapEditor from "@/components/report/TiptapEditor";
 import ReportChapterActions from "@/components/report/ReportChapterActions";
 import ReviewDrawer from "@/components/report/ReviewDrawer";
-import { StylePanel, DEFAULT_STYLE } from "@/components/plan/StylePanel";
+import { StylePanel } from "@/components/plan/StylePanel";
+import { DEFAULT_STYLE } from "@/components/plan/stylePreference";
 import DiffPreviewModal from "@/components/plan/DiffPreviewModal";
 import AiNotConfiguredHint from "@/components/common/AiNotConfiguredHint";
+import { addFailedChapter } from "@/components/report/failedChapters";
 import { aiErrorDisplay } from "@/utils/aiUnavailable";
 import { htmlToMarkdown, renderReportMarkdown } from "@/utils/reportMarkdown";
 
@@ -85,16 +87,6 @@ interface DiffItem {
 }
 
 const SAVE_DEBOUNCE_MS = 1500;
-
-/** 失败章节列表纯 reducer：按 key 去重追加 */
-export function addFailedChapter(
-  list: ReportChapter[],
-  key: string,
-  title?: string,
-): ReportChapter[] {
-  if (!key || list.some((f) => f.key === key)) return list;
-  return [...list, { key, title: title || key, content: "" }];
-}
 
 export default function ReportWorkspace({
   adapter,

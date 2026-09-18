@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Form, Input, Button, Alert, Card, Checkbox, message } from "antd";
 import { MailOutlined, LockOutlined } from "@ant-design/icons";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { resolveRedirectTarget } from "@/routing/loginRedirect";
 
 export default function LoginPage() {

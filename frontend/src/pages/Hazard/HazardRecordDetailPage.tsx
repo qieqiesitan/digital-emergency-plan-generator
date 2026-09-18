@@ -39,7 +39,7 @@ import {
 } from "@/services/hazardService";
 import { listMembers } from "@/services/enterpriseOrgService";
 import { uploadFile } from "@/services/enterpriseService";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import type { HazardRecordDetail, HazardStatus } from "@/types/hazard";
 import { PageHeader } from "@/components/common/PageHeader";
 

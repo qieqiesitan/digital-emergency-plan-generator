@@ -4,7 +4,7 @@ import { Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getEnterprise } from "@/services/enterpriseService";
 import { getCockpitSummary } from "@/services/cockpitService";
-import { useCurrentEnterprise } from "@/contexts/EnterpriseContext";
+import { useCurrentEnterprise } from "@/contexts/useCurrentEnterprise";
 import type { CockpitSummary } from "@/types/cockpit";
 import CockpitBackground from "@/components/enterprise/cockpit/CockpitBackground";
 import CockpitHeader from "@/components/enterprise/cockpit/CockpitHeader";

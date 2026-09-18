@@ -12,7 +12,7 @@ import {
 } from "@/services/userManageService";
 import { fetchRoles } from "@/services/roleService";
 import type { AdminUserItem } from "@/types/role";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { PageHeader } from "@/components/common/PageHeader";
 
 export default function UserManagePage() {

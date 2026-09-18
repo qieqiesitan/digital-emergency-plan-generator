@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, Descriptions, Button, Input, Form, Avatar, message } from "antd";
 import { UserOutlined } from "@ant-design/icons";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { formatDate } from "@/utils/formatters";
 
 export default function ProfilePage() {

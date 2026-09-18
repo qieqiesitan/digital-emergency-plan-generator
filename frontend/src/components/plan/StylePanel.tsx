@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Segmented, Space, Typography } from "antd";
 import { BulbOutlined, SettingOutlined } from "@ant-design/icons";
+import { DEFAULT_STYLE, type StylePreference } from "./stylePreference";
 
 const { Text, Title } = Typography;
 
@@ -11,22 +12,6 @@ const TABLE_OPTIONS = ["minimal", "moderate", "heavy"] as const;
 const FORMALITY_LABELS: Record<string, string> = { formal: "正式", standard: "标准", practical: "实用" };
 const DETAIL_LABELS: Record<string, string> = { concise: "简短", balanced: "适中", comprehensive: "详尽" };
 const TABLE_LABELS: Record<string, string> = { minimal: "少用", moderate: "按需", heavy: "多用" };
-
-export interface StylePreference {
-  formality: "formal" | "standard" | "practical";
-  detail_level: "concise" | "balanced" | "comprehensive";
-  table_preference: "minimal" | "moderate" | "heavy";
-  diagram_preference: "none" | "mermaid";
-  mode: "panel" | "advanced";
-}
-
-export const DEFAULT_STYLE: StylePreference = {
-  formality: "standard",
-  detail_level: "balanced",
-  table_preference: "moderate",
-  diagram_preference: "mermaid",
-  mode: "panel",
-};
 
 interface StylePanelProps {
   value: StylePreference;

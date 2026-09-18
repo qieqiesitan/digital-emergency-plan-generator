@@ -18,7 +18,7 @@ import Skeleton from "@/mobile/components/ui/Skeleton";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import FAB from "@/mobile/components/ui/FAB";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import { useAppStore } from "@/mobile/store/appStore";
 import { getDashboard } from "@/services/dashboardService";
 import { listEnterprises } from "@/services/enterpriseService";

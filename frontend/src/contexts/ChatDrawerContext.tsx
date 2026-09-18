@@ -1,11 +1,5 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
-
-interface ChatDrawerContextValue {
-  open: boolean;
-  setOpen: (v: boolean) => void;
-}
-
-const ChatDrawerContext = createContext<ChatDrawerContextValue | null>(null);
+import { useState, type ReactNode } from "react";
+import { ChatDrawerContext } from "@/contexts/useChatDrawer";
 
 export function ChatDrawerProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -16,8 +10,3 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useChatDrawer(): ChatDrawerContextValue {
-  const ctx = useContext(ChatDrawerContext);
-  if (!ctx) throw new Error("useChatDrawer must be used within ChatDrawerProvider");
-  return ctx;
-}

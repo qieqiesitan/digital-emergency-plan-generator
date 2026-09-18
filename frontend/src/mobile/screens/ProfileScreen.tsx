@@ -1,14 +1,14 @@
 // @ts-nocheck
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import NavBar from "@/mobile/components/ui/NavBar";
 import Input from "@/mobile/components/ui/Input";
 import Button from "@/mobile/components/ui/Button";
 import Avatar from "@/mobile/components/ui/Avatar";
 import Card from "@/mobile/components/ui/Card";
 import SafeArea from "@/mobile/components/ui/SafeArea";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import { ChevronRight, Lock } from "lucide-react";
 
 export default function ProfileScreen() {

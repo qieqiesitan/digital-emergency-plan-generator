@@ -12,7 +12,7 @@ import SafeArea from "@/mobile/components/ui/SafeArea";
 import Spinner from "@/mobile/components/ui/Spinner";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import ProgressBar from "@/mobile/components/ui/ProgressBar";
-import { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/useToast";
 import ChapterTree from "@/mobile/components/plan/ChapterTree";
 import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";

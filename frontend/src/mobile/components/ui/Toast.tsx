@@ -1,29 +1,10 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
-
-type ToastType = "success" | "error" | "warning" | "info";
-
-interface ToastOptions {
-  type: ToastType;
-  message: string;
-  duration?: number;
-}
+import { ToastContext, type ToastOptions, type ToastType } from "./useToast";
 
 interface ToastItem extends ToastOptions {
   id: number;
-}
-
-interface ToastContextValue {
-  showToast: (options: ToastOptions) => void;
-}
-
-const ToastContext = createContext<ToastContextValue>({
-  showToast: () => {},
-});
-
-export function useToast() {
-  return useContext(ToastContext);
 }
 
 const iconMap: Record<ToastType, React.ReactNode> = {
@@ -90,7 +71,3 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     </ToastContext.Provider>
   );
 }
-
-// Default export for backward compatibility with default imports
-const Toast = { ToastProvider, useToast };
-export default Toast;

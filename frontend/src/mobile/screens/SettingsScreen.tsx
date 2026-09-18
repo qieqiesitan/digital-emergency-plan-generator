@@ -6,8 +6,8 @@ import { motion } from "framer-motion";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import Avatar from "@/mobile/components/ui/Avatar";
-import { useToast } from "@/mobile/components/ui/Toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/mobile/components/ui/useToast";
+import { useAuth } from "@/contexts/useAuth";
 
 const MENU_ITEMS = [
   {

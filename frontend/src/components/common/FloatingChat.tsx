@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Drawer } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
-import { useChatDrawer } from "@/contexts/ChatDrawerContext";
+import { useChatDrawer } from "@/contexts/useChatDrawer";
 import ChatPanel from "@/pages/Chat";
 
 // SVG: AI chip icon - hexagonal neural network pattern

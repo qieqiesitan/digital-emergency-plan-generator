@@ -1,28 +1,10 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { message } from "antd";
-import type { User, LoginRequest, RegisterRequest } from "@/types/auth";
+import type { LoginRequest, RegisterRequest } from "@/types/auth";
 import * as authService from "@/services/authService";
 import * as userService from "@/services/authService";
 import { fetchMyMenus } from "@/services/roleService";
-
-interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  menuPermissions: string[];
-  menuLoading: boolean;
-  menuLoadFailed: boolean;
-}
-
-interface AuthContextValue extends AuthState {
-  login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
-  logout: () => void;
-  updateProfile: (name: string) => Promise<void>;
-  changePassword: (oldPwd: string, newPwd: string) => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import { AuthContext, type AuthState } from "@/contexts/useAuth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -129,8 +111,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-}

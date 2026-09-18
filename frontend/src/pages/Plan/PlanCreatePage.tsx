@@ -15,7 +15,7 @@ import {
 } from "antd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPlan } from "@/services/planService";
-import { useCurrentEnterprise } from "@/contexts/EnterpriseContext";
+import { useCurrentEnterprise } from "@/contexts/useCurrentEnterprise";
 import { getEnterprise } from "@/services/enterpriseService";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PlanTypeTag } from "@/components/plan/PlanTypeTag";

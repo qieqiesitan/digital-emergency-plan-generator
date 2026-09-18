@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReportChapter } from "@/types/reportWorkspace";
-import { addFailedChapter } from "./ReportWorkspace";
+import { addFailedChapter } from "./failedChapters";
 
 describe("ReportWorkspace 失败章节 reducer", () => {
   it("追加新失败章节", () => {
