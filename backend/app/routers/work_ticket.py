@@ -12,6 +12,8 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.work_ticket import (
+    WorkTicketFlowNode,
+    WorkTicketFlowTemplate,
     WorkTicketGasTest,
     WorkTicketInstance,
     WorkTicketNodeRecord,
@@ -37,12 +39,37 @@ def _ok(data):
 
 @router.get("/templates")
 async def list_templates(db: AsyncSession = Depends(get_db)):
-    """列出启用的作业票模板（本计划只有动火/受限空间）。"""
+    """列出启用的作业票模板及其审批流程节点。"""
     res = await db.execute(
         select(WorkTicketTemplate)
         .where(WorkTicketTemplate.is_enabled.is_(True))
         .order_by(WorkTicketTemplate.sort_order)
     )
+    templates = list(res.scalars().all())
+    template_ids = [t.id for t in templates]
+    flows_by_template: dict[str, WorkTicketFlowTemplate] = {}
+    nodes_by_flow: dict[str, list[WorkTicketFlowNode]] = {}
+    if template_ids:
+        flow_res = await db.execute(
+            select(WorkTicketFlowTemplate)
+            .where(
+                WorkTicketFlowTemplate.template_id.in_(template_ids),
+                WorkTicketFlowTemplate.is_active.is_(True),
+            )
+            .order_by(WorkTicketFlowTemplate.created_at)
+        )
+        flows = list(flow_res.scalars().all())
+        for flow in flows:
+            flows_by_template.setdefault(flow.template_id, flow)
+        flow_ids = [flow.id for flow in flows_by_template.values()]
+        if flow_ids:
+            node_res = await db.execute(
+                select(WorkTicketFlowNode)
+                .where(WorkTicketFlowNode.flow_template_id.in_(flow_ids))
+                .order_by(WorkTicketFlowNode.sort_order)
+            )
+            for node in node_res.scalars().all():
+                nodes_by_flow.setdefault(node.flow_template_id, []).append(node)
     return _ok(
         [
             {
@@ -70,8 +97,21 @@ async def list_templates(db: AsyncSession = Depends(get_db)):
                     }
                     for m in sorted(t.measures, key=lambda x: x.sort_order)
                 ],
+                "flow_nodes": [
+                    {
+                        "node_key": n.node_key,
+                        "name": n.name,
+                        "sort_order": n.sort_order,
+                        "sign_policy": n.sign_policy,
+                        "countersign_units": n.countersign_units or [],
+                    }
+                    for n in nodes_by_flow.get(
+                        flows_by_template.get(t.id).id if flows_by_template.get(t.id) else "",
+                        [],
+                    )
+                ],
             }
-            for t in res.scalars().all()
+            for t in templates
         ]
     )
 

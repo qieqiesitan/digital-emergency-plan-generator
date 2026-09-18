@@ -22,12 +22,16 @@ import GasTestTable from "@/components/enterprise/workTicket/GasTestTable";
 import { PageHeader } from "@/components/common/PageHeader";
 import { getEnterprise } from "@/services/enterpriseService";
 import { addGasTest, errorDetail, listTemplates, openTicket, submitTicket } from "@/services/workTicketService";
-import type { GasTestPayload, WorkTicketFieldDef, WorkTicketTemplate } from "@/types/workTicket";
-import { ENABLED_TICKET_TYPES, FIRE_LEVELS, TICKET_TYPE_LABEL, approverFor } from "@/types/workTicket";
+import type {
+  GasTestPayload,
+  WorkTicketFieldDef,
+  WorkTicketFlowNodeDef,
+  WorkTicketTemplate,
+  WorkTicketTypeCode,
+} from "@/types/workTicket";
+import { ALL_TICKET_TYPES, GAS_TEST_REQUIRED_TYPES } from "@/types/workTicket";
 
 const { Text } = Typography;
-
-type TicketType = "DHZY" | "YXKJ";
 
 const STEPS = [
   { title: "类型与级别" },
@@ -59,6 +63,15 @@ function normalizeValues(
   return out;
 }
 
+function flowPreview(nodes: WorkTicketFlowNodeDef[]) {
+  const chain = nodes.map((n) => n.name).filter(Boolean).join(" → ");
+  const countersign = nodes
+    .filter((n) => (n.countersign_units?.length ?? 0) > 0)
+    .map((n) => `本票需${(n.countersign_units ?? []).join("、")}会签后审批`)
+    .join("；");
+  return { chain, countersign };
+}
+
 /**
  * 开票向导（6 步）。
  *
@@ -74,8 +87,8 @@ export default function WorkTicketNewPage() {
   const { message } = AntApp.useApp();
 
   const [step, setStep] = useState(0);
-  const [ticketType, setTicketType] = useState<TicketType>("DHZY");
-  const [level, setLevel] = useState<string>(FIRE_LEVELS[1]);
+  const [ticketType, setTicketType] = useState<WorkTicketTypeCode>("DHZY");
+  const [level, setLevel] = useState<string>("");
   const [form] = Form.useForm();
   const [gasTests, setGasTests] = useState<GasTestPayload[]>([]);
   const [confirmed, setConfirmed] = useState<number[]>([]);
@@ -94,14 +107,44 @@ export default function WorkTicketNewPage() {
     queryFn: listTemplates,
   });
 
+  const enabledTypes = useMemo(() => {
+    const codes = new Set((templates ?? []).map((t) => t.code));
+    return ALL_TICKET_TYPES.filter((t) => codes.has(t.code));
+  }, [templates]);
+
+  const activeTicketType = enabledTypes.some((t) => t.code === ticketType)
+    ? ticketType
+    : enabledTypes[0]?.code;
+
+  const levelsForType = useMemo(() => {
+    if (!activeTicketType) return [];
+    return Array.from(
+      new Set(
+        (templates ?? [])
+          .filter((t) => t.code === activeTicketType && t.level)
+          .map((t) => t.level as string),
+      ),
+    );
+  }, [templates, activeTicketType]);
+
+  const activeLevel = levelsForType.includes(level) ? level : levelsForType[0] ?? "";
+
   const template: WorkTicketTemplate | undefined = useMemo(() => {
-    if (!templates) return undefined;
-    if (ticketType === "YXKJ") return templates.find((t) => t.code === "YXKJ");
-    return templates.find((t) => t.code === "DHZY" && (t.level ?? null) === level);
-  }, [templates, ticketType, level]);
+    if (!templates || !activeTicketType) return undefined;
+    const candidates = templates.filter((t) => t.code === activeTicketType);
+    if (levelsForType.length > 0) {
+      return candidates.find((t) => (t.level ?? null) === activeLevel);
+    }
+    return candidates.find((t) => !t.level) ?? candidates[0];
+  }, [templates, activeTicketType, activeLevel, levelsForType]);
 
   const enterpriseCode = (enterprise?.credit_code || id || "").slice(0, 20);
-  const approver = approverFor(ticketType, ticketType === "DHZY" ? level : null);
+  const { chain: flowChain, countersign: countersignHint } = flowPreview(
+    template?.flow_nodes ?? [],
+  );
+  const requiresGasTest = activeTicketType
+    ? GAS_TEST_REQUIRED_TYPES.includes(activeTicketType)
+    : false;
 
   const requiredFields = (template?.fields ?? []).filter((f) => f.is_required);
   const mandatoryMeasures = template?.measures ?? [];
@@ -120,14 +163,16 @@ export default function WorkTicketNewPage() {
     if (missing.length > 0) {
       errs.push(`还有 ${missing.length} 条安全措施未确认（如「${missing[0].measure_text.slice(0, 20)}…」）`);
     }
-    if (gasTests.length === 0) {
-      errs.push("动火/受限空间作业必须至少录入一次气体检测记录");
-    } else {
-      const latest = gasTests
-        .map((g) => dayjs(g.sampled_at))
-        .sort((a, b) => b.valueOf() - a.valueOf())[0];
-      if (dayjs().diff(latest, "minute") > 30) {
-        errs.push("气体检测取样时间已超过 30 分钟，请重新检测后再提交");
+    if (requiresGasTest) {
+      if (gasTests.length === 0) {
+        errs.push("动火/受限空间作业必须至少录入一次气体检测记录");
+      } else {
+        const latest = gasTests
+          .map((g) => dayjs(g.sampled_at))
+          .sort((a, b) => b.valueOf() - a.valueOf())[0];
+        if (dayjs().diff(latest, "minute") > 30) {
+          errs.push("气体检测取样时间已超过 30 分钟，请重新检测后再提交");
+        }
       }
     }
     return errs;
@@ -135,6 +180,10 @@ export default function WorkTicketNewPage() {
 
   const handleSubmit = async () => {
     if (!id) return;
+    if (!activeTicketType) {
+      message.error("未找到已启用的作业票模板，请检查模板种子数据");
+      return;
+    }
     if (!template) {
       message.error("未找到对应模板，请检查种子数据是否已导入");
       return;
@@ -155,9 +204,9 @@ export default function WorkTicketNewPage() {
       const instance = await openTicket({
         enterprise_id: id,
         enterprise_code: enterpriseCode,
-        ticket_type: ticketType,
+        ticket_type: activeTicketType,
         template_id: template.id,
-        level: ticketType === "DHZY" ? level : null,
+        level: levelsForType.length > 0 ? activeLevel : null,
         values,
       });
       for (const gas of gasTests) {
@@ -224,41 +273,55 @@ export default function WorkTicketNewPage() {
             <Text strong>作业类型</Text>
             <div style={{ marginTop: 8 }}>
               <Radio.Group
-                value={ticketType}
+                value={activeTicketType}
                 onChange={(e) => {
-                  setTicketType(e.target.value as TicketType);
+                  const next = e.target.value as WorkTicketTypeCode;
+                  setTicketType(next);
                   setConfirmed([]);
+                  setProblems([]);
+                  const nextLevels = Array.from(
+                    new Set(
+                      (templates ?? [])
+                        .filter((t) => t.code === next && t.level)
+                        .map((t) => t.level as string),
+                    ),
+                  );
+                  setLevel(nextLevels[0] ?? "");
                 }}
-                options={ENABLED_TICKET_TYPES.map((code) => ({
-                  value: code,
-                  label: TICKET_TYPE_LABEL[code],
+                options={enabledTypes.map((t) => ({
+                  value: t.code,
+                  label: t.label,
                 }))}
                 optionType="button"
               />
             </div>
           </div>
-          {ticketType === "DHZY" && (
+          {levelsForType.length > 0 && (
             <div>
-              <Text strong>动火级别</Text>
+              <Text strong>作业级别</Text>
               <div style={{ marginTop: 8 }}>
                 <Radio.Group
-                  value={level}
+                  value={activeLevel}
                   onChange={(e) => setLevel(e.target.value as string)}
-                  options={FIRE_LEVELS.map((l) => ({ value: l, label: l }))}
+                  options={levelsForType.map((l) => ({ value: l, label: l }))}
                   optionType="button"
                 />
               </div>
             </div>
           )}
           <Alert
-            type={approver ? "info" : "warning"}
+            type={flowChain ? "info" : "warning"}
             showIcon
             message={
-              approver
-                ? `将按「${approver}」审批`
-                : "未找到该级别的法定审批人配置，请检查模板种子数据"
+              flowChain
+                ? `审批流程：${flowChain}`
+                : "未找到该类型的审批流程配置，请检查模板种子数据"
             }
-            description="审批人依据 GB 30871-2022 附录B 表B.1；法定环节不提供跳过入口。"
+            description={
+              countersignHint
+                ? `${countersignHint}。审批人依据 GB 30871-2022 附录B 表B.1；法定环节不提供跳过入口。`
+                : "审批人依据 GB 30871-2022 附录B 表B.1；法定环节不提供跳过入口。"
+            }
           />
         </Space>
       )}
@@ -288,7 +351,23 @@ export default function WorkTicketNewPage() {
       )}
 
       {step === 2 && (
-        <GasTestTable records={gasTests} onChange={setGasTests} />
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Alert
+            type={requiresGasTest ? "info" : "success"}
+            showIcon
+            message={
+              requiresGasTest
+                ? "本类型为法定强制气体检测"
+                : "本类型不强制气体检测"
+            }
+            description={
+              requiresGasTest
+                ? "动火与受限空间作业提交前至少需要一条 30 分钟内的有效检测记录。"
+                : "可选填；若现场需要检测，仍可在这里记录。"
+            }
+          />
+          <GasTestTable records={gasTests} onChange={setGasTests} />
+        </Space>
       )}
 
       {step === 3 && (
@@ -340,10 +419,14 @@ export default function WorkTicketNewPage() {
       {step === 5 && (
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Alert
-            type="info"
+            type={flowChain ? "info" : "warning"}
             showIcon
-            message={`审批链：${approver ?? "未配置"}`}
-            description="提交后进入审批中，审批人在「审批工作台」办理。"
+            message={`审批链：${flowChain || "未配置"}`}
+            description={
+              countersignHint
+                ? `${countersignHint}。提交后进入审批中，审批人在「审批工作台」办理。`
+                : "提交后进入审批中，审批人在「审批工作台」办理。"
+            }
           />
           <Space size={24} wrap>
             <Text>票面字段：{(template?.fields ?? []).length} 项</Text>

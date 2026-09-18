@@ -9,7 +9,10 @@ from pydantic import BaseModel, Field
 class OpenTicketIn(BaseModel):
     enterprise_id: str
     enterprise_code: str = Field(min_length=1, max_length=20)
-    ticket_type: str = Field(pattern="^(DHZY|YXKJ)$", description="本计划只开放这两类")
+    ticket_type: str = Field(
+        pattern="^(DHZY|YXKJ|MBCD|GCZY|QZDZ|LSYD|PTZY|DLZY)$",
+        description="GB 30871-2022 附录A 的 8 类特殊作业票",
+    )
     template_id: str
     level: Optional[str] = None
     values: dict = Field(default_factory=dict)

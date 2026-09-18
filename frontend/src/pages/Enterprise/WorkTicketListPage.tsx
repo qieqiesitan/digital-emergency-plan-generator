@@ -1,18 +1,16 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { App as AntApp, Button, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { App as AntApp, Button, Select, Space, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { PrinterOutlined, PlusOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
-import { downloadTicketDocx, listTickets } from "@/services/workTicketService";
+import { downloadTicketDocx, listTemplates, listTickets } from "@/services/workTicketService";
 import {
-  DISABLED_TICKET_TYPES,
-  ENABLED_TICKET_TYPES,
+  ALL_TICKET_TYPES,
   TICKET_STATUS_COLOR,
   TICKET_STATUS_LABEL,
   TICKET_TYPE_LABEL,
-  approverFor,
   nodeLabel,
 } from "@/types/workTicket";
 import type { WorkTicketInstance } from "@/types/workTicket";
@@ -38,6 +36,11 @@ export default function WorkTicketListPage() {
       listTickets(id as string, { ticket_type: ticketType, status }),
     enabled: Boolean(id),
   });
+  const { data: templates } = useQuery({
+    queryKey: ["work-ticket-templates"],
+    queryFn: listTemplates,
+  });
+  const enabledTypes = new Set((templates ?? []).map((t) => t.code));
 
   const handlePrint = async (record: WorkTicketInstance) => {
     try {
@@ -77,14 +80,7 @@ export default function WorkTicketListPage() {
       title: "当前节点",
       dataIndex: "current_node_key",
       width: 180,
-      render: (value: string | null, record) =>
-        nodeLabel(
-          value,
-          approverFor(
-            record.ticket_type as "DHZY" | "YXKJ",
-            record.level,
-          ),
-        ),
+      render: (value: string | null) => nodeLabel(value),
     },
     {
       title: "创建时间",
@@ -137,23 +133,20 @@ export default function WorkTicketListPage() {
       <Space direction="vertical" style={{ width: "100%" }} size={12}>
         <Space wrap size={8} align="center">
           <Text type="secondary">类型</Text>
-          <Select
-            allowClear
-            placeholder="全部"
-            style={{ width: 150 }}
-            value={ticketType}
-            onChange={setTicketType}
-            options={ENABLED_TICKET_TYPES.map((code) => ({
-              value: code,
-              label: TICKET_TYPE_LABEL[code],
-            }))}
-          />
-          {DISABLED_TICKET_TYPES.map((label) => (
-            <Tooltip key={label} title="未启用（计划 9 按模板复制开放）">
-              <Tag color="default" style={{ cursor: "not-allowed", color: "#bfbfbf" }}>
-                {label}
-              </Tag>
-            </Tooltip>
+          {ALL_TICKET_TYPES.map((t) => (
+            <Tag.CheckableTag
+              key={t.code}
+              checked={ticketType === t.code}
+              onChange={() => setTicketType(ticketType === t.code ? undefined : t.code)}
+              style={
+                enabledTypes.has(t.code)
+                  ? undefined
+                  : { opacity: 0.45, pointerEvents: "none", cursor: "not-allowed" }
+              }
+            >
+              {t.label}
+              {!enabledTypes.has(t.code) && <span style={{ fontSize: 11 }}>（未启用）</span>}
+            </Tag.CheckableTag>
           ))}
         </Space>
 

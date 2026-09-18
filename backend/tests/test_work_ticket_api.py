@@ -2,12 +2,15 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.routers import work_ticket
+from app.schemas.work_ticket import OpenTicketIn
 
 
 class _Scalars:
@@ -73,8 +76,8 @@ def test_list_tickets_filters_by_type():
     assert resp.json()["data"][0]["ticket_type"] == "DHZY"
 
 
-def test_open_ticket_rejects_unimplemented_type():
-    """本计划只开放动火/受限空间两类，其余类型必须被 schema 拒掉。"""
+def test_open_ticket_rejects_unknown_type():
+    """未知类型必须被 schema 拒掉；8 类标准类型不得再被白名单挡住。"""
     async def handler(stmt, *a, **k):
         return _Result([])
 
@@ -84,11 +87,32 @@ def test_open_ticket_rejects_unimplemented_type():
         json={
             "enterprise_id": "e1",
             "enterprise_code": "A",
-            "ticket_type": "GCZY",
+            "ticket_type": "XXXX",
             "template_id": "t1",
         },
     )
     assert resp.status_code == 422
+
+
+def test_open_ticket_schema_accepts_all_eight_types():
+    for code in ("DHZY", "YXKJ", "MBCD", "GCZY", "QZDZ", "LSYD", "PTZY", "DLZY"):
+        payload = OpenTicketIn(
+            enterprise_id="e1",
+            enterprise_code="A",
+            ticket_type=code,
+            template_id="t1",
+        )
+        assert payload.ticket_type == code
+
+
+def test_open_ticket_schema_rejects_unknown_type():
+    with pytest.raises(ValidationError):
+        OpenTicketIn(
+            enterprise_id="e1",
+            enterprise_code="A",
+            ticket_type="XXXX",
+            template_id="t1",
+        )
 
 
 def test_submit_returns_422_on_validation_failure():
