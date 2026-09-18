@@ -60,11 +60,6 @@ const STATUS_LABELS: Record<string, string> = {
   closed: "已销号",
 };
 
-function fmtNumber(v: number | null | undefined, suffix = ""): string {
-  if (v === null || v === undefined) return "—";
-  return `${v}${suffix}`;
-}
-
 function fmtMom(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
   return `${v > 0 ? "+" : ""}${v}%`;
@@ -431,7 +426,6 @@ export default function HazardDashboardPage() {
                 value={card.value ?? 0}
                 styles={{ content: { color: card.color } }}
                 suffix={card.suffix}
-                formatter={() => fmtNumber(card.value, card.suffix)}
               />
               {card.footer ? (
                 <Text type="secondary" style={{ fontSize: 12 }}>

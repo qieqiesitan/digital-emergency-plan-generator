@@ -1,6 +1,7 @@
 """预案批量生成公共实现：从 generation.py 抽取，路由与聊天助手共用。"""
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,31 @@ from app.services.prompt_cache import ensure_loaded
 from app.routers.versions import _build_snapshot
 
 logger = logging.getLogger(__name__)
+
+# 启动自愈阈值：远大于正常批量生成时长（25 章节 ≈ 25~60 分钟），
+# 避免把仍在跑的生成误判为卡死。
+STALE_GENERATING_HOURS = 2
+
+
+async def reset_stale_generating_plans() -> int:
+    """W2 数据自愈：把长时间停在 generating 的预案复位为 draft。
+
+    背景：进程内生成状态（_active_generations）与 DB 状态可能因进程重启/多 worker
+    不一致，历史上有 4 份预案永久卡在 generating（前端一直显示"生成中"）。
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_GENERATING_HOURS)
+    async with async_session() as session:
+        result = await session.execute(
+            update(PlanProject)
+            .where(PlanProject.status == "generating", PlanProject.updated_at < cutoff)
+            .values(status="draft")
+        )
+        await session.commit()
+        count = result.rowcount or 0
+    if count:
+        logger.warning("启动自愈：%d 份超时 generating 预案已复位为 draft", count)
+    return count
+
 
 _background_tasks: dict[str, asyncio.Task] = {}
 

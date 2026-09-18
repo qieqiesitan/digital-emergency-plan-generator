@@ -143,6 +143,12 @@ async def lifespan(app: FastAPI):
     # 不注册则 confirm_items 会报「目标实体尚未注册写入器」，确认链路整体不可用。
     from app.services.ingest_writers import register_default_writers
     register_default_writers()
+    # W2 数据自愈：把超时仍停在 generating 的预案复位（历史上 4 份永久卡死）
+    try:
+        from app.services.plan_generation_service import reset_stale_generating_plans
+        await reset_stale_generating_plans()
+    except Exception:
+        logger.warning("启动自愈（generating 复位）失败，不影响服务启动", exc_info=True)
     # 任务 8：APScheduler 隐患定时扫描（每 5 分钟）。依赖缺失/启动异常仅告警降级，
     # 不阻塞服务启动（规格 §16）；外部 cron 可退化为调用 run_hazard_scans 的内部端点。
     scheduler = None

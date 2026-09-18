@@ -5,8 +5,10 @@ from app.config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=20,
+    # W2：4 worker × (5+10) = 60，留出 Postgres max_connections=100 的安全余量
+    # （原 4×(10+20)=120 会撞上限，压测实测 120 连接 50 次 too many clients）
+    pool_size=5,
+    max_overflow=10,
     # P2 #10：30 分钟回收陈旧连接 + 取用前探活，缓解 idle in transaction / 断连堆积
     pool_recycle=1800,
     pool_pre_ping=True,
