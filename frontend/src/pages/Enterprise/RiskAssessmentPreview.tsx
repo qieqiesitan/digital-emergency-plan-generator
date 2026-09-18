@@ -62,6 +62,8 @@ export default function RiskAssessmentPreview() {
     if (!id) return;
     getRiskAssessmentPreview(id)
       .then(setData)
+      // 报告尚未生成时后端返回 404：属于预期路径，这里兜底为空态，避免未处理 rejection
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
     getRiskAssessment(id)
       .then(r => setCurrentVersion(r.current_version ?? 0))

@@ -41,6 +41,8 @@ export default function ResourceInvestigationPreview() {
     if (!id) return;
     getResourceInvestigationPreview(id)
       .then(setData)
+      // 报告尚未生成时后端返回 404：属于预期路径，这里兜底为空态，避免未处理 rejection
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
     getResourceInvestigation(id)
       .then(r => setCurrentVersion(r.current_version ?? 0))
