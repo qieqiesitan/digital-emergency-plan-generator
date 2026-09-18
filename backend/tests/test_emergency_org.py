@@ -12,7 +12,13 @@ from app.models.enterprise_org import MemberPosition
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
+from types import SimpleNamespace
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.routers import emergency_org as emergency_org_router
 
 from app.services.emergency_org_service import (
     build_groups_for_consumers,
@@ -21,6 +27,63 @@ from app.services.emergency_org_service import (
     save_emergency_org,
 )
 from app.services.org_tree_validate import validate_emergency_units, validate_tree
+
+
+def _api_client(db):
+    app = FastAPI()
+    app.include_router(emergency_org_router.router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id="u1")
+    return TestClient(app)
+
+
+def test_emergency_org_get_returns_404_when_enterprise_missing():
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(scalar_one_or_none=lambda: None)
+    resp = _api_client(db).get("/api/v1/enterprises/e1/emergency-org")
+    assert resp.status_code == 404
+
+
+def test_emergency_org_get_returns_empty_list_for_new_enterprise():
+    """企业存在但尚无应急组织时返回空数组（前端据此显示空态）。"""
+    ent = SimpleNamespace(id="e1")
+    db = AsyncMock()
+    db.execute.side_effect = [
+        MagicMock(scalar_one_or_none=lambda: ent),
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [])),  # units
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [])),  # roles
+        MagicMock(all=lambda: []),                             # assignments
+    ]
+    resp = _api_client(db).get("/api/v1/enterprises/e1/emergency-org")
+    assert resp.status_code == 200
+    assert resp.json()["data"] == []
+
+
+def test_emergency_org_put_propagates_validation_error(monkeypatch):
+    """PUT 契约：body 为 {units:[...]}，服务层 422 原样透出。"""
+    ent = SimpleNamespace(id="e1")
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(scalar_one_or_none=lambda: ent)
+
+    async def boom(db_, enterprise_id, units):
+        assert units[0]["name"] == "应急指挥部"
+        raise HTTPException(422, "角色 r1 成员不属于本企业或已停用: ghost")
+
+    monkeypatch.setattr(emergency_org_router, "save_emergency_org", boom)
+    resp = _api_client(db).put(
+        "/api/v1/enterprises/e1/emergency-org",
+        json={"units": [{"id": "u1", "name": "应急指挥部", "roles": []}]},
+    )
+    assert resp.status_code == 422
+    body = resp.json()
+    assert "不属于本企业" in str(body.get("detail") or body)
+
+
+def test_emergency_org_routes_registered_in_main():
+    from app.main import app as main_app
+
+    paths = {r.path for r in main_app.routes}
+    assert "/api/v1/enterprises/{enterprise_id}/emergency-org" in paths
 
 
 def test_flatten_units_remaps_ids_and_parents():

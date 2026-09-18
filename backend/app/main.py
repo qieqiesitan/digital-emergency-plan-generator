@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.config import settings
 from app.database import async_session
-from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, hazard_management, plans, sections, templates, versions, review, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, chemical_library, data_dicts, third_party_config, major_hazard, ingest, extraction, work_ticket, platform, maintenance
+from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, emergency_org, hazard_management, plans, sections, templates, versions, review, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, chemical_library, data_dicts, third_party_config, major_hazard, ingest, extraction, work_ticket, platform, maintenance
 from app.models.report_version import ResourceInvestigationVersion, RiskAssessmentVersion
 from app.models.risk_assessment import RiskAssessmentReport
 from app.models.resource_investigation import ResourceInvestigationReport
@@ -274,6 +274,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(enterprises.router, prefix="/api/v1")
 app.include_router(enterprise_sub.router, prefix="/api/v1")
 app.include_router(enterprise_org.router, prefix="/api/v1")
+app.include_router(emergency_org.router, prefix="/api/v1")
 app.include_router(hazard_management.router, prefix="/api/v1")
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(sections.router, prefix="/api/v1")
