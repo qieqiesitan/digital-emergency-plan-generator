@@ -1,6 +1,6 @@
 import uuid as uuid_lib
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from app.database import get_db
 from app.models.enterprise import Enterprise, RiskSource, EmergencyResource
@@ -32,29 +32,33 @@ def _cats_to_str(categories: list[str] | None) -> str:
 async def get_org_structure(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id))
     e = result.scalar_one_or_none()
-    if not e: raise HTTPException(404, "��ҵ������")
-    return ApiResponse(data=e.org_structure or [])
+    if not e: raise HTTPException(404, "企业不存在")
+    from app.services.emergency_org_service import build_legacy_groups, load_emergency_org
+
+    return ApiResponse(data=build_legacy_groups(await load_emergency_org(db, enterprise_id)))
 
 @router.put("/{enterprise_id}/org-structure")
-async def update_org_structure(enterprise_id: str, data: list = Body(...), current_user=Depends(get_current_user), db=Depends(get_db)):
+async def update_org_structure(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id))
     e = result.scalar_one_or_none()
-    if not e: raise HTTPException(404, "��ҵ������")
-    e.org_structure = data; await db.commit()
-    return ApiResponse(data=e.org_structure)
+    if not e: raise HTTPException(404, "企业不存在")
+    raise HTTPException(
+        410,
+        "该接口已下线：应急组织请改用 /enterprises/{id}/emergency-org，公司组织架构请改用 /enterprises/{id}/org/nodes",
+    )
 
 @router.get("/{enterprise_id}/surrounding")
 async def get_surrounding(enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id))
     e = result.scalar_one_or_none()
-    if not e: raise HTTPException(404, "��ҵ������")
+    if not e: raise HTTPException(404, "企业不存在")
     return ApiResponse(data=e.surrounding_info or {"nearby_units": [], "sensitive_targets": [], "traffic_info": ""})
 
 @router.put("/{enterprise_id}/surrounding")
 async def update_surrounding(enterprise_id: str, data: SurroundingInfo, current_user=Depends(get_current_user), db=Depends(get_db)):
     result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id))
     e = result.scalar_one_or_none()
-    if not e: raise HTTPException(404, "��ҵ������")
+    if not e: raise HTTPException(404, "企业不存在")
     e.surrounding_info = data.model_dump(); await db.commit()
     return ApiResponse(data=e.surrounding_info)
 

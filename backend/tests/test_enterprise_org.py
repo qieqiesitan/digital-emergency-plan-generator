@@ -1089,6 +1089,26 @@ async def test_ai_suggest_org_tree_fallback():
     assert out["available"] is False
 
 
+@pytest.mark.asyncio
+async def test_suggest_org_tree_prompt_is_company_only():
+    """AI 建树只产出公司组织架构（部门/班组/岗位），不再产出应急指挥部/应急小组。"""
+    captured = {}
+
+    async def fake_llm(messages, ai_config, **kwargs):
+        captured["user"] = messages[-1]["content"]
+        return '{"nodes": []}'
+
+    with patch("app.services.enterprise_org_service.llm_text_completion", new=fake_llm):
+        out = await suggest_org_tree({"industry": "化工", "employee_count": 120}, MagicMock())
+    assert out["available"] is True
+    prompt = captured["user"]
+    assert "公司组织架构" in prompt
+    # 明确禁止产出应急组织内容，并说明其归属，避免模型自行补回
+    assert "不要输出应急指挥部" in prompt
+    assert "应急组织在独立页面维护" in prompt
+    assert "与公司组织架构是两套数据" in prompt
+
+
 # ── POST /org/ai-suggest 端点 ──
 
 def test_ai_suggest_endpoint_returns_result(client):

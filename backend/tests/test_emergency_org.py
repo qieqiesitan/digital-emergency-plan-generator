@@ -86,6 +86,58 @@ def test_emergency_org_routes_registered_in_main():
     assert "/api/v1/enterprises/{enterprise_id}/emergency-org" in paths
 
 
+# ── 旧 /org-structure 接口：写下线、读兼容 ──
+
+def _sub_client(db):
+    from app.routers import enterprise_sub as sub_router
+
+    app = FastAPI()
+    app.include_router(sub_router.router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id="u1")
+    return TestClient(app)
+
+
+def test_put_org_structure_is_gone():
+    """PUT 已下线：它与 /org/nodes 写同一字段但格式不同，是数据互相覆盖的根源。"""
+    resp = _sub_client(AsyncMock()).put("/api/v1/enterprises/e1/org-structure", json=[])
+    assert resp.status_code == 410
+    assert "应急组织" in resp.json()["detail"]
+
+
+def test_get_org_structure_returns_legacy_groups_from_emergency_org():
+    """GET 保留兼容视图：读应急组织并转成旧分组格式。"""
+    ent = SimpleNamespace(id="e1", user_id="u1")
+    unit_root = SimpleNamespace(id="u1", parent_id=None, name="应急组织机构", duties="", sort_order=0)
+    unit_hq = SimpleNamespace(id="u2", parent_id="u1", name="应急指挥部", duties="统一指挥", sort_order=0)
+    role = SimpleNamespace(id="r1", unit_id="u2", name="总指挥", duties="全面负责",
+                           sort_order=0, is_required=True)
+    member = SimpleNamespace(id="m1", name="刘昕野", phone="138", position="总经理",
+                             email=None, org_node_id=None)
+    assignment = SimpleNamespace(id="a1", role_id="r1", member_id="m1", sort_order=0)
+    db = AsyncMock()
+    db.execute.side_effect = [
+        MagicMock(scalar_one_or_none=lambda: ent),
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [unit_root, unit_hq])),
+        MagicMock(scalars=lambda: MagicMock(all=lambda: [role])),
+        MagicMock(all=lambda: [(assignment, member)]),
+    ]
+    resp = _sub_client(db).get("/api/v1/enterprises/e1/org-structure")
+    assert resp.status_code == 200
+    assert resp.json()["data"] == [{
+        "group_key": "headquarters",
+        "group_name": "应急指挥部",
+        "responsibilities": "统一指挥",
+        "members": [{
+            "name": "刘昕野",
+            "role": "chief",
+            "position": "总经理",
+            "phone": "138",
+            "responsibilities": "全面负责",
+        }],
+    }]
+
+
 def test_flatten_units_remaps_ids_and_parents():
     units = [
         {"id": "u1", "name": "应急组织机构", "roles": []},

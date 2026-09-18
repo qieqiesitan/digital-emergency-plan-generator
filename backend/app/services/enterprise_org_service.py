@@ -127,7 +127,7 @@ async def suggest_org_tree(enterprise_info: dict, ai_config, extra_requirements:
         k: v for k, v in enterprise_info.items() if k != "org_structure"
     }
     prompt = (
-        "你是企业组织架构专家。根据企业基础信息，建议合理的组织架构树。\n\n"
+        "你是企业组织架构专家。根据企业基础信息，建议合理的公司组织架构树。\n\n"
         f"企业信息：\n{json.dumps(info_for_prompt, ensure_ascii=False, indent=2)}\n"
         f"现有组织架构：{org_summary}\n\n"
     )
@@ -137,7 +137,9 @@ async def suggest_org_tree(enterprise_info: dict, ai_config, extra_requirements:
         '输出 JSON：{"nodes": [{"id": "唯一短 id", "type": "dept|team|position", '
         '"name": "部门/班组/岗位名称", "parent_id": "父节点 id 或 null", '
         '"members": [{"name": "姓名", "position": "岗位"}]}]}\n'
-        "要求：type 仅限 dept（部门）/team（班组）/position（岗位）；"
+        "要求：只输出公司的部门（dept）/班组（team）/岗位（position），"
+        "不要输出应急指挥部、应急小组等应急组织内容（应急组织在独立页面维护，"
+        "与公司组织架构是两套数据）；"
         "根节点 parent_id 为 null；members 只含姓名和岗位，不要编造邮箱；"
         "members 必须严格取自企业信息中提供的成员名单；若企业信息未提供任何成员名单，"
         "members 一律输出空数组 []，禁止编造或推断任何姓名（如张三、李四等示例名）；"
