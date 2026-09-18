@@ -207,7 +207,11 @@ def _normalize_org_groups(org_structure: list) -> list[dict]:
 
 
 def _build_org_chart_mermaid(org_structure: list) -> str | None:
-    """企业组织架构 → Mermaid graph TD 文本；无有效数据返回 None。"""
+    """应急组织分组 → Mermaid graph TD 文本；无有效数据返回 None。
+
+    成员标注优先用应急角色（role_name，如「总指挥」），无该字段时回落到公司职位；
+    与章节表格、导出签署页的职务口径保持一致。
+    """
     groups = _normalize_org_groups(org_structure)
     if not groups:
         return None
@@ -219,7 +223,7 @@ def _build_org_chart_mermaid(org_structure: list) -> str | None:
         node_id += 1
         for m in g["members"]:
             name = m.get("name", "")
-            position = m.get("position", "")
+            position = m.get("role_name") or m.get("position", "")
             if not name:
                 continue
             label = f"{name}-{position}" if position else name

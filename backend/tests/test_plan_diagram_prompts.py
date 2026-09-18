@@ -4,6 +4,27 @@ from app.routers.generation import (
 )
 
 
+def test_org_chart_labels_member_with_emergency_role():
+    """组织架构图成员标注优先用应急角色（总指挥），而不是公司职位（总经理）。"""
+    groups = [{
+        "group_name": "应急指挥部",
+        "responsibilities": "统一指挥",
+        "members": [
+            {"name": "刘昕野", "role": "chief", "role_name": "总指挥", "position": "总经理"},
+            {"name": "程磊", "position": "项目经理"},
+        ],
+    }]
+    text = _build_org_chart_mermaid(groups)
+    assert "刘昕野-总指挥" in text
+    assert "总经理" not in text
+    # 没有 role_name 的成员回落到公司职位
+    assert "程磊-项目经理" in text
+
+
+def test_org_chart_returns_none_without_members():
+    assert _build_org_chart_mermaid([{"group_name": "应急指挥部", "members": []}]) is None
+
+
 def test_additional_diagram_map_covers_sections():
     assert SECTION_ADDITIONAL_DIAGRAM_MAP[("comprehensive", "sec_3")] == "org_chart"
     assert SECTION_ADDITIONAL_DIAGRAM_MAP[("comprehensive", "sec_4_2")] == "report_sequence"
