@@ -116,6 +116,19 @@ export default function PlanEditorPage() {
     enabled: !!id,
   });
 
+  // 载入预案后应用服务端保存的创作风格 / 高级提示词覆盖。
+  // 此前这里只写不读：保存成功但重新打开又回到默认值（2026-09-18 B1 端到端回归发现）。
+  const [prevStylePlanId, setPrevStylePlanId] = useState<string | null>(null);
+  if (plan && plan.id !== prevStylePlanId) {
+    setPrevStylePlanId(plan.id);
+    const saved = plan.style_preference;
+    if (saved) {
+      setStylePreference({ ...DEFAULT_STYLE, ...saved });
+      if (saved.mode === "advanced") setStyleMode("advanced");
+    }
+    setAdvancedOverrides(plan.advanced_prompt_overrides ?? null);
+  }
+
   const { data: validation } = useQuery({
     queryKey: ["exportValidate", id],
     queryFn: () => validateExport(id!),

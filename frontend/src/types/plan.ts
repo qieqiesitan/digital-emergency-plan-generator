@@ -14,6 +14,10 @@ export interface PlanProject {
   completed_sections: number;
   plan_number: string | null;
   version_number: string | null;
+  /** 创作风格（后端 PlanResponse 返回；编辑器据此回填） */
+  style_preference?: PlanStylePreference | null;
+  /** 高级模式提示词覆盖 */
+  advanced_prompt_overrides?: PlanAdvancedPromptOverrides | null;
   created_at: string;
   updated_at: string;
 }
