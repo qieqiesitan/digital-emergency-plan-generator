@@ -31,6 +31,8 @@ import re
 
 from app.services.agent.agents import LAYER_PARAMS
 from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMError
+from app.services.llm_client import LLMStreamTruncatedError
+from app.services.stream_bridge import next_or_raise
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
 from app.services.sse_utils import SSE_HEADERS, sse_event
@@ -749,6 +751,11 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
             yield chunk
     except HTTPException:
         raise
+    except LLMStreamTruncatedError as e:
+        # 供应商中途断流：内容不完整，绝不能当成功落库；给一句用户能看懂、
+        # 且明确"没有保存、可以直接重试"的提示（原来会落成"章节生成失败"这种泛化文案）。
+        logger.warning("LLM 流式响应中断: %s", e)
+        raise HTTPException(502, "AI 输出中断（内容不完整），本章节未保存，请重试")
     except LLMError as e:
         # 只回通用文案 + 状态码提示，模型返回原文只进服务端日志（避免外泄内部细节）
         logger.warning("LLM 调用失败: status=%s", getattr(e, "status_code", None))
@@ -1185,17 +1192,25 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
             task = asyncio.create_task(_run_stream())
             full = ""
-            while True:
-                kind, payload = await events.get()
-                if kind == "thinking":
-                    yield sse_event("thinking", section_key=section_key, message=payload)
-                elif kind == "chunk":
-                    full += payload
-                    yield sse_event("chunk", content=payload)
-                elif kind == "end":
-                    full = payload
-                    break
-            await task
+            try:
+                while True:
+                    # 必须用 next_or_raise：生产者若在 put("end") 之前抛错，
+                    # 裸 `await events.get()` 会永久阻塞 → SSE 只发心跳、不报错也不结束
+                    # （2026-09-19 实测：截图前的预案状态会一直卡在 generating）。
+                    kind, payload = await next_or_raise(events, task)
+                    if kind == "thinking":
+                        yield sse_event("thinking", section_key=section_key, message=payload)
+                    elif kind == "chunk":
+                        full += payload
+                        yield sse_event("chunk", content=payload)
+                    elif kind == "end":
+                        full = payload
+                        break
+                await task
+            finally:
+                # 客户端断连/提前 return 时别把生产者任务挂在后台继续烧 token
+                if not task.done():
+                    task.cancel()
 
             if not full or not full.strip():
                 raise RuntimeError("AI 返回内容为空，生成失败，请重试")

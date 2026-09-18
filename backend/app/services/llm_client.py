@@ -87,9 +87,13 @@ class LLMStreamTruncatedError(RuntimeError):
     这是最危险的一类错误——没人会去查一个"成功"的请求。
     """
 
-    def __init__(self, received_chars: int = 0):
-        super().__init__(f"LLM 流式响应中断：未收到结束标记，已收到 {received_chars} 字符")
+    def __init__(self, received_chars: int = 0, reason: str = ""):
+        detail = f"LLM 流式响应中断：未收到结束标记，已收到 {received_chars} 字符"
+        if reason:
+            detail += f"（{reason}）"
+        super().__init__(detail)
         self.received_chars = received_chars
+        self.reason = reason
 
 
 def _get_api_base(provider: str, base_url: str | None) -> str:
@@ -324,6 +328,10 @@ async def _stream_response(
     """内部：流式响应处理（建连/首响应前可重试，中途断流不重试）。"""
     headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
     received = 0
+    # 是否已经往外吐过东西（正文或思维链）。吐过就不能再重试——重试会把同一段内容
+    # 再吐一遍：落库的章节/报告会变成重复正文（2026-09-19 mock 供应商实测：中途读超时
+    # 重试 3 次，把 "分片0" 重复吐了 4 遍），聊天里则是同一句话刷屏。
+    emitted = False
     for attempt in range(max_retries + 1):
         if metrics is not None:
             metrics["attempts"] = attempt + 1
@@ -349,12 +357,14 @@ async def _stream_response(
                                 delta = chunk.get("choices", [{}])[0].get("delta", {})
                                 reasoning, content = _delta_texts(delta)
                                 if reasoning and reasoning_cb:
+                                    emitted = True
                                     try:
                                         reasoning_cb(reasoning)
                                     except Exception:
                                         logger.exception("reasoning_cb failed")
                                 if content:
                                     received += len(content)
+                                    emitted = True
                                     yield content
                             except json.JSONDecodeError:
                                 pass
@@ -364,6 +374,11 @@ async def _stream_response(
                     # 因此不重试（重试会导致内容重复），而是抛错让调用方决定如何处理。
                     raise LLMStreamTruncatedError(received)
         except (httpx.TransportError, httpx.TimeoutException) as e:
+            # 同上：已经吐过分片就一律按"流被截断"收尾，绝不重试。
+            if emitted:
+                raise LLMStreamTruncatedError(
+                    received, reason=f"传输中断 {type(e).__name__}: {e}"
+                ) from e
             if attempt < max_retries:
                 await asyncio.sleep(min(8, 2 ** attempt) + random.uniform(0, 0.5))
                 continue
