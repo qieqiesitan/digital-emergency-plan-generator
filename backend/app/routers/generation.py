@@ -67,16 +67,15 @@ router = APIRouter(prefix="/plans", tags=["Generation"])
 
 
 
-_active_generations: dict[str, bool] = {}
-
 _background_tasks: dict[str, asyncio.Task] = {}
 
-_failed_sections: dict[str, list] = {}
+# W2：生成状态改为跨 worker 共享（app_runtime_state），不再用进程内 dict
+from app.services import generation_progress as _gp
 
 
-def _clear_generation_state(plan_id: str) -> None:
+async def _clear_generation_state(plan_id: str) -> None:
     """批量生成结束后清除生成中标记（保留失败清单供前端查询）。"""
-    _active_generations[plan_id] = False
+    await _gp.set_active(plan_id, False)
 
 
 def _html_to_text_summary(html: str, limit: int = 300) -> str:
@@ -818,7 +817,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
     p.status = "generating"
     await db.commit()
-    _active_generations[plan_id] = True
+    await _gp.set_active(plan_id, True)
     plan_type = p.plan_type
 
     # Use a queue to stream events from background task to SSE
@@ -831,7 +830,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
         try:
             await event_queue.put(sse_event("progress", message=f"开始批量生成 {len(section_tuples)} 个章节...", current=0, total=len(section_tuples)))
             async with async_session() as bg_db:
-                _failed_sections[plan_id] = []
+                await _gp.set_failed_sections(plan_id, [])
                 section_key_holder: dict = {}
 
                 async def sse_stream(prompt, cfg, pt, sp, ao):
@@ -862,7 +861,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                         raise
 
                 async def on_progress(section_key, section_title, i):
-                    if not _active_generations.get(plan_id):
+                    if not await _gp.is_active(plan_id):
                         await event_queue.put(sse_event("error", message="生成已取消"))
                         raise _GenerationCancelled()
                     section_key_holder["key"] = section_key
@@ -888,7 +887,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
                     on_section_done=on_section_done,
                 )
                 failed_sections = result["failed_sections"]
-                _failed_sections[plan_id] = failed_sections
+                await _gp.set_failed_sections(plan_id, failed_sections)
 
                 final = await finalize_batch_result(
                     bg_db, plan_id, result["completed"], result["failed"], failed_sections,
@@ -916,7 +915,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
             except Exception:
                 pass
         finally:
-            _clear_generation_state(plan_id)
+            await _clear_generation_state(plan_id)
             await event_queue.put(None)  # Sentinel to close SSE
 
 
@@ -957,7 +956,7 @@ async def stop_generation(
     ))).scalar_one_or_none()
     if not p:
         raise HTTPException(404, "预案不存在")
-    _active_generations[plan_id] = False
+    await _gp.request_cancel(plan_id)
     return {"code": 0, "message": "已请求停止生成"}
 
 
@@ -968,14 +967,13 @@ async def get_generation_status(plan_id: str, current_user=Depends(get_current_u
     ))).scalar_one_or_none()
     if not p:
         raise HTTPException(404, "预案不存在")
-    from app.services import generation_progress as _gp
     import time as _time
-    state = _gp.get_progress(plan_id)
+    state = await _gp.get_progress(plan_id)
     return {
         "code": 0,
         "data": {
-            "generating": _active_generations.get(plan_id, False),
-            "failed_sections": _failed_sections.get(plan_id, []),
+            "generating": await _gp.is_active(plan_id),
+            "failed_sections": await _gp.get_failed_sections(plan_id),
             "phase": state.get("phase", "idle"),
             "section_key": state.get("section_key"),
             "section_title": state.get("section_title"),
@@ -995,7 +993,7 @@ async def get_generation_status(plan_id: str, current_user=Depends(get_current_u
 async def generate_batch_background(plan_id: str, request: Request, current_user=Depends(get_current_user), db=Depends(get_db)):
     p = await _get_plan_or_404(plan_id, current_user, db)
     if p.status == "generating":
-        if not _active_generations.get(plan_id):
+        if not await _gp.is_active(plan_id):
             logger.warning(f"Plan {plan_id} has stale generating status - resetting to draft")
             p.status = "draft"
             await db.commit()
@@ -1015,7 +1013,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
 
     await db.commit()
 
-    _active_generations[plan_id] = True
+    await _gp.set_active(plan_id, True)
 
     plan_type = p.plan_type
 
@@ -1028,7 +1026,7 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
     async def run_background():
         try:
             async with async_session() as bg_db:
-                _failed_sections[plan_id] = []
+                await _gp.set_failed_sections(plan_id, [])
                 result = await run_batch_generation(
                     bg_db=bg_db, plan_id=plan_id, section_tuples=section_ids,
                     ai_config=ai_config, ent_data=ent_data,
@@ -1037,20 +1035,19 @@ async def generate_batch_background(plan_id: str, request: Request, current_user
                     advanced_overrides=p.advanced_prompt_overrides,
                     stream_fn=None,
                     on_progress=None,
-                    should_stop=lambda: not _active_generations.get(plan_id, False),
+                    should_stop=lambda: _gp.is_cancel_requested(plan_id),
                     use_section_number=False,
                 )
                 failed_sections = result["failed_sections"]
-                _failed_sections[plan_id] = failed_sections
+                await _gp.set_failed_sections(plan_id, failed_sections)
                 await finalize_batch_result(
                     bg_db, plan_id, result["completed"], result["failed"], failed_sections,
                 )
         except Exception as e:
             logger.error(f"Background batch generation failed: {e}")
         finally:
-            _clear_generation_state(plan_id)
-            from app.services import generation_progress as _gp
-            _gp.clear_progress(plan_id)
+            await _clear_generation_state(plan_id)
+            await _gp.clear_progress(plan_id)
 
     task = asyncio.create_task(run_background())
 

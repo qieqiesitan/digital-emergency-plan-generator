@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 from app.database import get_db, async_session
 from app.dependencies import get_current_user
+from app.services.runtime_state import release_lease, try_acquire_lease
+from uuid import uuid4
 from app.models.enterprise import Enterprise, EmergencyResource
 from app.models.resource_investigation import ResourceInvestigationReport
 from app.schemas.resource_investigation import (
@@ -46,7 +48,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises", tags=["Resource Investigation"])
 
 # 本进程内正在全量生成的企业（防多标签/重复点击并发跑同一报告）
-_LIVE_RI_GENERATIONS: set[str] = set()
+# W2：跨 worker 生成租约（替代进程内 set）
+RI_LIVE_TTL_SECONDS = 2 * 3600
 
 
 async def _persist_ri_generation(
@@ -314,9 +317,10 @@ async def generate_resource_investigation(
     if not ai_config:
         raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
-    # 并发保护：同一进程内已有全量生成在跑则拒绝；
-    # 重启/断流残留的 generating 行不再拦截，允许重新生成覆盖
-    if enterprise_id in _LIVE_RI_GENERATIONS:
+    # 并发保护：跨 worker 租约（2h TTL；进程崩溃后到期自动可重入）
+    lease_key = f"live:resource_investigation:{enterprise_id}"
+    lease_owner = uuid4().hex
+    if not await try_acquire_lease(lease_key, RI_LIVE_TTL_SECONDS, lease_owner):
         raise HTTPException(400, "已有正在生成的报告，请等待完成")
 
     # Build context
@@ -348,7 +352,6 @@ async def generate_resource_investigation(
     await db.commit()
 
     async def event_generator():
-        _LIVE_RI_GENERATIONS.add(enterprise_id)
         full_content = ""
         chapter_contents: list[dict] = []
         last_summary_struct: dict | None = None
@@ -446,7 +449,7 @@ async def generate_resource_investigation(
             )
             yield sse_event("error", message=str(e))
         finally:
-            _LIVE_RI_GENERATIONS.discard(enterprise_id)
+            await release_lease(lease_key, lease_owner)
 
     stream = BackgroundStream()
     await stream.start(event_generator)

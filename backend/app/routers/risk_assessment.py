@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 from app.database import get_db, async_session
 from app.dependencies import get_current_user
+from app.services.runtime_state import release_lease, try_acquire_lease
+from uuid import uuid4
 from app.models.enterprise import Enterprise, AIConfig
 from app.models.risk_assessment import RiskAssessmentReport
 from app.schemas.risk_assessment import (
@@ -47,7 +49,8 @@ router = APIRouter(prefix="/enterprises", tags=["Risk Assessment"])
 
 # 本进程内正在全量生成的企业（防多标签/重复点击并发跑同一报告；
 # 重启后集合清空，残留的 generating 行可被重新生成覆盖）
-_LIVE_RA_GENERATIONS: set[str] = set()
+# W2：跨 worker 生成租约（替代进程内 set）——多 worker 下才真正防重复生成
+RA_LIVE_TTL_SECONDS = 2 * 3600
 
 
 async def _persist_ra_generation(
@@ -563,9 +566,10 @@ async def generate_risk_assessment(
     if not ai_config:
         raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
 
-    # 并发保护：同一进程内已有全量生成在跑则拒绝；
-    # 重启/断流残留的 generating 行不再拦截，允许重新生成覆盖
-    if enterprise_id in _LIVE_RA_GENERATIONS:
+    # 并发保护：跨 worker 租约（2h TTL；进程崩溃后到期自动可重入）
+    lease_key = f"live:risk_assessment:{enterprise_id}"
+    lease_owner = uuid4().hex
+    if not await try_acquire_lease(lease_key, RA_LIVE_TTL_SECONDS, lease_owner):
         raise HTTPException(400, "已有正在生成的报告，请等待完成")
 
     report = (await db.execute(
@@ -590,7 +594,6 @@ async def generate_risk_assessment(
     _schedule_enterprise_index_rebuild(enterprise_id)
 
     async def event_generator():
-        _LIVE_RA_GENERATIONS.add(enterprise_id)
         full_content = ""
         chapter_contents: list[dict] = []
         last_summary_struct: dict | None = None
@@ -695,7 +698,7 @@ async def generate_risk_assessment(
             )
             yield sse_event("error", message=str(e))
         finally:
-            _LIVE_RA_GENERATIONS.discard(enterprise_id)
+            await release_lease(lease_key, lease_owner)
     stream = BackgroundStream()
     await stream.start(event_generator)
 

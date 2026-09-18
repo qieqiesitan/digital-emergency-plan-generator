@@ -1257,7 +1257,7 @@ async def _get_generation_progress(db, user, args):
     if not p:
         return {"error": "预案不存在", "verified": False}
     # B4：失败章节由 plan_generation_service._run_background 写入，此处统一查询 service
-    failed = get_failed_sections(plan_id)
+    failed = await get_failed_sections(plan_id)
     sections = p.sections or []
     filled = sum(1 for s in sections if s.content and s.content.strip())
     return {

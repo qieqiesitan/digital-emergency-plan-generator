@@ -1,5 +1,6 @@
 """预案批量生成公共实现：从 generation.py 抽取，路由与聊天助手共用。"""
 import asyncio
+import inspect
 import logging
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
@@ -45,14 +46,12 @@ async def reset_stale_generating_plans() -> int:
 
 _background_tasks: dict[str, asyncio.Task] = {}
 
-# 聊天触发后台生成的失败章节记录：_run_background 完成后写入，
-# 供 chat_dispatch.get_generation_progress 查询（B4：与 chat_dispatch 空 dict 合一）。
-_failed_sections: dict[str, list] = {}
 
+async def get_failed_sections(plan_id: str) -> list:
+    """查询指定预案最近一次后台生成失败章节列表（跨 worker，落 app_runtime_state）。"""
+    from app.services import generation_progress as _gp
 
-def get_failed_sections(plan_id: str) -> list:
-    """查询指定预案最近一次后台生成失败章节列表（无记录返回空列表）。"""
-    return _failed_sections.get(plan_id, [])
+    return await _gp.get_failed_sections(plan_id)
 
 
 async def collect_batch_context(plan_id, db, keys=None):
@@ -131,7 +130,9 @@ async def _run_background(plan_id, plan_type, accident_type, style_preference,
             )
             await finalize_batch_result(bg_db, plan_id, result["completed"],
                                         result["failed"], result["failed_sections"])
-            _failed_sections[plan_id] = result["failed_sections"]
+            from app.services import generation_progress as _gp_fail
+
+            await _gp_fail.set_failed_sections(plan_id, result["failed_sections"])
             logger.info("聊天触发批量生成完成 plan=%s %s", plan_id, result)
     except Exception:
         logger.exception("聊天触发批量生成失败 plan=%s", plan_id)
@@ -149,7 +150,7 @@ async def _run_background(plan_id, plan_type, accident_type, style_preference,
     finally:
         _background_tasks.pop(plan_id, None)
         from app.services import generation_progress as _gp
-        _gp.clear_progress(plan_id)
+        await _gp.clear_progress(plan_id)
 
 
 async def run_batch_generation(
@@ -199,8 +200,12 @@ async def run_batch_generation(
     bg_section_map = {s.section_key: s for s in bg_sections}
 
     for i, (section_key, section_title) in enumerate(section_tuples):
-        if should_stop and should_stop():
-            break
+        if should_stop:
+            stop = should_stop()
+            if inspect.isawaitable(stop):
+                stop = await stop
+            if stop:
+                break
         if on_progress:
             await on_progress(section_key, section_title, i)
         s = bg_section_map.get(section_key)
@@ -217,7 +222,7 @@ async def run_batch_generation(
             prompt_text = _build_section_prompt(section_title, ent_data, **prompt_kwargs)
             async def _fetch_full():
                 if stream_fn is None:
-                    state = _gp.get_progress(plan_id)
+                    state = await _gp.get_progress(plan_id)
                     started_at = state.get("started_at") or _time.time()
                     _gp.set_progress(
                         plan_id, phase="thinking", section_key=section_key,

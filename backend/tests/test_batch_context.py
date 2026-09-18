@@ -105,12 +105,14 @@ async def test_generate_batch_background_running_guard(monkeypatch):
     result = MagicMock()
     result.scalar_one_or_none.return_value = p
     db.execute.return_value = result
-    gen._active_generations["p1"] = True
+    from app.services import generation_progress as gp
+
+    await gp.set_active("p1", True)
     try:
         resp = await gen.generate_batch_background("p1", MagicMock(), MagicMock(id="u1"), db)
         assert resp == {"code": 0, "message": "正在生成中"}
     finally:
-        gen._active_generations.pop("p1", None)
+        await gp.set_active("p1", False)
 
 
 @pytest.mark.asyncio
@@ -183,7 +185,6 @@ async def test_generate_batch_sse_event_sequence(monkeypatch):
     ])
     request = MagicMock()
     request.json = AsyncMock(return_value={"section_keys": ["sec_1"]})
-    gen._failed_sections.pop("p1", None)
     try:
         resp = await gen.generate_batch("p1", request, MagicMock(id="u1"), db)
         body = "".join([c async for c in resp.body_iterator])
@@ -193,8 +194,7 @@ async def test_generate_batch_sse_event_sequence(monkeypatch):
         assert "sec_1" in body
         assert "开始批量生成 1 个章节" in body
     finally:
-        gen._active_generations.pop("p1", None)
-        gen._failed_sections.pop("p1", None)
+        pass
 
 
 @pytest.mark.asyncio
@@ -202,7 +202,7 @@ async def test_stream_llm_chunks_yields_each_chunk(monkeypatch):
     """回归：_stream_llm_chunks 必须逐 chunk 产出（SSE 逐 token 推送的根基）。"""
     from app.routers import generation as gen
 
-    async def fake_completion(messages, ai_config, stream=True, timeout=120):
+    async def fake_completion(messages, ai_config, stream=True, timeout=120, **kwargs):
         async def _inner():
             for c in ["第", "一", "章"]:
                 yield c

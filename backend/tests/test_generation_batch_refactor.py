@@ -199,18 +199,17 @@ async def test_run_batch_generation_collects_failures():
     assert out["failed_sections"] == [{"section_key": "sec_1", "title": "总则"}]
 
 
-def test_clear_generation_state_resets_active_flag(monkeypatch):
+@pytest.mark.asyncio
+async def test_clear_generation_state_resets_active_flag():
+    """W2：active 标记改为共享存储；清标记不得清掉失败清单（前端还要查）。"""
     import app.routers.generation as gen
+    from app.services import generation_progress as gp
 
-    gen._active_generations["p1"] = True
-    gen._failed_sections["p1"] = [{"section_key": "sec_1", "title": "总则"}]
-    try:
-        gen._clear_generation_state("p1")
-        assert gen._active_generations.get("p1", False) is False
-        assert gen._failed_sections.get("p1") == [{"section_key": "sec_1", "title": "总则"}]
-    finally:
-        gen._active_generations.pop("p1", None)
-        gen._failed_sections.pop("p1", None)
+    await gp.set_active("p1", True)
+    await gp.set_failed_sections("p1", [{"section_key": "sec_1", "title": "总则"}])
+    await gen._clear_generation_state("p1")
+    assert await gp.is_active("p1") is False
+    assert await gp.get_failed_sections("p1") == [{"section_key": "sec_1", "title": "总则"}]
 
 
 @pytest.mark.asyncio

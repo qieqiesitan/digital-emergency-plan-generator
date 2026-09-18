@@ -51,7 +51,7 @@ async def test_generation_progress_completed():
     result.scalar_one_or_none.return_value = p
     db.execute.return_value = result
     failed = [{"section_key": "sec_1", "title": "总则"}]
-    with patch("app.services.chat_dispatch.get_failed_sections", return_value=failed):
+    with patch("app.services.chat_dispatch.get_failed_sections", new=AsyncMock(return_value=failed)):
         out = await _get_generation_progress(db, MagicMock(id="u1"), {"plan_id": "p1"})
     assert out["status"] == "completed"
     assert out["failed_sections"] == failed
@@ -66,18 +66,18 @@ async def test_generation_progress_shows_failed_sections():
     result.scalar_one_or_none.return_value = p
     db.execute.return_value = result
     failed = [{"section_key": "sec_2", "title": "应急组织"}, {"section_key": "sec_3", "title": "保障措施"}]
-    with patch("app.services.chat_dispatch.get_failed_sections", return_value=failed):
+    with patch("app.services.chat_dispatch.get_failed_sections", new=AsyncMock(return_value=failed)):
         out = await _get_generation_progress(db, MagicMock(id="u1"), {"plan_id": "p1"})
     assert out["failed_sections"] == failed
 
 
-def test_get_failed_sections_returns_recorded():
-    plan_generation_service._failed_sections["p1"] = [{"section_key": "sec_1", "title": "总则"}]
-    try:
-        assert get_failed_sections("p1") == [{"section_key": "sec_1", "title": "总则"}]
-        assert get_failed_sections("unknown_plan") == []
-    finally:
-        plan_generation_service._failed_sections.pop("p1", None)
+@pytest.mark.asyncio
+async def test_get_failed_sections_returns_recorded():
+    from app.services import generation_progress as gp
+
+    await gp.set_failed_sections("p1", [{"section_key": "sec_1", "title": "总则"}])
+    assert await get_failed_sections("p1") == [{"section_key": "sec_1", "title": "总则"}]
+    assert await get_failed_sections("unknown_plan") == []
 
 
 @pytest.mark.asyncio
@@ -94,7 +94,4 @@ async def test_run_background_records_failed_sections():
          patch("app.services.plan_generation_service.finalize_batch_result", new=AsyncMock()):
         await _run_background("p1", "comprehensive", "火灾", None, None,
                               [("sec_1", "总则"), ("sec_2", "应急组织")], None, {})
-    try:
-        assert plan_generation_service._failed_sections.get("p1") == failed
-    finally:
-        plan_generation_service._failed_sections.pop("p1", None)
+    assert await get_failed_sections("p1") == failed

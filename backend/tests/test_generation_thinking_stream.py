@@ -50,7 +50,7 @@ async def test_run_batch_generation_default_branch_updates_progress(monkeypatch)
     from app.services.plan_generation_service import run_batch_generation
     from app.routers import generation as gen
 
-    gp.clear_progress("p-progress")
+    await gp.clear_progress("p-progress")
     bg_db = AsyncMock()
     sec1 = MagicMock()
     sec1.section_key = "sec_1"
@@ -76,7 +76,7 @@ async def test_run_batch_generation_default_branch_updates_progress(monkeypatch)
         section_tuples=[("sec_1", "总则")], ai_config=MagicMock(), ent_data={},
         plan_type="comprehensive", use_section_number=False,
     )
-    state = gp.get_progress("p-progress")
+    state = await gp.get_progress("p-progress")
     assert state.get("section_key") == "sec_1"
     assert state.get("thinking_brief")
-    gp.clear_progress("p-progress")
+    await gp.clear_progress("p-progress")
