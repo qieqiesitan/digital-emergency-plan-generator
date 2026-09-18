@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.password_reset import PasswordResetToken
 from app.routers.auth import forgot_password, reset_password
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
 

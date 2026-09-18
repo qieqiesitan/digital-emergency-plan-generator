@@ -1,5 +1,5 @@
 from datetime import datetime as _datetime
-from typing import Annotated, Generic, TypeVar, Optional
+from typing import Annotated, Generic, TypeVar
 from pydantic import BaseModel, BeforeValidator
 
 T = TypeVar("T")

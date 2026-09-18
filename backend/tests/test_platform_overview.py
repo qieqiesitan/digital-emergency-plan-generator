@@ -1,6 +1,6 @@
 """跨企业总览聚合。"""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 

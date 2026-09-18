@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.enterprise import AIConfig
-from app.schemas.ai_config import AIConfigCreate, AIConfigUpdate, AIConfigResponse, AITestRequest, AITestResult
+from app.schemas.ai_config import AIConfigCreate, AIConfigResponse, AITestRequest, AITestResult
 from app.schemas.common import ApiResponse
 from app.dependencies import require_admin
-from app.config import settings
 from app.services.secret_utils import decrypt_secret, encrypt_secret
 import httpx
 

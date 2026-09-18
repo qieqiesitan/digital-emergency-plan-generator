@@ -1,4 +1,4 @@
-﻿import os
+import os
 path = r"C:\Users\55061\Documents\数字化预案自动生成 2\backend\app\routers\chat.py"
 with open(path, "r", encoding="utf-8") as f:
     content = f.read()

@@ -1,6 +1,5 @@
 """test_enterprise_knowledge.py — 企业画像索引。"""
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 from app.services.enterprise_knowledge_service import (
     _build_enterprise_text, EnterpriseKnowledgeStore,

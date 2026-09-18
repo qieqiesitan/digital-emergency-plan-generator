@@ -1,4 +1,3 @@
-from datetime import datetime
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select

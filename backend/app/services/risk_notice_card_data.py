@@ -4,8 +4,10 @@
 警告=黄底黑边正三角 / 禁止=白底红圈红斜杠 / 指令=蓝底白圆 / 提示=绿底白方。
 """
 
-from app.services.accident_types import ACCIDENT_TYPES_2025
-from app.services.risk_mapping_service import LEVEL_COLORS
+# 显式转出口（app.routers.risk_notice_card 等从本模块导入这两个名字）：
+# 用 `as` 冗余别名让 F401 识别为 re-export，而不是可删除的无用导入。
+from app.services.accident_types import ACCIDENT_TYPES_2025 as ACCIDENT_TYPES_2025
+from app.services.risk_mapping_service import LEVEL_COLORS as LEVEL_COLORS
 
 # 安全标志排列顺序（GB 2894-2025：警告→禁止→指令→提示）
 SIGN_CATEGORY_ORDER = ["warning", "prohibition", "instruction", "notice"]

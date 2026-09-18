@@ -1,4 +1,4 @@
-﻿"""数据迁移脚本: 对现有法规回填 article 子节点 + 更新向量索引 + 重建 index.yaml。
+"""数据迁移脚本: 对现有法规回填 article 子节点 + 更新向量索引 + 重建 index.yaml。
 
 用法:
   cd backend

@@ -1,22 +1,15 @@
-import os, re, markdown, io, asyncio, hashlib, html, logging, traceback
+import re, markdown, io, html, logging, traceback
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-from app.models.user import User
 from app.models.enterprise import EmergencyResource, Enterprise, PlanProject, PlanSection, PlanTemplate
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
-from app.config import settings
 from pydantic import BaseModel
-from app.services.mermaid_renderer import (
-    render_mermaid_png, render_svg_to_png,
-    _mermaid_hash, replace_mermaid_with_placeholders
-)
 from app.services.docx_template import (
-    generate_plan_docx, fix_markdown_tables, _wrap_raw_mermaid,
-    html_to_docx_content
+    generate_plan_docx, fix_markdown_tables, _wrap_raw_mermaid
 )
 from app.services.plan_section_content import strip_section_heading
 

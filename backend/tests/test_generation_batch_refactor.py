@@ -274,7 +274,6 @@ async def test_run_batch_generation_section_number_toggle(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_batch_generation_on_section_done_counts():
     """SSE 契约：每章完成后回调携带当前 completed/failed 计数。"""
-    from app.routers import generation as gen
     import app.services.plan_generation_service as svc
 
     bg_db = AsyncMock()
@@ -360,7 +359,6 @@ async def test_run_batch_generation_cancel_not_counted_as_failure():
 @pytest.mark.asyncio
 async def test_finalize_batch_result_sets_status_and_snapshot():
     """收尾公共函数：状态判定 + 自动版本快照 + commit，两个端点复用。"""
-    from app.routers import generation as gen
     import app.services.plan_generation_service as svc
 
     bg_db = AsyncMock()

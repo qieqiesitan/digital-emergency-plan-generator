@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, func
+from sqlalchemy import String, Integer, Float, DateTime, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
 from app.database import Base

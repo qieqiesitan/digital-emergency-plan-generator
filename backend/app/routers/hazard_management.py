@@ -94,7 +94,7 @@ from app.services.hazard_ai_service import (
     suggest_checklist_items,
     suggest_schedule,
 )
-from app.services.hazard_service import generate_tasks_for_plan, next_hazard_code
+from app.services.hazard_service import next_hazard_code
 from app.services.hazard_state_machine import apply_transition
 from app.services.risk_ai_service import _get_ai_config
 

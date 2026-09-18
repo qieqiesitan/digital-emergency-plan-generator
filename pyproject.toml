@@ -23,10 +23,6 @@ ignore = [
     "S105", "S106", "S107",  # 测试/默认值里的字符串常量误报
     "S110", "S112",          # try-except-pass/continue：多处是刻意降级，已注释说明
     "S311",   # 非密码学随机（重试抖动）可接受
-    # F401 不进门禁：本仓库多处 import 是"转出口"或 ORM 表/外键注册（如
-    # risk_notice_card_data 再导出 LEVEL_COLORS），自动删除会静默破坏调用方；
-    # 保留为人工评审项（当前 119 处，多为历史遗留），逐模块清理。
-    "F401",
 ]
 
 [tool.ruff.lint.per-file-ignores]

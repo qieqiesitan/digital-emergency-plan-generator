@@ -1,11 +1,10 @@
 """llm_client 扩展与各调用方迁移回归测试。"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
-import httpx
 from fastapi import HTTPException
 
-from app.services.llm_client import LLMError, llm_chat_completion, llm_stream_all, llm_text_completion
+from app.services.llm_client import LLMError
 
 
 class FakeResponse:

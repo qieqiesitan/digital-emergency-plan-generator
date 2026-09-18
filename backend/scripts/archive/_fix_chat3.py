@@ -1,4 +1,4 @@
-﻿import os
+import os
 path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "routers", "chat.py")
 with open(path, "r", encoding="utf-8") as f:
     content = f.read()

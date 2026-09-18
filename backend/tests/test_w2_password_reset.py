@@ -1,9 +1,7 @@
 """W2：忘记密码闭环（管理员重置口径 + 令牌哈希存储）。"""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from app.services.auth_service import hash_reset_token
 

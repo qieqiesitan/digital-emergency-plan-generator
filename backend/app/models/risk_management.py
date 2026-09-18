@@ -6,7 +6,6 @@ from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, ForeignK
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
-from app.models.enterprise import EnterpriseFloor
 
 class RiskAssessmentMethod(Base):
     __tablename__ = "risk_assessment_methods"

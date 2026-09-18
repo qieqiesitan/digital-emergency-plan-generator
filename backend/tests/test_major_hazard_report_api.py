@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.routers import major_hazard
-from app.services.major_hazard_report_data import ReportNotReadyError
 
 
 class _Scalars:

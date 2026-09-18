@@ -6,7 +6,6 @@ Uses a shared singleton browser instance and local Mermaid.js for reliability.
 import hashlib
 import io
 import logging
-import os
 import re
 import html as html_mod
 import asyncio

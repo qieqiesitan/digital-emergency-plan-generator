@@ -1,6 +1,5 @@
 """抽取相关出入参。"""
 
-from typing import Optional
 
 from pydantic import BaseModel, Field
 

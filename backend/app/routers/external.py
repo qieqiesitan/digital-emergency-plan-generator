@@ -1,7 +1,5 @@
 """外部系统接入 API — PROTEGO 商城对接"""
-import asyncio, json, logging, os, re, uuid as uuid_lib
-from datetime import datetime
-from typing import Optional
+import asyncio, logging, os, re
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
@@ -11,15 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import async_session
 from app.models.user import User
 from app.models.enterprise import Enterprise, PlanProject, PlanSection, PlanTemplate, EmergencyResource
-from app.models.enterprise_org import EnterpriseMember
 from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.common import ApiResponse
-from app.config import settings
 from app.services.external_file_store import download_external_files
 from app.services.external_service import notify_callback
 from app.routers.generation import (
     _build_section_prompt, _stream_llm, _collect_enterprise_data, _load_org_members,
-    _enrich_with_reports, _pre_render_mermaid_svgs,
+    _enrich_with_reports,
 )
 from app.services.markdown_utils import md_to_html
 from app.services.prompt_cache import ensure_loaded

@@ -1,5 +1,5 @@
 import asyncio
-import json, os, re, logging
+import os, re, logging
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,7 +23,6 @@ from app.services.ai_config_service import get_system_ai_config
 from app.services.llm_client import decrypt_api_key, llm_chat_completion, llm_stream_all, LLMError
 from app.services.markdown_utils import md_to_html
 from app.services.report_chapter_utils import (
-    chapters_to_summary,
     get_chapters,
     rebuild_chapters_summary,
     upsert_chapter,
@@ -137,8 +136,7 @@ async def skip_risk_assessment(
 
 def _html_table_to_docx(doc, html_table: str):
     """将 HTML <table> 渲染为 python-docx 表格"""
-    from docx.shared import Pt, Inches, RGBColor
-    from docx.oxml.ns import qn
+    from docx.shared import Pt
     soup = BeautifulSoup(html_table, "html.parser")
     table_el = soup.find("table")
     if not table_el:
@@ -281,7 +279,6 @@ def _md_tables_to_html(content: str) -> str:
 
 def _render_content_to_docx(doc, content: str):
     """Render content that may contain interleaved text and HTML tables into docx."""
-    from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     content = _clean_for_docx(content)
     # Split content by HTML table blocks

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.database import get_db
-from app.models.role import Role, Permission, RolePermission
+from app.models.role import Role, Permission
 from app.models.user import User
 from app.schemas.role import RoleResponse, RoleCreate, RoleUpdate, PermissionResponse
 from app.schemas.common import ApiResponse

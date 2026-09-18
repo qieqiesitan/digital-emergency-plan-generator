@@ -21,7 +21,6 @@
 """
 
 from datetime import datetime, timezone
-import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query

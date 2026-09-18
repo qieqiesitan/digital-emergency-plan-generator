@@ -1,6 +1,5 @@
 """AI 调用统计：按能力/模块聚合、失败率、截断计数。"""
 
-from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest

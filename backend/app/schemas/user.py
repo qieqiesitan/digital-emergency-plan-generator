@@ -1,5 +1,4 @@
 from app.schemas.common import DatetimeStr
-from typing import Optional
 from pydantic import BaseModel, field_validator
 from app.schemas.auth import validate_password_strength
 

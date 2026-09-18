@@ -1,6 +1,4 @@
 """test_chat_max_rounds.py — 超轮数部分成功总结。"""
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.routers.chat import _build_final_summary_prompt
 

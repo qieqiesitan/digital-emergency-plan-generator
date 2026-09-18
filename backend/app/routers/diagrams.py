@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.enterprise import PlanProject, PlanSection, Enterprise, EmergencyResource
-from app.models.enterprise_org import EnterpriseMember
 from app.models.hazardous_chemicals import HazardousChemical
 from app.routers.generation import _attach_diagrams, _collect_enterprise_data, _load_org_members
 from app.services.risk_context_builder import build_risk_management_context

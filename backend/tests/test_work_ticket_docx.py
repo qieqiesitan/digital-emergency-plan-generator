@@ -3,7 +3,6 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.services.work_ticket_docx import (
     build_snapshot,

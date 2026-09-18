@@ -44,13 +44,20 @@ def test_ts_nocheck_files_do_not_grow():
 
 
 def test_frontend_sources_have_no_bom():
-    """前端源码不得带 UTF-8 BOM（历史上 BOM 让补丁/脚本工具链异常过一次）。"""
+    """前后端源码都不得带 UTF-8 BOM（历史上 BOM 让补丁/脚本工具链异常过）。"""
     checker = FRONTEND / "scripts" / "check-source-hygiene.mjs"
     assert checker.exists(), "缺少源码卫生检查脚本"
+    bases = (
+        FRONTEND / "src",
+        REPO / "backend" / "app",
+        REPO / "backend" / "tests",
+        REPO / "backend" / "scripts",
+    )
+    suffixes = {".ts", ".tsx", ".css", ".py"}
     offenders = [
         str(p.relative_to(REPO))
-        for p in (FRONTEND / "src").rglob("*")
-        if p.is_file() and p.suffix in {".ts", ".tsx", ".css"}
-        and p.read_bytes()[:3] == b"\xef\xbb\xbf"
+        for base in bases
+        for p in base.rglob("*")
+        if p.is_file() and p.suffix in suffixes and p.read_bytes()[:3] == b"\xef\xbb\xbf"
     ]
     assert not offenders, "以下文件带 UTF-8 BOM：" + ", ".join(offenders)

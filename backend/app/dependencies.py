@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database import get_db, async_session
+from app.database import get_db
 from app.models.user import User
 from app.services.auth_service import decode_token, is_token_revoked
 

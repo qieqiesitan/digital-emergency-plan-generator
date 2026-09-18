@@ -7,7 +7,6 @@ import re
 from datetime import datetime, timezone
 from io import BytesIO
 
-import yaml
 
 from app.services.llm_client import decrypt_api_key, llm_chat_completion, LLMError
 

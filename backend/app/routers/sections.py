@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 import html as _html
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.enterprise import PlanProject, PlanSection, Enterprise

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -13,8 +13,7 @@ from app.schemas.user import UserResponse
 from app.schemas.common import ApiResponse
 from app.services.auth_service import (
     hash_password, verify_password, create_access_token, create_refresh_token,
-    decode_token, generate_password_reset_token, send_password_reset_email,
-    RESET_TOKEN_TTL_MINUTES, revoke_token, is_token_revoked, hash_reset_token,
+    decode_token, revoke_token, is_token_revoked, hash_reset_token,
 )
 from jose import JWTError
 from app.middleware.rate_limit import rate_limited

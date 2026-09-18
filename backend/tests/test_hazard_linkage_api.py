@@ -4,7 +4,7 @@
 强制关联会逼用户乱选，那样"重大危险源区域隐患数"就不可信了。
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 

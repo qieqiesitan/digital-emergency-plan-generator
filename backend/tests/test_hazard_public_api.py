@@ -12,7 +12,6 @@ FastAPI TestClient + dependency_overrides + SQL 文本分发 mock。
 - 响应不暴露内部信息（仅「已提交，待企业管理员确认」）
 """
 
-import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

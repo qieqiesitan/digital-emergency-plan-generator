@@ -1,12 +1,10 @@
 """作业票服务：编号生成、提交校验、审批推进、有效期。"""
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-import pytest
 
 from app.services.work_ticket_service import (
-    SubmitValidationError,
     build_ticket_code,
     next_code_seq,
     validate_before_submit,

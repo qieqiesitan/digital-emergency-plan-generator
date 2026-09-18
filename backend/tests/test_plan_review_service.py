@@ -1,5 +1,4 @@
 """test_plan_review_service.py — 规则审查。"""
-import pytest
 from unittest.mock import MagicMock, patch
 
 from app.services.plan_review_service import review_plan

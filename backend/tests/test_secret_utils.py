@@ -1,4 +1,3 @@
-import pytest
 from app.services.secret_utils import encrypt_secret, decrypt_secret, mask_secret
 
 def test_encrypt_decrypt_roundtrip():

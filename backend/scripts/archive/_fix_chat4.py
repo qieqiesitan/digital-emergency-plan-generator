@@ -1,4 +1,4 @@
-﻿import os, sys
+import os, sys
 git_root = r"C:\Users\55061\Documents\数字化预案自动生成 2"
 os.chdir(git_root)
 

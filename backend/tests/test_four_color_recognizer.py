@@ -3,13 +3,10 @@ import io
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image, ImageDraw
 
 from app.services.four_color_recognizer import (
     ComponentInfo,
-    InterferenceResult,
-    MAX_ZONES,
     build_output_image,
     classify_pixels,
     clean_mask,

@@ -1,17 +1,15 @@
-import json
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.enterprise import Enterprise, EmergencyResource
 from app.models.risk_assessment import RiskAssessmentReport
-from app.models.resource_investigation import ResourceInvestigationReport
 from app.regulations.context_builder import RegulationContextBuilder
 from app.services.report_data_loader import load_chemicals, load_org_members
 from app.services.risk_context_builder import build_risk_management_context
 
 logger = logging.getLogger(__name__)
 
-from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt, build_system_prompt_with_style
+from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt
 from app.services.report_data_authority import with_rule
 
 

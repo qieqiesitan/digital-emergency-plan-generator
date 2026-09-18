@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 from typing import Any, Iterable, Optional
 
 logger = logging.getLogger("major_hazard_report_data")

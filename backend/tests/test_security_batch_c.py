@@ -13,12 +13,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from jose import JWTError
 from pydantic import ValidationError
 
 from app.main import app
 from app.database import get_db
-from app.dependencies import get_current_user, require_admin
+from app.dependencies import require_admin
 from app.models.user import User
 from app.schemas.auth import RegisterRequest, ResetPasswordRequest
 from app.schemas.enterprise import EnterpriseCreate

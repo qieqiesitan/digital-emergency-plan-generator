@@ -1,6 +1,5 @@
 """风险评估多方法计算引擎。支持 LS 矩阵、LEC 评价法、煤矿 LS 矩阵、直接判定法。"""
 
-from typing import Optional
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession

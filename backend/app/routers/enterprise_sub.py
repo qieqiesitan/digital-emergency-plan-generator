@@ -1,8 +1,6 @@
-﻿from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from app.database import get_db
-from app.models.user import User
 from app.models.enterprise import Enterprise, RiskSource, EmergencyResource
 from app.schemas.risk_source import RiskSourceCreate, RiskSourceUpdate, RiskSourceResponse
 from app.schemas.emergency_resource import EmergencyResourceCreate, EmergencyResourceUpdate, EmergencyResourceResponse

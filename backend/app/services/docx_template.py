@@ -18,16 +18,13 @@
 import io
 import re
 import logging
-import traceback
 from datetime import datetime
-from typing import Optional, Callable
 
 from docx import Document
-from docx.shared import Pt, Cm, Inches, RGBColor, Emu
+from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.text import WD_COLOR_INDEX
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn, nsdecls
 
 from docx.oxml import parse_xml, OxmlElement
@@ -1031,7 +1028,7 @@ def generate_plan_docx(
         html_to_docx_content(doc, cleaned, base_level=heading_level)
 
                 # 插入 Mermaid 图片（sync Playwright，线程内直接调用）
-        import base64 as _b64, os as _os
+        import os as _os
         import html as _html
         from playwright.sync_api import sync_playwright
 

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.services.ingest_service import TARGET_WRITERS, confirm_items
+from app.services.ingest_service import TARGET_WRITERS
 from app.services.ingest_writers import register_default_writers
 
 

@@ -1,7 +1,7 @@
-import json, math, os, secrets, logging
+import math, os, secrets, logging
 from io import BytesIO
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete, or_
@@ -9,7 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.enterprise import Enterprise, EnterpriseFloor, RiskSource
 from app.models.risk_management import RiskAssessmentMethod, RiskZone, RiskObject, RiskUnit, RiskEvent, RiskMeasure
 from app.models.hazardous_chemicals import HazardousChemical
@@ -22,7 +21,7 @@ from app.services.risk_source_migration_service import (
     build_migration_preview,
     execute_migration as execute_risk_source_migration,
 )
-from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS, LEVEL_COLORS_REVERSE
+from app.services.risk_mapping_service import ensure_default_floor, validate_polygon_v2, normalize_polygon, effective_color, max_risk_level, cascade_counts, LEVEL_COLORS_REVERSE
 from app.services.risk_control_list_service import (
     ZONE_TREE_OPTIONS,
     build_ledger_workbook,
@@ -34,7 +33,6 @@ from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.enterprise_cleanup_service import delete_floor_risk_mapping, floor_delete_counts
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
-from app.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises/{enterprise_id}/risk-management", tags=["Risk Management"])
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")

@@ -1,12 +1,11 @@
-﻿"""法规库管理 API — CRUD + AI解析 + 废止 + 图谱 + 索引 + 历史 + 源文件。"""
+"""法规库管理 API — CRUD + AI解析 + 废止 + 图谱 + 索引 + 历史 + 源文件。"""
 
 import json
 import logging
 import os
 import difflib
-from io import BytesIO
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

@@ -1,16 +1,12 @@
-import json
 import logging
-from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.risk_assessment import RiskAssessmentReport
 from app.services.risk_context_builder import build_risk_management_context
 from app.regulations.context_builder import RegulationContextBuilder
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 # 提示词缓存（延迟导入，避免循环引用）
-from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt, build_system_prompt_with_style
+from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt
 from app.services.report_data_authority import with_rule
 
 async def build_risk_assessment_context(enterprise_id: str, db: AsyncSession) -> dict:

@@ -1,6 +1,6 @@
 """test_chat_tool_call_logging.py — 工具执行记录写入。"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from app.routers.chat import _record_tool_call
 

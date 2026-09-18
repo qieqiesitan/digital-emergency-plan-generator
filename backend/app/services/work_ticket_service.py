@@ -28,7 +28,6 @@ from app.models.work_ticket import (
     WorkTicketTemplate,
 )
 from app.services.work_ticket_flow import (
-    FlowError,
     can_transition,
     next_node,
     sign_requirement_met,

@@ -1,7 +1,6 @@
 """W0 安全止血回归测试：鉴权依赖断言 + 关键行为验证（先失败后修复）。"""
 
 import importlib.util
-import os
 import socket
 import threading
 from http.server import ThreadingHTTPServer
@@ -15,7 +14,7 @@ from fastapi.testclient import TestClient
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.main import app
-from app.routers import export_tasks, extraction, generation, ingest, major_hazard, platform, regulations, work_ticket
+from app.routers import export_tasks, major_hazard, work_ticket
 
 
 def _routes_for(path: str):

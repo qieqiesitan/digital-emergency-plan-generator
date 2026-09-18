@@ -3,7 +3,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.chat_dispatch import _generate_plan_content, _get_generation_progress
-from app.services import plan_generation_service
 from app.services.plan_generation_service import _run_background, get_failed_sections
 
 

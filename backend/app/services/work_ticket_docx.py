@@ -15,7 +15,6 @@ from datetime import datetime
 from typing import Any, Optional, Sequence
 
 from docx import Document
-from docx.shared import Pt
 
 from app.services.docx_template import (
     add_body_title,

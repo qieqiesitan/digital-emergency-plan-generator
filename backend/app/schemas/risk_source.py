@@ -1,5 +1,4 @@
-﻿from app.schemas.common import DatetimeStr
-from typing import Optional
+from app.schemas.common import DatetimeStr
 from pydantic import BaseModel, field_validator
 
 # 风险可能性/严重性 等级映射（1-5 整数 ↔ 中文标签）

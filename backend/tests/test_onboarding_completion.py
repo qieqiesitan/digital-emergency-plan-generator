@@ -1,7 +1,6 @@
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, Mock
 
-import pytest
 
 from app.services.onboarding_service import compute_completion
 

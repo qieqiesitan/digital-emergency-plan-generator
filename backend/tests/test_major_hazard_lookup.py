@@ -4,7 +4,7 @@
 表3 未命中（该物质不是列名的毒性气体）时要给用户表4 的类别清单自己选。
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 

@@ -1,6 +1,6 @@
 import math
-from datetime import datetime, date
-from typing import Any, Literal, Optional
+from datetime import date
+from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.common import DatetimeStr
 from app.services.risk_mapping_service import LEVEL_COLORS_REVERSE

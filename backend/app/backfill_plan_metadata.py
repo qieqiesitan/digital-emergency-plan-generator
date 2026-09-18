@@ -14,11 +14,11 @@
 import asyncio
 from datetime import datetime
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.database import async_session
 from app.models.enterprise import PlanProject, PlanSection, PlanTemplate
-from app.routers.plans import PLAN_TYPE_CODE, _generate_plan_number
+from app.routers.plans import _generate_plan_number
 
 
 def _walk(structure: list) -> dict:

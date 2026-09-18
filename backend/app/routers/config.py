@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.system import SysConfig
-from app.schemas.system import ConfigItem, ConfigCreate, ConfigUpdate
+from app.schemas.system import ConfigItem, ConfigUpdate
 from app.schemas.common import ApiResponse
 from app.dependencies import require_admin
 

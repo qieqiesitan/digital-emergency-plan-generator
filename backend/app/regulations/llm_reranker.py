@@ -1,4 +1,4 @@
-﻿"""LLM Reranker —— 对 scorer 产出 Top-30 做最终精排，选出 5-8 条最相关条文。
+"""LLM Reranker —— 对 scorer 产出 Top-30 做最终精排，选出 5-8 条最相关条文。
 
 设计考量：
 - 复用用户已有 AI 配置，temperature=0, max_tokens=500

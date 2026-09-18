@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.database import get_db
-from app.models.user import User
 from app.models.enterprise import Enterprise, PlanProject, RiskSource
 from app.schemas.dashboard import DashboardResponse, DashboardStats, DashboardRecentPlan, DashboardRecentEnterprise
 from app.schemas.common import ApiResponse

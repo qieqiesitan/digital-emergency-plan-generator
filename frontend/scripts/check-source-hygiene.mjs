@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * 源码卫生检查：src/ 下不得出现 UTF-8 BOM。
+ * 源码卫生检查：前端 src/ 与后端 app/tests/scripts 下不得出现 UTF-8 BOM。
  *
  * 背景：本项目历史上因 BOM 出过事故（shell 脚本 shebang 失效；package-release.sh
  * 专门做过去 BOM 规范化）。BOM 还会让 apply_patch / diff 这类按字节匹配的工具
  * 行为异常——2026-09-18 修复 lint 债务时就撞到过（Toast.tsx 带 BOM 导致补丁打不上）。
  *
- * 用法：node scripts/check-source-hygiene.mjs（CI 阻塞）
+ * 用法（在 frontend/ 目录下）：node scripts/check-source-hygiene.mjs（CI 阻塞）
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -14,8 +14,13 @@ import { dirname, join, relative, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const scanDirs = [join(root, "src")];
-const exts = [".ts", ".tsx", ".css", ".js", ".jsx", ".mjs"];
+const scanDirs = [
+  join(root, "src"),
+  join(root, "..", "backend", "app"),
+  join(root, "..", "backend", "tests"),
+  join(root, "..", "backend", "scripts"),
+];
+const exts = [".ts", ".tsx", ".css", ".js", ".jsx", ".mjs", ".py"];
 
 /** @type {string[]} */
 const offenders = [];
