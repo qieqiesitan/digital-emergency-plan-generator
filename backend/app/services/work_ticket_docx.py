@@ -57,6 +57,9 @@ def build_snapshot(
     return {
         "code": instance.code,
         "ticket_type": instance.ticket_type,
+        # 票面标题用模板中文名（GB 30871-2022 附录A 的法定票名，如「动火安全作业票」），
+        # 而不是内部缩写（DHZY）——票面是交给监管与作业现场的法律文书。
+        "template_name": getattr(template, "name", None),
         "level": instance.level,
         "status": instance.status,
         "valid_from": _iso(instance.valid_from),
@@ -115,7 +118,8 @@ def render_ticket_docx(*, snapshot: dict, company_name: str = "") -> Document:
     section = doc.sections[0]
     set_page_margins(section, 2.0, 2.0, 2.0, 2.0)
 
-    title = f"{snapshot.get('ticket_type', '')} 安全作业票"
+    # 优先用模板中文名（法定票名），没有时退回「类型码 + 安全作业票」
+    title = snapshot.get("template_name") or f"{snapshot.get('ticket_type', '')} 安全作业票"
     add_body_title(doc, title)
     if company_name:
         add_normal_paragraph(doc, f"单位名称：{company_name}")

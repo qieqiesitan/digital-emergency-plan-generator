@@ -44,6 +44,33 @@ def _template():
     return t
 
 
+def _doc_text(doc) -> str:
+    text = "\n".join(p.text for p in doc.paragraphs)
+    for table in doc.tables:
+        for row in table.rows:
+            text += "\n" + " | ".join(c.text for c in row.cells)
+    return text
+
+
+def test_snapshot_carries_template_name_and_docx_title_uses_it():
+    """票面标题必须是法定票名（中文），不能只印内部缩写 DHZY（2026-09-18 修）。"""
+    snap = build_snapshot(instance=_instance(), template=_template(),
+                          node_records=[], gas_tests=[])
+    assert snap["template_name"] == "动火安全作业票"
+    doc = render_ticket_docx(snapshot=snap, company_name="某公司")
+    text = _doc_text(doc)
+    assert "动火安全作业票" in text
+    assert "DHZY 安全作业票" not in text
+
+
+def test_docx_title_falls_back_to_type_code_when_template_name_missing():
+    snap = build_snapshot(instance=_instance(), template=_template(),
+                          node_records=[], gas_tests=[])
+    snap.pop("template_name")
+    text = _doc_text(render_ticket_docx(snapshot=snap, company_name="某公司"))
+    assert "DHZY 安全作业票" in text
+
+
 def test_build_snapshot_contains_faces_and_measures():
     snap = build_snapshot(
         instance=_instance(),
@@ -73,6 +100,8 @@ def test_snapshot_excludes_nothing_sensitive_field_keys():
     assert set(snap) == {
         "code", "ticket_type", "level", "status", "valid_from", "valid_to",
         "fields", "measures", "node_records", "gas_tests", "copies",
+        # 票面标题用的模板中文名（法定票名），见 test_snapshot_carries_template_name_...
+        "template_name",
     }
 
 
