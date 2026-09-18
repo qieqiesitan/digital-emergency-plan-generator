@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# CRLF 自检：Windows 检出后 shebang 会变成 "#!/usr/bin/env bash\r" 而无法执行
+if head -1 "$0" | grep -q $'\r'; then
+  echo "错误: 本脚本为 CRLF 行尾，Linux 下无法执行。" >&2
+  echo "修复: sed -i 's/\r$//' scripts/*.sh  （或 git add --renormalize scripts）" >&2
+  exit 1
+fi
+
 MODE="full"
 SKIP_BUILD=0
 while [[ "$#" -gt 0 ]]; do

@@ -8,6 +8,13 @@ if [[ "$(head -c3 "$0" 2>/dev/null | od -An -tx1 | tr -d ' \n')" == "efbbbf" ]];
   exit 1
 fi
 
+# CRLF 自检：Windows 检出后 shebang 会变成 "#!/usr/bin/env bash\r" 而无法执行
+if head -1 "$0" | grep -q $'\r'; then
+  echo "错误: 本脚本为 CRLF 行尾，Linux 下无法执行。" >&2
+  echo "修复: sed -i 's/\r$//' scripts/*.sh  （或 git add --renormalize scripts）" >&2
+  exit 1
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
