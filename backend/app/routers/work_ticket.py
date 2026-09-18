@@ -21,6 +21,7 @@ from app.models.work_ticket import (
     WorkTicketTemplate,
 )
 from app.schemas.work_ticket import GasTestIn, NodeActionIn, OpenTicketIn, TicketOut
+from app.services.access_control import ensure_enterprise_owned, ensure_ticket_owned
 from app.services.work_ticket_docx import build_snapshot, content_hash, render_ticket_docx
 from app.services.work_ticket_service import (
     SubmitValidationError,
@@ -30,7 +31,7 @@ from app.services.work_ticket_service import (
     submit_ticket,
 )
 
-router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"])
+router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Depends(get_current_user)])
 
 
 def _ok(data):
@@ -122,8 +123,10 @@ async def list_tickets(
     ticket_type: str | None = Query(default=None),
     status: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """票列表。单入口 + 类型筛选的落点：前端只调这一个端点换筛选条件。"""
+    await ensure_enterprise_owned(db, user, enterprise_id)
     stmt = select(WorkTicketInstance).where(WorkTicketInstance.enterprise_id == enterprise_id)
     if ticket_type:
         stmt = stmt.where(WorkTicketInstance.ticket_type == ticket_type)
@@ -141,6 +144,7 @@ async def api_open_ticket(
     user=Depends(get_current_user),
 ):
     try:
+        await ensure_enterprise_owned(db, user, payload.enterprise_id)
         instance = await open_ticket(
             db,
             enterprise_id=payload.enterprise_id,
@@ -158,11 +162,12 @@ async def api_open_ticket(
 
 @router.post("/tickets/{ticket_id}/gas-tests")
 async def api_add_gas_test(
-    ticket_id: str, payload: GasTestIn, db: AsyncSession = Depends(get_db)
+    ticket_id: str,
+    payload: GasTestIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
-    res = await db.execute(select(WorkTicketInstance).where(WorkTicketInstance.id == ticket_id))
-    if res.scalar_one_or_none() is None:
-        raise HTTPException(404, "作业票不存在")
+    await ensure_ticket_owned(db, user, ticket_id)
     db.add(WorkTicketGasTest(instance_id=ticket_id, **payload.model_dump()))
     await db.commit()
     return _ok({"ticket_id": ticket_id})
@@ -173,6 +178,7 @@ async def api_submit(
     ticket_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
 ):
     try:
+        await ensure_ticket_owned(db, user, ticket_id)
         out = await submit_ticket(db, instance_id=ticket_id, user_id=getattr(user, "id", None))
     except SubmitValidationError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -189,6 +195,7 @@ async def api_node_action(
     user=Depends(get_current_user),
 ):
     try:
+        await ensure_ticket_owned(db, user, ticket_id)
         out = await act_on_node(
             db,
             instance_id=ticket_id,
@@ -202,16 +209,15 @@ async def api_node_action(
 
 
 @router.get("/tickets/{ticket_id}")
-async def api_ticket_detail(ticket_id: str, db: AsyncSession = Depends(get_db)):
+async def api_ticket_detail(
+    ticket_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
     """票详情：实例 + 气体检测 + 审批记录。
 
     计划原文的端点清单只有列表与打印，而详情页要展示"气体检测表 + 审批记录时间线"，
     这两块数据无处可取，故补这一个只读端点（与列表同为统一信封）。
     """
-    res = await db.execute(select(WorkTicketInstance).where(WorkTicketInstance.id == ticket_id))
-    instance = res.scalar_one_or_none()
-    if instance is None:
-        raise HTTPException(404, "作业票不存在")
+    instance = await ensure_ticket_owned(db, user, ticket_id)
     gas_res = await db.execute(
         select(WorkTicketGasTest)
         .where(WorkTicketGasTest.instance_id == ticket_id)
@@ -255,10 +261,7 @@ async def api_ticket_detail(ticket_id: str, db: AsyncSession = Depends(get_db)):
 @router.get("/tickets/{ticket_id}/print.docx")
 async def api_print_ticket(ticket_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     """打印法定票面。**每次打印生成一份不可变快照**，版本号递增。"""
-    res = await db.execute(select(WorkTicketInstance).where(WorkTicketInstance.id == ticket_id))
-    instance = res.scalar_one_or_none()
-    if instance is None:
-        raise HTTPException(404, "作业票不存在")
+    instance = await ensure_ticket_owned(db, user, ticket_id)
 
     tpl_res = await db.execute(
         select(WorkTicketTemplate).where(WorkTicketTemplate.id == instance.template_id)

@@ -121,4 +121,5 @@ def test_submit_returns_422_on_validation_failure():
 
     client = _client(handler)
     resp = client.post("/api/v1/work-ticket/tickets/missing/submit")
-    assert resp.status_code in (409, 422)
+    # W0：票不存在/无权访问统一 404（原 409/422 语义保留给校验失败场景）
+    assert resp.status_code in (404, 409, 422)

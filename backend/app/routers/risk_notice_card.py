@@ -263,7 +263,7 @@ async def export_cards(
 
     os.makedirs(settings.EXPORT_DIR, exist_ok=True)
     file_key = (
-        f"risk-notice-{enterprise_id[:8]}-"
+        f"risk-notice-{enterprise_id}-"
         f"{datetime.now().strftime('%Y%m%d%H%M%S-%f')}.docx"
     )
     out_path = os.path.join(settings.EXPORT_DIR, file_key)

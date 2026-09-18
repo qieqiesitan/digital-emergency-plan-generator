@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.routers import platform
 
 
@@ -42,6 +43,14 @@ def _client(handler):
         yield db
 
     app.dependency_overrides[get_db] = _db
+
+    async def _user():
+        u = MagicMock()
+        u.id = "admin1"
+        u.role = "admin"  # W0：平台端点已收口为管理员专用
+        return u
+
+    app.dependency_overrides[get_current_user] = _user
     return TestClient(app)
 
 

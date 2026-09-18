@@ -1,6 +1,6 @@
 import os, re, markdown, io, asyncio, hashlib, html, logging, traceback
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
@@ -393,17 +393,16 @@ async def export_plan_docx(
             quality_evidence=quality_evidence or None,
         )
 
-        # 保存
-        os.makedirs(settings.EXPORT_DIR, exist_ok=True)
+        # W0 安全修复：预案导出不再落盘（避免确定性文件名被任何登录用户/匿名枚举下载）
         safe_title = re.sub(r'[\/*?:"<>|]', "_", plan.title)
         filename = f"{safe_title}.docx"
-        filepath = os.path.join(settings.EXPORT_DIR, filename)
-        doc.save(filepath)
-
-        return FileResponse(
-            filepath,
-            filename=filename,
+        buf = io.BytesIO()
+        doc.save(buf)
+        from urllib.parse import quote
+        return Response(
+            content=buf.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
         )
     except Exception as e:
         logger.error(f"DOCX generation failed for plan {plan_id}: {traceback.format_exc()}")

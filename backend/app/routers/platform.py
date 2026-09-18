@@ -5,12 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies import require_admin
 from app.models.ai_capability import AICapability
 from app.schemas.platform import CapabilityOut, CapabilityUpdateIn
 from app.services.ai_usage_stats import usage_stats
 from app.services.platform_overview import overview_totals
 
-router = APIRouter(prefix="/platform", tags=["Platform"])
+router = APIRouter(prefix="/platform", tags=["Platform"], dependencies=[Depends(require_admin)])
 
 
 def _ok(data):

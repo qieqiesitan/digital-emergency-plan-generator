@@ -118,7 +118,7 @@ def test_critical_quantity_lookup_filters_by_keyword():
 
 
 def test_compute_returns_rule_error_as_422():
-    """单元不存在时返回 422 与可读原因，不返回 500。"""
+    """单元不存在/无权访问时返回 404 与可读原因（W0：统一 404 防资源探测）。"""
 
     async def handler(stmt, *a, **k):
         return _Result([])
@@ -127,7 +127,7 @@ def test_compute_returns_rule_error_as_422():
     resp = client.post(
         "/api/v1/major-hazard/units/u-missing/compute", json={"exposed_population": 0}
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 404
     assert "单元" in resp.json()["detail"]
 
 
@@ -183,9 +183,15 @@ def test_put_record_creates_when_missing():
 
     async def handler(stmt, *a, **k):
         text = str(stmt)
+        if "FROM enterprises" in text or "enterprises" in text:
+            ent = MagicMock()
+            ent.id = "e1"
+            ent.user_id = "user1"
+            return _Result([ent])
         if "major_hazard_units" in text:
             unit = MagicMock()
             unit.id = "u1"
+            unit.enterprise_id = "e1"
             return _Result([unit])
         return _Result([])
 

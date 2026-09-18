@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
+from app.dependencies import require_admin
 from app.schemas.extraction import RunExtractionIn, SuggestMappingIn
 from app.services.ai_config_service import get_system_ai_config
 from app.services.extraction_prompts import ENTITY_SCHEMAS, ExtractionSchemaError
@@ -14,7 +15,7 @@ from app.services.extraction_service import extract_candidates
 from app.services.file_parser import parse_file_text
 from app.services.schema_matching import suggest_mapping
 
-router = APIRouter(prefix="/extraction", tags=["Extraction"])
+router = APIRouter(prefix="/extraction", tags=["Extraction"], dependencies=[Depends(require_admin)])
 
 
 def _ok(data):
@@ -66,7 +67,11 @@ async def api_run_extraction(payload: RunExtractionIn, db: AsyncSession = Depend
 @router.post("/parse-file")
 async def api_parse_file(file: UploadFile = File(...)):
     """上传文件并转成文本，返回文本供前端预览后再触发抽取。"""
-    data = await file.read()
+    # W0 安全修复：限制单文件大小，避免匿名/超限上传耗尽内存
+    max_bytes = 20 * 1024 * 1024
+    data = await file.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise HTTPException(413, "文件超过 20MB 上限")
     if not data:
         raise HTTPException(422, "文件为空")
     try:

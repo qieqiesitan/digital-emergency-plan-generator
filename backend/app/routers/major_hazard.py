@@ -50,10 +50,11 @@ from app.services.major_hazard_service import (
 )
 from app.services.major_hazard_report_data import ReportNotReadyError, build_chapters
 from app.services.report_docx import generate_report_docx
+from app.services.access_control import ensure_enterprise_owned, ensure_major_hazard_unit_owned
 
 logger = logging.getLogger("major_hazard")
 
-router = APIRouter(prefix="/major-hazard", tags=["MajorHazard"])
+router = APIRouter(prefix="/major-hazard", tags=["MajorHazard"], dependencies=[Depends(get_current_user)])
 
 STANDARD = "GB18218-2018"
 
@@ -89,7 +90,9 @@ async def list_critical_quantities(
 async def list_units(
     enterprise_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
+    await ensure_enterprise_owned(db, user, enterprise_id)
     res = await db.execute(
         select(MajorHazardUnit)
         .where(MajorHazardUnit.enterprise_id == enterprise_id)
@@ -103,9 +106,11 @@ async def create_unit(
     enterprise_id: str = Query(...),
     payload: UnitIn = None,
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     if payload is None:
         raise HTTPException(422, "请求体不能为空")
+    await ensure_enterprise_owned(db, user, enterprise_id)
     unit = MajorHazardUnit(enterprise_id=enterprise_id, **payload.model_dump())
     db.add(unit)
     await db.commit()
@@ -118,11 +123,9 @@ async def update_unit(
     unit_id: str,
     payload: UnitIn,
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
-    res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
-    unit = res.scalar_one_or_none()
-    if unit is None:
-        raise HTTPException(404, "重大危险源单元不存在")
+    unit = await ensure_major_hazard_unit_owned(db, user, unit_id)
     for key, value in payload.model_dump().items():
         setattr(unit, key, value)
     await db.commit()
@@ -130,18 +133,20 @@ async def update_unit(
 
 
 @router.delete("/units/{unit_id}")
-async def delete_unit(unit_id: str, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
-    unit = res.scalar_one_or_none()
-    if unit is None:
-        raise HTTPException(404, "重大危险源单元不存在")
+async def delete_unit(
+    unit_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    unit = await ensure_major_hazard_unit_owned(db, user, unit_id)
     await db.delete(unit)
     await db.commit()
     return _ok({"id": unit_id})
 
 
 @router.get("/units/{unit_id}/chemicals")
-async def list_unit_chemicals(unit_id: str, db: AsyncSession = Depends(get_db)):
+async def list_unit_chemicals(
+    unit_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
     res = await db.execute(
         select(MajorHazardUnitChemical).where(MajorHazardUnitChemical.unit_id == unit_id)
     )
@@ -153,11 +158,10 @@ async def replace_unit_chemicals(
     unit_id: str,
     payload: list[UnitChemicalIn],
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """整体替换单元内品种清单（前端一次提交整个表格）。"""
-    res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
-    if res.scalar_one_or_none() is None:
-        raise HTTPException(404, "重大危险源单元不存在")
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
     existing = await db.execute(
         select(MajorHazardUnitChemical).where(MajorHazardUnitChemical.unit_id == unit_id)
     )
@@ -178,6 +182,7 @@ async def compute_unit(
 ):
     """执行一次 R 值法计算并写入不可变快照。"""
     try:
+        await ensure_major_hazard_unit_owned(db, user, unit_id)
         snapshot = await compute_unit_snapshot(
             db,
             unit_id=unit_id,
@@ -194,6 +199,7 @@ async def preview_unit(
     unit_id: str,
     payload: ComputeIn,
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """实时预览：只计算不写快照。前端在输入变化（防抖）时调用。
 
@@ -201,6 +207,7 @@ async def preview_unit(
     快照是审计凭证，必须由用户显式点「固化」才产生。
     """
     try:
+        await ensure_major_hazard_unit_owned(db, user, unit_id)
         snapshot = await preview_unit_calculation(
             db, unit_id=unit_id, exposed_population=payload.exposed_population
         )
@@ -210,7 +217,10 @@ async def preview_unit(
 
 
 @router.get("/units/{unit_id}/calculations")
-async def list_calculations(unit_id: str, db: AsyncSession = Depends(get_db)):
+async def list_calculations(
+    unit_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
     res = await db.execute(
         select(MajorHazardCalculation)
         .where(MajorHazardCalculation.unit_id == unit_id)
@@ -220,8 +230,11 @@ async def list_calculations(unit_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/units/{unit_id}/evidence")
-async def list_unit_evidence(unit_id: str, db: AsyncSession = Depends(get_db)):
+async def list_unit_evidence(
+    unit_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
     """查看该重大危险源单元挂载的法规依据。"""
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
     data = await list_evidence(db, owner_type="major_hazard_unit", owner_id=unit_id)
     return _ok(data)
 
@@ -233,6 +246,7 @@ async def attach_unit_evidence(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
     created = await attach_evidence(
         db,
         owner_type="major_hazard_unit",
@@ -244,7 +258,10 @@ async def attach_unit_evidence(
 
 
 @router.get("/units/{unit_id}/record")
-async def get_unit_record(unit_id: str, db: AsyncSession = Depends(get_db)):
+async def get_unit_record(
+    unit_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
     res = await db.execute(select(MajorHazardRecord).where(MajorHazardRecord.unit_id == unit_id))
     record = res.scalar_one_or_none()
     if record is None:
@@ -258,10 +275,11 @@ async def upsert_unit_record(
     payload: RecordIn,
     enterprise_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """档案不存在则创建，存在则按提供的字段局部更新。"""
-    unit_res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
-    if unit_res.scalar_one_or_none() is None:
+    unit = await ensure_major_hazard_unit_owned(db, user, unit_id)
+    if unit.enterprise_id != enterprise_id:
         raise HTTPException(404, "重大危险源单元不存在")
 
     res = await db.execute(select(MajorHazardRecord).where(MajorHazardRecord.unit_id == unit_id))
@@ -324,7 +342,10 @@ class UnitPolygonIn(BaseModel):
 
 @router.put("/units/{unit_id}/polygon")
 async def api_set_unit_polygon(
-    unit_id: str, payload: UnitPolygonIn, db: AsyncSession = Depends(get_db)
+    unit_id: str,
+    payload: UnitPolygonIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """设置单元在平面图上的落点。polygon 结构与 RiskZone.floor_plan_polygon 一致。
 
@@ -332,6 +353,7 @@ async def api_set_unit_polygon(
     """
     if (payload.floor_id is None) != (payload.polygon is None):
         raise HTTPException(422, "floor_id 与 polygon 必须同时提供或同时清空")
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
 
     res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
     unit = res.scalar_one_or_none()
@@ -348,8 +370,10 @@ async def api_set_unit_polygon(
 async def api_list_linkable_risk_objects(
     enterprise_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """列出本企业可关联的风险点。"""
+    await ensure_enterprise_owned(db, user, enterprise_id)
     return _ok(await list_linkable_risk_objects(db, enterprise_id=enterprise_id))
 
 
@@ -358,8 +382,10 @@ async def api_link_risk_object(
     unit_id: str,
     payload: LinkRiskObjectIn,
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """把单元关联到风险点（同企业校验）。"""
+    await ensure_major_hazard_unit_owned(db, user, unit_id)
     try:
         out = await link_risk_object(
             db, unit_id=unit_id, risk_object_id=payload.risk_object_id
@@ -373,16 +399,13 @@ async def api_link_risk_object(
 async def export_unit_report(
     unit_id: str,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """导出《危险化学品重大危险源辨识报告》。没有计算快照时拒绝导出。
 
     报告含企业完整辨识数据，必须登录后才能导出（与同文件 compute/evidence 端点一致）。
     """
-    unit_res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
-    unit = unit_res.scalar_one_or_none()
-    if unit is None:
-        raise HTTPException(404, "重大危险源单元不存在")
+    unit = await ensure_major_hazard_unit_owned(db, user, unit_id)
 
     ent_res = await db.execute(select(Enterprise).where(Enterprise.id == unit.enterprise_id))
     enterprise = ent_res.scalar_one_or_none()
@@ -446,8 +469,10 @@ async def export_unit_report(
 async def api_list_ledger_chemicals(
     enterprise_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """列出本企业危化品台账条目，供单元品种关联选择。"""
+    await ensure_enterprise_owned(db, user, enterprise_id)
     from app.models.hazardous_chemicals import HazardousChemical
 
     res = await db.execute(
@@ -479,12 +504,14 @@ async def api_suggest_design_max(
     chemical_id: str,
     enterprise_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """返回设计最大量的**建议初值** + 口径提示。
 
     注意语义：本接口只给建议，不写库。真正落库要等用户在界面上确认后保存品种清单。
     因为设计最大量与台账最大储存量在标准里是两个口径，直接采用会算小导致漏判。
     """
+    await ensure_enterprise_owned(db, user, enterprise_id)
     try:
         out = await suggest_design_max_from_ledger(
             db, chemical_id=chemical_id, enterprise_id=enterprise_id
@@ -499,8 +526,15 @@ async def api_link_unit_chemical(
     unit_chemical_id: str,
     payload: LinkChemicalIn,
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """把单元品种行关联到危化品台账条目（只写引用，不改数量）。"""
+    row = (await db.execute(
+        select(MajorHazardUnitChemical).where(MajorHazardUnitChemical.id == unit_chemical_id)
+    )).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "单元品种不存在")
+    await ensure_major_hazard_unit_owned(db, user, row.unit_id)
     try:
         out = await link_unit_chemical_to_ledger(
             db, unit_chemical_id=unit_chemical_id, chemical_id=payload.chemical_id

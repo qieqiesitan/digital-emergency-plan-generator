@@ -126,6 +126,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         if path == "/":
             path = "/index.html"
 
+        # 路径穿越防护：规范化后必须仍在 DIST_DIR 内（W0-1 安全修复）
+        dist_root = os.path.realpath(DIST_DIR)
+        candidate = os.path.realpath(os.path.join(dist_root, path.lstrip("/")))
+        if candidate != dist_root and not candidate.startswith(dist_root + os.sep):
+            self.send_error(404)
+            return
+        path = "/" + os.path.relpath(candidate, dist_root).replace(os.sep, "/")
+
         # SPA fallback for /m/ routes
         if path.startswith("/m/") or path.startswith("/m"):
             file_path = os.path.join(DIST_DIR, path.lstrip("/"))

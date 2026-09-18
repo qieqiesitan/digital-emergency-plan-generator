@@ -18,4 +18,7 @@ export const MENU_MAP: Record<string, string> = {
   "/settings/chemical-library": "menu:chemical_library",
   "/settings/data-hub": "menu:data_hub",
   "/settings/data-hub/import": "menu:data_hub",
+  // W0 安全修复：平台总览与 AI 能力管理收口为管理员（与后端 require_admin 对齐）
+  "/platform/overview": "menu:system_config",
+  "/settings/ai-capabilities": "menu:system_config",
 };

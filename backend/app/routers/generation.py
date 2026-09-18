@@ -943,11 +943,18 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
 
 @router.post("/{plan_id}/generate/stop")
-
-async def stop_generation(plan_id: str):
-
+async def stop_generation(
+    plan_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # W0 安全修复：只允许预案所有者停止自己的生成
+    p = (await db.execute(select(PlanProject).where(
+        PlanProject.id == plan_id, PlanProject.user_id == current_user.id
+    ))).scalar_one_or_none()
+    if not p:
+        raise HTTPException(404, "预案不存在")
     _active_generations[plan_id] = False
-
     return {"code": 0, "message": "已请求停止生成"}
 
 

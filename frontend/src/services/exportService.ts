@@ -36,5 +36,9 @@ export async function getExportTaskStatus(taskId: string): Promise<ExportTask> {
 }
 
 export function getDownloadUrl(fileKey: string): string {
-  return `/api/v1/export/download/${fileKey}`;
+  // 下载走 window.open（无法带 Authorization 头）：使用后端 /download 端点支持的
+  // ?token= 查询参数鉴权（W0 安全修复后该端点必须登录，且只能下载本人企业的导出物）
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("access_token") || "" : "";
+  const suffix = token ? `?token=${encodeURIComponent(token)}` : "";
+  return `/api/v1/export/download/${fileKey}${suffix}`;
 }

@@ -24,6 +24,7 @@ def _client(handler):
     async def _user():
         u = MagicMock()
         u.id = "user1"
+        u.role = "admin"  # W0：抽取端点已收口为管理员专用
         return u
 
     app.dependency_overrides[get_db] = _db

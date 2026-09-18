@@ -8,12 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 from app.models.ingest import IngestItem, IngestJob, IngestSource
 from app.schemas.ingest import ConfirmIn, ItemOut, JobIn, JobOut, SourceIn, SourceOut
 from app.services.ingest_service import IngestError, confirm_items, skip_items
 
-router = APIRouter(prefix="/ingest", tags=["Ingest"])
+router = APIRouter(prefix="/ingest", tags=["Ingest"], dependencies=[Depends(require_admin)])
 
 
 def _ok(data):

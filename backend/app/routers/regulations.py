@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.user import User
 from app.models.enterprise import AIConfig, PlanProject, PlanSection
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 from app.regulations import get_graph, get_vector_store
 from app.regulations.sync import (
     ai_parse, ingest_regulation, log_event, get_history, get_source_files,
@@ -35,10 +35,6 @@ async def _get_ai_config(user_id: str, db: AsyncSession) -> AIConfig:
         raise HTTPException(400, "系统未配置 AI 模型，请联系管理员")
     return r
 
-
-async def _require_admin(user: User):
-    if user.role != "admin":
-        raise HTTPException(403, "仅管理员可操作")
 
 # ── 查重 / 影响分析 辅助函数 ──
 
@@ -289,10 +285,9 @@ async def create_regulation(
     data: str = Form(...),
     file: UploadFile = File(None),
     force: bool = Form(False),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-# ponytail: admin check removed for usability
     parsed = json.loads(data)
     code = parsed.get("code", "")
     if not code:
@@ -346,9 +341,8 @@ async def update_regulation(
     regulation_id: str,
     data: str = Form(...),
     file: UploadFile = File(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
-# ponytail: admin check removed for usability
     graph = get_graph()
     if not graph.get_node(regulation_id):
         raise HTTPException(404, "法规不存在")
@@ -381,9 +375,8 @@ async def update_regulation(
 @router.delete("/{regulation_id}")
 async def delete_regulation(
     regulation_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
-# ponytail: admin check removed for usability
     graph = get_graph()
     if not graph.delete_node(regulation_id):
         raise HTTPException(404, "法规不存在")
@@ -413,10 +406,9 @@ async def regulation_impact(
 @router.post("/batch/abolish")
 async def batch_abolish_regulations(
     body: dict,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-# ponytail: admin check removed for usability
     ids = body.get("ids", [])
     if not ids:
         raise HTTPException(400, "ids 不能为空")
@@ -452,10 +444,9 @@ async def batch_abolish_regulations(
 async def abolish_regulation(
     regulation_id: str,
     body: dict,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-# ponytail: admin check removed for usability
     replaced_by = body.get("replaced_by", "")
     graph = get_graph()
     if not graph.abolish(regulation_id, replaced_by):
@@ -481,10 +472,9 @@ async def abolish_regulation(
 
 @router.post("/rebuild-index")
 async def rebuild_index(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-# ponytail: admin check removed for usability
     import time
     start = time.time()
     ai_config = await _get_ai_config(current_user.id, db)
