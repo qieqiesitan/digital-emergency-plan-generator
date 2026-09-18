@@ -16,19 +16,23 @@ if head -1 "$0" | grep -q $'\r'; then
 fi
 
 cd "$(cd "$(dirname "$0")" && pwd)/.."
-mkdir -p backups
+# BACKUP_DIR / DB_CONTAINER 可覆盖：演练（rehearsal.sh）在隔离栈上用同名脚本跑备份，
+# 生产不传这两个变量时行为与以前完全一致。
+BACKUP_DIR="${BACKUP_DIR:-backups}"
+DB_CONTAINER_EXPECTED="${DB_CONTAINER:-emergency-plan-db}"
+mkdir -p "$BACKUP_DIR"
 stamp=$(date +%Y%m%d_%H%M%S)
 
 CONTAINER=""
 while IFS= read -r line; do
   line="${line%$'\r'}"
-  if [[ "$line" == "emergency-plan-db" ]]; then
+  if [[ "$line" == "$DB_CONTAINER_EXPECTED" ]]; then
     CONTAINER="$line"
     break
   fi
 done < <(docker ps --format '{{.Names}}')
 if [[ -z "$CONTAINER" ]]; then
-  echo "错误: 未找到运行中的 postgres 容器（emergency-plan-db）。" >&2
+  echo "错误: 未找到运行中的 postgres 容器（$DB_CONTAINER_EXPECTED）。" >&2
   echo "  请确认:" >&2
   echo "  1) 数据库容器正在运行: docker ps" >&2
   echo "  2) 你是在【原部署目录】解压覆盖后执行的，而不是在新解压目录里（新目录与旧容器不在同一 compose 项目）。" >&2
@@ -37,7 +41,7 @@ fi
 
 # 注意：`docker exec` 没有 -T 选项（那是 docker compose exec 的），历史脚本误用会
 # 直接报 "unknown shorthand flag: 'T'"，并在重定向下留下 0 字节假备份。
-dump_file="backups/emergency_plan_${stamp}.dump"
+dump_file="$BACKUP_DIR/emergency_plan_${stamp}.dump"
 if ! docker exec "$CONTAINER" pg_dump -U postgres -d emergency_plan -Fc > "$dump_file"; then
   echo "错误: 数据库备份失败，已删除空文件。" >&2
   rm -f -- "$dump_file"
@@ -51,8 +55,8 @@ fi
 
 # 文件资产（uploads 含企业证照/照片/楼层图；exports 含历史导出物）
 # W3：只备份数据库不够——升级/误删时这些目录无法从 dump 恢复。
-touch "backups/.keep"
-tar czf "backups/files_${stamp}.tar.gz" \
+touch "$BACKUP_DIR/.keep"
+tar czf "$BACKUP_DIR/files_${stamp}.tar.gz" \
   --exclude='backend/exports/_*' \
   --exclude='backend/exports/*.log' \
   backend/uploads backend/exports 2>/dev/null || {
@@ -61,14 +65,14 @@ tar czf "backups/files_${stamp}.tar.gz" \
 
 # 保留策略：默认保留最近 10 份 dump + 10 份文件归档（可用 BACKUP_KEEP 覆盖）
 KEEP="${BACKUP_KEEP:-10}"
-ls -1t backups/emergency_plan_*.dump 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+ls -1t "$BACKUP_DIR"/emergency_plan_*.dump 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
   rm -f -- "$old"; echo "已清理过期备份: $old"
 done
-ls -1t backups/files_*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+ls -1t "$BACKUP_DIR"/files_*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
   rm -f -- "$old"; echo "已清理过期文件归档: $old"
 done
 
-echo "已备份数据库: backups/emergency_plan_${stamp}.dump ($(du -h "backups/emergency_plan_${stamp}.dump" | cut -f1))"
-[[ -f "backups/files_${stamp}.tar.gz" ]] && \
-  echo "已备份文件资产: backups/files_${stamp}.tar.gz ($(du -h "backups/files_${stamp}.tar.gz" | cut -f1))"
+echo "已备份数据库: $BACKUP_DIR/emergency_plan_${stamp}.dump ($(du -h "$BACKUP_DIR/emergency_plan_${stamp}.dump" | cut -f1))"
+[[ -f "$BACKUP_DIR/files_${stamp}.tar.gz" ]] && \
+  echo "已备份文件资产: $BACKUP_DIR/files_${stamp}.tar.gz ($(du -h "$BACKUP_DIR/files_${stamp}.tar.gz" | cut -f1))"
 echo "回滚用法: ./scripts/rollback.sh ${stamp}"

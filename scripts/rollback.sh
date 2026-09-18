@@ -16,17 +16,23 @@ fi
 
 cd "$(cd "$(dirname "$0")" && pwd)/.."
 
+# BACKUP_DIR / DB_CONTAINER / BACKEND_CONTAINER / ROLLBACK_CONFIRM 可覆盖：
+# 演练在隔离栈上复用同一脚本；生产不传这些变量时行为与以前完全一致。
+BACKUP_DIR="${BACKUP_DIR:-backups}"
+DB_CONTAINER="${DB_CONTAINER:-emergency-plan-db}"
+BACKEND_CONTAINER="${BACKEND_CONTAINER:-emergency-plan-backend}"
+
 STAMP="${1:-}"
 if [[ -z "$STAMP" ]]; then
-  STAMP="$(ls -1t backups/emergency_plan_*.dump 2>/dev/null | head -1 | sed -E 's#.*emergency_plan_(.*)\.dump#\1#')"
+  STAMP="$(ls -1t "$BACKUP_DIR"/emergency_plan_*.dump 2>/dev/null | head -1 | sed -E 's#.*emergency_plan_(.*)\.dump#\1#')"
 fi
-DUMP="backups/emergency_plan_${STAMP}.dump"
-FILES="backups/files_${STAMP}.tar.gz"
+DUMP="$BACKUP_DIR/emergency_plan_${STAMP}.dump"
+FILES="$BACKUP_DIR/files_${STAMP}.tar.gz"
 
 if [[ -z "$STAMP" || ! -f "$DUMP" ]]; then
   echo "错误: 未找到备份 $DUMP" >&2
   echo "可用备份:" >&2
-  ls -1t backups/emergency_plan_*.dump 2>/dev/null | sed 's/^/  /' >&2 || true
+  ls -1t "$BACKUP_DIR"/emergency_plan_*.dump 2>/dev/null | sed 's/^/  /' >&2 || true
   echo "用法: ./scripts/rollback.sh [备份时间戳，缺省用最新]" >&2
   exit 1
 fi
@@ -36,21 +42,23 @@ echo "  数据库: $DUMP"
 [[ -f "$FILES" ]] && echo "  文件资产: $FILES"
 echo
 echo "⚠ 这会覆盖当前数据库与 uploads/exports 内容！"
-read -r -p "确认回滚请输入 ROLLBACK: " confirm
+if [[ "${ROLLBACK_CONFIRM:-}" == "ROLLBACK" ]]; then
+  echo "（检测到 ROLLBACK_CONFIRM=ROLLBACK，非交互确认）"
+  confirm="ROLLBACK"
+else
+  read -r -p "确认回滚请输入 ROLLBACK: " confirm
+fi
 if [[ "$confirm" != "ROLLBACK" ]]; then
   echo "已取消。"
   exit 1
 fi
-
-DB_CONTAINER="emergency-plan-db"
-BACKEND_CONTAINER="emergency-plan-backend"
 
 echo "==> 1/4 停止后端（避免恢复期间写入）"
 docker stop "$BACKEND_CONTAINER" >/dev/null 2>&1 || true
 
 echo "==> 2/4 恢复数据库"
 # --clean --if-exists：先删旧对象再重建；恢复前先做一份"回滚前快照"兜底
-SAFETY="backups/pre_rollback_$(date +%Y%m%d_%H%M%S).dump"
+SAFETY="$BACKUP_DIR/pre_rollback_$(date +%Y%m%d_%H%M%S).dump"
 # docker exec 无 -T 选项；失败要立即中止，避免留下 0 字节"安全快照"
 if ! docker exec "$DB_CONTAINER" pg_dump -U postgres -d emergency_plan -Fc > "$SAFETY"; then
   echo "错误: 回滚前快照生成失败，已中止回滚。" >&2

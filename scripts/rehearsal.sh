@@ -220,6 +220,94 @@ else
   warn "镜像内无 check_encryption_health.py（--no-build 复用旧镜像时正常），跳过；重新构建后会自动包含"
 fi
 
+# 5b) 备份 → 破坏 → 回滚 全链路（用生产同名脚本，参数指向演练栈）
+echo "==> 5b/6 备份/回滚链路演练（DR）"
+REH_BACKUP_DIR="$(mktemp -d)"
+REH_DB_CT="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q postgres | head -1)"
+REH_DB_CT_NAME="$(docker inspect -f '{{.Name}}' "$REH_DB_CT" 2>/dev/null | sed 's#^/##')"
+REH_BE_CT="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q backend | head -1)"
+REH_BE_CT_NAME="$(docker inspect -f '{{.Name}}' "$REH_BE_CT" 2>/dev/null | sed 's#^/##')"
+
+# 护栏：容器名必须解析成功，否则 backup/rollback 会回退到默认名（= 生产容器名）造成误操作
+if [[ -z "$REH_DB_CT_NAME" || -z "$REH_BE_CT_NAME" ]]; then
+  fail "无法解析演练容器名（db='$REH_DB_CT_NAME' backend='$REH_BE_CT_NAME'），已中止 DR 演练以免误操作生产容器"
+  exit 1
+fi
+case "$REH_DB_CT_NAME" in
+  ep-rehearsal-*) : ;;
+  *) fail "演练 DB 容器名 '$REH_DB_CT_NAME' 不在 ep-rehearsal 项目内，已中止"; exit 1 ;;
+esac
+case "$REH_BE_CT_NAME" in
+  ep-rehearsal-*) : ;;
+  *) fail "演练后端容器名 '$REH_BE_CT_NAME' 不在 ep-rehearsal 项目内，已中止"; exit 1 ;;
+esac
+
+canary="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -tAc \
+  "insert into sys_config (config_key, config_value, config_type, description) values ('rehearsal_canary','1','string','DR 演练标记') on conflict (config_key) do update set config_value='1' returning config_key;" 2>/dev/null | head -1 | tr -d '[:space:]')"
+if [[ "$canary" == "rehearsal_canary" ]]; then
+  pass "写入 DR 演练标记行（sys_config.rehearsal_canary）"
+else
+  fail "无法写入 DR 演练标记行（回滚校验将无意义）"
+fi
+
+if DB_CONTAINER="$REH_DB_CT_NAME" BACKUP_DIR="$REH_BACKUP_DIR" \
+   bash scripts/backup.sh >/tmp/rehearsal-backup.log 2>&1; then
+  dump_file="$(ls -1t "$REH_BACKUP_DIR"/emergency_plan_*.dump 2>/dev/null | head -1)"
+  if [[ -n "$dump_file" && -s "$dump_file" ]]; then
+    pass "backup.sh 产出非空 dump（$(du -h "$dump_file" | cut -f1)）"
+  else
+    fail "backup.sh 未产出有效 dump（日志 /tmp/rehearsal-backup.log）"
+  fi
+else
+  fail "backup.sh 执行失败（日志 /tmp/rehearsal-backup.log）"
+  tail -5 /tmp/rehearsal-backup.log
+fi
+
+# 模拟"升级把数据搞坏了"：删掉标记行
+docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -c "delete from sys_config where config_key='rehearsal_canary';" >/dev/null 2>&1
+lost="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -tAc "select count(*) from sys_config where config_key='rehearsal_canary';" 2>/dev/null | tr -d '[:space:]')"
+if [[ "${lost:-1}" == "0" ]]; then
+  pass "已模拟数据损坏（标记行被删除）"
+else
+  fail "模拟数据损坏失败"
+fi
+
+stamp_used="$(basename "${dump_file:-emergency_plan_x.dump}" | sed -E 's#emergency_plan_(.*)\.dump#\1#')"
+if ROLLBACK_CONFIRM=ROLLBACK DB_CONTAINER="$REH_DB_CT_NAME" BACKEND_CONTAINER="$REH_BE_CT_NAME" \
+   BACKUP_DIR="$REH_BACKUP_DIR" bash scripts/rollback.sh "$stamp_used" >/tmp/rehearsal-rollback.log 2>&1; then
+  pass "rollback.sh 执行完成（日志 /tmp/rehearsal-rollback.log）"
+else
+  fail "rollback.sh 执行失败（日志 /tmp/rehearsal-rollback.log）"
+  tail -8 /tmp/rehearsal-rollback.log
+fi
+
+restored="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -tAc "select count(*) from sys_config where config_key='rehearsal_canary';" 2>/dev/null | tr -d '[:space:]')"
+if [[ "${restored:-0}" == "1" ]]; then
+  pass "回滚后标记行已恢复（备份/回滚链路可用）"
+else
+  fail "回滚后标记行未恢复（命中 ${restored:-0}，应 1）"
+fi
+
+after_health=""
+for _ in $(seq 1 20); do
+  after_health="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:18000/api/health || true)"
+  [[ "$after_health" == "200" ]] && break
+  sleep 3
+done
+if [[ "$after_health" == "200" ]]; then
+  pass "回滚后后端健康 200"
+else
+  fail "回滚后后端未就绪（code=$after_health）"
+fi
+# 清掉演练标记行，保持空库口径
+docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -c "delete from sys_config where config_key='rehearsal_canary';" >/dev/null 2>&1
+rm -rf "$REH_BACKUP_DIR"
+
 echo "==> 6/6 结果"
 echo "----------------------------------------"
 echo "通过 $PASS 项，失败 $FAIL 项"
