@@ -1,10 +1,21 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 import time
+from types import SimpleNamespace
+
+import bcrypt
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from app.config import settings, is_weak_secret_key
 from app.services.runtime_state import get_state, set_state
+
+# passlib 1.7.4 在首次哈希/校验时会读 bcrypt.__about__.__version__ 做后端自检，
+# 而 bcrypt>=4.1 移除了 __about__ → 每次登录都会往日志里打一条
+# "(trapped) error reading bcrypt version" + AttributeError 回溯（功能正常但噪音很大、
+# 会淹没真实错误）。这里补一个只读属性让 passlib 的自检回到它预期的行为；
+# 不改变哈希算法与密文格式（仍是 $2b$）。
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = SimpleNamespace(__version__=getattr(bcrypt, "__version__", "4.1.3"))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
