@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enterprise import Enterprise
+from app.models.enterprise_org import EnterpriseMember
 
 
 async def ensure_enterprise_owned(
@@ -54,3 +55,38 @@ async def ensure_major_hazard_unit_owned(db: AsyncSession, user, unit_id: str):
         raise HTTPException(404, "重大危险源单元不存在")
     await ensure_enterprise_owned(db, user, unit.enterprise_id, detail="重大危险源单元不存在")
     return unit
+
+
+async def ensure_enterprise_visible(
+    db: AsyncSession,
+    user,
+    enterprise_id: str,
+    *,
+    detail: str = "企业不存在或无权访问",
+) -> tuple[Enterprise, bool]:
+    """读路径可见性：所有者 → (企业, True)；有效成员 → (企业, False)；其余 → 404。
+
+    成员口径：`enterprise_members` 里 `user_id` 已绑定且 `enabled=True`。
+    作业票审批需要非企业主的法定审批人参与，因此这条"成员可见"入口是必要的；
+    具体可见哪些资源由调用方收窄（作业票：仅轮到自己签或自己签过的票）。
+    """
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        raise HTTPException(404, detail)
+    ent = (await db.execute(
+        select(Enterprise).where(Enterprise.id == enterprise_id)
+    )).scalar_one_or_none()
+    if ent is None:
+        raise HTTPException(404, detail)
+    if ent.user_id == user_id:
+        return ent, True
+    member_id = (await db.execute(
+        select(EnterpriseMember.id).where(
+            EnterpriseMember.enterprise_id == enterprise_id,
+            EnterpriseMember.user_id == user_id,
+            EnterpriseMember.enabled.is_(True),
+        ).limit(1)
+    )).scalar_one_or_none()
+    if member_id is None:
+        raise HTTPException(404, detail)
+    return ent, False

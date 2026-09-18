@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, App as AntApp, Button, Input, Modal, Space, Table, Tag, Typography } from "antd";
+import {
+  Alert,
+  App as AntApp,
+  Button,
+  Input,
+  Modal,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { TableColumnsType } from "antd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -13,10 +24,10 @@ const { Text } = Typography;
 /**
  * 审批工作台：审批中的票集中在这里办理。
  *
- * 待办范围目前是"本企业全部审批中的票"：法定审批人（GB 30871-2022 附录B 表B.1）
- * 落在 `work_ticket_flow_nodes.role_code` 上，而系统角色表里还没有这几个角色码，
- * 后端也没有"我的待办"接口，所以这里先按企业 + 审批中筛选，并把每张票的
- * 法定审批人显示出来。按角色收窄待办需要后端补接口（见本任务汇报的遗留项）。
+ * 待办口径：默认「只看我的待办」——后端 `assigned_to_me` 按当前节点可签署人
+ * （GB 30871-2022 附录B 表B.1 的 `role_code` / `countersign_units`，在组织架构里
+ * 按岗位匹配成员）过滤；企业主可关掉开关查看本企业全部审批中的票。
+ * 绑定为成员的审批人即便不传该参数，后端也只返回与其有关的票。
  */
 export default function WorkTicketApprovalPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,10 +38,12 @@ export default function WorkTicketApprovalPage() {
   const [action, setAction] = useState<"approve" | "reject">("approve");
   const [opinion, setOpinion] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [mineOnly, setMineOnly] = useState(true);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["work-ticket-tickets", id, "approving"],
-    queryFn: () => listTickets(id as string, { status: "approving" }),
+    queryKey: ["work-ticket-tickets", id, "approving", mineOnly],
+    queryFn: () =>
+      listTickets(id as string, { status: "approving", assigned_to_me: mineOnly }),
     enabled: Boolean(id),
   });
 
@@ -58,7 +71,7 @@ export default function WorkTicketApprovalPage() {
         message.success(`已流转到：${nodeLabel(result.node)}`);
       }
       setActing(null);
-      await qc.invalidateQueries({ queryKey: ["work-ticket-tickets", id, "approving"] });
+      await qc.invalidateQueries({ queryKey: ["work-ticket-tickets", id] });
     } catch (err) {
       message.error(errorDetail(err, "审批操作失败"));
     } finally {
@@ -132,6 +145,13 @@ export default function WorkTicketApprovalPage() {
           message="法定审批环节不可跳过"
           description="审批人依据 GB 30871-2022 附录B 表B.1；退回后票据回到已退回状态，需修改后重新提交。"
         />
+        <Space size={8}>
+          <Switch checked={mineOnly} onChange={setMineOnly} size="small" />
+          <Text>只看我的待办</Text>
+          <Text type="secondary">
+            （关闭后企业主可查看本企业全部审批中的票；审批成员始终只看到与自己有关的票）
+          </Text>
+        </Space>
         <Table
           rowKey="id"
           size="small"
@@ -139,6 +159,7 @@ export default function WorkTicketApprovalPage() {
           columns={columns}
           dataSource={data ?? []}
           pagination={{ pageSize: 10, showSizeChanger: false }}
+          locale={{ emptyText: mineOnly ? "当前没有轮到你审批的作业票" : "暂无审批中的作业票" }}
         />
       </Space>
 

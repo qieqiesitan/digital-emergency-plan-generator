@@ -498,3 +498,103 @@ async def expire_overdue_tickets(db: AsyncSession, *, now: Optional[datetime] = 
     if rows:
         await db.commit()
     return len(rows)
+
+
+# --- 审批待办（"我的待办"）-------------------------------------------------
+
+
+async def _current_node_sign_state(
+    db: AsyncSession,
+    instances: Sequence,
+    *,
+    enterprise_id: str,
+) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """批量解析审批中票据的「当前节点可签人」与「当前节点已签人」。
+
+    返回 `(eligible_by_instance, signed_by_instance)`；非 approving / 无当前节点 /
+    节点配置缺失的票不会出现在结果里（调用方据此自然过滤掉）。
+    """
+    targets = [i for i in instances if i.status == "approving" and i.current_node_key]
+    if not targets:
+        return {}, {}
+
+    flow_ids = {i.flow_template_id for i in targets if i.flow_template_id}
+    nodes: dict[tuple[str, str], object] = {}
+    if flow_ids:
+        node_res = await db.execute(
+            select(WorkTicketFlowNode).where(
+                WorkTicketFlowNode.flow_template_id.in_(list(flow_ids))
+            )
+        )
+        nodes = {(n.flow_template_id, n.node_key): n for n in node_res.scalars().all()}
+
+    eligible: dict[str, set[str]] = {}
+    for inst in targets:
+        node = nodes.get((inst.flow_template_id, inst.current_node_key))
+        if node is None:
+            continue
+        users = await eligible_users_for_node(db, node, enterprise_id=enterprise_id)
+        eligible[inst.id] = {u for u in users if u}
+    if not eligible:
+        return {}, {}
+
+    node_key_by_instance = {i.id: i.current_node_key for i in targets}
+    signed: dict[str, set[str]] = {}
+    rec_res = await db.execute(
+        select(
+            WorkTicketNodeRecord.instance_id,
+            WorkTicketNodeRecord.node_key,
+            WorkTicketNodeRecord.acted_by,
+        ).where(
+            WorkTicketNodeRecord.instance_id.in_(list(eligible.keys())),
+            WorkTicketNodeRecord.action == "approve",
+        )
+    )
+    for instance_id, node_key, acted_by in rec_res.all():
+        if acted_by and node_key == node_key_by_instance.get(instance_id):
+            signed.setdefault(instance_id, set()).add(acted_by)
+    return eligible, signed
+
+
+async def tickets_pending_for_user(
+    db: AsyncSession,
+    instances: Sequence,
+    *,
+    user_id: Optional[str],
+    enterprise_id: str,
+) -> list:
+    """筛出「当前审批节点轮到该用户签、且该用户还没签」的票（前端"我的待办"）。"""
+    if not user_id:
+        return []
+    eligible, signed = await _current_node_sign_state(db, instances, enterprise_id=enterprise_id)
+    return [
+        inst
+        for inst in instances
+        if inst.id in eligible
+        and user_id in eligible[inst.id]
+        and user_id not in signed.get(inst.id, set())
+    ]
+
+
+async def member_can_view_ticket(
+    db: AsyncSession,
+    instance,
+    *,
+    user_id: Optional[str],
+    enterprise_id: str,
+) -> bool:
+    """非企业主的成员可见性：轮到自己签，或自己在这张票上签过（可回看/打印）。"""
+    if not user_id:
+        return False
+    pending = await tickets_pending_for_user(
+        db, [instance], user_id=user_id, enterprise_id=enterprise_id
+    )
+    if pending:
+        return True
+    acted = (await db.execute(
+        select(WorkTicketNodeRecord.id).where(
+            WorkTicketNodeRecord.instance_id == instance.id,
+            WorkTicketNodeRecord.acted_by == user_id,
+        ).limit(1)
+    )).scalar_one_or_none()
+    return acted is not None

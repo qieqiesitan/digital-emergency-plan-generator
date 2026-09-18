@@ -52,7 +52,12 @@ def _client(handler):
     return TestClient(app)
 
 
-def test_list_tickets_filters_by_type():
+def test_list_tickets_filters_by_type(monkeypatch):
+    # 列表入口现在先判"所有者/成员可见性"，这里固定为所有者，聚焦 ticket_type 过滤本身
+    async def _visible(_db, _user, _enterprise_id, *, detail=None):
+        return MagicMock(), True
+
+    monkeypatch.setattr(work_ticket, "ensure_enterprise_visible", _visible)
     t = MagicMock()
     t.id = "wt1"
     t.code = "DHZY-A-20260917-0001"

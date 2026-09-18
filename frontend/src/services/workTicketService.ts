@@ -21,7 +21,7 @@ export const listTemplates = () =>
 
 export const listTickets = (
   enterpriseId: string,
-  filters?: { ticket_type?: string; status?: string },
+  filters?: { ticket_type?: string; status?: string; assigned_to_me?: boolean },
 ) =>
   api
     .get<ApiResponse<WorkTicketInstance[]>>(`${BASE}/tickets`, {
@@ -29,6 +29,8 @@ export const listTickets = (
         enterprise_id: enterpriseId,
         ticket_type: filters?.ticket_type,
         status: filters?.status,
+        // 绑定为审批成员时后端会强制按人收窄；企业主可用它过滤"轮到我签"的票
+        assigned_to_me: filters?.assigned_to_me || undefined,
       },
     })
     .then((r) => r.data.data);

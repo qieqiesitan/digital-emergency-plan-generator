@@ -234,11 +234,13 @@ def test_node_action_returns_403_when_operator_not_eligible(monkeypatch):
     async def deny(*a, **k):
         raise WorkTicketPermissionError("当前用户不是该节点的会签人")
 
-    async def allow_owned(*a, **k):
+    async def allow_visible(*a, **k):
         return MagicMock(id="t1", enterprise_id="e1")
 
     monkeypatch.setattr(work_ticket, "act_on_node", deny)
-    monkeypatch.setattr(work_ticket, "ensure_ticket_owned", allow_owned)
+    # 读/签字入口在 2026-09-18 从"仅所有者"放宽为"所有者或绑定审批成员"，
+    # 资格判定仍由 act_on_node 负责，这里只放行可见性那一步
+    monkeypatch.setattr(work_ticket, "_visible_ticket", allow_visible)
     client = _client_for(work_ticket.router, user_role="user")
     resp = client.post(
         "/api/v1/work-ticket/tickets/t1/node-action",

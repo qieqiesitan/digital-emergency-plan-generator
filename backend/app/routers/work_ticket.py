@@ -20,7 +20,11 @@ from app.models.work_ticket import (
     WorkTicketTemplate,
 )
 from app.schemas.work_ticket import GasTestIn, NodeActionIn, OpenTicketIn, TicketOut
-from app.services.access_control import ensure_enterprise_owned, ensure_ticket_owned
+from app.services.access_control import (
+    ensure_enterprise_owned,
+    ensure_enterprise_visible,
+    ensure_ticket_owned,
+)
 from app.services.work_ticket_docx import build_snapshot, content_hash, render_ticket_docx
 from app.services.filename_safety import safe_filename
 from app.services.work_ticket_service import (
@@ -30,6 +34,8 @@ from app.services.work_ticket_service import (
     act_on_node,
     open_ticket,
     submit_ticket,
+    member_can_view_ticket,
+    tickets_pending_for_user,
 )
 
 router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Depends(get_current_user)])
@@ -37,6 +43,32 @@ router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Dep
 
 def _ok(data):
     return {"success": True, "code": 200, "message": "success", "data": data}
+
+
+async def _visible_ticket(db: AsyncSession, user, ticket_id: str) -> WorkTicketInstance:
+    """读/签字入口的可见性判定（失败统一 404，不泄露票据是否存在）。
+
+    - 企业主：可见全部票据；
+    - 绑定成员：仅可见「当前节点轮到自己签」或「自己签过」的票。
+    """
+    instance = (await db.execute(
+        select(WorkTicketInstance).where(WorkTicketInstance.id == ticket_id)
+    )).scalar_one_or_none()
+    if instance is None:
+        raise HTTPException(404, "作业票不存在")
+    _ent, is_owner = await ensure_enterprise_visible(
+        db, user, instance.enterprise_id, detail="作业票不存在"
+    )
+    if is_owner:
+        return instance
+    if not await member_can_view_ticket(
+        db,
+        instance,
+        user_id=getattr(user, "id", None),
+        enterprise_id=instance.enterprise_id,
+    ):
+        raise HTTPException(404, "作业票不存在")
+    return instance
 
 
 @router.get("/templates")
@@ -123,11 +155,15 @@ async def list_tickets(
     enterprise_id: str = Query(...),
     ticket_type: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    assigned_to_me: bool = Query(
+        default=False,
+        description="只返回当前用户在当前节点可签署的票",
+    ),
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
     """票列表。单入口 + 类型筛选的落点：前端只调这一个端点换筛选条件。"""
-    await ensure_enterprise_owned(db, user, enterprise_id)
+    _ent, is_owner = await ensure_enterprise_visible(db, user, enterprise_id)
     stmt = select(WorkTicketInstance).where(WorkTicketInstance.enterprise_id == enterprise_id)
     if ticket_type:
         stmt = stmt.where(WorkTicketInstance.ticket_type == ticket_type)
@@ -135,7 +171,16 @@ async def list_tickets(
         stmt = stmt.where(WorkTicketInstance.status == status)
     stmt = stmt.order_by(WorkTicketInstance.created_at.desc())
     res = await db.execute(stmt)
-    return _ok([TicketOut.model_validate(t) for t in res.scalars().all()])
+    instances = list(res.scalars().all())
+    # 企业主看全部；绑定成员（非所有者）无论是否显式传参，都只看到与自己有关的票
+    if assigned_to_me or not is_owner:
+        instances = await tickets_pending_for_user(
+            db,
+            instances,
+            user_id=getattr(user, "id", None),
+            enterprise_id=enterprise_id,
+        )
+    return _ok([TicketOut.model_validate(t) for t in instances])
 
 
 @router.post("/tickets")
@@ -198,7 +243,7 @@ async def api_node_action(
     user=Depends(get_current_user),
 ):
     try:
-        await ensure_ticket_owned(db, user, ticket_id)
+        await _visible_ticket(db, user, ticket_id)
         out = await act_on_node(
             db,
             instance_id=ticket_id,
@@ -222,7 +267,7 @@ async def api_ticket_detail(
     计划原文的端点清单只有列表与打印，而详情页要展示"气体检测表 + 审批记录时间线"，
     这两块数据无处可取，故补这一个只读端点（与列表同为统一信封）。
     """
-    instance = await ensure_ticket_owned(db, user, ticket_id)
+    instance = await _visible_ticket(db, user, ticket_id)
     gas_res = await db.execute(
         select(WorkTicketGasTest)
         .where(WorkTicketGasTest.instance_id == ticket_id)
@@ -266,7 +311,7 @@ async def api_ticket_detail(
 @router.get("/tickets/{ticket_id}/print.docx")
 async def api_print_ticket(ticket_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     """打印法定票面。**每次打印生成一份不可变快照**，版本号递增。"""
-    instance = await ensure_ticket_owned(db, user, ticket_id)
+    instance = await _visible_ticket(db, user, ticket_id)
 
     tpl_res = await db.execute(
         select(WorkTicketTemplate).where(WorkTicketTemplate.id == instance.template_id)
