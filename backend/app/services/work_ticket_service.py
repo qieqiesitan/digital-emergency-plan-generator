@@ -147,6 +147,12 @@ async def open_ticket(
     """开票（草稿态）。编号冲突时重试，最终由数据库唯一约束兜底。"""
     day = datetime.now(timezone.utc)
     prefix = f"{ticket_type}-{enterprise_code}-{day.strftime('%Y%m%d')}-"
+    # 并发发号保护：同一企业内「读 MAX(seq) → 插入」必须串行，否则并发开票会撞
+    # uq_wti_ent_code 唯一约束（实测 8 并发 → 6 个 500 而非重试）。
+    # 锁粒度=单企业行，持锁时间=一次 seq 查询 + INSERT，不影响其他企业。
+    await db.execute(
+        select(Enterprise.id).where(Enterprise.id == enterprise_id).with_for_update()
+    )
     res = await db.execute(
         select(WorkTicketInstance.code).where(
             WorkTicketInstance.enterprise_id == enterprise_id,

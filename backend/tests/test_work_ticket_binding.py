@@ -18,13 +18,15 @@ def _db_with(codes, flow):
     db.commit = AsyncMock()
     db.add = MagicMock()
 
+    lock_result = MagicMock()  # 企业行锁（SELECT ... FOR UPDATE）无返回值使用
+
     code_result = MagicMock()
     code_result.all.return_value = [(c,) for c in codes]
 
     flow_result = MagicMock()
     flow_result.scalar_one_or_none.return_value = flow
 
-    db.execute = AsyncMock(side_effect=[code_result, flow_result])
+    db.execute = AsyncMock(side_effect=[lock_result, code_result, flow_result])
     return db
 
 
@@ -44,6 +46,9 @@ async def test_open_ticket_binds_active_flow_template():
 
     assert instance.flow_template_id == "flow-1"
     assert instance.code.endswith("-0002")
+    # 发号前必须先锁企业行，否则并发开票会撞唯一约束（回归守护）
+    first_stmt = str(db.execute.call_args_list[0].args[0])
+    assert "FOR UPDATE" in first_stmt
 
 
 @pytest.mark.asyncio
