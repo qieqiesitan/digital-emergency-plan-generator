@@ -65,6 +65,11 @@ backend/exports/*.png
 backend/app/regulations/data/chroma_db/*
 !backend/app/regulations/data/chroma_db/README.md
 
+# 用户上传的运行时文件（企业平面图/四色图/资质等）：属租户数据，不进版本库
+# 2026-09-19 之前有 28 个上传文件被误提交（含企业楼层图），已 git rm --cached 移出
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # 二进制
 hdspace.exe
 chmod
