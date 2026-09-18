@@ -102,11 +102,23 @@ async def dispatch(db: AsyncSession, user: User, fn_name: str, args: dict) -> st
         result = await fn(db, user, args)
         return json.dumps(result, ensure_ascii=False, default=str)
     except Exception as e:
-        # ponytail: rollback on error so session stays usable for later calls
-        try:
-            await db.rollback()
-        except Exception:
-            pass
+        # 会话恢复（2026-09-18 修）：
+        # ①只有真正的数据库异常才需要 rollback——普通 Python 异常（如属性名写错）
+        #   回滚会把会话里已加载的对象全部置为过期态；
+        # ②rollback 之后还要清一次 identity map：否则后续工具访问关系属性时会触发
+        #   同步 IO 的懒加载，报 “greenlet_spawn has not been called”，
+        #   表现为“一个坏工具毒化整轮对话里其它工具”。
+        from sqlalchemy.exc import SQLAlchemyError
+
+        if isinstance(e, SQLAlchemyError):
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            try:
+                db.expunge_all()
+            except Exception:
+                pass
         return json.dumps({"error": str(e), "verified": False}, ensure_ascii=False)
 
 
@@ -216,7 +228,9 @@ async def _generic_delete(db, user, args, cfg):
     entity = (await db.execute(query)).scalar_one_or_none()
     if not entity:
         return {"error": f"{cfg['name_cn']}不存在", "verified": False}
-    name = getattr(entity, "name", "")
+    # 显示名按配置取：PlanProject 的字段是 title 而非 name，
+    # 原实现一律读 .name → 删除预案时提示成「」已删除（2026-09-18 修）。
+    name = getattr(entity, cfg.get("label_field", "name"), "") or ""
     enterprise_id = getattr(entity, "enterprise_id", None)
     await db.delete(entity)
     await db.commit()
@@ -292,6 +306,7 @@ _PLAN_CFG.update({
     "order_by": "updated_at",
     "user_id_field": "user_id",
     "enterprise_check": False,
+    "label_field": "title",  # PlanProject 用 title 做显示名，不是 name
 })
 
 
@@ -553,7 +568,18 @@ async def _list_templates(db, user, args):
     if plan_type:
         query = query.where(PlanTemplate.plan_type == plan_type)
     rows = (await db.execute(query)).scalars().all()
-    return {"templates": [{"id": t.id, "name": t.name, "plan_type": t.plan_type, "description": t.description} for t in rows]}
+    # 修复：PlanTemplate 没有 description 列（此前该工具 100% 抛 AttributeError）。
+    # 返回真实存在的字段，并带上章节数便于模型判断模板规模。
+    return {"templates": [
+        {
+            "id": t.id,
+            "name": t.name,
+            "plan_type": t.plan_type,
+            "version": t.version,
+            "section_count": len(t.structure or []),
+        }
+        for t in rows
+    ]}
 
 
 # ── 风险评估报告 ──
