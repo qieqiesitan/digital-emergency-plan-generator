@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import uuid
 from pathlib import Path
 
@@ -73,7 +74,7 @@ def build_sql() -> str:
                 "is_required, options, allow_ai_prefill, sort_order) VALUES "
                 f"({_q(fid)}, {_q(tpl_id)}, {_q(f['field_key'])}, {_q(f['label'])}, "
                 f"{_q(f['field_type'])}, {_q(f['group_name'])}, {_bool(f.get('is_required', False))}, "
-                f"{_q(__import__('json').dumps(options, ensure_ascii=False))}::jsonb, "
+                f"{_q(json.dumps(options, ensure_ascii=False))}::jsonb, "
                 f"{_bool(f.get('allow_ai_prefill', False))}, {idx}) "
                 "ON CONFLICT (id) DO NOTHING;"
             )
@@ -103,18 +104,46 @@ def build_sql() -> str:
             ),
             None,
         )
+        countersign = next(
+            (
+                r.get("countersign")
+                for r in seed.APPROVAL_MATRIX
+                if r["code"] == tpl["code"] and r["level"] == tpl["level"]
+            ),
+            None,
+        )
         lines.append(
             "INSERT INTO work_ticket_flow_templates (id, template_id, name, is_active) "
             f"VALUES ({_q(flow_id)}, {_q(tpl_id)}, {_q(tpl['name'] + ' 审批流程')}, TRUE) "
             "ON CONFLICT (id) DO NOTHING;"
         )
+        order = 1
+        if countersign:
+            node_id = _uid("node", f"{tpl_key}/countersign")
+            units_json = json.dumps(countersign, ensure_ascii=False)
+            # 已部署过 v2 早期版本时，审批节点已在 order=1；先把它挪到会签之后，
+            # 避免 (flow_template_id, sort_order) 唯一约束挡住会签节点插入。
+            lines.append(
+                "UPDATE work_ticket_flow_nodes SET sort_order = 2 "
+                f"WHERE flow_template_id = {_q(flow_id)} "
+                "AND node_key = 'approve' AND countersign_units IS NULL;"
+            )
+            lines.append(
+                "INSERT INTO work_ticket_flow_nodes "
+                "(id, flow_template_id, node_key, name, sort_order, sign_policy, "
+                "reject_to, is_statutory, countersign_units) VALUES "
+                f"({_q(node_id)}, {_q(flow_id)}, 'countersign', '涉及单位会签', {order}, "
+                f"'all', 'submitter', TRUE, {_q(units_json)}::jsonb) "
+                "ON CONFLICT (id) DO NOTHING;"
+            )
+            order += 1
         if approver:
             node_id = _uid("node", f"{tpl_key}/approve")
             lines.append(
                 "INSERT INTO work_ticket_flow_nodes "
                 "(id, flow_template_id, node_key, name, sort_order, role_code, "
                 "sign_policy, reject_to, is_statutory) VALUES "
-                f"({_q(node_id)}, {_q(flow_id)}, 'approve', {_q(approver + '审批')}, 1, "
+                f"({_q(node_id)}, {_q(flow_id)}, 'approve', {_q(approver + '审批')}, {order}, "
                 f"{_q(approver)}, 'any', 'submitter', TRUE) "
                 "ON CONFLICT (id) DO NOTHING;"
             )

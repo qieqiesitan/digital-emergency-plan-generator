@@ -136,6 +136,9 @@ class WorkTicketFlowNode(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
     role_code: Mapped[Optional[str]] = mapped_column(String(30))  # 绑定既有 Role.code
+    # 会签单位清单（如动土的"水/电/汽/工艺/设备/消防/安全管理"）。
+    # 用于"按部门会签"场景——部门是组织概念，不该塞进 Role（角色是权限概念）。
+    countersign_units: Mapped[Optional[list]] = mapped_column(JSONB)
     sign_policy: Mapped[str] = mapped_column(String(10), nullable=False, default="any")  # any|all
     condition_expr: Mapped[Optional[str]] = mapped_column(String(200))  # 受限表达式
     reject_to: Mapped[str] = mapped_column(String(20), nullable=False, default="previous")  # previous|submitter

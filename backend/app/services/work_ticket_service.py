@@ -15,6 +15,8 @@ from typing import Optional, Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.enterprise import Enterprise
+from app.models.enterprise_org import EnterpriseMember
 from app.models.user import User
 from app.models.work_ticket import (
     WorkTicketAuditLog,
@@ -330,7 +332,7 @@ async def act_on_node(
         )
     )
     signed = [row[0] for row in rec_res.all()]
-    eligible = await _eligible_users(db, node)
+    eligible = await eligible_users_for_node(db, node, enterprise_id=instance.enterprise_id)
     if not sign_requirement_met(node, signed_users=signed, eligible_users=eligible):
         await db.commit()
         return {
@@ -359,15 +361,69 @@ async def act_on_node(
     }
 
 
-async def _eligible_users(db: AsyncSession, node) -> list[str]:
-    """取该节点绑定的角色成员。没有 role_code 时返回空列表（会签将判为未完成）。
+async def eligible_users_for_node(
+    db: AsyncSession,
+    node,
+    *,
+    enterprise_id: Optional[str] = None,
+) -> list[str]:
+    """取节点的会签资格人。
 
-    注意：本项目的用户与角色是"字符串对码"关系（`User.role` 存 `Role.code`），
-    不存在 `users.role_id` 外键，因此按值匹配而不是 JOIN。
+    两种来源：
+    - `role_code`：按角色取人（适用于"安全管理部门审批"这类）；
+    - `countersign_units`：按部门取人（适用于动土这种多单位会签）。
+
+    两者都为空时返回空列表——会签将判定为未完成，**不会被静默跳过**。
+    本项目的组织节点保存在 `enterprises.org_structure` JSONB，成员通过
+    `enterprise_members.org_node_id` 挂到节点，因此按单位取人要沿组织树向上匹配。
     """
+    units = getattr(node, "countersign_units", None)
+    if units:
+        unit_names = {u for u in units if u}
+        if not enterprise_id:
+            res = await db.execute(
+                select(EnterpriseMember.user_id).where(EnterpriseMember.user_id.is_not(None))
+            )
+            return [row[0] for row in res.all()]
+
+        res = await db.execute(
+            select(EnterpriseMember.user_id, EnterpriseMember.org_node_id).where(
+                EnterpriseMember.enterprise_id == enterprise_id,
+                EnterpriseMember.enabled.is_(True),
+                EnterpriseMember.user_id.is_not(None),
+            )
+        )
+        members = [(row[0], row[1]) for row in res.all()]
+        ent_res = await db.execute(
+            select(Enterprise.org_structure).where(Enterprise.id == enterprise_id)
+        )
+        org_nodes = ent_res.scalar_one_or_none() or []
+        node_map = {
+            n.get("id"): n
+            for n in org_nodes
+            if isinstance(n, dict) and n.get("id")
+        }
+
+        def _in_units(org_node_id: Optional[str]) -> bool:
+            current = org_node_id
+            seen: set[str] = set()
+            while current and current not in seen:
+                seen.add(current)
+                org_node = node_map.get(current)
+                if not org_node:
+                    return False
+                if org_node.get("name") in unit_names:
+                    return True
+                current = org_node.get("parent_id")
+            return False
+
+        return [user_id for user_id, org_node_id in members if _in_units(org_node_id)]
+
     role_code = getattr(node, "role_code", None)
     if not role_code:
         return []
+    # 本项目的用户与角色是"字符串对码"关系（`User.role` 存 `Role.code`），
+    # 不存在 `users.role_id` 外键，因此按值匹配而不是 JOIN。
     res = await db.execute(select(User.id).where(User.role == role_code))
     return [row[0] for row in res.all()]
 

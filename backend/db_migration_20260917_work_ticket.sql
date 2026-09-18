@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS work_ticket_flow_nodes (
     name VARCHAR(200) NOT NULL,
     sort_order INTEGER NOT NULL,
     role_code VARCHAR(30),
+    countersign_units JSONB,
     sign_policy VARCHAR(10) NOT NULL DEFAULT 'any',
     condition_expr VARCHAR(200),
     reject_to VARCHAR(20) NOT NULL DEFAULT 'previous',
