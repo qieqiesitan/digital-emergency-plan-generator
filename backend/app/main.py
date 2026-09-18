@@ -1,5 +1,6 @@
 import os
 import sys
+import asyncio
 import uuid as uuid_lib
 from contextlib import asynccontextmanager
 import logging
@@ -163,6 +164,9 @@ async def lifespan(app: FastAPI):
                 await run_hazard_scans_leader_only(session)
                 from app.services.work_ticket_service import expire_overdue_tickets_leader_only
                 await expire_overdue_tickets_leader_only(session)
+                # 四色图临时预览的 TTL 回收（否则只涨不减，见 N-34）
+                from app.services.floor_plan_storage_service import purge_four_color_temp
+                await asyncio.to_thread(purge_four_color_temp)
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(_run_hazard_scans_job, "interval", minutes=5,

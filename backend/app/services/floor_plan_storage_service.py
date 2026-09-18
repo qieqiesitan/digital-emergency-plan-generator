@@ -1,4 +1,4 @@
-import logging, re, shutil, uuid
+import logging, re, shutil, time, uuid
 from datetime import datetime
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
@@ -180,3 +180,40 @@ def remove_four_color_temp_dir(enterprise_id: str, floor_id: str, token: str) ->
     if tmp_dir is None:
         return
     shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def purge_four_color_temp(max_age_hours: int = 24) -> int:
+    """清理超时未被确认/取消的四色图临时预览目录，返回删除的目录数。
+
+    为什么需要：`save_four_color_temp` 每次识别都写一份源图，只有"确认导入"（promote）
+    或用户显式取消（DELETE）才会删。用户中途关页面、断网、直接换楼层，这份图就永久残留——
+    2026-09-19 在开发环境实测到 8 月 10 日、9 月 18 日两份残留（磁盘只涨不减）。
+    同楼层再次识别时虽然会清掉同楼层旧目录，但**其它楼层**的残留永远不会被回收。
+    """
+    if max_age_hours <= 0:
+        return 0
+    cutoff = time.time() - max_age_hours * 3600
+    base = UPLOAD_DIR / "enterprises"
+    if not base.is_dir():
+        return 0
+    removed = 0
+    for tmp_root in base.glob(f"*/floors/*/{FOUR_COLOR_TMP}"):
+        try:
+            children = list(tmp_root.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                if child.is_dir() and child.stat().st_mtime < cutoff:
+                    shutil.rmtree(child, ignore_errors=True)
+                    removed += 1
+            except OSError:
+                continue
+        try:  # 目录空了就顺手回收，避免留下空壳
+            if not any(tmp_root.iterdir()):
+                tmp_root.rmdir()
+        except OSError:
+            pass
+    if removed:
+        logger.info("四色图临时文件清理：删除 %d 个超期目录（> %d 小时）", removed, max_age_hours)
+    return removed

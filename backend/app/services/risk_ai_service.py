@@ -126,6 +126,22 @@ def _normalize_smart_guide_hierarchy(data: dict) -> dict:
     return data
 
 
+def normalize_smart_guide_summary(value) -> dict:
+    """把智能导引返回的 summary 归一成 dict。
+
+    为什么需要：模型经常把 summary 写成自然语言（"已生成 3 个分区"）甚至数字，
+    而接口响应模型要求 dict。原样塞进去会抛 Pydantic 校验错，
+    最终变成一个**没有任何提示的 500**（2026-09-19 mock 供应商实测命中）。
+    文本包成 {"text": ...}，无法识别的类型退化为空 dict（前端只用 hierarchy）。
+    """
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        return {"text": text} if text else {}
+    return {}
+
+
 async def suggest_objects(
     zone_name: str,
     zone_desc: str,

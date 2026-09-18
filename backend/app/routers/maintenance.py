@@ -18,6 +18,7 @@ from app.dependencies import require_admin
 from app.schemas.common import ApiResponse
 from app.services.hazard_scheduler import run_hazard_scans_leader_only
 from app.services.work_ticket_service import expire_overdue_tickets_leader_only
+from app.services.floor_plan_storage_service import purge_four_color_temp
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,13 @@ async def run_scans(
     """
     hazard = await run_hazard_scans_leader_only(db)
     expired_tickets = await expire_overdue_tickets_leader_only(db)
-    logger.info("手动触发扫描：hazard=%s expired_tickets=%s", hazard, expired_tickets)
+    # 顺带回收超期未确认的四色图临时预览（纯磁盘操作，无 AI、无锁需求）
+    purged_temp = purge_four_color_temp()
+    logger.info("手动触发扫描：hazard=%s expired_tickets=%s four_color_temp=%s",
+                hazard, expired_tickets, purged_temp)
     return ApiResponse(data={
         "hazard_scans": hazard,
         "expired_tickets": expired_tickets,
+        "four_color_temp_purged": purged_temp,
         "skipped_by_lock": hazard is None or expired_tickets is None,
     })
