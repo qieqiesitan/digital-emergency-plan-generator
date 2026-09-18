@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "lint:ratchet": "node scripts/eslint-ratchet.mjs",
     "test": "vitest run",
     "preview": "vite preview"
   },

@@ -1,0 +1,21 @@
+{
+  "errors": 245,
+  "warnings": 20,
+  "byRule": {
+    "error:@typescript-eslint/no-explicit-any": 56,
+    "error:react-hooks/refs": 41,
+    "error:@typescript-eslint/no-unused-vars": 48,
+    "error:react-hooks/set-state-in-effect": 24,
+    "warning:react-hooks/exhaustive-deps": 20,
+    "error:react-hooks/immutability": 8,
+    "error:react-hooks/purity": 2,
+    "error:no-constant-condition": 1,
+    "error:react-refresh/only-export-components": 28,
+    "error:@typescript-eslint/ban-ts-comment": 26,
+    "error:no-useless-assignment": 3,
+    "error:preserve-caught-error": 2,
+    "error:@typescript-eslint/no-empty-object-type": 5,
+    "error:no-empty": 1
+  },
+  "recordedAt": "2026-09-18"
+}

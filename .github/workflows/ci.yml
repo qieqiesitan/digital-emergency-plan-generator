@@ -51,8 +51,6 @@ jobs:
         run: npx tsc -b
       - name: Unit tests
         run: npx vitest run
-      # 历史遗留：246 条 eslint error（@ts-nocheck 26 个文件、no-explicit-any 等）
-      # 已列入 W3 前端专项收敛，先不阻塞流水线，但每次都会输出当前数量
-      - name: ESLint (non-blocking, tracked debt)
-        continue-on-error: true
-        run: npx eslint .
+      # 历史遗留 245 条 eslint error 已列入 W3 前端专项；棘轮保证"只减不增"
+      - name: ESLint ratchet (blocking on new debt)
+        run: node scripts/eslint-ratchet.mjs
