@@ -15,9 +15,19 @@ if (process.env.VITE_BASE_PATH && !process.env.VITE_BASE_PATH.startsWith("/")) {
   );
 }
 
-// Node 24 has workbox-build compatibility issues
+// Node 24 与 workbox-build 不兼容：过去这里"静默跳过 PWA"，导致不同机器产出的
+// 交付物不一致（一个有 Service Worker 一个没有）。现在改为**大声失败**，
+// 强制使用 Node 22（frontend/Dockerfile 与 .github/workflows/ci.yml 均为 22）。
+// 仅本地调试允许显式设置 ALLOW_PWA_SKIP=1 跳过。
 const majorVersion = parseInt(process.version.slice(1).split(".")[0], 10);
-const skipPWA = majorVersion >= 24;
+if (majorVersion >= 24 && process.env.ALLOW_PWA_SKIP !== "1") {
+  throw new Error(
+    `构建环境 Node ${majorVersion} 与 workbox 不兼容，会导致 PWA 产物缺失。` +
+    "请改用 Node 22（见 frontend/Dockerfile / CI 配置）；" +
+    "若只是本地调试，可设置 ALLOW_PWA_SKIP=1 跳过 PWA。",
+  );
+}
+const skipPWA = process.env.ALLOW_PWA_SKIP === "1";
 
 async function getPlugins() {
   const plugins: any[] = [
