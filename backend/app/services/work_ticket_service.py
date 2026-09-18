@@ -20,6 +20,7 @@ from app.models.work_ticket import (
     WorkTicketAuditLog,
     WorkTicketGasTest,
     WorkTicketInstance,
+    WorkTicketFlowTemplate,
     WorkTicketNodeRecord,
     WorkTicketFlowNode,
     WorkTicketTemplate,
@@ -139,10 +140,12 @@ async def open_ticket(
         )
     )
     seq = next_code_seq([row[0] for row in res.all()])
+    flow_template_id = await resolve_flow_template_id(db, template_id)
 
     instance = WorkTicketInstance(
         enterprise_id=enterprise_id,
         template_id=template_id,
+        flow_template_id=flow_template_id,
         code=build_ticket_code(ticket_type, enterprise_code, day, seq),
         ticket_type=ticket_type,
         level=level,
@@ -163,6 +166,28 @@ async def open_ticket(
     )
     await db.commit()
     return instance
+
+
+async def resolve_flow_template_id(db: AsyncSession, template_id: str) -> str:
+    """取模板对应的启用中审批流程。
+
+    计划原文的 `open_ticket` 没有绑定 `flow_template_id`，而 `_advance_to_first_active_node`
+    依赖它推进节点——不绑定的话每张票提交时都会抛"作业票未绑定审批流程"。
+    这里在开票时解析并绑定；模板没配流程则当场报错，不留下永远提交不了的草稿。
+    """
+    res = await db.execute(
+        select(WorkTicketFlowTemplate)
+        .where(
+            WorkTicketFlowTemplate.template_id == template_id,
+            WorkTicketFlowTemplate.is_active.is_(True),
+        )
+        .order_by(WorkTicketFlowTemplate.created_at)
+        .limit(1)
+    )
+    flow = res.scalar_one_or_none()
+    if flow is None:
+        raise WorkTicketError("该作业票模板尚未配置审批流程，无法开票")
+    return flow.id
 
 
 async def submit_ticket(
