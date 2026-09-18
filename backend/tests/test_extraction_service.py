@@ -129,6 +129,7 @@ async def test_extract_candidates_writes_pending_items():
 @pytest.mark.asyncio
 async def test_extract_candidates_skips_invalid_rows():
     """单条结构不合法只跳过该条，不让整批抽取失败。"""
+    """单条结构不合法只跳过该条，不让整批抽取失败。"""
     ai_json = json.dumps(
         [
             {"payload": {"chemical_name": "氯", "q_design_max": 5}, "source_locator": "a", "confidence": "high"},
@@ -158,3 +159,44 @@ async def test_extract_candidates_skips_invalid_rows():
 
     assert out["queued"] == 1
     assert out["invalid"] == 1
+
+
+@pytest.mark.asyncio
+async def test_idempotency_key_ignores_model_locator_wording():
+    """幂等键只认内容：模型把 locator 从「段1」改写成「第1段」不应产生重复条目。"""
+    created: list = []
+
+    async def fake_create(db, **kwargs):
+        created.append(kwargs)
+        return {"created": True, "item_id": "i"}
+
+    def model_output(locator: str) -> str:
+        return json.dumps(
+            [
+                {
+                    "payload": {"chemical_name": "氯", "q_design_max": 5},
+                    "source_locator": locator,
+                    "confidence": "high",
+                }
+            ],
+            ensure_ascii=False,
+        )
+
+    db = _empty_db()
+    for locator in ("报告.pdf 段1", "报告.pdf 第1段"):
+        with patch(
+            "app.services.extraction_service.llm_text_completion",
+            new=AsyncMock(return_value=model_output(locator)),
+        ), patch("app.services.extraction_service.create_item", side_effect=fake_create):
+            await extract_candidates(
+                db,
+                job_id="j1",
+                source_id="s1",
+                target_entity="major_hazard_unit_chemical",
+                text="x",
+                filename="报告.pdf",
+                ai_config=MagicMock(),
+            )
+
+    assert len(created) == 2
+    assert created[0]["idempotency_key"] == created[1]["idempotency_key"]

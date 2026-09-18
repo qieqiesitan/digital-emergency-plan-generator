@@ -137,10 +137,12 @@ async def extract_candidates(
                 valid, critical_rows=critical_rows, beta_rows=beta_rows
             )
 
+        # 幂等键只用**内容**（剔除模型生成的 source_locator）：
+        # 同一份文件重导、或文件里两行内容完全相同，都应判为重复而不是重复入队。
+        # 若把模型生成的 locator 当键的一部分，模型输出措辞一变键就变，去重会失效。
         key = build_idempotency_key(
             source_id=source_id,
             target=target_entity,
-            external_id=valid.get("source_locator"),
             payload={k: v for k, v in valid.items() if k != "source_locator"},
         )
         out = await create_item(

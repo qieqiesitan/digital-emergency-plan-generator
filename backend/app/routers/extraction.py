@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import get_db
 from app.schemas.extraction import RunExtractionIn, SuggestMappingIn
@@ -50,6 +51,15 @@ async def api_run_extraction(payload: RunExtractionIn, db: AsyncSession = Depend
         )
     except ExtractionSchemaError as exc:
         raise HTTPException(422, str(exc)) from exc
+    # 抽取完成后回填任务计数：否则任务列表里新任务一直显示「进行中 / 0 条」。
+    from app.models.ingest import IngestJob
+    from app.services.ingest_service import update_job_counts
+
+    job = (
+        await db.execute(select(IngestJob).where(IngestJob.id == payload.job_id))
+    ).scalar_one_or_none()
+    if job is not None:
+        await update_job_counts(db, job=job)
     return _ok(out)
 
 
