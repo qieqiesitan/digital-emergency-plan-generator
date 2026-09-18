@@ -11,6 +11,7 @@ from app.services.ai_config_service import get_system_ai_config
 from app.services.llm_client import llm_text_completion
 from app.services.risk_ai_service import _parse_ai_json
 from app.services.db_guard import release_request_connection
+from app.services.emergency_org_service import load_emergency_groups
 
 MODULE_WEIGHTS = {
     "enterprise_info": 10,
@@ -26,7 +27,8 @@ REPORT_WEIGHT_PER = MODULE_WEIGHTS["reports"] // 2
 
 MODULE_LABELS = {
     "enterprise_info": "企业信息",
-    "org_structure": "组织架构",
+    # key 保持 org_structure（前端步骤映射与完成度 payload 已依赖），显示名改成应急组织
+    "org_structure": "应急组织",
     "risk_chemical": "风险与危化品",
     "resources": "应急资源",
     "surrounding": "周边环境",
@@ -46,7 +48,7 @@ async def compute_completion(
 
     done = {}
     done["enterprise_info"] = bool(ent.name and ent.address and ent.industry)
-    done["org_structure"] = _org_done(ent.org_structure)
+    done["org_structure"] = _org_done(await load_emergency_groups(db, enterprise_id))
 
     # RiskEvent 无 enterprise_id 列，经 RiskObject 归属企业（object 级 + unit 级）
     object_events = (await db.execute(
@@ -108,15 +110,19 @@ async def compute_completion(
     return {"percent": total, "modules": modules}
 
 
-def _org_done(org_structure: list | None) -> bool:
-    for group in org_structure or []:
+def _org_done(groups: list | None) -> bool:
+    """应急组织完成度：是否有具名的「总指挥」带头人。
+
+    groups 为应急组织的消费方分组格式（成员带 role_name 应急角色名、role 角色码）。
+    """
+    for group in groups or []:
         if not isinstance(group, dict):
             continue
         for member in group.get("members") or []:
             if not isinstance(member, dict):
                 continue
-            role = str(member.get("role", "") or "")
-            if member.get("name") and ("总指挥" in role or role == "chief" or role == "commander"):
+            role = str(member.get("role_name") or member.get("role") or "")
+            if member.get("name") and ("总指挥" in role or role in ("chief", "commander")):
                 return True
     return False
 

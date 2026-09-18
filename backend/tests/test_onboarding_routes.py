@@ -50,8 +50,8 @@ def _enterprise(**overrides):
     ent.industry = "化工"
     ent.business_scope = "化工生产"
     ent.employee_count = 100
-    ent.org_structure = [{"group_key": "cmd", "group_name": "指挥部",
-                          "members": [{"name": "张三", "role": "chief"}]}]
+    # 公司组织架构不再参与完成度；应急组织由 load_emergency_groups 提供（见 completion 用例）
+    ent.org_structure = []
     ent.surrounding_info = {"nearby_units": [{"name": "加油站"}], "sensitive_targets": []}
     for key, value in overrides.items():
         setattr(ent, key, value)
@@ -93,10 +93,17 @@ def _completion_db(ent):
     return db
 
 
-def test_completion_owner_200(client):
+def test_completion_owner_200(client, monkeypatch):
     test_client, current_user = client
     app = test_client.app
     ent = _enterprise()
+    from app.services import onboarding_service
+
+    async def fake_groups(db, enterprise_id):
+        return [{"group_name": "应急指挥部", "responsibilities": "", "members": [
+            {"name": "张三", "role": "chief", "role_name": "总指挥"}]}]
+
+    monkeypatch.setattr(onboarding_service, "load_emergency_groups", fake_groups)
     app.dependency_overrides[get_db] = lambda: _completion_db(ent)
     resp = test_client.get("/enterprises/e1/completion")
     assert resp.status_code == 200

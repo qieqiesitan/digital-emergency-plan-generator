@@ -57,6 +57,61 @@ async def test_eligible_users_by_units_queries_departments():
 
 
 @pytest.mark.asyncio
+async def test_countersign_includes_member_with_secondary_position():
+    """兼岗（member_positions 非主岗）落在会签单位时也要被取到。"""
+    db = MagicMock()
+    statements: list[str] = []
+
+    async def execute(stmt, *a, **k):
+        text = str(stmt)
+        statements.append(text)
+        res = MagicMock()
+        if "member_positions" in text:
+            # 兼岗记录：u9 通过 member_positions 挂到「水」部门节点
+            res.all.return_value = [("u9", "n-water")]
+        else:
+            res.scalar_one_or_none.return_value = [
+                {"id": "n-water", "type": "dept", "name": "水", "parent_id": None},
+            ]
+            res.all.return_value = []
+        return res
+
+    db.execute = execute
+    node = _node(units=["水"])
+    users = await eligible_users_for_node(db, node, enterprise_id="e1")
+    assert users == ["u9"]
+    assert any("member_positions" in s for s in statements)
+
+
+@pytest.mark.asyncio
+async def test_countersign_falls_back_to_primary_column_when_positions_empty():
+    """尚未回填 member_positions 的旧企业回落到 enterprise_members.org_node_id，行为不退化。"""
+    db = MagicMock()
+
+    async def execute(stmt, *a, **k):
+        text = str(stmt)
+        res = MagicMock()
+        if "member_positions" in text:
+            res.all.return_value = []
+            res.scalar_one_or_none.return_value = None
+        elif "enterprise_members" in text and "org_node_id" in text:
+            res.all.return_value = [("u1", "n-water"), ("u2", "n-power")]
+            res.scalar_one_or_none.return_value = None
+        else:
+            res.scalar_one_or_none.return_value = [
+                {"id": "n-water", "type": "dept", "name": "水", "parent_id": None},
+                {"id": "n-power", "type": "dept", "name": "电", "parent_id": None},
+            ]
+            res.all.return_value = []
+        return res
+
+    db.execute = execute
+    node = _node(units=["水"])
+    users = await eligible_users_for_node(db, node, enterprise_id="e1")
+    assert users == ["u1"]
+
+
+@pytest.mark.asyncio
 async def test_eligible_users_empty_when_node_has_neither_role_nor_units():
     db = MagicMock()
     db.execute = AsyncMock()

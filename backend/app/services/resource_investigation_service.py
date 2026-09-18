@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from app.services.prompt_cache import get_report_system_prompt, get_report_section_prompt
 from app.services.report_data_authority import with_rule
+from app.services.emergency_org_service import load_emergency_groups
 
 
 async def build_resource_investigation_context(enterprise_id: str, db: AsyncSession) -> dict:
@@ -79,7 +80,8 @@ async def build_resource_investigation_context(enterprise_id: str, db: AsyncSess
             "address": enterprise.address,
             "employee_count": enterprise.employee_count,
             "building_overview": enterprise.building_overview,
-            "org_structure": enterprise.org_structure,
+            # 组织章节取应急组织（应急指挥部/应急小组 + 成员），公司组织架构不再进提示词
+            "org_structure": await load_emergency_groups(db, enterprise_id),
             "legal_representative": enterprise.legal_representative,
             "credit_code": enterprise.credit_code,
             "economic_type": enterprise.economic_type,

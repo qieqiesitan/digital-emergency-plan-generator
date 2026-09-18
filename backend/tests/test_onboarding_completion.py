@@ -2,17 +2,34 @@ import asyncio
 from unittest.mock import MagicMock, AsyncMock, Mock
 
 
+from app.services import onboarding_service
 from app.services.onboarding_service import compute_completion
 
 
-def test_completion_all_done_returns_100():
+def _patch_groups(monkeypatch, groups):
+    """应急组织改由 load_emergency_groups 加载，用例按需注入返回结果。"""
+    async def fake(db, enterprise_id):
+        return groups
+
+    monkeypatch.setattr(onboarding_service, "load_emergency_groups", fake)
+
+
+EMERGENCY_GROUPS_WITH_COMMANDER = [{
+    "group_name": "应急指挥部",
+    "responsibilities": "",
+    "members": [{"name": "张三", "role": "chief", "role_name": "总指挥", "phone": "138"}],
+}]
+
+
+def test_completion_all_done_returns_100(monkeypatch):
     db = AsyncMock()
     ent = MagicMock()
     ent.name = "甲公司"; ent.address = "地址"; ent.industry = "化工"
-    ent.org_structure = [{"group_key": "cmd", "group_name": "指挥部",
-                          "members": [{"name": "张三", "role": "chief", "phone": "138"}]}]
+    # 公司组织架构不再参与完成度，应急组织由 load_emergency_groups 提供
+    ent.org_structure = []
     ent.surrounding_info = {"nearby_units": [{"name": "加油站"}], "sensitive_targets": []}
     ent.risk_method_config = None
+    _patch_groups(monkeypatch, EMERGENCY_GROUPS_WITH_COMMANDER)
 
     def fake_execute(stmt):
         res = Mock()
@@ -39,7 +56,7 @@ def test_completion_all_done_returns_100():
     assert all(m["done"] for m in result["modules"])
 
 
-def test_completion_empty_enterprise():
+def test_completion_empty_enterprise(monkeypatch):
     db = AsyncMock()
     ent = MagicMock()
     ent.name = "甲公司"; ent.address = ""; ent.industry = ""
@@ -50,18 +67,23 @@ def test_completion_empty_enterprise():
         scalar_one_or_none=lambda: ent,
         scalars=lambda: Mock(all=lambda: []),
     )
+    _patch_groups(monkeypatch, [])
     result = asyncio.run(compute_completion("e1", db))
     assert result["percent"] == 0
 
 
-def test_org_requires_commander_name():
+def test_org_requires_commander_name(monkeypatch):
     db = AsyncMock()
     ent = MagicMock()
     ent.name = "甲公司"; ent.address = "地址"; ent.industry = "化工"
-    ent.org_structure = [{"group_key": "rescue", "group_name": "抢险救援组",
-                          "members": [{"name": "李四", "role": "组长"}]}]
+    ent.org_structure = []
     ent.surrounding_info = {"nearby_units": [], "sensitive_targets": []}
     ent.risk_method_config = None
+    # 只有组长、没有具名总指挥 → 应急组织未完成
+    _patch_groups(monkeypatch, [{
+        "group_name": "抢险救援组",
+        "members": [{"name": "李四", "role": "leader", "role_name": "组长"}],
+    }])
 
     def fake_execute(stmt):
         res = Mock()
@@ -82,13 +104,13 @@ def test_org_requires_commander_name():
     assert not risk["done"]
 
 
-def test_unit_level_event_counts_for_risk_chemical():
+def test_unit_level_event_counts_for_risk_chemical(monkeypatch):
     db = AsyncMock()
     ent = MagicMock()
     ent.name = "甲公司"; ent.address = "地址"; ent.industry = "化工"
-    ent.org_structure = [{"group_key": "cmd", "group_name": "指挥部",
-                          "members": [{"name": "张三", "role": "chief"}]}]
+    ent.org_structure = []
     ent.surrounding_info = {"nearby_units": [], "sensitive_targets": []}
+    _patch_groups(monkeypatch, EMERGENCY_GROUPS_WITH_COMMANDER)
 
     def fake_execute(stmt):
         res = Mock()
@@ -111,8 +133,7 @@ def test_unit_level_event_counts_for_risk_chemical():
 def _completion_ent():
     ent = MagicMock()
     ent.name = "甲公司"; ent.address = "地址"; ent.industry = "化工"
-    ent.org_structure = [{"group_key": "cmd", "group_name": "指挥部",
-                          "members": [{"name": "张三", "role": "chief", "phone": "138"}]}]
+    ent.org_structure = []
     ent.surrounding_info = {"nearby_units": [{"name": "加油站"}], "sensitive_targets": []}
     ent.risk_method_config = None
     return ent
@@ -151,9 +172,10 @@ def _skip_fake_execute(ent, ra_status, ri_status):
     return fake_execute
 
 
-def test_reports_all_skipped_redistributes_weights_and_percent_100():
+def test_reports_all_skipped_redistributes_weights_and_percent_100(monkeypatch):
     db = AsyncMock()
     db.execute.side_effect = _skip_fake_execute(_completion_ent(), "skipped", "skipped")
+    _patch_groups(monkeypatch, EMERGENCY_GROUPS_WITH_COMMANDER)
     result = asyncio.run(compute_completion("e1", db))
     modules = {m["key"]: m for m in result["modules"]}
     assert result["percent"] == 100
@@ -163,9 +185,10 @@ def test_reports_all_skipped_redistributes_weights_and_percent_100():
     assert modules["reports"]["done"] is True
 
 
-def test_risk_report_skipped_only_redistributes():
+def test_risk_report_skipped_only_redistributes(monkeypatch):
     db = AsyncMock()
     db.execute.side_effect = _skip_fake_execute(_completion_ent(), "skipped", "completed")
+    _patch_groups(monkeypatch, EMERGENCY_GROUPS_WITH_COMMANDER)
     result = asyncio.run(compute_completion("e1", db))
     modules = {m["key"]: m for m in result["modules"]}
     assert result["percent"] == 100
@@ -175,10 +198,11 @@ def test_risk_report_skipped_only_redistributes():
     assert modules["reports"]["done"] is True
 
 
-def test_reports_skipped_then_generated_reverts_weights():
+def test_reports_skipped_then_generated_reverts_weights(monkeypatch):
     """先跳过后来又生成 completed 报告时，跳过自动失效，权重不调整。"""
     db = AsyncMock()
     db.execute.side_effect = _skip_fake_execute(_completion_ent(), "completed", "completed")
+    _patch_groups(monkeypatch, EMERGENCY_GROUPS_WITH_COMMANDER)
     result = asyncio.run(compute_completion("e1", db))
     modules = {m["key"]: m for m in result["modules"]}
     assert result["percent"] == 100

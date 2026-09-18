@@ -406,8 +406,9 @@ async def eligible_users_for_node(
     - `countersign_units`：按部门取人（适用于动土这种多单位会签）。
 
     两者都为空时返回空列表——会签将判定为未完成，**不会被静默跳过**。
-    本项目的组织节点保存在 `enterprises.org_structure` JSONB，成员通过
-    `enterprise_members.org_node_id` 挂到节点，因此按单位取人要沿组织树向上匹配。
+    本项目的公司组织节点保存在 `enterprises.org_structure` JSONB，成员任职保存在
+    `member_positions`（主岗 + 兼岗），因此按单位取人要沿组织树向上匹配、并覆盖兼岗。
+    尚未回填 `member_positions` 的旧企业回落到 `enterprise_members.org_node_id`。
     """
     units = {u for u in (getattr(node, "countersign_units", None) or []) if u}
     role_code = (getattr(node, "role_code", None) or "").strip() or None
@@ -436,14 +437,29 @@ async def eligible_users_for_node(
             return [row[0] for row in res.all()]
         return await _by_system_role()
 
+    from app.models.enterprise_org import MemberPosition
+
     res = await db.execute(
-        select(EnterpriseMember.user_id, EnterpriseMember.org_node_id).where(
+        select(EnterpriseMember.user_id, MemberPosition.org_node_id)
+        .join(MemberPosition, MemberPosition.member_id == EnterpriseMember.id)
+        .where(
             EnterpriseMember.enterprise_id == enterprise_id,
             EnterpriseMember.enabled.is_(True),
             EnterpriseMember.user_id.is_not(None),
         )
     )
-    members = [(row[0], row[1]) for row in res.all()]
+    # 同一人可能有多条任职，去重后逐一判定
+    members = sorted({(row[0], row[1]) for row in res.all()})
+    if not members:
+        # 旧企业兜底：任职表尚未回填时仍按主岗镜像列取人，行为不退化
+        res = await db.execute(
+            select(EnterpriseMember.user_id, EnterpriseMember.org_node_id).where(
+                EnterpriseMember.enterprise_id == enterprise_id,
+                EnterpriseMember.enabled.is_(True),
+                EnterpriseMember.user_id.is_not(None),
+            )
+        )
+        members = [(row[0], row[1]) for row in res.all()]
     ent_res = await db.execute(
         select(Enterprise.org_structure).where(Enterprise.id == enterprise_id)
     )
