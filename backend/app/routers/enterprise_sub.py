@@ -1,3 +1,5 @@
+import uuid as uuid_lib
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from app.database import get_db
@@ -118,9 +120,12 @@ async def list_resources(enterprise_id: str, page: int = Query(1, ge=1), page_si
     items = [EmergencyResourceResponse.model_validate(r) for r in rows]
     return PaginatedResponse(data=PaginatedData(items=items, total=total, page=page, page_size=page_size))
 
-@router.get("/{enterprise_id}/resources/{resource_id}", response_model=ApiResponse[EmergencyResourceResponse])
-async def get_resource(enterprise_id: str, resource_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
-    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == resource_id, EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
+# ⚠ 这三条详情路由必须把 `resource_id` 约束成 UUID：本 router 注册在 resources_ext 之前，
+# 未约束时 `/enterprises/{id}/resources/template` 会被它抢先匹配（"template" 当 UUID 解析失败 → 422），
+# 导致资源导入模板下载不可用（2026-09-18 实测复现并修复）。
+@router.get("/{enterprise_id}/resources/{resource_id:uuid}", response_model=ApiResponse[EmergencyResourceResponse])
+async def get_resource(enterprise_id: str, resource_id: uuid_lib.UUID, current_user=Depends(get_current_user), db=Depends(get_db)):
+    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == str(resource_id), EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "Ӧ����Դ������")
     return ApiResponse(data=EmergencyResourceResponse.model_validate(r))
 
@@ -133,18 +138,18 @@ async def create_resource(enterprise_id: str, data: EmergencyResourceCreate, cur
     _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=EmergencyResourceResponse.model_validate(r))
 
-@router.put("/{enterprise_id}/resources/{resource_id}", response_model=ApiResponse[EmergencyResourceResponse])
-async def update_resource(enterprise_id: str, resource_id: str, data: EmergencyResourceUpdate, current_user=Depends(get_current_user), db=Depends(get_db)):
-    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == resource_id, EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
+@router.put("/{enterprise_id}/resources/{resource_id:uuid}", response_model=ApiResponse[EmergencyResourceResponse])
+async def update_resource(enterprise_id: str, resource_id: uuid_lib.UUID, data: EmergencyResourceUpdate, current_user=Depends(get_current_user), db=Depends(get_db)):
+    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == str(resource_id), EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "Ӧ����Դ������")
     for k, v in data.model_dump(exclude_none=True).items(): setattr(r, k, v)
     await db.commit(); await db.refresh(r)
     _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=EmergencyResourceResponse.model_validate(r))
 
-@router.delete("/{enterprise_id}/resources/{resource_id}")
-async def delete_resource(enterprise_id: str, resource_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
-    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == resource_id, EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
+@router.delete("/{enterprise_id}/resources/{resource_id:uuid}")
+async def delete_resource(enterprise_id: str, resource_id: uuid_lib.UUID, current_user=Depends(get_current_user), db=Depends(get_db)):
+    r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == str(resource_id), EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "Ӧ����Դ������")
     await db.delete(r); await db.commit()
     _schedule_enterprise_index_rebuild(enterprise_id)

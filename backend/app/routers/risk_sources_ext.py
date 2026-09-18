@@ -2,6 +2,8 @@ import json
 
 import io
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from fastapi.responses import StreamingResponse
@@ -13,7 +15,7 @@ from sqlalchemy import select
 
 from pydantic import BaseModel
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -35,6 +37,8 @@ from app.dependencies import get_current_user
 from app.services.upload_guard import read_upload_capped
 
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/enterprises", tags=["Risk Sources Extended"])
 
@@ -296,7 +300,12 @@ async def import_risk_sources(
 
     contents = await read_upload_capped(file, 20 * 1024 * 1024, what="Excel 文件")
 
-    wb = Workbook(io.BytesIO(contents))
+    # 同 resources_ext：`Workbook(BytesIO)` 是误用（write_only 参数），必须 load_workbook
+    try:
+        wb = load_workbook(io.BytesIO(contents), data_only=True)
+    except Exception as exc:  # 损坏/非 xlsx → 400 而不是 500
+        logger.exception("risk source import file parse failed: %s", exc)
+        raise HTTPException(400, "导入文件格式无效，请使用模板")
 
     ws = wb.active
 

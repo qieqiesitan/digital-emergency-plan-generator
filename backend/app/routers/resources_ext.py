@@ -2,6 +2,8 @@ import json
 
 import io
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from fastapi.responses import StreamingResponse
@@ -12,7 +14,7 @@ from sqlalchemy import select
 
 from pydantic import BaseModel
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -33,6 +35,8 @@ from app.dependencies import get_current_user
 from app.services.upload_guard import read_upload_capped
 
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/enterprises", tags=["Resources Extended"])
 
@@ -175,7 +179,8 @@ async def download_resource_template(
 
     # Sample row
 
-    sample = ["消防设施", "干粉灭火器", "MFZ/ABC8", 20, "个", "办公楼一楼走廊", "张三", "13800001111", "否", "", ""]
+    # 示例行（自标识）：导入时按「【示例】」前缀跳过，避免用户把示例数据当真实资源导进台账
+    sample = ["消防设施", "【示例】干粉灭火器", "MFZ/ABC8", 20, "个", "办公楼一楼走廊", "示例-张三", "13800001111", "否", "", ""]
 
     for col, val in enumerate(sample, 1):
 
@@ -223,6 +228,9 @@ class ResourceImportPreviewResponse(BaseModel):
 
     error_count: int
 
+    # 模板自带的示例行会被跳过并在预览里计数（不静默消失，也不计入 error）
+    skipped_examples: int = 0
+
 
 
 @router.post("/{enterprise_id}/resources/import", response_model=ApiResponse[ResourceImportPreviewResponse])
@@ -251,7 +259,14 @@ async def import_resources(
 
     contents = await read_upload_capped(file, 20 * 1024 * 1024, what="Excel 文件")
 
-    wb = Workbook(io.BytesIO(contents))
+    # ⚠ 必须用 load_workbook 读上传文件：`Workbook(...)` 的第一个参数是 write_only，
+    # 传 BytesIO 只会新建一个空白的只写工作簿（`wb.active` 为 None）→ 任何上传都 500。
+    # 2026-09-18 实测复现（AttributeError: 'NoneType' object has no attribute 'iter_rows'）并修复。
+    try:
+        wb = load_workbook(io.BytesIO(contents), data_only=True)
+    except Exception as exc:  # 损坏/非 xlsx → 400 而不是 500
+        logger.exception("resource import file parse failed: %s", exc)
+        raise HTTPException(400, "导入文件格式无效，请使用模板")
 
     ws = wb.active
 
@@ -259,12 +274,20 @@ async def import_resources(
 
     valid_categories = set(ALL_RESOURCE_CATEGORIES)
 
+    skipped_examples = 0
+
 
 
     for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
 
         if not row or not any(cell for cell in row):
 
+            continue
+
+        # 模板自带的示例行（名称带【示例】前缀）不参与导入：
+        # 前端「下一步」会把所有有效行整批落库，示例数据一旦算有效就会被导进真实台账。
+        if "【示例】" in str(row[1] or ""):
+            skipped_examples += 1
             continue
 
 
@@ -375,7 +398,10 @@ async def import_resources(
 
 
 
-    return ApiResponse(data=ResourceImportPreviewResponse(items=items, valid_count=valid_count, error_count=error_count))
+    return ApiResponse(data=ResourceImportPreviewResponse(
+        items=items, valid_count=valid_count, error_count=error_count,
+        skipped_examples=skipped_examples,
+    ))
 
 
 
