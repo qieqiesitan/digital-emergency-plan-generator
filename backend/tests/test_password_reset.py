@@ -24,17 +24,15 @@ def _valid_reset(user_id="u1"):
     return reset
 
 
-def test_forgot_password_creates_token_and_returns_success():
+def test_forgot_password_points_to_admin_reset_without_dead_token():
+    """W2：未接 SMTP 时给管理员重置指引，不再签发无人能收到的死令牌。"""
     db = AsyncMock()
     db.add = MagicMock()  # db.add 是同步方法，避免 AsyncMock 产生未 await 协程
     db.execute.return_value = MagicMock(scalar_one_or_none=lambda: _user())
     resp = asyncio.run(forgot_password(ForgotPasswordRequest(email="user@example.com"), db))
-    assert resp.message == "如果该邮箱已注册，我们将发送密码重置邮件"
-    added = db.add.call_args[0][0]
-    assert isinstance(added, PasswordResetToken)
-    assert added.user_id == "u1"
-    assert added.token
-    db.commit.assert_awaited_once()
+    assert "管理员" in resp.message and "用户管理" in resp.message
+    db.add.assert_not_called()
+    db.commit.assert_not_awaited()
 
 
 def test_forgot_password_unknown_email_does_not_leak():
@@ -42,7 +40,7 @@ def test_forgot_password_unknown_email_does_not_leak():
     db.add = MagicMock()
     db.execute.return_value = MagicMock(scalar_one_or_none=lambda: None)
     resp = asyncio.run(forgot_password(ForgotPasswordRequest(email="nobody@example.com"), db))
-    assert resp.message == "如果该邮箱已注册，我们将发送密码重置邮件"
+    assert "管理员" in resp.message
     db.add.assert_not_called()
     db.commit.assert_not_awaited()
 

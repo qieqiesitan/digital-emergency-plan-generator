@@ -14,7 +14,7 @@ from app.schemas.common import ApiResponse
 from app.services.auth_service import (
     hash_password, verify_password, create_access_token, create_refresh_token,
     decode_token, generate_password_reset_token, send_password_reset_email,
-    RESET_TOKEN_TTL_MINUTES, revoke_token, is_token_revoked,
+    RESET_TOKEN_TTL_MINUTES, revoke_token, is_token_revoked, hash_reset_token,
 )
 from jose import JWTError
 from app.middleware.rate_limit import rate_limited
@@ -101,26 +101,21 @@ async def forgot_password(
 ):
     """申请密码找回（骨架）：生成令牌并落库，邮件发送留空待 SMTP 接入。
 
-    无论邮箱是否存在均返回相同成功提示，不泄露用户是否存在。
+    W2：系统未接 SMTP，管理员重置是唯一可用闭环——这里不再签发死令牌、
+    也不再声称"将发送邮件"（原实现让用户空等）。无论邮箱是否存在返回同一提示。
     """
-    result = await db.execute(select(User).where(User.email == data.email))
-    user = result.scalar_one_or_none()
-    if user:
-        token = generate_password_reset_token()
-        db.add(PasswordResetToken(
-            user_id=user.id,
-            token=token,
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_TTL_MINUTES),
-        ))
-        await db.commit()
-        send_password_reset_email(user.email, token)
-    return ApiResponse(data={}, message="如果该邮箱已注册，我们将发送密码重置邮件")
+    return ApiResponse(
+        data={},
+        message="请联系企业管理员在「设置 → 用户管理」中重置密码",
+    )
 
 
 @router.post("/reset-password", response_model=ApiResponse[dict])
 async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
-    """使用找回令牌重置密码：校验令牌有效/未过期/未使用后更新密码。"""
-    result = await db.execute(select(PasswordResetToken).where(PasswordResetToken.token == data.token))
+    """使用找回令牌重置密码：按哈希查令牌，校验有效/未过期/未使用后更新密码。"""
+    result = await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token == hash_reset_token(data.token))
+    )
     reset = result.scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if not reset or reset.used_at is not None or reset.expires_at <= now:

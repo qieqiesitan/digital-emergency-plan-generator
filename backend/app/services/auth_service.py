@@ -70,6 +70,18 @@ def generate_password_reset_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def hash_reset_token(token: str) -> str:
+    """找回令牌只存哈希（SHA-256）：数据库泄露也无法直接重置账号。"""
+    import hashlib
+
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def send_password_reset_email(email: str, token: str) -> None:
-    """发送密码重置邮件（骨架：待 SMTP 接入后实现，本次不发送）。"""
+    """邮件发送（未实现）。
+
+    W2 决策：本系统当前支持的是"管理员在用户管理中重置密码"闭环；
+    未接入 SMTP 前不再声称已发送邮件（原实现是空函数 + 前端提示已发送，误导用户）。
+    接入 SMTP 后在此实现，并把 forgot_password 改回签发令牌（存 hash_reset_token 结果）。
+    """
     return None
