@@ -29,6 +29,8 @@ from app.models.work_ticket import (
 )
 from app.services.work_ticket_flow import (
     can_transition,
+    lifecycle_target,
+    LIFECYCLE_LABELS,
     next_node,
     sign_requirement_met,
 )
@@ -598,3 +600,74 @@ async def member_can_view_ticket(
         ).limit(1)
     )).scalar_one_or_none()
     return acted is not None
+
+
+# --- 生命周期推进（开始作业 / 完工 / 归档 / 作废）-------------------------
+
+
+async def transition_ticket(
+    db: AsyncSession,
+    *,
+    instance_id: str,
+    action: str,
+    user_id: Optional[str] = None,
+    opinion: Optional[str] = None,
+) -> dict:
+    """按状态机推进作业票生命周期。
+
+    `approved --start--> working --finish--> finished --close--> closed`，
+    `cancel` 可从 draft/submitted/approving/approved 触发（状态机 TRANSITIONS 决定）。
+    没有这组动作时，票批准后就永远停在「已批准」，无法完工与归档（本轮补）。
+
+    特殊保护：批准后若已超过有效期（`valid_to < now`）不允许开工，
+    票据直接置为 `expired` 并留痕，提示重新开票。
+    """
+    instance = (await db.execute(
+        select(WorkTicketInstance).where(WorkTicketInstance.id == instance_id)
+    )).scalar_one_or_none()
+    if instance is None:
+        raise WorkTicketError("作业票不存在")
+
+    target = lifecycle_target(action)  # 未知动作 → FlowError（ValueError 子类）
+    if not can_transition(instance.status, action):
+        raise WorkTicketError(
+            f"当前状态（{instance.status}）不能执行「{LIFECYCLE_LABELS.get(action, action)}」"
+        )
+
+    now = datetime.now(timezone.utc)
+    if action == "start" and instance.valid_to and instance.valid_to < now:
+        from_status = instance.status
+        instance.status = "expired"
+        db.add(WorkTicketAuditLog(
+            instance_id=instance.id,
+            action="expire",
+            from_status=from_status,
+            to_status="expired",
+            detail={"reason": "超过有效期未开工", "valid_to": instance.valid_to.isoformat()},
+            acted_by=user_id,
+        ))
+        await db.commit()
+        raise WorkTicketError("作业票已超过有效期，不能开工；请重新开票")
+
+    from_status = instance.status
+    instance.status = target
+    if action in ("finish", "close", "cancel"):
+        # 终态/完工后不应再指向审批节点
+        instance.current_node_key = None
+        instance.current_order = 0
+    db.add(WorkTicketAuditLog(
+        instance_id=instance.id,
+        action=action,
+        from_status=from_status,
+        to_status=target,
+        detail={"opinion": opinion} if opinion else {},
+        acted_by=user_id,
+    ))
+    await db.commit()
+    await db.refresh(instance)
+    return {
+        "instance_id": instance.id,
+        "action": action,
+        "from_status": from_status,
+        "status": instance.status,
+    }

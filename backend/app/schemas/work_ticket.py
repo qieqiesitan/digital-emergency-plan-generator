@@ -32,6 +32,13 @@ class NodeActionIn(BaseModel):
     opinion: Optional[str] = None
 
 
+class TicketTransitionIn(BaseModel):
+    """生命周期动作：开始作业 / 完工 / 归档 / 作废（审批节点动作用 NodeActionIn）。"""
+
+    action: str = Field(pattern="^(start|finish|close|cancel)$")
+    opinion: Optional[str] = None
+
+
 class TicketOut(BaseModel):
     id: str
     code: str

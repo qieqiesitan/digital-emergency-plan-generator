@@ -11,6 +11,7 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.work_ticket import (
+    WorkTicketAuditLog,
     WorkTicketFlowNode,
     WorkTicketFlowTemplate,
     WorkTicketGasTest,
@@ -19,7 +20,13 @@ from app.models.work_ticket import (
     WorkTicketPrintSnapshot,
     WorkTicketTemplate,
 )
-from app.schemas.work_ticket import GasTestIn, NodeActionIn, OpenTicketIn, TicketOut
+from app.schemas.work_ticket import (
+    GasTestIn,
+    NodeActionIn,
+    OpenTicketIn,
+    TicketOut,
+    TicketTransitionIn,
+)
 from app.services.access_control import (
     ensure_enterprise_owned,
     ensure_enterprise_visible,
@@ -36,6 +43,7 @@ from app.services.work_ticket_service import (
     submit_ticket,
     member_can_view_ticket,
     tickets_pending_for_user,
+    transition_ticket,
 )
 
 router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Depends(get_current_user)])
@@ -258,6 +266,31 @@ async def api_node_action(
     return _ok(out)
 
 
+@router.post("/tickets/{ticket_id}/transition")
+async def api_transition_ticket(
+    ticket_id: str,
+    payload: TicketTransitionIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """生命周期推进：开始作业 / 完工 / 归档 / 作废（仅企业主；每次变更都写审计日志）。
+
+    审批节点上的「同意/退回」走 `/node-action`，两者语义不同，故分开两个端点。
+    """
+    try:
+        await ensure_ticket_owned(db, user, ticket_id)
+        out = await transition_ticket(
+            db,
+            instance_id=ticket_id,
+            action=payload.action,
+            user_id=getattr(user, "id", None),
+            opinion=payload.opinion,
+        )
+    except WorkTicketError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _ok(out)
+
+
 @router.get("/tickets/{ticket_id}")
 async def api_ticket_detail(
     ticket_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
@@ -277,6 +310,11 @@ async def api_ticket_detail(
         select(WorkTicketNodeRecord)
         .where(WorkTicketNodeRecord.instance_id == ticket_id)
         .order_by(WorkTicketNodeRecord.created_at)
+    )
+    audit_res = await db.execute(
+        select(WorkTicketAuditLog)
+        .where(WorkTicketAuditLog.instance_id == ticket_id)
+        .order_by(WorkTicketAuditLog.created_at)
     )
     return _ok(
         {
@@ -303,6 +341,20 @@ async def api_ticket_detail(
                     "created_at": r.created_at,
                 }
                 for r in rec_res.scalars().all()
+            ],
+            # 全量流转留痕（开票/提交/审批/开始作业/完工/归档/作废/过期）——
+            # 审批记录只覆盖审批节点，生命周期动作只在审计表里有记录（本轮补）
+            "audit_logs": [
+                {
+                    "id": a.id,
+                    "action": a.action,
+                    "from_status": a.from_status,
+                    "to_status": a.to_status,
+                    "detail": a.detail,
+                    "acted_by": a.acted_by,
+                    "created_at": a.created_at,
+                }
+                for a in audit_res.scalars().all()
             ],
         }
     )

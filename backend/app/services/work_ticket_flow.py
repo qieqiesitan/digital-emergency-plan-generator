@@ -39,6 +39,30 @@ def can_transition(status: str, action: str) -> bool:
     return action in TRANSITIONS.get(status, set())
 
 
+# 生命周期动作 → 目标状态（`approved → working → finished → closed`；cancel 可从多个状态触发）。
+# 与 TRANSITIONS 配套：TRANSITIONS 决定「能不能做」，这里决定「做完到哪」。
+LIFECYCLE_ACTIONS: dict[str, str] = {
+    "start": "working",
+    "finish": "finished",
+    "close": "closed",
+    "cancel": "cancelled",
+}
+
+LIFECYCLE_LABELS: dict[str, str] = {
+    "start": "开始作业",
+    "finish": "完工",
+    "close": "归档",
+    "cancel": "作废",
+}
+
+
+def lifecycle_target(action: str) -> str:
+    """生命周期动作对应的目标状态；未知动作抛 FlowError。"""
+    if action not in LIFECYCLE_ACTIONS:
+        raise FlowError(f"未知生命周期动作：{action!r}，可选 {sorted(LIFECYCLE_ACTIONS)}")
+    return LIFECYCLE_ACTIONS[action]
+
+
 # --- 条件表达式（受限） ---------------------------------------------------
 
 _EQ = re.compile(r"^(?P<field>[a-zA-Z_][a-zA-Z0-9_]*)\s*==\s*(?P<value>.+)$")
