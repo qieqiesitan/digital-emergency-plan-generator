@@ -40,6 +40,14 @@ def test_import_templates_mark_sample_rows_and_importers_skip_them():
         assert "skipped_examples" in src, f"{name} 未返回示例行计数"
 
 
+def test_plan_version_literal_route_precedes_parameterized_route():
+    """`/plans/{id}/versions/compare` 必须在 `/versions/{version_id}` 之前，
+    且后者必须约束为 uuid——否则 "compare" 会被当版本 id 查库（实测 422，对比功能不可用）。"""
+    src = (ROUTER.parent / "versions.py").read_text(encoding="utf-8")
+    assert src.index('"/{plan_id}/versions/compare"') < src.index('"/{plan_id}/versions/{version_id:uuid}"')
+    assert '/versions/{version_id}"' not in src
+
+
 def test_literal_resource_routes_exist_in_resources_ext():
     """模板下载这类字面量路由必须存在（防止被误删后静默 404/422）。"""
     ext = (ROUTER.parent / "resources_ext.py").read_text(encoding="utf-8")

@@ -5,6 +5,7 @@ from app.models.enterprise import PlanProject, PlanSection, PlanVersion
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
 from pydantic import BaseModel
+import uuid as uuid_lib
 
 class VersionCreate(BaseModel):
     description: str | None = None
@@ -72,12 +73,6 @@ async def list_versions(plan_id: str, current_user=Depends(get_current_user), db
     rows = (await db.execute(select(PlanVersion).where(PlanVersion.plan_project_id == plan_id).order_by(PlanVersion.version_number.desc()))).scalars().all()
     return ApiResponse(data=[VersionResponse(id=r.id, version_number=r.version_number, created_by=r.created_by, description=r.description, created_at=r.created_at.isoformat() if r.created_at else "") for r in rows])
 
-@router.get("/{plan_id}/versions/{version_id}", response_model=ApiResponse[VersionDetail])
-async def get_version(plan_id: str, version_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
-    v = (await db.execute(select(PlanVersion).where(PlanVersion.id == version_id, PlanVersion.plan_project_id == plan_id))).scalar_one_or_none()
-    if not v: raise HTTPException(404, "版本不存在")
-    return ApiResponse(data=VersionDetail(id=v.id, version_number=v.version_number, created_by=v.created_by, description=v.description, created_at=v.created_at.isoformat() if v.created_at else "", snapshot=v.snapshot or {}))
-
 @router.post("/{plan_id}/versions", response_model=ApiResponse[VersionResponse])
 async def create_version(plan_id: str, data: VersionCreate, current_user=Depends(get_current_user), db=Depends(get_db)):
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
@@ -109,6 +104,16 @@ async def compare_versions(plan_id: str, a: int = Query(...), b: int = Query(...
         else: ct = "unchanged"
         diffs.append(SectionDiff(section_key=key, title=title, change_type=ct, old_content=old_c, new_content=new_c))
     return ApiResponse(data=VersionCompare(version_a=a, version_b=b, diffs=diffs))
+
+@router.get("/{plan_id}/versions/{version_id:uuid}", response_model=ApiResponse[VersionDetail])
+async def get_version(plan_id: str, version_id: uuid_lib.UUID, current_user=Depends(get_current_user), db=Depends(get_db)):
+    # ⚠ 必须是 :uuid：本文件里字面量路由 /versions/compare 与参数路由同层，
+    # 且参数路径若不加约束，"compare" 会被当版本 id 查库 → UUID 转换失败 → 422，
+    # 于是「版本对比」功能整体不可用（2026-09-18 实测复现并修复）。
+    v = (await db.execute(select(PlanVersion).where(PlanVersion.id == str(version_id), PlanVersion.plan_project_id == plan_id))).scalar_one_or_none()
+    if not v: raise HTTPException(404, "版本不存在")
+    return ApiResponse(data=VersionDetail(id=v.id, version_number=v.version_number, created_by=v.created_by, description=v.description, created_at=v.created_at.isoformat() if v.created_at else "", snapshot=v.snapshot or {}))
+
 
 @router.post("/{plan_id}/versions/{version_id}/rollback")
 async def rollback_version(plan_id: str, version_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):

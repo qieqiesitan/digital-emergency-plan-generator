@@ -30,7 +30,7 @@ EXPORT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "exports")
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
 # W2：任务状态改跨 worker 共享（回调/状态查询可能落到不同 worker）
-from app.services.runtime_state import get_state, set_state
+from app.services.runtime_state import get_state, set_state, try_acquire_lease
 from app.services.filename_safety import safe_filename
 
 EXTERNAL_TASK_TTL_SECONDS = 24 * 3600
@@ -38,6 +38,11 @@ EXTERNAL_TASK_TTL_SECONDS = 24 * 3600
 
 def _external_task_key(plan_id: str) -> str:
     return f"external_task:{plan_id}"
+
+
+def _external_order_key(order_id: str) -> str:
+    """订单维度的幂等键：值里存已创建的 plan_id / task_id。"""
+    return f"external_order:{order_id}"
 
 
 async def _persist_task(plan_id: str, info: dict) -> None:
@@ -209,32 +214,64 @@ class ExternalTaskStatus(BaseModel):
 
 @router.post("/plans", response_model=ApiResponse[ExternalPlanResponse])
 async def external_create_plan(data: ExternalPlanCreate, request: Request):
-    async with async_session() as db:
-        ent_dict = data.enterprise.model_dump()
-        user, enterprise, _ = await _ensure_user_and_enterprise(db, data.external_user_id, ent_dict)
+    """创建外部对接任务（幂等）。
 
-        docs = [d.model_dump() for d in data.documents]
-        await download_external_files(docs) if docs else None  # fire-and-forget download
+    幂等语义（2026-09-18 补）：`external_order_id` 是外部商城侧的订单号，同一订单重复调用
+    （外部系统超时重试、或签名在 5 分钟窗口内被重放）**不得再开一张预案、再跑一次 AI 生成**。
+    做法：先用 `try_acquire_lease` 抢占订单租约——
+      - 抢到 → 正常创建，并把 plan_id 写入 `external_order:{order_id}`（TTL 24h）；
+      - 没抢到 → 读该键：有 plan_id 就原样返回同一个 task_id（真正的幂等重试）；
+        还没有（首单仍在创建中）→ 409「同一订单正在处理中」，让调用方稍后查询。
+    """
+    order_key = _external_order_key(data.external_order_id)
+    lease_ok = await try_acquire_lease(
+        order_key, ttl_seconds=EXTERNAL_TASK_TTL_SECONDS, owner="external_api"
+    )
+    if not lease_ok:
+        existing = await get_state(order_key)
+        plan_id = (existing or {}).get("plan_id")
+        if plan_id:
+            return ApiResponse(data=ExternalPlanResponse(task_id=plan_id, status="accepted"))
+        raise HTTPException(409, "同一订单正在处理中，请稍后查询任务状态")
 
-        p = PlanProject(
-            user_id=user.id, enterprise_id=enterprise.id,
-            plan_type=data.plan_type,
-            title=f"{enterprise.name}-{_plan_type_label(data.plan_type)}",
-            status="pending",
-        )
-        db.add(p); await db.flush()
+    try:
+        async with async_session() as db:
+            ent_dict = data.enterprise.model_dump()
+            user, enterprise, _ = await _ensure_user_and_enterprise(
+                db, data.external_user_id, ent_dict
+            )
 
-        tpl_result = await db.execute(
-            select(PlanTemplate)
-            .where(PlanTemplate.plan_type == data.plan_type, PlanTemplate.is_active == True)
-            .order_by(PlanTemplate.version.desc()).limit(1)
-        )
-        template = tpl_result.scalar_one_or_none()
-        if template and template.structure:
-            from app.routers.plans import _create_sections_from_template
-            _create_sections_from_template(db, p.id, template.structure)
+            docs = [d.model_dump() for d in data.documents]
+            await download_external_files(docs) if docs else None  # fire-and-forget download
 
-        await db.commit()
+            p = PlanProject(
+                user_id=user.id, enterprise_id=enterprise.id,
+                plan_type=data.plan_type,
+                title=f"{enterprise.name}-{_plan_type_label(data.plan_type)}",
+                status="pending",
+            )
+            db.add(p); await db.flush()
+
+            tpl_result = await db.execute(
+                select(PlanTemplate)
+                .where(PlanTemplate.plan_type == data.plan_type, PlanTemplate.is_active == True)
+                .order_by(PlanTemplate.version.desc()).limit(1)
+            )
+            template = tpl_result.scalar_one_or_none()
+            if template and template.structure:
+                from app.routers.plans import _create_sections_from_template
+                _create_sections_from_template(db, p.id, template.structure)
+
+            await db.commit()
+        await set_state(order_key, {"plan_id": p.id}, ttl_seconds=EXTERNAL_TASK_TTL_SECONDS)
+    except Exception:
+        # 创建失败必须放掉订单租约，否则该订单号会被"毒化"24 小时、调用方永远重试不了
+        from app.services.runtime_state import release_lease
+        try:
+            await release_lease(order_key, "external_api")
+        except Exception:  # noqa: BLE001 — 释放失败不应掩盖原始异常
+            logger.warning("释放外部订单租约失败: %s", order_key, exc_info=True)
+        raise
 
     # 必须持有强引用（否则任务可能被 GC），异常也要落日志——统一走 task_registry
     spawn(
