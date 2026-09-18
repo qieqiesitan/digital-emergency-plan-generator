@@ -7,6 +7,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from app.services.llm_client import llm_text_completion
+from app.services.org_tree_validate import validate_tree
 from app.services.risk_ai_service import _parse_ai_json
 
 
@@ -23,49 +24,11 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def validate_org_tree(nodes: list) -> list[str]:
-    """校验组织树：id 唯一、parent 存在（根为 None）、无自环/环、type 合法、members 为列表且 name 非空。返回错误列表。"""
-    errors: list[str] = []
-    ids = [n.get("id") for n in nodes if isinstance(n, dict)]
-    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
-    seen: set[str] = set()
-    for i, n in enumerate(nodes):
-        if not isinstance(n, dict):
-            errors.append(f"节点 {i + 1} 必须是对象")
-            continue
-        nid = n.get("id")
-        if not nid:
-            errors.append(f"节点 {i + 1} 缺少 id")
-            continue
-        if nid in seen:
-            errors.append(f"节点 id 重复: {nid}")
-        seen.add(nid)
-        if n.get("type") not in ORG_TYPES:
-            errors.append(f"节点 {nid} type 非法: {n.get('type')}")
-        parent = n.get("parent_id")
-        if parent is not None and parent not in ids:
-            errors.append(f"节点 {nid} parent 不存在: {parent}")
-        elif parent == nid:
-            errors.append(f"节点 {nid} 不能以自身为父节点")
-        elif parent is not None:
-            # 沿 parent 链检测环：从父节点一路向上，回到自身即循环引用
-            cur = parent
-            walked: set[str] = set()
-            while cur in by_id and cur not in walked:
-                if cur == nid:
-                    errors.append(f"节点 {nid} 存在循环引用")
-                    break
-                walked.add(cur)
-                cur = by_id[cur].get("parent_id")
-        members = n.get("members")
-        if not isinstance(members, list):
-            errors.append(f"节点 {nid} members 必须为数组")
-        else:
-            for m in members:
-                if not isinstance(m, dict):
-                    errors.append(f"节点 {nid} 存在非法成员")
-                elif not isinstance(m.get("name"), str) or not m.get("name").strip():
-                    errors.append(f"节点 {nid} 存在无姓名成员")
-    return errors
+    """校验公司组织树：id 唯一、name 非空、parent 存在、无自环与环、type 合法、members 为数组且成员有姓名。
+
+    规则实现见 org_tree_validate.validate_tree（与应急组织共用）。
+    """
+    return validate_tree(nodes, allow_types=ORG_TYPES)
 
 
 def sync_org_structure(enterprise, nodes: list) -> None:
