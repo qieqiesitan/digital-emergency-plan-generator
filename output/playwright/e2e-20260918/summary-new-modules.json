@@ -1,0 +1,256 @@
+[
+ {
+  "name": "platform-overview",
+  "path": "/platform/overview",
+  "console": [
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: [vite] failed to connect to websocket.\nyour current setup:\n  (browser) 172.26.0.3:5173/ <--[HTTP]--> localhost:5173/ (server)\n  (browser) localhost:5173/ <--[WebSocket (failing)]--> localhost:5173/ (s",
+   "error: Warning: [antd: Alert] `message` is deprecated. Please use `title` instead."
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/platform/overview",
+  "text_len": 257,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 跨企业总览 这里是全平台汇总，单企业详情请进入企业驾驶舱 刷 新 平台运营视角 以下数字是全部企业的合计值。风险点 / 隐患 / 重大危险源 / 作业票都是按企业维度管理的，点击卡片进入企业列表后选择企业查看明细。 企业数 192 进入企业列表 风险点 9 按企业查看风险分级管控 隐患 1 按企业查看隐患排查治理 重大危险源单元 4 按企业查看重大危险源 一、二级重大危险源 0 监管重点：按企业查看重大危险源 作业票 28 按企业查看特殊作业 AI 助手",
+  "forbidden": false,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3140
+ },
+ {
+  "name": "ai-capabilities",
+  "path": "/settings/ai-capabilities",
+  "console": [
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: [vite] failed to connect to websocket.\nyour current setup:\n  (browser) 172.26.0.3:5173/ <--[HTTP]--> localhost:5173/ (server)\n  (browser) localhost:5173/ <--[WebSocket (failing)]--> localhost:5173/ (s",
+   "error: Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.",
+   "error: Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead."
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/settings/ai-capabilities",
+  "text_len": 656,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 AI 能力管理 能力注册表与调用统计：哪个模块有什么能力、用哪个模型/提示词、跑得好不好 近 30 天总调用 4 近 30 天总 token 2,580 截断数（静默故障） 1 能力注册表 模块 能力 关联提示词 模型覆盖 启用 允许人工介入 风险分级管控 AI 建议风险分析对象 risk_suggest_objects 默认 默认模型 风险分级管控 AI 建议风险事件 risk_suggest_events 默认 默认模型 风险分级管控 AI 建议管控措施 ",
+  "forbidden": false,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3181
+ },
+ {
+  "name": "datahub",
+  "path": "/settings/data-hub",
+  "console": [
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: [vite] failed to connect to websocket.\nyour current setup:\n  (browser) 172.26.0.3:5173/ <--[HTTP]--> localhost:5173/ (server)\n  (browser) localhost:5173/ <--[WebSocket (failing)]--> localhost:5173/ (s"
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/settings/data-hub",
+  "text_len": 72,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 无权限访问 当前账号没有访问该页面的权限，如有需要请联系管理员。 返回工作台 AI 助手",
+  "forbidden": true,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3125
+ },
+ {
+  "name": "datahub-import",
+  "path": "/settings/data-hub/import",
+  "console": [
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: [vite] failed to connect to websocket.\nyour current setup:\n  (browser) 172.26.0.3:5173/ <--[HTTP]--> localhost:5173/ (server)\n  (browser) localhost:5173/ <--[WebSocket (failing)]--> localhost:5173/ (s"
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/settings/data-hub/import",
+  "text_len": 72,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 无权限访问 当前账号没有访问该页面的权限，如有需要请联系管理员。 返回工作台 AI 助手",
+  "forbidden": true,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3098
+ },
+ {
+  "name": "mh-own-list",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/major-hazard",
+  "console": [
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead.",
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: [vite] failed to connect to websocket.\nyour current setup:\n  (browser) 172.26.0.3:5173/ <--[HTTP]--> localhost:5173/ (server)\n  (browser) localhost:5173/ <--[WebSocket (failing)]--> localhost:5173/ (s"
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/major-hazard",
+  "text_len": 171,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 重大危险源 MAJOR HAZARD 台账 单元台账 分析与备案 计算与分级 档案与备案 重大危险源 按 GB 18218-2018 辨识单元并分级 新增单元 单元名称 类型 责任部门 / 责任人 最近计算 结论 操作 尚无重大危险源单元，点击右上角新增 AI 助手",
+  "forbidden": false,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3122
+ },
+ {
+  "name": "mh-own-compute",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/major-hazard/compute",
+  "console": [
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+   "error: [vite] failed to connect to websocket.\nyour current setup:\n  (browser) 172.26.0.3:5173/ <--[HTTP]--> localhost:5173/ (server)\n  (browser) localhost:5173/ <--[WebSocket (failing)]--> localhost:5173/ (s"
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/major-hazard/compute",
+  "text_len": 147,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 重大危险源 MAJOR HAZARD 台账 单元台账 分析与备案 计算与分级 档案与备案 计算与分级 按 GB 18218-2018 式(1) 辨识、式(2) 分级 选择单元 重新预览 请先选择要计算的单元 AI 助手",
+  "forbidden": false,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3224
+ },
+ {
+  "name": "mh-own-record",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/major-hazard/record",
+  "console": [
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/major-hazard/record",
+  "text_len": 100,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 重大危险源 MAJOR HAZARD 台账 单元台账 分析与备案 计算与分级 档案与备案 请先从台账选择一个单元 AI 助手",
+  "forbidden": false,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3102
+ },
+ {
+  "name": "ticket-own-list",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/work-ticket",
+  "console": [
+   "error: Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead."
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/work-ticket",
+  "text_len": 210,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 特殊作业 SPECIAL WORK TICKET 特殊作业 作业票 基础设置 审批工作台 特殊作业票 8 类作业票共用这一个入口：先用类型筛选切换，再开票 开票 类型 动火作业 受限空间作业 盲板抽堵作业 高处作业 吊装作业 临时用电作业 动土作业 断路作业 状态 全部 票号 类型 级别 状态 当前节点 创建时间 操作 暂无数据 AI 助手",
+  "forbidden": false,
+  "ticket_words": [
+   "动火",
+   "受限空间",
+   "高处",
+   "吊装",
+   "临时用电",
+   "动土",
+   "断路",
+   "盲板"
+  ],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3115
+ },
+ {
+  "name": "ticket-own-new",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/work-ticket/new",
+  "console": [
+   "error: Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead.",
+   "error: Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.",
+   "error: WebSocket connection to 'ws://localhost:5173/?token=LtaFCz1yHbIh' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/work-ticket/new",
+  "text_len": 301,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 特殊作业 SPECIAL WORK TICKET 特殊作业 作业票 基础设置 审批工作台 ← 返回 开票 按 GB 30871-2022 附录A 票面填报；级别决定法定审批人 1 类型与级别 2 票面内容 3 气体检测 4 安全措施 5 JSA 6 人员与提交 作业类型 动火作业 受限空间作业 盲板抽堵作业 高处作业 吊装作业 临时用电作业 动土作业 断路作业 作业级别 特级 一级 二级 审批流程：主管领导审批 审批人依据 GB 30871",
+  "forbidden": false,
+  "ticket_words": [
+   "动火",
+   "受限空间",
+   "高处",
+   "吊装",
+   "临时用电",
+   "动土",
+   "断路",
+   "盲板"
+  ],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3163
+ },
+ {
+  "name": "ticket-own-approval",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/work-ticket/approval",
+  "console": [
+   "error: Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead.",
+   "error: Warning: [antd: Alert] `message` is deprecated. Please use `title` instead."
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/work-ticket/approval",
+  "text_len": 199,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 特殊作业 SPECIAL WORK TICKET 特殊作业 作业票 基础设置 审批工作台 审批工作台 本企业审批中的作业票 法定审批环节不可跳过 审批人依据 GB 30871-2022 附录B 表B.1；退回后票据回到已退回状态，需修改后重新提交。 票号 类型 级别 当前节点 / 法定审批人 操作 暂无数据 AI 助手",
+  "forbidden": false,
+  "ticket_words": [],
+  "status_words": [
+   "审批中"
+  ],
+  "status": "ok",
+  "ms": 3168
+ },
+ {
+  "name": "IDOR-ticket-other",
+  "path": "/enterprises/94804158-cc33-464d-9aef-025ec90226be/work-ticket",
+  "console": [
+   "error: Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead."
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/94804158-cc33-464d-9aef-025ec90226be/work-ticket",
+  "text_len": 1009,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 特殊作业 SPECIAL WORK TICKET 特殊作业 作业票 基础设置 审批工作台 特殊作业票 8 类作业票共用这一个入口：先用类型筛选切换，再开票 开票 类型 动火作业 受限空间作业 盲板抽堵作业 高处作业 吊装作业 临时用电作业 动土作业 断路作业 状态 全部 票号 类型 级别 状态 当前节点 创建时间 操作 YXKJ-91610132MAEJWD6F01-20260918-0002 受限空间作业 — 草稿 — 2026/9/18",
+  "forbidden": false,
+  "ticket_words": [
+   "动火",
+   "受限空间",
+   "高处",
+   "吊装",
+   "临时用电",
+   "动土",
+   "断路",
+   "盲板"
+  ],
+  "status_words": [
+   "审批中"
+  ],
+  "status": "ok",
+  "ms": 3139
+ },
+ {
+  "name": "IDOR-mh-other",
+  "path": "/enterprises/a1866bd9-5a30-43de-9c28-1853fd6164fa/major-hazard",
+  "console": [
+   "error: Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead."
+  ],
+  "pageerror": [],
+  "http4xx": [],
+  "final_url": "http://172.26.0.3:5173/enterprises/a1866bd9-5a30-43de-9c28-1853fd6164fa/major-hazard",
+  "text_len": 324,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 重大危险源 MAJOR HAZARD 台账 单元台账 分析与备案 计算与分级 档案与备案 重大危险源 按 GB 18218-2018 辨识单元并分级 新增单元 单元名称 类型 责任部门 / 责任人 最近计算 结论 操作 冒烟-罐区A-0918 储存单元 — / — — 未计算 详情 计算 编辑 删除 冒烟-辨识报告单元-0918 储存单元 生产部 / 张峰 2026/9/18 00:15:24 不构成 详情 计算 编辑 删除 冒烟-无快照单",
+  "forbidden": false,
+  "ticket_words": [],
+  "status_words": [],
+  "status": "ok",
+  "ms": 3149
+ }
+]

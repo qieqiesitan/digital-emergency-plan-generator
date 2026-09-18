@@ -1,0 +1,73 @@
+[
+ {
+  "case": "429 限流：默认重试 3 次后抛错",
+  "mode": "429",
+  "outcome": "LLMError",
+  "llm_status": 429,
+  "llm_text": "AI调用失败: 429 {\"error\":\"rate limited\"}",
+  "attempts": 3,
+  "elapsed_s": 3.65
+ },
+ {
+  "case": "500 服务端错误：重试后抛错",
+  "mode": "500",
+  "outcome": "LLMError",
+  "llm_status": 500,
+  "llm_text": "AI调用失败: 500 {\"error\":\"server error\"}",
+  "attempts": 2,
+  "elapsed_s": 1.24
+ },
+ {
+  "case": "401 无效 Key：不应重试",
+  "mode": "401",
+  "outcome": "LLMError",
+  "llm_status": 401,
+  "llm_text": "AI调用失败: 401 {\"error\":\"invalid key\"}",
+  "attempts": 1,
+  "elapsed_s": 0.01
+ },
+ {
+  "case": "超时：timeout=1 客户端超时",
+  "mode": "slow",
+  "outcome": "LLMError",
+  "llm_status": 0,
+  "llm_text": "AI调用失败: 0 ",
+  "attempts": 2,
+  "elapsed_s": 3.22
+ },
+ {
+  "case": "超时经 llm_text_completion 的错误映射",
+  "mode": "slow",
+  "outcome": "HTTPException(500)",
+  "detail": "AI调用失败: 0 ",
+  "attempts": 4,
+  "elapsed_s": 11.85
+ },
+ {
+  "case": "正常流式：3 块 + [DONE]",
+  "mode": "ok-stream",
+  "pieces": [
+   "A",
+   "B",
+   "C"
+  ],
+  "piece_count": 3,
+  "duplicated_prefix": false,
+  "outcome": "success",
+  "attempts": 1,
+  "elapsed_s": 0.46
+ },
+ {
+  "case": "流中断（2 块后断连）",
+  "mode": "cut-stream",
+  "pieces": [
+   "X1",
+   "X2"
+  ],
+  "piece_count": 2,
+  "duplicated_prefix": false,
+  "outcome": "success",
+  "attempts": 1,
+  "elapsed_s": 0.01
+ }
+]

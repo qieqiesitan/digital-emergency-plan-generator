@@ -1,0 +1,707 @@
+[
+ {
+  "name": "ent-plans-list",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/plans",
+  "viewport": "desktop-1440",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/plans",
+  "text_len": 142,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回 E2E_1786026707435 - 预案列表 新建预案 全部 综合预案 专项预案 现场处置 全部 草稿 已完成 预案标题 完成度 状态 更新时间 操作 暂无预案 为当前企业创建第一份应急预案 新建预案 AI 助手",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-ent-plans-list.png",
+  "status": "ok",
+  "ms": 2724
+ },
+ {
+  "name": "ent-org",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/org",
+  "viewport": "desktop-1440",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/org",
+  "text_len": 393,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回 组织与人员管理 维护企业组织架构（部门/班组/岗位）与企业成员，支持 Excel 导入与 AI 建树 下载导入模板 Excel 导入 AI 建树 保存组织树 添加根部门 添加根岗位 应用预置应急组织 有未保存的修改 部门 应急组织机构 班组 应急指挥部 ",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-ent-org.png",
+  "status": "ok",
+  "ms": 2741
+ },
+ {
+  "name": "hazard-plans",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/hazard/plans",
+  "viewport": "desktop-1440",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/hazard/plans",
+  "text_len": 224,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 隐患排查治理 HAZARD MANAGEMENT 排查管理 隐患台账 排查计划 排查任务 排查模板 分析公示 隐患看板 隐患公示 ← 返回 排查计划 配置排查计划、覆盖分区与责任人；AI 排程建议仅供参考，需人工确认后保存 新建计划 计划名称 ",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-hazard-plans.png",
+  "status": "ok",
+  "ms": 2707
+ },
+ {
+  "name": "hazard-tasks",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/hazard/tasks",
+  "viewport": "desktop-1440",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/hazard/tasks",
+  "text_len": 231,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 隐患排查治理 HAZARD MANAGEMENT 排查管理 隐患台账 排查计划 排查任务 排查模板 分析公示 隐患看板 隐患公示 ← 返回 排查任务 按计划自动生成的排查任务，逐项核对后提交；异常项可一键转为隐患登记 责任人 状态 超期 重 置",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-hazard-tasks.png",
+  "status": "ok",
+  "ms": 2723
+ },
+ {
+  "name": "hazard-templates",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/hazard/templates",
+  "viewport": "desktop-1440",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/hazard/templates",
+  "text_len": 416,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 ← 返回企业驾驶舱 隐患排查治理 HAZARD MANAGEMENT 排查管理 隐患台账 排查计划 排查任务 排查模板 分析公示 隐患看板 隐患公示 ← 返回 检查表模板 系统模板与企业模板合并展示（企业同名模板优先）；系统模板需复制后编辑 新建模板 模板名称 类",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-hazard-templates.png",
+  "status": "ok",
+  "ms": 2751
+ },
+ {
+  "name": "plan-preview",
+  "path": "/plans/aa8244ab-ff8f-45a4-8814-15629041095f/preview",
+  "viewport": "desktop-1440",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/plans/aa8244ab-ff8f-45a4-8814-15629041095f/preview",
+  "text_len": 8245,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 返回编辑 打印 下载 .docx 导出前请修复以下问题 「编制目的」章节内容为空 「编制依据」章节内容为空 「适用范围」章节内容为空 「应急预案体系」章节内容为空 「应急工作原则」章节内容为空 「事故风险描述」章节内容为空 「事故发生的可能性及后果」章节内容为空 ",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-plan-preview.png",
+  "status": "ok",
+  "ms": 2793
+ },
+ {
+  "name": "risk-assessment-preview",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/risk-assessment/preview",
+  "viewport": "desktop-1440",
+  "console": [
+   "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+   "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "pageerror": [
+   "Request failed with status code 404"
+  ],
+  "requestfailed": [],
+  "http4xx": [
+   "404 http://shuzihuayuan:8080/api/v1/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/risk-assessment/preview",
+   "404 http://shuzihuayuan:8080/api/v1/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/risk-assessment"
+  ],
+  "final_url": "http://shuzihuayuan:8080/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/risk-assessment/preview",
+  "text_len": 67,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 报告不存在 AI 助手 未找到已完成的风险评估报告 未找到已完成的风险评估报告",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-risk-assessment-preview.png",
+  "status": "ok",
+  "ms": 2732
+ },
+ {
+  "name": "resource-investigation-preview",
+  "path": "/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/resource-investigation/preview",
+  "viewport": "desktop-1440",
+  "console": [
+   "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+   "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "pageerror": [
+   "Request failed with status code 404"
+  ],
+  "requestfailed": [],
+  "http4xx": [
+   "404 http://shuzihuayuan:8080/api/v1/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/resource-investigation/preview",
+   "404 http://shuzihuayuan:8080/api/v1/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/resource-investigation"
+  ],
+  "final_url": "http://shuzihuayuan:8080/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/resource-investigation/preview",
+  "text_len": 51,
+  "text_head": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 报告不存在 AI 助手 未找到报告 未找到报告",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-desktop-1440-resource-investigation-preview.png",
+  "status": "ok",
+  "ms": 2727
+ },
+ {
+  "name": "chat-stream",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "samples": [
+   {
+    "t": 1.5,
+    "len": 140
+   },
+   {
+    "t": 3.0,
+    "len": 140
+   },
+   {
+    "t": 4.5,
+    "len": 140
+   },
+   {
+    "t": 6.0,
+    "len": 140
+   },
+   {
+    "t": 7.5,
+    "len": 140
+   }
+  ],
+  "grow_steps": 0,
+  "streaming_evidence": false,
+  "text_tail": "数字化预案系统 工作台 预案列表 设置 E2E测试用户 新建对话 新对话 把预案 Test_CM_678143 导出为Word文档 把预案 Test_CM_678143 导出为Word文档 列出我的企业 请用一句话回复：流式测试 流式测试收到，系统运行正常。 发送 AI 助手",
+  "status": "ok"
+ },
+ {
+  "name": "m-login-flow",
+  "status": "error",
+  "error": "Page.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\"button[type=\\\"submit\\\"]\")\n"
+ },
+ {
+  "name": "m-dashboard",
+  "path": "/m/dashboard",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-dashboard.png",
+  "status": "ok",
+  "ms": 2748,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprises",
+  "path": "/m/enterprises",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprises.png",
+  "status": "ok",
+  "ms": 2739,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprise-detail",
+  "path": "/m/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprise-detail.png",
+  "status": "ok",
+  "ms": 2734,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprise-risk",
+  "path": "/m/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/risk-management",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprise-risk.png",
+  "status": "ok",
+  "ms": 2747,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprise-resources",
+  "path": "/m/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/resources",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprise-resources.png",
+  "status": "ok",
+  "ms": 2744,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprise-assessment",
+  "path": "/m/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/risk-assessment",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprise-assessment.png",
+  "status": "ok",
+  "ms": 2741,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprise-investigation",
+  "path": "/m/enterprises/e62bb772-a29f-4e48-89a4-9182f13ca86f/resource-investigation",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprise-investigation.png",
+  "status": "ok",
+  "ms": 2730,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprise-plans",
+  "path": "/m/enterprises/69b205cd-c316-47a7-89d7-cc6c6f402bee/plans",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprise-plans.png",
+  "status": "ok",
+  "ms": 2746,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-plans",
+  "path": "/m/plans",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-plans.png",
+  "status": "ok",
+  "ms": 2728,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-plan-editor",
+  "path": "/m/plans/aa8244ab-ff8f-45a4-8814-15629041095f/edit",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-plan-editor.png",
+  "status": "ok",
+  "ms": 2754,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-plan-versions",
+  "path": "/m/plans/aa8244ab-ff8f-45a4-8814-15629041095f/versions",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-plan-versions.png",
+  "status": "ok",
+  "ms": 2739,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-plan-preview",
+  "path": "/m/plans/aa8244ab-ff8f-45a4-8814-15629041095f/preview",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-plan-preview.png",
+  "status": "ok",
+  "ms": 2746,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-settings",
+  "path": "/m/settings",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-settings.png",
+  "status": "ok",
+  "ms": 2746,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-profile",
+  "path": "/m/settings/profile",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-profile.png",
+  "status": "ok",
+  "ms": 2746,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-chat",
+  "path": "/m/chat",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-chat.png",
+  "status": "ok",
+  "ms": 2745,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-enterprise-new",
+  "path": "/m/enterprises/new",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-enterprise-new.png",
+  "status": "ok",
+  "ms": 2729,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "m-plan-new",
+  "path": "/m/plans/new",
+  "viewport": "mobile-390",
+  "console": [],
+  "pageerror": [],
+  "requestfailed": [],
+  "http4xx": [],
+  "final_url": "http://shuzihuayuan:8080/m/login",
+  "text_len": 42,
+  "text_head": "登录 欢迎回到应急预案管理 忘记密码？请联系管理员重置 登录 没有账号？立即注册",
+  "spinner": 0,
+  "overflow_x": false,
+  "screenshot": "/app/exports/e2e-20260917/round2-mobile-390-m-plan-new.png",
+  "status": "ok",
+  "ms": 2732,
+  "mobile_struct": {
+   "tabbarHeight": null,
+   "tabbarTop": null,
+   "overlapPx": null,
+   "maxBottom": null
+  }
+ },
+ {
+  "name": "mobile-structural",
+  "items": [
+   {
+    "name": "m-dashboard",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprises",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprise-detail",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprise-risk",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprise-resources",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprise-assessment",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprise-investigation",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprise-plans",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-plans",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-plan-editor",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-plan-versions",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-plan-preview",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-settings",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-profile",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-chat",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-enterprise-new",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   },
+   {
+    "name": "m-plan-new",
+    "tabbarHeight": null,
+    "tabbarTop": null,
+    "overlapPx": null,
+    "maxBottom": null
+   }
+  ]
+ }
+]

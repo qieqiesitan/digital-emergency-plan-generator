@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>数字化预案系统 · UI 重设计 v2 — P0 核心 8 页</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/nav.js"></script>
+<style>
+  .cover{width:1440px;margin:0 auto;background:linear-gradient(180deg,#1E3A8A 0%,#1D4ED8 46%,#F0F7FF 46.01%,#F5F7FA 100%);padding:56px 64px 48px}
+  .pg-card{background:#fff;border-radius:12px;box-shadow:var(--shadow);border:1px solid var(--bd-weak);padding:18px 20px;display:block;text-decoration:none;color:var(--t1);transition:.15s}
+  .pg-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+  .sw{display:flex;align-items:center;gap:8px}
+  .sw i{width:26px;height:26px;border-radius:7px;display:inline-block;border:1px solid rgba(0,0,0,.08)}
+</style>
+</head>
+<body>
+<div class="frame" style="background:transparent;overflow:visible">
+  <div class="cover">
+    <div style="color:#fff">
+      <div class="fs13" style="opacity:.72;letter-spacing:2px">EMERGENCY PLAN OS · UI REDESIGN v2 · 2026-09-03</div>
+      <div style="font-size:30px;font-weight:700;margin-top:10px">数字化预案系统 · UI 重设计 — P0 核心 8 页</div>
+      <div class="fs13" style="opacity:.78;margin-top:12px;line-height:1.9">
+        依据真实功能盘点（36 条桌面路由 / 24 个移动 Screen）重制 · 设计方案见
+        <b style="color:#fff">docs/UI重设计方案-2026-09-03.md</b> · 每页底部附改版要点与空态/加载/失败三态
+      </div>
+    </div>
+
+    <!-- 设计令牌速览 -->
+    <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:18px 22px;margin-top:32px;color:#fff">
+      <div class="fs13 strong" style="margin-bottom:14px;letter-spacing:1px">设计令牌（§3 · 全站唯一来源）</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px 28px" class="fs12">
+        <div class="sw"><i style="background:#1D4ED8"></i>primary #1D4ED8</div>
+        <div class="sw"><i style="background:#0EA5E9"></i>accent #0EA5E9</div>
+        <div class="sw"><i style="background:#10B981"></i>success #10B981</div>
+        <div class="sw"><i style="background:#F59E0B"></i>warning #F59E0B</div>
+        <div class="sw"><i style="background:#DC2626"></i>danger #DC2626</div>
+        <div class="sw">风险四色 红/橙/黄/蓝 = #DC2626 / #F59E0B / #EAB308 / #2563EB</div>
+        <div class="sw">字号 7 级：12 / 13 / 14 / 16 / 20 / 24 / 32（最小 12px，数字 32px·700）</div>
+        <div class="sw">圆角 8 / 12 · 双层阴影 · 数字 tabular-nums · 全站线性图标（禁 emoji）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 页面清单 -->
+  <div style="width:1440px;margin:24px auto 0;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:0 0 8px">
+    <a class="pg-card" href="01-login.html">
+      <div class="row between"><span class="tag blue num">P0-01</span><span class="fs12 txt4">1440×900</span></div>
+      <div class="fs16 strong mt12">登录页</div>
+      <div class="fs12 txt3 mt8">分屏布局 · 错误条置顶 · 忘记密码 Modal（I6）· 加载防重复</div>
+    </a>
+    <a class="pg-card" href="02-dashboard.html">
+      <div class="row between"><span class="tag blue num">P0-02</span><span class="fs12 txt4">1440×980</span></div>
+      <div class="fs16 strong mt12">工作台</div>
+      <div class="fs12 txt3 mt8">4 统计 32px/700 · 快捷新建 3 型 · 企业概览 · 最近预案</div>
+    </a>
+    <a class="pg-card" href="03-enterprise-list.html">
+      <div class="row between"><span class="tag blue num">P0-03</span><span class="fs12 txt4">1440×980</span></div>
+      <div class="fs16 strong mt12">企业列表</div>
+      <div class="fs12 txt3 mt8">列宽最小值（A16）· 即时搜索（I5）· 完成度进度 · 危险操作确认</div>
+    </a>
+    <a class="pg-card" href="04-enterprise-form.html">
+      <div class="row between"><span class="tag blue num">P0-04</span><span class="fs12 txt4">1440×980</span></div>
+      <div class="fs16 strong mt12">新建 / 编辑企业</div>
+      <div class="fs12 txt3 mt8">三卡片分组 · AI 智能填充 · GIS 定位 · sticky 主按钮（A13）</div>
+    </a>
+    <a class="pg-card" href="05-cockpit.html">
+      <div class="row between"><span class="tag blue num">P0-05</span><span class="fs12 txt4">1440×980</span></div>
+      <div class="fs16 strong mt12">企业驾驶舱（浅色版）</div>
+      <div class="fs12 txt3 mt8">浅色重制（A7）· 6 统计（A10）· 风险环 + 雷达 · 11 模块流程排序</div>
+    </a>
+    <a class="pg-card" href="06-plans.html">
+      <div class="row between"><span class="tag blue num">P0-06</span><span class="fs12 txt4">1440×980</span></div>
+      <div class="fs16 strong mt12">预案总览</div>
+      <div class="fs12 txt3 mt8">卡片 / 列表双视图（可点击切换）· 计数红橙蓝分组 · 超长名截断</div>
+    </a>
+    <a class="pg-card" href="07-plan-editor.html">
+      <div class="row between"><span class="tag red num">P0-07 · 重点</span><span class="fs12 txt4">1440×980</span></div>
+      <div class="fs16 strong mt12">预案编辑器</div>
+      <div class="fs12 txt3 mt8">三栏重构 · 一键生成 SSE 进度 · AI 审查分级 · 去 emoji 章节树</div>
+    </a>
+    <a class="pg-card" href="08-export-preview.html">
+      <div class="row between"><span class="tag blue num">P0-08</span><span class="fs12 txt4">1440×980</span></div>
+      <div class="fs16 strong mt12">导出预览</div>
+      <div class="fs12 txt3 mt8">红阻断 / 黄提示分级校验 · 正文高亮对应 · A4 版式还原</div>
+    </a>
+  </div>
+
+  <div style="width:1440px;margin:8px auto 0;padding:0 0 8px">
+    <div class="alert info">
+      <svg class="icon"><use href="#i-ai"/></svg>
+      <span><b>后续批次</b>（设计方案 §7）：P1 风险模块 7 页 + 隐患模块 6 页 → P2 设置 8 页 / 辅助 6 页 / 移动端 6 页。本批通过后按同一令牌体系继续。</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

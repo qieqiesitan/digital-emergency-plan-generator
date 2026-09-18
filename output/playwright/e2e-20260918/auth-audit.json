@@ -1,0 +1,5152 @@
+{
+ "counts": {
+  "admin": 29,
+  "super": 4,
+  "NONE": 54,
+  "user": 260
+ },
+ "total": 347,
+ "noauth": [
+  {
+   "method": "POST",
+   "path": "/auth/register",
+   "handler": "register",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 25,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/auth/login",
+   "handler": "login",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 42,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/auth/refresh",
+   "handler": "refresh",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 60,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/auth/logout",
+   "handler": "logout",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 80,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/auth/forgot-password",
+   "handler": "forgot_password",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 95,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/auth/reset-password",
+   "handler": "reset_password",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 119,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/export/tasks/{task_id}",
+   "handler": "get_export_task_status",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 9,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/export/download/{file_key}",
+   "handler": "download_export",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 14,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/external/plans",
+   "handler": "external_create_plan",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 200,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/external/plans/{task_id}/status",
+   "handler": "external_plan_status",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 238,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/external/plans/{task_id}/files/{file_id}",
+   "handler": "external_download_file",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 266,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/extraction/suggest-mapping",
+   "handler": "api_suggest_mapping",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 25,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/extraction/run",
+   "handler": "api_run_extraction",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 35,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/extraction/parse-file",
+   "handler": "api_parse_file",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 67,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/plans/{plan_id}/generate/stop",
+   "handler": "stop_generation",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 947,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/ingest/sources",
+   "handler": "list_sources",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 24,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/ingest/sources",
+   "handler": "create_source",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 30,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/ingest/jobs",
+   "handler": "list_jobs",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 39,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/ingest/items",
+   "handler": "list_items",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 81,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/definitions/critical-quantities",
+   "handler": "list_critical_quantities",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 66,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/units",
+   "handler": "list_units",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 89,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/major-hazard/units",
+   "handler": "create_unit",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 102,
+   "router_level": []
+  },
+  {
+   "method": "PUT",
+   "path": "/major-hazard/units/{unit_id}",
+   "handler": "update_unit",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 117,
+   "router_level": []
+  },
+  {
+   "method": "DELETE",
+   "path": "/major-hazard/units/{unit_id}",
+   "handler": "delete_unit",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 133,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/units/{unit_id}/chemicals",
+   "handler": "list_unit_chemicals",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 144,
+   "router_level": []
+  },
+  {
+   "method": "PUT",
+   "path": "/major-hazard/units/{unit_id}/chemicals",
+   "handler": "replace_unit_chemicals",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 152,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/major-hazard/units/{unit_id}/preview",
+   "handler": "preview_unit",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 193,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/units/{unit_id}/calculations",
+   "handler": "list_calculations",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 213,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/units/{unit_id}/evidence",
+   "handler": "list_unit_evidence",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 223,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/units/{unit_id}/record",
+   "handler": "get_unit_record",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 247,
+   "router_level": []
+  },
+  {
+   "method": "PUT",
+   "path": "/major-hazard/units/{unit_id}/record",
+   "handler": "upsert_unit_record",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 256,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/definitions/lookup",
+   "handler": "api_lookup_chemical",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 288,
+   "router_level": []
+  },
+  {
+   "method": "PUT",
+   "path": "/major-hazard/units/{unit_id}/polygon",
+   "handler": "api_set_unit_polygon",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 326,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/linkable/risk-objects",
+   "handler": "api_list_linkable_risk_objects",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 348,
+   "router_level": []
+  },
+  {
+   "method": "PUT",
+   "path": "/major-hazard/units/{unit_id}/risk-object",
+   "handler": "api_link_risk_object",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 357,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/ledger/chemicals",
+   "handler": "api_list_ledger_chemicals",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 446,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/major-hazard/ledger/chemicals/{chemical_id}/suggest-design-max",
+   "handler": "api_suggest_design_max",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 478,
+   "router_level": []
+  },
+  {
+   "method": "PUT",
+   "path": "/major-hazard/unit-chemicals/{unit_chemical_id}/ledger-link",
+   "handler": "api_link_unit_chemical",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 498,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/platform/capabilities",
+   "handler": "list_capabilities",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 21,
+   "router_level": []
+  },
+  {
+   "method": "PUT",
+   "path": "/platform/capabilities/{code}",
+   "handler": "update_capability",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 27,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/platform/ai-usage",
+   "handler": "ai_usage",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 41,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/platform/overview",
+   "handler": "platform_overview",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 51,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/public/hazard/report/{token}",
+   "handler": "public_hazard_report",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 88,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/public/hazard/{token}",
+   "handler": "public_hazard_publicity",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 145,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/public/risk/{token}",
+   "handler": "public_risk",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 23,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/public/risk-notice-cards/{token}",
+   "handler": "public_card",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 26,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/enterprises/{enterprise_id}/resource-investigation/chapters",
+   "handler": "get_resource_investigation_chapters",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 463,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/enterprises/{enterprise_id}/risk-assessment/chapters",
+   "handler": "get_risk_assessment_chapters",
+   "auth": "NONE",
+   "deps": [],
+   "manual": [],
+   "line": 709,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/templates",
+   "handler": "list_templates",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 12,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/templates/{template_id}",
+   "handler": "get_template",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 21,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/work-ticket/templates",
+   "handler": "list_templates",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 41,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/work-ticket/tickets",
+   "handler": "list_tickets",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 120,
+   "router_level": []
+  },
+  {
+   "method": "POST",
+   "path": "/work-ticket/tickets/{ticket_id}/gas-tests",
+   "handler": "api_add_gas_test",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 160,
+   "router_level": []
+  },
+  {
+   "method": "GET",
+   "path": "/work-ticket/tickets/{ticket_id}",
+   "handler": "api_ticket_detail",
+   "auth": "NONE",
+   "deps": [
+    "get_db"
+   ],
+   "manual": [],
+   "line": 205,
+   "router_level": []
+  }
+ ],
+ "per_file": {
+  "admin_users.py": [
+   {
+    "method": "GET",
+    "path": "/admin/users",
+    "handler": "list_users",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 16,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/admin/users/{user_id}",
+    "handler": "get_user",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 39,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/admin/users",
+    "handler": "create_user",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 51,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/admin/users/{user_id}",
+    "handler": "update_user",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 70,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/admin/users/{user_id}",
+    "handler": "delete_user",
+    "auth": "super",
+    "deps": [
+     "get_current_user",
+     "require_super_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 92,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/admin/users/{user_id}/reset-password",
+    "handler": "reset_user_password",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 109,
+    "router_level": []
+   }
+  ],
+  "ai_config.py": [
+   {
+    "method": "GET",
+    "path": "/settings/ai-config",
+    "handler": "get_ai_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 26,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/settings/ai-config",
+    "handler": "update_ai_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 34,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/settings/ai-config",
+    "handler": "delete_ai_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 51,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/settings/ai-config/test",
+    "handler": "test_ai_connection",
+    "auth": "admin",
+    "deps": [
+     "require_admin"
+    ],
+    "manual": [],
+    "line": 59,
+    "router_level": []
+   }
+  ],
+  "auth.py": [
+   {
+    "method": "POST",
+    "path": "/auth/register",
+    "handler": "register",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 25,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/auth/login",
+    "handler": "login",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 42,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/auth/refresh",
+    "handler": "refresh",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 60,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/auth/logout",
+    "handler": "logout",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 80,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/auth/forgot-password",
+    "handler": "forgot_password",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 95,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/auth/reset-password",
+    "handler": "reset_password",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 119,
+    "router_level": []
+   }
+  ],
+  "chat.py": [
+   {
+    "method": "GET",
+    "path": "/chat/conversations",
+    "handler": "list_conversations",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 491,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/chat/conversations",
+    "handler": "create_conversation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 502,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/chat/conversations/{conv_id}",
+    "handler": "delete_conversation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 511,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/chat/conversations/{conv_id}/messages",
+    "handler": "list_messages",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 521,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/chat/conversations/{conv_id}/tool-calls",
+    "handler": "list_tool_calls",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 535,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/chat",
+    "handler": "chat",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 556,
+    "router_level": []
+   }
+  ],
+  "chemical_library.py": [
+   {
+    "method": "GET",
+    "path": "/chemical-library",
+    "handler": "list_library_items",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 50,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/chemical-library",
+    "handler": "create_library_item",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 77,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/chemical-library/{item_id}",
+    "handler": "update_library_item",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 94,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/chemical-library/{item_id}",
+    "handler": "delete_library_item",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 117,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/chemical-library/collect/enterprises",
+    "handler": "list_collect_enterprises",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 131,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/chemical-library/collect/enterprises/{enterprise_id}/chemicals",
+    "handler": "list_collect_chemicals",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 146,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/chemical-library/collect",
+    "handler": "collect_from_enterprise",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 163,
+    "router_level": []
+   }
+  ],
+  "config.py": [
+   {
+    "method": "GET",
+    "path": "/configs",
+    "handler": "list_configs",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 14,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/configs/{config_key}",
+    "handler": "get_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 23,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/configs/{config_key}",
+    "handler": "set_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 35,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/configs/{config_key}",
+    "handler": "delete_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 62,
+    "router_level": []
+   }
+  ],
+  "dashboard.py": [
+   {
+    "method": "GET",
+    "path": "/dashboard",
+    "handler": "get_dashboard",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 15,
+    "router_level": []
+   }
+  ],
+  "data_dicts.py": [
+   {
+    "method": "GET",
+    "path": "/settings/data-dicts",
+    "handler": "list_system_dicts",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 25,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/settings/data-dicts",
+    "handler": "create_system_dict",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 34,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/settings/data-dicts/{dict_id}",
+    "handler": "update_system_dict",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 46,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/data-dicts",
+    "handler": "list_enterprise_dicts",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 58,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/data-dicts",
+    "handler": "create_enterprise_dict",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 70,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/data-dicts/{dict_id}",
+    "handler": "update_enterprise_dict",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 85,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/data-dicts/{dict_id}",
+    "handler": "delete_enterprise_dict",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 98,
+    "router_level": []
+   }
+  ],
+  "diagrams.py": [
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/diagrams/regenerate-missing",
+    "handler": "regenerate_missing",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 43,
+    "router_level": []
+   }
+  ],
+  "enterprise_org.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/org/nodes",
+    "handler": "get_org_nodes",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 117,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/org/nodes",
+    "handler": "update_org_nodes",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 127,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/org/ai-suggest",
+    "handler": "ai_suggest_org_tree",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 151,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/org/members",
+    "handler": "create_member",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 182,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/org/members/{member_id}",
+    "handler": "update_member",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 216,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/org/members/{member_id}",
+    "handler": "delete_member",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 239,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/org/members",
+    "handler": "list_members",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 255,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/org/members/search",
+    "handler": "search_bindable_users",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 286,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/org/members/template",
+    "handler": "download_member_import_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 329,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/org/members/import",
+    "handler": "import_members",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 348,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/org/members/available",
+    "handler": "get_available_members",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 443,
+    "router_level": []
+   }
+  ],
+  "enterprise_sub.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/org-structure",
+    "handler": "get_org_structure",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 32,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/org-structure",
+    "handler": "update_org_structure",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 39,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/surrounding",
+    "handler": "get_surrounding",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 47,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/surrounding",
+    "handler": "update_surrounding",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 54,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-sources",
+    "handler": "list_risk_sources",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 62,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-sources/{risk_id}",
+    "handler": "get_risk_source",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 74,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-sources",
+    "handler": "create_risk_source",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 80,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-sources/{risk_id}",
+    "handler": "update_risk_source",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 91,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-sources/{risk_id}",
+    "handler": "delete_risk_source",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 104,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resources",
+    "handler": "list_resources",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 112,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resources/{resource_id}",
+    "handler": "get_resource",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 124,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resources",
+    "handler": "create_resource",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 130,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/resources/{resource_id}",
+    "handler": "update_resource",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 139,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/resources/{resource_id}",
+    "handler": "delete_resource",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 148,
+    "router_level": []
+   }
+  ],
+  "enterprises.py": [
+   {
+    "method": "POST",
+    "path": "/enterprises/autofill",
+    "handler": "autofill_enterprise",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 34,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises",
+    "handler": "list_enterprises",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 92,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}",
+    "handler": "get_enterprise",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 113,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/cockpit-summary",
+    "handler": "get_enterprise_cockpit_summary",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 121,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises",
+    "handler": "create_enterprise",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 139,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}",
+    "handler": "update_enterprise",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 168,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}",
+    "handler": "delete_enterprise",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 201,
+    "router_level": []
+   }
+  ],
+  "export.py": [
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/export/preview",
+    "handler": "get_export_preview",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 226,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/export/docx",
+    "handler": "export_plan_docx",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 293,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/export/validate",
+    "handler": "validate_plan_export",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 416,
+    "router_level": []
+   }
+  ],
+  "export_tasks.py": [
+   {
+    "method": "GET",
+    "path": "/export/tasks/{task_id}",
+    "handler": "get_export_task_status",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 9,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/export/download/{file_key}",
+    "handler": "download_export",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 14,
+    "router_level": []
+   }
+  ],
+  "external.py": [
+   {
+    "method": "POST",
+    "path": "/external/plans",
+    "handler": "external_create_plan",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 200,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/external/plans/{task_id}/status",
+    "handler": "external_plan_status",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 238,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/external/plans/{task_id}/files/{file_id}",
+    "handler": "external_download_file",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 266,
+    "router_level": []
+   }
+  ],
+  "extraction.py": [
+   {
+    "method": "POST",
+    "path": "/extraction/suggest-mapping",
+    "handler": "api_suggest_mapping",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 25,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/extraction/run",
+    "handler": "api_run_extraction",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 35,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/extraction/parse-file",
+    "handler": "api_parse_file",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 67,
+    "router_level": []
+   }
+  ],
+  "generation.py": [
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/generate/batch",
+    "handler": "generate_batch",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 807,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/generate/stop",
+    "handler": "stop_generation",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 947,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/generate/status",
+    "handler": "get_generation_status",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 955,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/generate/batch/background",
+    "handler": "generate_batch_background",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 985,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/generate/{section_key}",
+    "handler": "generate_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1053,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/sections/{section_key}/regenerate",
+    "handler": "regenerate_selection",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1253,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/generate/preview",
+    "handler": "generate_preview",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1357,
+    "router_level": []
+   }
+  ],
+  "hazard_management.py": [
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/plans",
+    "handler": "create_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 607,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/plans",
+    "handler": "list_plans",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 639,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/plans/{plan_id}",
+    "handler": "get_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 655,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/plans/{plan_id}",
+    "handler": "update_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 667,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/plans/{plan_id}",
+    "handler": "delete_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 700,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/templates",
+    "handler": "list_templates",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 723,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/templates",
+    "handler": "create_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 750,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/templates/{template_id}",
+    "handler": "update_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 784,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/templates/{template_id}/copy",
+    "handler": "copy_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 820,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/templates/{template_id}",
+    "handler": "delete_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 852,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/tasks",
+    "handler": "list_tasks",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 869,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/tasks/{task_id}",
+    "handler": "get_task",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 896,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/tasks/{task_id}",
+    "handler": "submit_task",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 912,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/tasks/{task_id}/to-record",
+    "handler": "task_to_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 967,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/checklist-template",
+    "handler": "ai_checklist_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1021,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records",
+    "handler": "create_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1156,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records",
+    "handler": "list_records",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1300,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records/{rid}",
+    "handler": "get_record_detail",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1382,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/record-assist",
+    "handler": "ai_record_assist",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1458,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records/{rid}/grade",
+    "handler": "grade_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1485,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records/{rid}/approve",
+    "handler": "approve_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1530,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records/{rid}/reject",
+    "handler": "reject_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1558,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records/{rid}/rectify",
+    "handler": "rectify_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1631,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records/{rid}/review",
+    "handler": "review_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1693,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/records/{rid}/close",
+    "handler": "close_record",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1728,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/grade",
+    "handler": "ai_grade_suggestion",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1756,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/governance-plan",
+    "handler": "ai_governance_plan_draft",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1787,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/plan-builder",
+    "handler": "ai_plan_builder",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1818,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/schedule-suggestion",
+    "handler": "ai_schedule_suggestion",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1846,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/checklist",
+    "handler": "ai_checklist_suggestion",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1876,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/ai/setup-wizard",
+    "handler": "ai_setup_wizard",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1900,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/publicity",
+    "handler": "list_publicity",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 2016,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/publicity-token",
+    "handler": "generate_publicity_token",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 2056,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/dashboard",
+    "handler": "hazard_dashboard",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 2294,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/export/ledger.xlsx",
+    "handler": "export_hazard_ledger",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 2359,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/hazard-inspection/export/report.xlsx",
+    "handler": "export_hazard_report",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 2411,
+    "router_level": []
+   }
+  ],
+  "hazardous_chemicals.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/chemicals",
+    "handler": "list_chemicals",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 36,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/chemicals/{chemical_id}",
+    "handler": "get_chemical",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 73,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/chemicals",
+    "handler": "create_chemical",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 96,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/chemicals/{chemical_id}",
+    "handler": "update_chemical",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 117,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/chemicals/{chemical_id}",
+    "handler": "delete_chemical",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 148,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/chemicals/ai/questions",
+    "handler": "get_chemical_ai_questions",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 183,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/chemicals/ai/generate",
+    "handler": "generate_chemicals_ai",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 265,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/chemicals/batch",
+    "handler": "batch_create_chemicals",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 355,
+    "router_level": []
+   }
+  ],
+  "ingest.py": [
+   {
+    "method": "GET",
+    "path": "/ingest/sources",
+    "handler": "list_sources",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 24,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/ingest/sources",
+    "handler": "create_source",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 30,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/ingest/jobs",
+    "handler": "list_jobs",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 39,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/ingest/jobs",
+    "handler": "create_job",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 52,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/ingest/items",
+    "handler": "list_items",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 81,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/ingest/items/confirm",
+    "handler": "confirm",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 114,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/ingest/items/skip",
+    "handler": "skip",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 130,
+    "router_level": []
+   }
+  ],
+  "major_hazard.py": [
+   {
+    "method": "GET",
+    "path": "/major-hazard/definitions/critical-quantities",
+    "handler": "list_critical_quantities",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 66,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/units",
+    "handler": "list_units",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 89,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/major-hazard/units",
+    "handler": "create_unit",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 102,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/major-hazard/units/{unit_id}",
+    "handler": "update_unit",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 117,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/major-hazard/units/{unit_id}",
+    "handler": "delete_unit",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 133,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/units/{unit_id}/chemicals",
+    "handler": "list_unit_chemicals",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 144,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/major-hazard/units/{unit_id}/chemicals",
+    "handler": "replace_unit_chemicals",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 152,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/major-hazard/units/{unit_id}/compute",
+    "handler": "compute_unit",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 173,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/major-hazard/units/{unit_id}/preview",
+    "handler": "preview_unit",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 193,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/units/{unit_id}/calculations",
+    "handler": "list_calculations",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 213,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/units/{unit_id}/evidence",
+    "handler": "list_unit_evidence",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 223,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/major-hazard/units/{unit_id}/evidence",
+    "handler": "attach_unit_evidence",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 230,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/units/{unit_id}/record",
+    "handler": "get_unit_record",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 247,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/major-hazard/units/{unit_id}/record",
+    "handler": "upsert_unit_record",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 256,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/definitions/lookup",
+    "handler": "api_lookup_chemical",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 288,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/major-hazard/units/{unit_id}/polygon",
+    "handler": "api_set_unit_polygon",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 326,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/linkable/risk-objects",
+    "handler": "api_list_linkable_risk_objects",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 348,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/major-hazard/units/{unit_id}/risk-object",
+    "handler": "api_link_risk_object",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 357,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/units/{unit_id}/report.docx",
+    "handler": "export_unit_report",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 373,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/ledger/chemicals",
+    "handler": "api_list_ledger_chemicals",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 446,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/major-hazard/ledger/chemicals/{chemical_id}/suggest-design-max",
+    "handler": "api_suggest_design_max",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 478,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/major-hazard/unit-chemicals/{unit_chemical_id}/ledger-link",
+    "handler": "api_link_unit_chemical",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 498,
+    "router_level": []
+   }
+  ],
+  "onboarding.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/completion",
+    "handler": "get_enterprise_completion",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 46,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/onboarding/candidates",
+    "handler": "onboarding_candidates",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 63,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/onboarding/import",
+    "handler": "onboarding_import",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 84,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/onboarding/import/batch",
+    "handler": "onboarding_import_batch",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 110,
+    "router_level": []
+   }
+  ],
+  "plans.py": [
+   {
+    "method": "GET",
+    "path": "/plans",
+    "handler": "list_plans",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 70,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/plans/enterprise-summary",
+    "handler": "enterprise_plan_summary",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 94,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}",
+    "handler": "get_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 136,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans",
+    "handler": "create_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 145,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/plans/{plan_id}",
+    "handler": "update_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 191,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/plans/{plan_id}",
+    "handler": "delete_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 201,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/duplicate",
+    "handler": "duplicate_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 208,
+    "router_level": []
+   }
+  ],
+  "platform.py": [
+   {
+    "method": "GET",
+    "path": "/platform/capabilities",
+    "handler": "list_capabilities",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 21,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/platform/capabilities/{code}",
+    "handler": "update_capability",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 27,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/platform/ai-usage",
+    "handler": "ai_usage",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 41,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/platform/overview",
+    "handler": "platform_overview",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 51,
+    "router_level": []
+   }
+  ],
+  "prompts.py": [
+   {
+    "method": "GET",
+    "path": "/prompts",
+    "handler": "list_prompts",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 74,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/prompts/{prompt_id}",
+    "handler": "get_prompt",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 88,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/prompts",
+    "handler": "create_prompt",
+    "auth": "user",
+    "deps": [
+     "require_admin",
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 101,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/prompts/{prompt_id}",
+    "handler": "update_prompt",
+    "auth": "user",
+    "deps": [
+     "require_admin",
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 125,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/prompts/{prompt_id}/test",
+    "handler": "test_prompt",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 149,
+    "router_level": []
+   }
+  ],
+  "public_hazard.py": [
+   {
+    "method": "POST",
+    "path": "/public/hazard/report/{token}",
+    "handler": "public_hazard_report",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 88,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/public/hazard/{token}",
+    "handler": "public_hazard_publicity",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 145,
+    "router_level": []
+   }
+  ],
+  "public_risk.py": [
+   {
+    "method": "GET",
+    "path": "/public/risk/{token}",
+    "handler": "public_risk",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 23,
+    "router_level": []
+   }
+  ],
+  "public_risk_notice.py": [
+   {
+    "method": "GET",
+    "path": "/public/risk-notice-cards/{token}",
+    "handler": "public_card",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 26,
+    "router_level": []
+   }
+  ],
+  "regulations.py": [
+   {
+    "method": "GET",
+    "path": "/regulations",
+    "handler": "list_regulations",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 148,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/regulations/check-duplicate",
+    "handler": "check_duplicate",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 177,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/graph-data",
+    "handler": "graph_data",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 184,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/{regulation_id}",
+    "handler": "get_regulation",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 199,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/regulations/parse",
+    "handler": "parse_regulation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 231,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/regulations",
+    "handler": "create_regulation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 288,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/regulations/{regulation_id}",
+    "handler": "update_regulation",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 345,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/regulations/{regulation_id}",
+    "handler": "delete_regulation",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 382,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/{regulation_id}/impact",
+    "handler": "regulation_impact",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 400,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/regulations/batch/abolish",
+    "handler": "batch_abolish_regulations",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 414,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/regulations/{regulation_id}/abolish",
+    "handler": "abolish_regulation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 452,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/regulations/rebuild-index",
+    "handler": "rebuild_index",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 483,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/regulations/{regulation_id}/topics",
+    "handler": "update_topics",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 505,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/stats/data",
+    "handler": "stats",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 541,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/{regulation_id}/history",
+    "handler": "regulation_history",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 556,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/history/global",
+    "handler": "global_history",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 566,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/{regulation_id}/source",
+    "handler": "download_source",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 579,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/regulations/{regulation_id}/source/versions",
+    "handler": "source_versions",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 599,
+    "router_level": []
+   }
+  ],
+  "report_versions.py": [],
+  "resource_investigation.py": [
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/skip",
+    "handler": "skip_resource_investigation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 75,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resource-investigation",
+    "handler": "get_resource_investigation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 126,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/summary",
+    "handler": "get_resource_investigation_summary",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 157,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/preview",
+    "handler": "preview_resource_investigation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 188,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/export",
+    "handler": "export_resource_investigation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 226,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/generate",
+    "handler": "generate_resource_investigation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 282,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/chapters",
+    "handler": "get_resource_investigation_chapters",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 463,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/generate/section",
+    "handler": "generate_resource_investigation_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 599,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/sections/{chapter_key}/regenerate",
+    "handler": "regenerate_resource_investigation_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 616,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/sections/{chapter_key}",
+    "handler": "save_resource_investigation_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 635,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/review",
+    "handler": "review_resource_investigation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 671,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/review/apply",
+    "handler": "apply_resource_investigation_review",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 701,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/style",
+    "handler": "get_resource_investigation_style",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 768,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/style",
+    "handler": "save_resource_investigation_style",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 792,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resource-investigation/merge",
+    "handler": "merge_resource_investigation",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 822,
+    "router_level": []
+   }
+  ],
+  "resources_ext.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/resources/template",
+    "handler": "download_resource_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 95,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resources/import",
+    "handler": "import_resources",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 229,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resources/ai/questions",
+    "handler": "get_resource_ai_questions",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 399,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resources/ai/generate",
+    "handler": "generate_resources_ai",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 557,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/resources/batch",
+    "handler": "batch_create_resources",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 753,
+    "router_level": []
+   }
+  ],
+  "review.py": [
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/review",
+    "handler": "get_plan_review",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 40,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/review/apply",
+    "handler": "apply_plan_review",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 81,
+    "router_level": []
+   }
+  ],
+  "risk_assessment.py": [
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/skip",
+    "handler": "skip_risk_assessment",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 85,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-assessment",
+    "handler": "get_risk_assessment",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 418,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/summary",
+    "handler": "get_risk_assessment_summary",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 442,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/preview",
+    "handler": "preview_risk_assessment",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 466,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/export",
+    "handler": "export_risk_assessment",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 493,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/generate",
+    "handler": "generate_risk_assessment",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 543,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/chapters",
+    "handler": "get_risk_assessment_chapters",
+    "auth": "NONE",
+    "deps": [],
+    "manual": [],
+    "line": 709,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/generate/section",
+    "handler": "generate_risk_assessment_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 840,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/sections/{chapter_key}/regenerate",
+    "handler": "regenerate_risk_assessment_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 857,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/sections/{chapter_key}",
+    "handler": "save_risk_assessment_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 876,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/review",
+    "handler": "review_risk_assessment",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 912,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/review/apply",
+    "handler": "apply_risk_assessment_review",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 942,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/style",
+    "handler": "get_risk_assessment_style",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1009,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/style",
+    "handler": "save_risk_assessment_style",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1033,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-assessment/merge",
+    "handler": "merge_risk_assessment",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1063,
+    "router_level": []
+   }
+  ],
+  "risk_management.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors",
+    "handler": "list_floors",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 92,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors",
+    "handler": "create_floor",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 100,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors/{floor_id}",
+    "handler": "update_floor",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 121,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors/{floor_id}",
+    "handler": "delete_floor",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 144,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors/{floor_id}/plan",
+    "handler": "upload_floor_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 175,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors/{floor_id}/plan",
+    "handler": "delete_floor_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 195,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors/{floor_id}/four-color/analyze",
+    "handler": "analyze_four_color",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 216,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors/{floor_id}/four-color/commit",
+    "handler": "commit_four_color_import",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 243,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/floors/{floor_id}/four-color/{file_token}",
+    "handler": "cancel_four_color_import",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 327,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/methods",
+    "handler": "list_methods",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 339,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/methods/{method_id}",
+    "handler": "get_method",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 345,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/methods",
+    "handler": "create_method",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 352,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-management/methods/{method_id}",
+    "handler": "update_method",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 361,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/methods/{method_id}",
+    "handler": "delete_method",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 371,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/methods/{method_id}/duplicate",
+    "handler": "duplicate_method",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 381,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/methods/preview",
+    "handler": "preview_method",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 392,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/workbench",
+    "handler": "load_workbench",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 479,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/workbench/batch-save",
+    "handler": "batch_save_workbench",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 526,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/overview",
+    "handler": "get_overview",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 670,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/zones",
+    "handler": "list_zones",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 705,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/zones",
+    "handler": "create_zone",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 723,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-management/zones/{zone_id}",
+    "handler": "update_zone",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 735,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/zones/{zone_id}",
+    "handler": "delete_zone",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 755,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects",
+    "handler": "list_objects",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 766,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects",
+    "handler": "create_object",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 779,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects/{object_id}",
+    "handler": "update_object",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 798,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects/{object_id}",
+    "handler": "delete_object",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 807,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects/{object_id}/units",
+    "handler": "list_units",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 817,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects/{object_id}/units",
+    "handler": "create_unit",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 827,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects/{object_id}/units/{unit_id}",
+    "handler": "update_unit",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 836,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects/{object_id}/units/{unit_id}",
+    "handler": "delete_unit",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 845,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/units/{unit_id}/events",
+    "handler": "create_event",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 855,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/objects/{object_id}/events",
+    "handler": "create_object_event",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 879,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}",
+    "handler": "update_event",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 903,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}",
+    "handler": "delete_event",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 930,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}/recalc",
+    "handler": "recalc_event",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 939,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}/conversion-reference",
+    "handler": "event_conversion_reference",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 965,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}/ai-dual-level-suggestion",
+    "handler": "ai_dual_level_suggestion",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 997,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}/measures",
+    "handler": "list_measures",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1020,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}/measures",
+    "handler": "create_measure",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1026,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}/measures/{measure_id}",
+    "handler": "update_measure",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1035,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/enterprises/{enterprise_id}/risk-management/events/{event_id}/measures/{measure_id}",
+    "handler": "delete_measure",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1044,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/hierarchy",
+    "handler": "get_hierarchy",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1064,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/control-list",
+    "handler": "control_list",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1146,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/control-list/export",
+    "handler": "control_list_export",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1179,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/risk-publicity",
+    "handler": "get_risk_publicity",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1208,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/risk-publicity/token",
+    "handler": "reset_risk_publicity_token",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1248,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/ai/suggest-objects",
+    "handler": "ai_suggest_objects",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1261,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/ai/suggest-events",
+    "handler": "ai_suggest_events",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1268,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/ai/suggest-measures",
+    "handler": "ai_suggest_measures",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1275,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/ai/smart-guide",
+    "handler": "ai_smart_guide",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1282,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/ai/analyze-floor-plan",
+    "handler": "ai_analyze_floor_plan",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1294,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/ai/migrate-preview",
+    "handler": "ai_migrate_preview",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1301,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-management/migrate/preview",
+    "handler": "get_migration_preview",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1329,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-management/migrate/execute",
+    "handler": "execute_migration",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 1335,
+    "router_level": []
+   }
+  ],
+  "risk_notice_card.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-notice-cards",
+    "handler": "list_cards",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 88,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-notice-cards/{object_id}",
+    "handler": "card_detail",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 182,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-notice-cards/export",
+    "handler": "export_cards",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 220,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-notice-cards/{object_id}/ai-optimize",
+    "handler": "ai_optimize",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 288,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-notice-cards/{object_id}/ai-review-signs",
+    "handler": "ai_review_signs",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 327,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/enterprises/{enterprise_id}/risk-notice-cards/{object_id}/snapshot",
+    "handler": "save_card_snapshot",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 403,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-notice-cards/{object_id}/token/reset",
+    "handler": "reset_token",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 428,
+    "router_level": []
+   }
+  ],
+  "risk_sources_ext.py": [
+   {
+    "method": "GET",
+    "path": "/enterprises/{enterprise_id}/risk-sources/template",
+    "handler": "download_risk_source_template",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 122,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-sources/import",
+    "handler": "import_risk_sources",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 274,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-sources/ai/questions",
+    "handler": "get_risk_ai_questions",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 432,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-sources/ai/generate",
+    "handler": "generate_risk_sources_ai",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 602,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/risk-sources/batch",
+    "handler": "batch_create_risk_sources",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 758,
+    "router_level": []
+   }
+  ],
+  "roles.py": [
+   {
+    "method": "GET",
+    "path": "/roles",
+    "handler": "list_roles",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 16,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/roles/my-menus",
+    "handler": "my_menus",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 27,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/roles/{role_id}",
+    "handler": "get_role",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 42,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/roles",
+    "handler": "create_role",
+    "auth": "super",
+    "deps": [
+     "require_super_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 56,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/roles/{role_id}",
+    "handler": "update_role",
+    "auth": "super",
+    "deps": [
+     "require_super_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 78,
+    "router_level": []
+   },
+   {
+    "method": "DELETE",
+    "path": "/roles/{role_id}",
+    "handler": "delete_role",
+    "auth": "super",
+    "deps": [
+     "require_super_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 102,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/roles/permissions/list",
+    "handler": "list_permissions",
+    "auth": "admin",
+    "deps": [
+     "require_admin",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 118,
+    "router_level": []
+   }
+  ],
+  "sections.py": [
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/sections",
+    "handler": "list_sections",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 38,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/sections/{section_key}",
+    "handler": "get_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 45,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/plans/{plan_id}/sections/{section_key}",
+    "handler": "update_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 53,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/sections/{section_key}/autofill",
+    "handler": "autofill_section",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 63,
+    "router_level": []
+   }
+  ],
+  "surrounding_ai.py": [
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/surrounding/ai/questions",
+    "handler": "get_surrounding_ai_questions",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 186,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/surrounding/ai/generate",
+    "handler": "generate_surrounding_ai",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 270,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/enterprises/{enterprise_id}/surrounding/amap-search",
+    "handler": "amap_search_surrounding",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 380,
+    "router_level": []
+   }
+  ],
+  "templates.py": [
+   {
+    "method": "GET",
+    "path": "/templates",
+    "handler": "list_templates",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 12,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/templates/{template_id}",
+    "handler": "get_template",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 21,
+    "router_level": []
+   }
+  ],
+  "third_party_config.py": [
+   {
+    "method": "GET",
+    "path": "/system/third-party-config",
+    "handler": "list_third_party_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin"
+    ],
+    "manual": [],
+    "line": 79,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/system/third-party-config",
+    "handler": "update_third_party_config",
+    "auth": "admin",
+    "deps": [
+     "require_admin"
+    ],
+    "manual": [],
+    "line": 103,
+    "router_level": []
+   }
+  ],
+  "users.py": [
+   {
+    "method": "GET",
+    "path": "/users/me",
+    "handler": "get_profile",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 14,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/users/me",
+    "handler": "update_profile",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 18,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/users/me/password",
+    "handler": "change_password",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 25,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/users/me/style-preference",
+    "handler": "get_style_preference",
+    "auth": "user",
+    "deps": [
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 45,
+    "router_level": []
+   },
+   {
+    "method": "PUT",
+    "path": "/users/me/style-preference",
+    "handler": "update_style_preference",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 56,
+    "router_level": []
+   }
+  ],
+  "versions.py": [
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/versions",
+    "handler": "list_versions",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 70,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/versions/{version_id}",
+    "handler": "get_version",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 77,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/versions",
+    "handler": "create_version",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 83,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/plans/{plan_id}/versions/compare",
+    "handler": "compare_versions",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 95,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/plans/{plan_id}/versions/{version_id}/rollback",
+    "handler": "rollback_version",
+    "auth": "user",
+    "deps": [
+     "get_current_user",
+     "get_db"
+    ],
+    "manual": [],
+    "line": 115,
+    "router_level": []
+   }
+  ],
+  "work_ticket.py": [
+   {
+    "method": "GET",
+    "path": "/work-ticket/templates",
+    "handler": "list_templates",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 41,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/work-ticket/tickets",
+    "handler": "list_tickets",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 120,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/work-ticket/tickets",
+    "handler": "api_open_ticket",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 138,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/work-ticket/tickets/{ticket_id}/gas-tests",
+    "handler": "api_add_gas_test",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 160,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/work-ticket/tickets/{ticket_id}/submit",
+    "handler": "api_submit",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 172,
+    "router_level": []
+   },
+   {
+    "method": "POST",
+    "path": "/work-ticket/tickets/{ticket_id}/node-action",
+    "handler": "api_node_action",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 185,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/work-ticket/tickets/{ticket_id}",
+    "handler": "api_ticket_detail",
+    "auth": "NONE",
+    "deps": [
+     "get_db"
+    ],
+    "manual": [],
+    "line": 205,
+    "router_level": []
+   },
+   {
+    "method": "GET",
+    "path": "/work-ticket/tickets/{ticket_id}/print.docx",
+    "handler": "api_print_ticket",
+    "auth": "user",
+    "deps": [
+     "get_db",
+     "get_current_user"
+    ],
+    "manual": [],
+    "line": 256,
+    "router_level": []
+   }
+  ]
+ }
+}

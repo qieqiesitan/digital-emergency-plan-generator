@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>07 · 预案编辑器 — 数字化预案系统 UI 重设计</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/nav.js"></script>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-label">07 · 预案编辑器 /plans/:id/edit · 1440×980 · 重点重做</div>
+
+  <div style="display:flex;flex-direction:column;height:980px">
+    <!-- 顶部工具栏（顺序：标题+状态+版本 → 风格/AI审查/版本历史 → 保存/导出） -->
+    <div class="ed-toolbar">
+      <span class="icon-btn" style="background:var(--bg-subtle)"><svg class="icon"><use href="#i-left"/></svg></span>
+      <div style="min-width:0">
+        <div class="row gap8"><span class="fs16 strong" style="white-space:nowrap">恒瑞精细化工 · 综合应急预案</span>
+          <span class="tag orange">草稿</span><span class="tag gray num">当前版本 V5</span></div>
+      </div>
+      <div style="margin-left:auto" class="row gap8">
+        <div class="select" style="width:132px;height:32px"><span class="fs13">创作风格：标准规范</span><svg class="icon sm txt4"><use href="#i-down"/></svg></div>
+        <button class="btn sm"><svg class="icon sm"><use href="#i-ai"/></svg>AI 审查</button>
+        <button class="btn sm"><svg class="icon sm"><use href="#i-clock"/></svg>版本历史</button>
+        <span style="width:1px;height:20px;background:var(--bd);margin:0 4px"></span>
+        <button class="btn sm primary"><svg class="icon sm"><use href="#i-save"/></svg>保存版本</button>
+        <button class="btn sm"><svg class="icon sm"><use href="#i-export"/></svg>导出</button>
+      </div>
+    </div>
+
+    <!-- 一键生成（SSE 进度）+ AI 未配置引导（I7） -->
+    <div style="background:#fff;border-bottom:1px solid var(--bd-weak);padding:12px 20px">
+      <div class="alert warn" style="margin:0 0 10px">
+        <svg class="icon"><use href="#i-alert"/></svg>
+        <span><b>AI 助手未配置</b>，一键生成 / 续写 / 审查暂不可用。</span>
+        <span class="link">前往 设置 → AI 配置 <svg class="icon sm"><use href="#i-right"/></svg></span>
+      </div>
+      <div style="border:1px solid #DBEAFE;background:#F8FAFF;border-radius:10px;padding:12px 16px">
+        <div class="row between">
+          <div class="row gap8">
+            <span class="loading-dots" style="width:14px;height:14px;border:2px solid rgba(29,78,216,.2);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite"></span>
+            <span class="fs13 strong" style="color:var(--primary)">AI 正在生成章节</span>
+            <span class="fs13 txt3 num">12 / 18 章 · 第 5.3 节 应急响应分级…</span>
+          </div>
+          <button class="btn sm"><svg class="icon sm"><use href="#i-stop"/></svg>停止生成</button>
+        </div>
+        <div class="row gap8 mt12"><div class="progress"><i style="width:66%"></i></div><span class="fs12 txt3 num">66%</span></div>
+        <div class="fs12 txt4 mt8">流式写入中 · 已生成内容实时保存，关闭页面不丢失</div>
+      </div>
+    </div>
+
+    <!-- 三栏 -->
+    <div class="ed-cols">
+      <!-- 左：章节树（去 emoji，统一 FileText 图标） -->
+      <div class="ed-left">
+        <div class="row between" style="padding:12px 14px 6px">
+          <span class="fs13 strong">章节目录</span>
+          <span class="link fs12">展开 / 收起</span>
+        </div>
+        <div class="tree" style="flex:1">
+          <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>1 总则</div>
+          <div style="padding-left:18px">
+            <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>1.1 编制目的</div>
+            <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>1.2 编制依据</div>
+          </div>
+          <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>2 应急组织机构及职责</div>
+          <div style="padding-left:18px">
+            <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>2.1 应急指挥部</div>
+            <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>2.2 各成员职责</div>
+          </div>
+          <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>3 风险描述</div>
+          <div class="tree-item"><svg class="icon caret"><use href="#i-right"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>4 预警与信息报告</div>
+          <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm" style="color:var(--primary)"><use href="#i-file"/></svg>5 应急响应</div>
+          <div style="padding-left:18px">
+            <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>5.1 响应分级</div>
+            <div class="tree-item"><svg class="icon caret"><use href="#i-down"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>5.2 响应程序</div>
+            <div class="tree-item on"><span class="loading-dots"></span><svg class="icon sm" style="color:var(--primary)"><use href="#i-file"/></svg>5.3 应急响应分级<span style="margin-left:auto"></span></div>
+            <div class="tree-item" style="opacity:.55"><svg class="icon caret"><use href="#i-right"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>5.4 处置措施（待生成）</div>
+          </div>
+          <div class="tree-item" style="opacity:.55"><svg class="icon caret"><use href="#i-right"/></svg><svg class="icon sm txt4"><use href="#i-file"/></svg>6 信息公开与后期处置（待生成）</div>
+        </div>
+        <div style="border-top:1px solid var(--bd-weak);padding:10px 14px" class="row between">
+          <span class="fs12 txt4 num">14 / 18 章完成</span>
+          <span class="fs12" style="color:var(--primary)">智能导引</span>
+        </div>
+      </div>
+
+      <!-- 中：富文本编辑 -->
+      <div class="ed-mid">
+        <div style="padding:20px 32px 0;overflow:auto;flex:1">
+          <div class="row between">
+            <div>
+              <div class="fs16 strong">5.3 应急响应分级</div>
+              <div class="fs12 txt4 mt8">依据事件危害程度 · 影响范围 · 控制能力，分为三级响应</div>
+            </div>
+            <span class="tag gray num">2,341 字</span>
+          </div>
+          <!-- 操作行 -->
+          <div class="row gap8 mt16" style="border-bottom:1px solid var(--bd-weak);padding-bottom:12px">
+            <button class="btn sm"><svg class="icon sm"><use href="#i-edit"/></svg>自动填充企业数据</button>
+            <button class="btn sm"><svg class="icon sm" style="color:var(--primary)"><use href="#i-ai"/></svg>AI 续写本节</button>
+            <button class="btn sm"><svg class="icon sm"><use href="#i-chart"/></svg>插入组织结构图</button>
+            <button class="btn sm"><svg class="icon sm"><use href="#i-book"/></svg>引用法规条文</button>
+          </div>
+          <!-- 正文 -->
+          <div class="fs14" style="line-height:2.1;color:var(--t2);padding:18px 4px 40px">
+            <p style="margin-bottom:14px"><b style="color:var(--t1)">（1）Ⅰ级响应（红色）。</b>发生重大及以上事故，或事故超出企业自身控制能力时，由应急指挥部总指挥宣布启动Ⅰ级响应，立即向政府部门报告并请求支援，同时组织全员疏散与先期处置。</p>
+            <p style="margin-bottom:14px"><b style="color:var(--t1)">（2）Ⅱ级响应（橙色）。</b>发生较大事故，影响范围限于厂区内时，由分管副总指挥宣布启动Ⅱ级响应，各应急救援小组按职责开展处置。</p>
+            <p style="margin-bottom:14px"><b style="color:var(--t1)">（3）Ⅲ级响应（黄色）。</b>发生一般事件，车间可自行控制时，由车间主任组织处置，并报应急办备案。<mark style="background:#FEF3C7;border-radius:3px;padding:0 3px">本节建议补充各响应级别的具体启动条件与责任人联系方式（AI 审查建议）</mark></p>
+            <p style="margin-bottom:0;color:var(--t3)">响应升级：事态扩大时应立即提升响应级别，并通过厂区广播、微信群同步发布……</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：AI 侧栏（可折叠） -->
+      <div class="ed-right">
+        <div style="border-bottom:1px solid var(--bd-weak);padding:12px 16px" class="row between">
+          <div class="seg" style="background:#F1F3F7">
+            <span class="on" style="padding:4px 10px">AI 审查</span><span style="padding:4px 10px">AI 续写</span><span style="padding:4px 10px">法规引用</span>
+          </div>
+          <span class="icon-btn"><svg class="icon"><use href="#i-close"/></svg></span>
+        </div>
+        <div style="padding:14px 16px;overflow:auto">
+          <div class="fs12 txt4" style="margin-bottom:10px">最近一次审查：今天 14:02 · 覆盖 14 章</div>
+
+          <div style="border:1px solid #FECACA;background:#FFFBFB;border-radius:10px;padding:12px;margin-bottom:10px">
+            <div class="row gap8"><span class="tag red">必须修复</span><span class="fs12 txt4 num">2.1 节</span></div>
+            <div class="fs13 mt8" style="color:var(--t2)">应急指挥部成员缺少联系方式，导出前需补全。</div>
+            <div class="row gap8 mt12"><button class="btn sm primary">去修改</button><button class="btn sm ghost">忽略</button></div>
+          </div>
+
+          <div style="border:1px solid #FDE68A;background:#FFFDF5;border-radius:10px;padding:12px;margin-bottom:10px">
+            <div class="row gap8"><span class="tag orange">质量提示</span><span class="fs12 txt4 num">5.3 节</span></div>
+            <div class="fs13 mt8" style="color:var(--t2)">响应分级建议补充各级别启动条件与责任人。</div>
+            <div class="row gap8 mt12"><button class="btn sm primary">采纳 AI 建议</button><button class="btn sm ghost">忽略</button></div>
+          </div>
+
+          <div style="border:1px solid var(--bd-weak);border-radius:10px;padding:12px">
+            <div class="row gap8"><span class="tag blue">法规核对</span><span class="fs12 txt4">GB/T 29639-2020</span></div>
+            <div class="fs13 mt8 txt3">编制依据引用的《生产经营单位生产安全事故应急预案编制导则》版本号建议更新为 2020 版第 1 号修改单。</div>
+            <div class="row gap8 mt12"><button class="btn sm">一键更新引用</button></div>
+          </div>
+
+          <div class="alert info mt12" style="margin:12px 0 0">
+            <svg class="icon sm"><use href="#i-ai"/></svg>
+            <span>全部审查通过后，导出预览将显示绿色合规标记。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部状态条 -->
+    <div class="ed-statusbar">
+      <span class="row gap8"><span style="width:7px;height:7px;border-radius:50%;background:var(--success)"></span>已保存 · 12 秒前（V5）</span>
+      <span>自动保存开启</span>
+      <span class="num">14 / 18 章 · 21,308 字</span>
+      <span style="margin-left:auto" class="row gap8"><span class="link">预览整篇</span><span class="link">导出前校验</span></span>
+    </div>
+  </div>
+
+  <div class="spec-strip">
+    <div><h5>改版要点</h5>
+      <div class="spec-chips">
+        <span class="spec-chip done">工具栏顺序：风格/AI审查/版本历史 → 保存/导出</span>
+        <span class="spec-chip done">一键生成独立大按钮 + SSE 进度 + 停止</span>
+        <span class="spec-chip done">章节树去 emoji，统一线性图标（A8）</span>
+        <span class="spec-chip done">AI 未配置顶部引导条（I7）</span>
+        <span class="spec-chip done">生成中节点 Loading</span>
+        <span class="spec-chip">右栏 AI 审查：分级问题 + 采纳/忽略</span>
+        <span class="spec-chip">底部保存状态条（A18 图例区同步去 emoji）</span>
+        <span class="spec-chip">AI 侧栏 0/320 可折叠</span>
+      </div>
+    </div>
+    <div class="spec-states">
+      <div class="state-demo"><div class="st-name">样章生成完成横幅</div>
+        <div class="alert success" style="margin:0;padding:7px 10px;font-size:12px">
+          <svg class="icon sm"><use href="#i-check"/></svg>18 章样章已生成<span class="link">采纳全部</span><span class="link">逐章审阅</span></div></div>
+      <div class="state-demo"><div class="st-name">保存失败</div>
+        <div class="alert error" style="margin:0;padding:7px 10px;font-size:12px">
+          <svg class="icon sm"><use href="#i-alert"/></svg>保存失败 · 本地已暂存<span class="link">重试</span></div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

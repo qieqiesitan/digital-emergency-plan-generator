@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>03 · 企业列表 — 数字化预案系统 UI 重设计</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/nav.js"></script>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-label">03 · 企业列表 /enterprises · 1440×980</div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo"><svg class="icon lg"><use href="#i-shield"/></svg></div>
+        <div><div class="brand-name">数字化预案系统</div><div class="brand-sub">Emergency Plan OS</div></div>
+      </div>
+      <nav class="menu">
+        <div class="menu-item"><svg class="icon"><use href="#i-home"/></svg>工作台</div>
+        <div class="menu-item active"><svg class="icon"><use href="#i-build"/></svg>企业管理</div>
+        <div class="menu-item"><svg class="icon"><use href="#i-file"/></svg>预案列表</div>
+        <div class="menu-group">系统管理</div>
+        <div class="menu-sub"><a>用户管理</a><a>角色管理</a><a>系统配置</a><a>数据字典</a><a>化学品库</a></div>
+        <div class="menu-group">AI 管理</div>
+        <div class="menu-sub"><a>提示词管理</a></div>
+        <div class="menu-group">设置</div>
+        <div class="menu-sub"><a>个人资料</a><a>AI 配置</a><a>第三方接口</a><a>法规库</a></div>
+      </nav>
+      <div class="sidebar-foot"><div class="avatar">张</div>
+        <div><div class="fs13 strong">张安全</div><div class="fs12 txt4">安全管理员</div></div></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <span class="crumb">企业管理 / <b>企业列表</b></span>
+        <div class="topbar-right">
+          <button class="ai-fab-btn"><svg class="icon" style="color:var(--primary)"><use href="#i-ai"/></svg>AI 助手</button>
+          <span class="topbar-icon"><svg class="icon"><use href="#i-book"/></svg></span>
+          <div class="avatar sm">张</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="page-head mb16">
+          <div>
+            <div class="page-title">企业列表</div>
+            <div class="page-desc">共 12 家企业 · 风险/隐患/预案均以企业为单位管理</div>
+          </div>
+          <div class="actions">
+            <button class="btn"><svg class="icon"><use href="#i-download"/></svg>导出</button>
+            <button class="btn primary"><svg class="icon"><use href="#i-plus"/></svg>新建企业</button>
+          </div>
+        </div>
+
+        <!-- 搜索即时（200ms 防抖）+ 行业筛选 -->
+        <div class="card">
+          <div style="padding:16px 20px 0">
+            <div class="search-bar" style="margin-bottom:0">
+              <div class="input" style="width:280px">
+                <svg class="icon txt4"><use href="#i-search"/></svg>
+                <input placeholder="搜索企业名称 / 统一社会信用代码…" style="border:none;outline:none;flex:1;font-size:14px">
+              </div>
+              <div class="select" style="width:180px"><span>行业：全部</span><svg class="icon txt4"><use href="#i-down"/></svg></div>
+              <div class="select" style="width:160px"><span>排序：最近更新</span><svg class="icon txt4"><use href="#i-down"/></svg></div>
+              <span class="link txt3" style="margin-left:4px">重置</span>
+              <span class="fs12 txt4" style="margin-left:auto">输入即搜 · 无需回车</span>
+            </div>
+          </div>
+
+          <div style="padding:12px 20px 4px">
+            <table class="table">
+              <thead><tr>
+                <th style="min-width:210px">企业名称</th>
+                <th style="min-width:170px">统一社会信用代码</th>
+                <th style="min-width:100px">行业</th>
+                <th style="min-width:90px;text-align:right">员工数</th>
+                <th style="min-width:90px;text-align:right">风险点</th>
+                <th style="min-width:90px;text-align:right">预案</th>
+                <th style="min-width:150px">数据完成度</th>
+                <th style="min-width:160px;text-align:right">操作</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td class="cell-strong">恒瑞精细化工有限公司<br><span class="fs12 txt4">江苏省 · 苏州市 · 产业园纬四路 9 号</span></td>
+                  <td class="num fs13 txt3">91320594MA1XXXXX2A</td>
+                  <td><span class="tag blue">化工</span></td>
+                  <td class="num-r num">326</td>
+                  <td class="num-r num">64</td>
+                  <td class="num-r num">5</td>
+                  <td><div class="row gap8"><div class="progress"><i style="width:92%"></i></div><span class="fs12 txt3 num">92%</span></div></td>
+                  <td><div class="row-actions">
+                    <button class="btn sm primary">进入驾驶舱</button>
+                    <span class="icon-btn" title="编辑"><svg class="icon"><use href="#i-edit"/></svg></span>
+                    <span class="icon-btn danger" title="删除"><svg class="icon"><use href="#i-del"/></svg></span></div></td>
+                </tr>
+                <tr>
+                  <td class="cell-strong">金岭气体有限公司<br><span class="fs12 txt4">江苏省 · 南通市 · 开发区通盛大道 66 号</span></span></td>
+                  <td class="num fs13 txt3">91320691MA1XXXXX7C</td>
+                  <td><span class="tag cyan">仓储</span></td>
+                  <td class="num-r num">128</td>
+                  <td class="num-r num">31</td>
+                  <td class="num-r num">3</td>
+                  <td><div class="row gap8"><div class="progress"><i class="warn" style="width:58%"></i></div><span class="fs12 txt3 num">58%</span></div></td>
+                  <td><div class="row-actions">
+                    <button class="btn sm primary">进入驾驶舱</button>
+                    <span class="icon-btn"><svg class="icon"><use href="#i-edit"/></svg></span>
+                    <span class="icon-btn danger"><svg class="icon"><use href="#i-del"/></svg></span></div></td>
+                </tr>
+                <tr>
+                  <td class="cell-strong">蓝丰农药制剂有限公司<br><span class="fs12 txt4">江苏省 · 盐城市 · 化工园区滨河路 18 号</span></span></td>
+                  <td class="num fs13 txt3">91320900MA1XXXXX4B</td>
+                  <td><span class="tag blue">化工</span></td>
+                  <td class="num-r num">254</td>
+                  <td class="num-r num">42</td>
+                  <td class="num-r num">4</td>
+                  <td><div class="row gap8"><div class="progress"><i style="width:80%"></i></div><span class="fs12 txt3 num">80%</span></div></td>
+                  <td><div class="row-actions">
+                    <button class="btn sm primary">进入驾驶舱</button>
+                    <span class="icon-btn"><svg class="icon"><use href="#i-edit"/></svg></span>
+                    <span class="icon-btn danger"><svg class="icon"><use href="#i-del"/></svg></span></div></td>
+                </tr>
+                <tr>
+                  <td class="cell-strong">新港危化品运输有限公司<br><span class="fs12 txt4">江苏省 · 南京市 · 江北新区货运路 3 号</span></span></td>
+                  <td class="num fs13 txt3">91320111MA1XXXXX9D</td>
+                  <td><span class="tag orange">运输</span></td>
+                  <td class="num-r num">89</td>
+                  <td class="num-r num">19</td>
+                  <td class="num-r num">2</td>
+                  <td><div class="row gap8"><div class="progress"><i class="warn" style="width:35%"></i></div><span class="fs12 txt3 num">35%</span></div></td>
+                  <td><div class="row-actions">
+                    <button class="btn sm primary">进入驾驶舱</button>
+                    <span class="icon-btn"><svg class="icon"><use href="#i-edit"/></svg></span>
+                    <span class="icon-btn danger"><svg class="icon"><use href="#i-del"/></svg></span></div></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="pagination" style="padding:14px 0 12px">
+              <span>共 12 条</span>
+              <span class="pg"><svg class="icon sm"><use href="#i-left"/></svg></span>
+              <span class="pg on num">1</span><span class="pg num">2</span>
+              <span class="pg"><svg class="icon sm"><use href="#i-right"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spec-strip">
+    <div><h5>改版要点</h5>
+      <div class="spec-chips">
+        <span class="spec-chip done">列宽按 px 最小值（A16）</span>
+        <span class="spec-chip done">即时搜索 200ms 防抖（I5）</span>
+        <span class="spec-chip done">行 hover 高亮 + 操作显隐</span>
+        <span class="spec-chip done">删除走红色二次确认 Modal</span>
+        <span class="spec-chip">企业名下补地址作次级区分（A17）</span>
+        <span class="spec-chip">完成度 &lt;60% 黄色提示</span>
+      </div>
+    </div>
+    <div class="spec-states">
+      <div class="state-demo"><div class="st-name">空态</div>
+        <div class="empty" style="padding:14px 4px">
+          <div class="empty-desc" style="margin-bottom:8px">暂无匹配企业</div>
+          <button class="btn sm primary">+ 新建企业</button>
+        </div></div>
+      <div class="state-demo"><div class="st-name">加载态</div>
+        <div style="padding:6px 0"><div class="skel" style="margin:8px 0"></div><div class="skel" style="margin:8px 0"></div><div class="skel" style="margin:8px 0"></div></div></div>
+      <div class="state-demo"><div class="st-name">删除确认（危险操作）</div>
+        <div class="alert error" style="margin:0 0 8px;padding:7px 10px;font-size:12px">
+          <svg class="icon sm"><use href="#i-alert"/></svg>删除企业将同时删除其风险/隐患/预案数据</div>
+        <div class="row gap8" style="justify-content:flex-end"><button class="btn sm">取消</button><button class="btn sm danger">确认删除</button></div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

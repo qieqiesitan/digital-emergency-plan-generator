@@ -109,3 +109,7 @@ backups/
 /frontend/shot_cockpit.mjs
 # 本地模型缓存（chroma ONNX 等，随 release 包分发，不入仓库）
 /model-cache/
+
+# 3DGS 高斯泼溅实验（2026-09-03 已整体独立到项目外 Documents/3dgs-experiment；
+# 此规则防目录残留/重建后混入图谱索引与打包）
+3dgs-experiment/

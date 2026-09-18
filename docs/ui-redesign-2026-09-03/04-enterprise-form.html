@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>04 · 新建企业 — 数字化预案系统 UI 重设计</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/nav.js"></script>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-label">04 · 新建企业 /enterprises/new · 1440×980</div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo"><svg class="icon lg"><use href="#i-shield"/></svg></div>
+        <div><div class="brand-name">数字化预案系统</div><div class="brand-sub">Emergency Plan OS</div></div>
+      </div>
+      <nav class="menu">
+        <div class="menu-item"><svg class="icon"><use href="#i-home"/></svg>工作台</div>
+        <div class="menu-item active"><svg class="icon"><use href="#i-build"/></svg>企业管理</div>
+        <div class="menu-item"><svg class="icon"><use href="#i-file"/></svg>预案列表</div>
+        <div class="menu-group">系统管理</div>
+        <div class="menu-sub"><a>用户管理</a><a>角色管理</a><a>系统配置</a><a>数据字典</a><a>化学品库</a></div>
+        <div class="menu-group">AI 管理</div>
+        <div class="menu-sub"><a>提示词管理</a></div>
+        <div class="menu-group">设置</div>
+        <div class="menu-sub"><a>个人资料</a><a>AI 配置</a><a>第三方接口</a><a>法规库</a></div>
+      </nav>
+      <div class="sidebar-foot"><div class="avatar">张</div>
+        <div><div class="fs13 strong">张安全</div><div class="fs12 txt4">安全管理员</div></div></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <span class="crumb">企业管理 / <b>新建企业</b></span>
+        <div class="topbar-right">
+          <button class="ai-fab-btn"><svg class="icon" style="color:var(--primary)"><use href="#i-ai"/></svg>AI 助手</button>
+          <div class="avatar sm">张</div>
+        </div>
+      </header>
+
+      <div class="content" style="padding-bottom:88px">
+        <div class="page-head mb16">
+          <div class="row gap8"><span class="icon-btn" style="background:var(--bg-subtle)"><svg class="icon"><use href="#i-left"/></svg></span></div>
+          <div><div class="page-title">新建企业</div><div class="page-desc">基础信息将作为 AI 生成预案的依据，请尽量完整</div></div>
+        </div>
+
+        <!-- 卡片 1：基本信息 + AI 填充 -->
+        <div class="card mb20">
+          <div class="card-head">
+            <span class="card-title">基本信息</span>
+            <span class="card-sub">共 9 项，带 <span style="color:var(--danger)">*</span> 为必填</span>
+            <div style="margin-left:auto" class="row gap8">
+              <span class="fs12 txt4">按统一社会信用代码自动补全工商信息</span>
+              <button class="btn"><svg class="icon" style="color:var(--primary)"><use href="#i-ai"/></svg>AI 智能填充</button>
+            </div>
+          </div>
+          <div class="card-body" style="max-width:920px">
+            <div class="grid-2">
+              <div class="form-item">
+                <label class="form-label"><span class="req">*</span>企业名称</label>
+                <div class="input"><input placeholder="如：恒瑞精细化工有限公司" style="border:none;outline:none;flex:1"></div>
+              </div>
+              <div class="form-item">
+                <label class="form-label"><span class="req">*</span>统一社会信用代码</label>
+                <div class="input"><input placeholder="18 位代码，回车后 AI 自动填充" style="border:none;outline:none;flex:1;font-family:Inter"><svg class="icon sm" style="color:var(--primary)"><use href="#i-ai"/></svg></div>
+                <div class="form-hint">将调用企查查接口核实并填充行业 / 地址 / 法人等信息（可在设置中配置）</div>
+              </div>
+              <div class="form-item">
+                <label class="form-label"><span class="req">*</span>所属行业</label>
+                <div class="select"><span class="ph">请选择行业（决定风险评估方法默认值）</span><svg class="icon txt4"><use href="#i-down"/></svg></div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">从业人数</label>
+                <div class="input"><input placeholder="如：326" style="border:none;outline:none;flex:1;font-family:Inter"></div>
+              </div>
+              <div class="form-item" style="grid-column:1/-1">
+                <label class="form-label"><span class="req">*</span>注册地址</label>
+                <div class="input"><input placeholder="省 / 市 / 区 + 详细地址" style="border:none;outline:none;flex:1"></div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">安全负责人</label>
+                <div class="input"><input placeholder="姓名" style="border:none;outline:none;flex:1"></div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">联系电话</label>
+                <div class="input" style="border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,38,38,.06)">
+                  <input value="1381234" style="border:none;outline:none;flex:1;font-family:Inter"></div>
+                <div class="form-err"><svg class="icon sm"><use href="#i-alert"/></svg>请输入 11 位手机号</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 卡片 2：GIS 定位 -->
+        <div class="card mb20">
+          <div class="card-head">
+            <span class="card-title">GIS 定位</span>
+            <span class="card-sub">用于四色图绘制与周边环境分析（默认半径 500m）</span>
+            <div style="margin-left:auto"><button class="btn"><svg class="icon"><use href="#i-pin"/></svg>使用当前位置</button></div>
+          </div>
+          <div class="card-body row gap20">
+            <div style="width:480px;height:230px;border-radius:10px;flex:none;position:relative;overflow:hidden;border:1px solid var(--bd-weak);background:
+              repeating-linear-gradient(0deg,#EDF2F8 0 39px,#E2E9F2 39px 40px),repeating-linear-gradient(90deg,#EDF2F8 0 39px,#E2E9F2 39px 40px)">
+              <svg style="position:absolute;left:50%;top:44%;transform:translate(-50%,-100%)" width="34" height="34" viewBox="0 0 24 24" fill="var(--primary)" stroke="#fff" stroke-width="1"><path d="M12 22s7-6.6 7-12A7 7 0 1 0 5 10c0 5.4 7 12 7 12z"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>
+              <div style="position:absolute;left:50%;top:44%;width:46px;height:46px;margin:-23px 0 0 -23px;border:2px solid rgba(29,78,216,.35);border-radius:50%;animation:pulse 2s infinite"></div>
+              <div style="position:absolute;left:12px;bottom:12px;background:#fff;border-radius:8px;box-shadow:var(--shadow);padding:8px 12px" class="fs12 txt3">
+                高德地图 · 卫星图可切换<br><span class="num">120.619585</span> , <span class="num">31.298886</span></div>
+            </div>
+            <div class="flex1" style="max-width:400px">
+              <div class="grid-2" style="grid-template-columns:1fr 1fr">
+                <div class="form-item"><label class="form-label">经度</label>
+                  <div class="input"><input value="120.619585" style="border:none;outline:none;flex:1;font-family:Inter"></div></div>
+                <div class="form-item"><label class="form-label">纬度</label>
+                  <div class="input"><input value="31.298886" style="border:none;outline:none;flex:1;font-family:Inter"></div></div>
+              </div>
+              <div class="form-item"><label class="form-label">周边环境采集半径<span class="opt">选填</span></label>
+                <div class="select"><span>500 m（默认）</span><svg class="icon txt4"><use href="#i-down"/></svg></div></div>
+              <div class="alert info" style="margin:0">
+                <svg class="icon"><use href="#i-alert"/></svg>
+                <span>定位后可一键分析周边环境：居民区 / 学校 / 水源等敏感目标。</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 卡片 3：厂区平面图 -->
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">厂区平面图</span>
+            <span class="card-sub">四色图绘制的底图（暂无也可后续在驾驶舱上传）</span>
+          </div>
+          <div class="card-body">
+            <div style="border:1.5px dashed #C3CCDA;border-radius:10px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--bg-subtle)">
+              <div class="stat-icon" style="background:#fff;color:var(--primary);box-shadow:var(--shadow)"><svg class="icon lg"><use href="#i-image"/></svg></div>
+              <div class="fs13 txt3">点击或拖拽图片到此处上传（支持 jpg / png / cad 导出图，≤10MB）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- sticky 底部操作条（A13 修复） -->
+      <div style="position:sticky;bottom:0;height:72px;background:#fff;border-top:1px solid var(--bd-weak);display:flex;align-items:center;gap:12px;padding:0 24px;z-index:10">
+        <span class="fs12 txt4">已填 5 / 7 必填项</span>
+        <div style="margin-left:auto" class="row gap12">
+          <button class="btn">取消</button>
+          <button class="btn">保存并继续完善</button>
+          <button class="btn primary lg"><svg class="icon"><use href="#i-check"/></svg>保存并进入驾驶舱</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spec-strip">
+    <div><h5>改版要点</h5>
+      <div class="spec-chips">
+        <span class="spec-chip done">主按钮 sticky 底部固定（A13）</span>
+        <span class="spec-chip done">AI 填充入口收进卡片头部</span>
+        <span class="spec-chip done">候选数据审核用 Drawer（右侧）</span>
+        <span class="spec-chip done">字段错误红色内联提示</span>
+        <span class="spec-chip">编辑页与新建页同构（/edit 复用）</span>
+      </div>
+    </div>
+    <div class="spec-states">
+      <div class="state-demo"><div class="st-name">AI 填充 · 审核抽屉</div>
+        <div class="fs12 txt3" style="line-height:1.9;border:1px solid var(--bd-weak);border-radius:8px;padding:8px 10px;background:var(--bg-subtle)">
+          行业：<b style="color:var(--success)">化学原料制造 ✓</b><br>
+          地址：苏州市…纬四路 9 号<br>
+          法人：待确认
+          <div class="row gap8 mt8"><button class="btn sm primary">全部采纳</button><button class="btn sm">逐项确认</button></div>
+        </div></div>
+      <div class="state-demo"><div class="st-name">保存中</div>
+        <button class="btn primary loading" style="width:100%"><span class="spinner"></span>保存中…</button>
+        <div class="fs12 txt4 mt8">防重复提交 · 失败可重试</div></div>
+      <div class="state-demo"><div class="st-name">AI 未配置引导（I7）</div>
+        <div class="alert warn" style="margin:0;padding:7px 10px;font-size:12px">
+          <svg class="icon sm"><use href="#i-alert"/></svg>AI 未配置，暂不能智能填充<span class="link">去设置 →</span></div></div>
+    </div>
+  </div>
+</div>
+<style>@keyframes pulse{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.6);opacity:0}}</style>
+</body>
+</html>

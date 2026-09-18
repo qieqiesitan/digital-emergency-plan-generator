@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>05 · 企业驾驶舱（浅色版） — 数字化预案系统 UI 重设计</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/nav.js"></script>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-label">05 · 企业驾驶舱 /enterprises/:id · 1440×980 · 浅色重制（A7）</div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo"><svg class="icon lg"><use href="#i-shield"/></svg></div>
+        <div><div class="brand-name">数字化预案系统</div><div class="brand-sub">Emergency Plan OS</div></div>
+      </div>
+      <nav class="menu">
+        <div class="menu-item"><svg class="icon"><use href="#i-home"/></svg>工作台</div>
+        <div class="menu-item active"><svg class="icon"><use href="#i-build"/></svg>企业管理</div>
+        <div class="menu-item"><svg class="icon"><use href="#i-file"/></svg>预案列表</div>
+        <div class="menu-group">系统管理</div>
+        <div class="menu-sub"><a>用户管理</a><a>角色管理</a><a>系统配置</a><a>数据字典</a><a>化学品库</a></div>
+        <div class="menu-group">AI 管理</div>
+        <div class="menu-sub"><a>提示词管理</a></div>
+        <div class="menu-group">设置</div>
+        <div class="menu-sub"><a>个人资料</a><a>AI 配置</a><a>第三方接口</a><a>法规库</a></div>
+      </nav>
+      <div class="sidebar-foot"><div class="avatar">张</div>
+        <div><div class="fs13 strong">张安全</div><div class="fs12 txt4">安全管理员</div></div></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <span class="crumb">企业管理 / <b>恒瑞精细化工有限公司 · 驾驶舱</b></span>
+        <div class="topbar-right">
+          <button class="ai-fab-btn"><svg class="icon" style="color:var(--primary)"><use href="#i-ai"/></svg>AI 助手</button>
+          <div class="avatar sm">张</div>
+        </div>
+      </header>
+
+      <!-- 驾驶舱主体：浅色渐变（去暗色霓虹） -->
+      <div style="flex:1;background:linear-gradient(180deg,#F0F7FF 0%,#F5F7FA 220px,#F5F7FA 100%);padding:20px 24px 24px">
+        <!-- 企业头 -->
+        <div class="row between mb16">
+          <div class="row gap12">
+            <span class="icon-btn" style="background:#fff;box-shadow:var(--shadow)"><svg class="icon"><use href="#i-left"/></svg></span>
+            <div>
+              <div class="row gap12"><span class="fs16 strong">恒瑞精细化工有限公司</span>
+                <span class="tag blue">化工</span><span class="tag gray">危化品重点监管</span></div>
+              <div class="fs12 txt4 mt8">苏州市工业园区纬四路 9 号 · 统一代码 91320594MA1XXXXX2A · 更新于 10 分钟前</div>
+            </div>
+          </div>
+          <div class="row gap12">
+            <div class="row gap8" style="background:#fff;border-radius:10px;padding:8px 14px;box-shadow:var(--shadow)">
+              <span class="fs12 txt3">数据完成度</span>
+              <div class="progress" style="width:90px"><i style="width:92%"></i></div><span class="fs13 strong num" style="color:var(--primary)">92%</span>
+            </div>
+            <button class="btn"><svg class="icon"><use href="#i-edit"/></svg>编辑信息</button>
+          </div>
+        </div>
+
+        <!-- 6 统计（A10：去掉右侧重复卡） -->
+        <div class="stat-row c6 mb16">
+          <div class="stat-card"><div class="stat-label"><span class="lv red"><i></i>重大风险</span></div>
+            <div class="stat-value num" style="color:var(--risk-red)">4</div><div class="stat-foot">红区 · 需重点管控</div></div>
+          <div class="stat-card"><div class="stat-label"><span class="lv orange"><i></i>较大风险</span></div>
+            <div class="stat-value num" style="color:#B45309">12</div><div class="stat-foot">橙区</div></div>
+          <div class="stat-card"><div class="stat-label"><span class="lv yellow"><i></i>一般风险</span></div>
+            <div class="stat-value num" style="color:#A16207">23</div><div class="stat-foot">黄区</div></div>
+          <div class="stat-card"><div class="stat-label"><span class="lv blue"><i></i>低风险</span></div>
+            <div class="stat-value num" style="color:var(--risk-blue)">25</div><div class="stat-foot">蓝区</div></div>
+          <div class="stat-card"><div class="stat-label">待整改隐患</div>
+            <div class="stat-value num">7<span class="unit">项</span></div><div class="stat-foot"><span style="color:var(--danger)">超期 2</span> · 扫码待确认 1</div></div>
+          <div class="stat-card"><div class="stat-label">应急预案</div>
+            <div class="stat-value num">5<span class="unit">份</span></div><div class="stat-foot">综合 1 · 专项 2 · 现场处置 2</div></div>
+        </div>
+
+        <!-- 三栏：环形图 / 雷达图 / 待办·动态 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 340px;gap:16px" class="mb16">
+          <div class="card">
+            <div class="card-head"><span class="card-title">风险分布</span><span class="card-sub">按等级</span></div>
+            <div class="card-body row gap20">
+              <svg width="140" height="140" viewBox="0 0 140 140" style="flex:none">
+                <g fill="none" stroke-width="16">
+                  <circle cx="70" cy="70" r="52" stroke="#F3F4F6"/>
+                  <circle cx="70" cy="70" r="52" stroke="#DC2626" stroke-dasharray="20.4 326.7" transform="rotate(-90 70 70)" stroke-linecap="butt"/>
+                  <circle cx="70" cy="70" r="52" stroke="#F59E0B" stroke-dasharray="61.3 326.7" stroke-dashoffset="-20.4" transform="rotate(-90 70 70)"/>
+                  <circle cx="70" cy="70" r="52" stroke="#EAB308" stroke-dasharray="117.3 326.7" stroke-dashoffset="-81.7" transform="rotate(-90 70 70)"/>
+                  <circle cx="70" cy="70" r="52" stroke="#2563EB" stroke-dasharray="127.7 326.7" stroke-dashoffset="-199" transform="rotate(-90 70 70)"/>
+                </g>
+                <text x="70" y="66" text-anchor="middle" font-size="26" font-weight="700" fill="#111827" font-family="Inter">64</text>
+                <text x="70" y="86" text-anchor="middle" font-size="12" fill="#6B7280">风险点</text>
+              </svg>
+              <div class="flex1 fs13" style="line-height:2.3">
+                <div class="row between"><span class="lv red"><i></i>重大风险</span><b class="num">4</b></div>
+                <div class="row between"><span class="lv orange"><i></i>较大风险</span><b class="num">12</b></div>
+                <div class="row between"><span class="lv yellow"><i></i>一般风险</span><b class="num">23</b></div>
+                <div class="row between"><span class="lv blue"><i></i>低风险</span><b class="num">25</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><span class="card-title">风险雷达</span><span class="card-sub">五个维度</span></div>
+            <div class="card-body" style="display:flex;align-items:center;justify-content:center">
+              <svg width="230" height="170" viewBox="0 0 230 170">
+                <g fill="none" stroke="#E5E7EB">
+                  <polygon points="115,18 199,79 167,152 63,152 31,79"/>
+                  <polygon points="115,40 177,85 153,138 77,138 53,85" opacity=".7"/>
+                  <polygon points="115,62 154,91 140,125 90,125 76,91" opacity=".5"/>
+                  <path d="M115 18V152M31 79H199M63 152 167 79M199 152 63 79" opacity=".5"/>
+                </g>
+                <polygon points="115,30 185,84 150,142 80,140 45,88" fill="rgba(29,78,216,.14)" stroke="#1D4ED8" stroke-width="2"/>
+                <g fill="#1D4ED8"><circle cx="115" cy="30" r="3"/><circle cx="185" cy="84" r="3"/><circle cx="150" cy="142" r="3"/><circle cx="80" cy="140" r="3"/><circle cx="45" cy="88" r="3"/></g>
+                <g font-size="11" fill="#6B7280" text-anchor="middle" font-family="PingFang SC">
+                  <text x="115" y="12">危化品存量</text><text x="208" y="76">工艺风险</text><text x="176" y="166">环境敏感</text><text x="52" y="166">管理成熟</text><text x="22" y="76">人员密集</text>
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="card" style="flex:1">
+              <div class="card-head"><span class="card-title" style="font-size:14px">待办</span></div>
+              <div class="card-body" style="padding-top:10px">
+                <div class="fs13 row between" style="padding:5px 0"><span><span class="tag red" style="margin-right:6px">超期</span>液氨罐区隐患复查</span><span class="link">处理</span></div>
+                <div class="fs13 row between" style="padding:5px 0"><span><span class="tag orange" style="margin-right:6px">待审</span>2.1 章节责任人待补全</span><span class="link">去补全</span></div>
+                <div class="fs13 row between" style="padding:5px 0"><span><span class="tag blue" style="margin-right:6px">生成</span>现场处置方案 AI 生成中 45%</span><span class="link">查看</span></div>
+              </div>
+            </div>
+            <div class="card" style="flex:1">
+              <div class="card-head"><span class="card-title" style="font-size:14px">最近动态</span></div>
+              <div class="card-body" style="padding-top:10px">
+                <div class="timeline" style="padding-left:16px">
+                  <div class="tl-item"><div class="tl-body">王检修提交了「储罐区防雷检测」整改结果</div><div class="tl-time">今天 09:12</div></div>
+                  <div class="tl-item warn"><div class="tl-body">隐患 HZ-2026-0119 即将超期（剩 1 天）</div><div class="tl-time">今天 08:00</div></div>
+                  <div class="tl-item gray" style="padding-bottom:0"><div class="tl-body">AI 生成了综合预案 2.3 应急组织机构</div><div class="tl-time">昨天 17:44</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 11 模块入口：按业务流程排序（§2.2），6+5 -->
+        <div class="card">
+          <div class="card-head"><span class="card-title">业务模块</span><span class="card-sub">按"建档 → 管控 → 产出"流程排列</span></div>
+          <div class="card-body" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px">
+            <div class="mod"><div class="mod-ic" style="background:var(--primary-soft);color:var(--primary)"><svg class="icon lg"><use href="#i-file"/></svg></div><div class="mod-t">基本信息</div><div class="mod-s">已完善</div></div>
+            <div class="mod"><div class="mod-ic" style="background:#ECFEFF;color:#0E7490"><svg class="icon lg"><use href="#i-org"/></svg></div><div class="mod-t">组织架构</div><div class="mod-s">42 人</div></div>
+            <div class="mod"><div class="mod-ic" style="background:#F0FDF4;color:#047857"><svg class="icon lg"><use href="#i-pin"/></svg></div><div class="mod-t">周边环境</div><div class="mod-s">8 个敏感目标</div></div>
+            <div class="mod"><div class="mod-ic" style="background:#F5F3FF;color:#6D28D9"><svg class="icon lg"><use href="#i-drop"/></svg></div><div class="mod-t">危化品</div><div class="mod-s">12 种</div></div>
+            <div class="mod hot"><div class="mod-ic" style="background:#FEF2F2;color:var(--danger)"><svg class="icon lg"><use href="#i-shield"/></svg></div><div class="mod-t">风险管控</div><div class="mod-s">64 个风险点</div><span class="hot-badge">核心</span></div>
+            <div class="mod hot"><div class="mod-ic" style="background:var(--warning-soft);color:var(--warning)"><svg class="icon lg"><use href="#i-alert"/></svg></div><div class="mod-t">隐患治理</div><div class="mod-s">7 项未闭环</div><span class="hot-badge">核心</span></div>
+            <div class="mod"><div class="mod-ic" style="background:#FFF7ED;color:#C2410C"><svg class="icon lg"><use href="#i-box"/></svg></div><div class="mod-t">应急资源</div><div class="mod-s">31 项</div></div>
+            <div class="mod"><div class="mod-ic" style="background:var(--primary-soft);color:var(--primary)"><svg class="icon lg"><use href="#i-chart"/></svg></div><div class="mod-t">风险评估报告</div><div class="mod-s">V3 · 09-01</div></div>
+            <div class="mod"><div class="mod-ic" style="background:var(--primary-soft);color:var(--primary)"><svg class="icon lg"><use href="#i-book"/></svg></div><div class="mod-t">资源调查报告</div><div class="mod-s">V2 · 08-28</div></div>
+            <div class="mod"><div class="mod-ic" style="background:var(--bg-subtle);color:var(--t3)"><svg class="icon lg"><use href="#i-set"/></svg></div><div class="mod-t">数据字典</div><div class="mod-s">L/S 矩阵</div></div>
+            <div class="mod"><div class="mod-ic" style="background:#F0FDF4;color:#047857"><svg class="icon lg"><use href="#i-filedone"/></svg></div><div class="mod-t">预案管理</div><div class="mod-s">5 份预案</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spec-strip">
+    <div><h5>改版要点</h5>
+      <div class="spec-chips">
+        <span class="spec-chip done">暗色 → 浅色渐变（A7）</span>
+        <span class="spec-chip done">统计 8 → 6 去重复（A10）</span>
+        <span class="spec-chip done">去掉 LIVE/ARCHIVE 等英文装饰</span>
+        <span class="spec-chip done">模块按业务流程排序（§2.2）</span>
+        <span class="spec-chip">核心模块"风险/隐患"带角标</span>
+        <span class="spec-chip">雷达浅底去辉光</span>
+      </div>
+    </div>
+    <div class="spec-states">
+      <div class="state-demo"><div class="st-name">数据加载中</div>
+        <div class="row gap8"><div class="skel" style="width:38px;height:38px;border-radius:10px"></div><div class="flex1"><div class="skel" style="margin-bottom:6px"></div><div class="skel" style="width:60%"></div></div></div></div>
+      <div class="state-demo"><div class="st-name">模块空态</div>
+        <div class="fs12 txt3" style="border:1px dashed var(--bd);border-radius:8px;padding:10px;text-align:center">危化品：未录入<br><span class="link">去登记</span></div></div>
+    </div>
+  </div>
+</div>
+<style>
+.mod{border:1px solid var(--bd-weak);border-radius:10px;padding:14px 12px;position:relative;transition:.15s;cursor:pointer;background:#fff}
+.mod:hover{border-color:var(--primary);box-shadow:var(--shadow)}
+.mod-ic{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.mod-t{font-size:14px;font-weight:600}
+.mod-s{font-size:12px;color:var(--t4);margin-top:2px}
+.mod.hot{border-color:#FECACA;background:linear-gradient(180deg,#FFFBFB,#fff)}
+.hot-badge{position:absolute;top:10px;right:10px;font-size:11px;background:var(--danger);color:#fff;border-radius:5px;padding:1px 6px;font-weight:500}
+</style>
+</body>
+</html>

@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# 自检：脚本被 Windows 编辑器/FTP 改出 UTF-8 BOM 时 shebang 会失效
+if [[ "$(head -c3 "$0" 2>/dev/null | od -An -tx1 | tr -d ' \n')" == "efbbbf" ]]; then
+  echo "错误: 本脚本含 UTF-8 BOM，无法正常执行。" >&2
+  echo "修复: sed -i '1s/^\\xEF\\xBB\\xBF//' scripts/*.sh" >&2
+  exit 1
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -17,9 +24,17 @@ usage() {
 }
 
 if [[ -z "$VERSION" ]]; then
-  usage
-  exit 1
+  if [[ -f "$ROOT/VERSION" ]]; then
+    VERSION="$(cat "$ROOT/VERSION")"
+    echo "未提供版本号，使用包内 VERSION=$VERSION"
+  else
+    usage
+    exit 1
+  fi
 fi
+
+# 提示：必须在【原部署目录】解压覆盖后执行，否则 compose 找不到旧容器
+echo "提示: 请确认本包已解压覆盖到【原部署目录】（与旧 docker-compose 同目录），否则备份/启动会找不到 postgres 容器。"
 
 # 1) 校验 VERSION 文件存在且与参数一致
 echo "==> 1/6 校验 VERSION"

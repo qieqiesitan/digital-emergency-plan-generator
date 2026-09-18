@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>08 · 导出预览 — 数字化预案系统 UI 重设计</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/nav.js"></script>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-label">08 · 导出预览 /plans/:id/preview · 1440×980</div>
+  <div style="display:flex;flex-direction:column;min-height:980px;background:#F5F7FA">
+    <!-- 工具栏 -->
+    <div class="ed-toolbar" style="height:60px">
+      <span class="icon-btn" style="background:#fff;box-shadow:var(--shadow)"><svg class="icon"><use href="#i-left"/></svg></span>
+      <div>
+        <div class="row gap8"><span class="fs16 strong">导出预览</span>
+          <span class="tag orange num">2 项错误</span><span class="tag gray num">3 项提示</span></div>
+        <div class="fs12 txt4 mt8">恒瑞精细化工 · 综合应急预案 · V5 草稿</div>
+      </div>
+      <div style="margin-left:auto" class="row gap8">
+        <button class="btn sm"><svg class="icon sm"><use href="#i-eye"/></svg>隐藏高亮</button>
+        <button class="btn sm"><svg class="icon sm"><use href="#i-print"/></svg>打印</button>
+        <button class="btn sm primary"><svg class="icon sm"><use href="#i-download"/></svg>下载 Word</button>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow:auto;padding:20px 24px">
+      <!-- 分级校验：错误阻断 + 质量提示（可折叠） -->
+      <div class="alert error">
+        <svg class="icon"><use href="#i-alert"/></svg>
+        <div style="flex:1">
+          <b>存在 2 项错误，修正前不建议导出</b>
+          <div class="fs13" style="margin-top:6px;line-height:2">
+            <div>① 2.1 应急指挥部：成员联系方式缺失 <span class="link">去修改 →</span></div>
+            <div>② 附录 A：未上传厂区平面图 <span class="link">去上传 →</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="alert warn">
+        <svg class="icon"><use href="#i-alert"/></svg>
+        <div style="flex:1">
+          <div class="row between"><b>3 项质量提示（不阻断导出）</b><span class="fs12" style="color:#92400E">展开 / 收起</span></div>
+          <div class="fs13" style="margin-top:6px;line-height:2">
+            <div>① 5.3 响应分级建议补充启动条件（正文已高亮）</div>
+            <div>② 3.2 危化品清单与台账数据不一致（差 1 种）</div>
+            <div>③ 6.1 引用法规版本建议更新为 2020 版修改单</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- A4 文档预览 -->
+      <div style="width:820px;margin:0 auto;background:#fff;border-radius:4px;box-shadow:var(--shadow-lg);padding:64px 72px;font-size:14px;line-height:2.05;color:var(--t2)">
+        <div style="text-align:center;margin-bottom:36px">
+          <div style="font-size:22px;font-weight:700;color:var(--t1);letter-spacing:2px">恒瑞精细化工有限公司</div>
+          <div style="font-size:18px;font-weight:600;margin-top:10px;letter-spacing:6px">生产安全事故综合应急预案</div>
+          <div class="fs12 txt4" style="margin-top:14px">版本：V5（草稿） · 依据 GB/T 29639-2020 编制 · 2026-09-03</div>
+        </div>
+        <div style="text-align:center;border-top:2px solid var(--t1);border-bottom:1px solid var(--bd);padding:8px 0;margin-bottom:28px" class="fs13">发 布 2026-09-03 &nbsp;&nbsp; 实 施 2026-09-10</div>
+
+        <div style="text-align:center;font-weight:600;color:var(--t1);margin:24px 0 14px">1 总 则</div>
+        <div style="font-weight:600;margin:16px 0 8px;color:var(--t1)">1.1 编制目的</div>
+        <p style="text-indent:2em">为贯彻落实"安全第一、预防为主、综合治理"的方针，规范本公司生产安全事故的应急管理和应急响应程序，及时有效地实施应急救援工作，最大限度地减少人员伤亡和财产损失，特制定本预案。</p>
+        <div style="font-weight:600;margin:16px 0 8px;color:var(--t1)">1.2 编制依据</div>
+        <p style="text-indent:2em">依据《中华人民共和国安全生产法》《生产安全事故应急条例》《生产经营单位生产安全事故应急预案编制导则》（<mark style="background:#FEF3C7;padding:0 3px;border-radius:3px">GB/T 29639-2020</mark>）及本公司实际情况编制。</p>
+        <div style="font-weight:600;margin:16px 0 8px;color:var(--t1)">2 应急组织机构及职责</div>
+        <p style="text-indent:2em">本公司成立应急救援指挥部，总指挥由总经理担任，副总指挥由分管安全副总经理担任。</p>
+        <p style="text-indent:2em"><mark style="background:#FEE2E2;padding:0 3px;border-radius:3px">【错误】指挥部成员及联系方式见附表，当前缺失</mark></p>
+        <div style="font-weight:600;margin:16px 0 8px;color:var(--t1)">5.3 应急响应分级</div>
+        <p style="text-indent:2em">（1）Ⅰ级响应（红色）。发生重大及以上事故时启动，<mark style="background:#FEF3C7;padding:0 3px;border-radius:3px">建议补充启动条件与责任人</mark>由总指挥宣布并组织全员疏散……</p>
+        <div style="text-align:center;margin-top:40px" class="fs12 txt4">— 预览至第 5.3 节 · 共 21 页 —</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spec-strip">
+    <div><h5>改版要点</h5>
+      <div class="spec-chips">
+        <span class="spec-chip done">校验分级：红错误阻断 + 黄质量提示</span>
+        <span class="spec-chip done">错误项带"去修改"直达链接</span>
+        <span class="spec-chip done">正文高亮与校验项一一对应</span>
+        <span class="spec-chip done">高亮可隐藏（看纯净版式）</span>
+        <span class="spec-chip">下载 Word / 打印在右上方</span>
+        <span class="spec-chip">打印时自动隐藏校验条（@media print）</span>
+      </div>
+    </div>
+    <div class="spec-states">
+      <div class="state-demo"><div class="st-name">全部通过</div>
+        <div class="alert success" style="margin:0;padding:7px 10px;font-size:12px">
+          <svg class="icon sm"><use href="#i-check"/></svg>校验全部通过，可放心导出</div></div>
+      <div class="state-demo"><div class="st-name">导出中</div>
+        <button class="btn sm primary loading" style="width:100%"><span class="spinner"></span>正在生成 Word…</button></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
