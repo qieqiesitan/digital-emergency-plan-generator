@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Modal, Button, Input, Table, Checkbox, message, Alert, Spin, Space, Tag } from "antd";
 import {
   getRiskSourceAIQuestions,

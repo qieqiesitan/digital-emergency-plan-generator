@@ -1,4 +1,4 @@
-﻿import api from "./api";
+import api from "./api";
 import type { ApiResponse, PaginatedResponse } from "@/types/common";
 import type { AxiosRequestConfig } from "axios";
 import type { EmergencyResource, EmergencyResourceCreate, EmergencyResourceUpdate } from "@/types/emergencyResource";

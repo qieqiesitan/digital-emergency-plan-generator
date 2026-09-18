@@ -47,6 +47,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install deps
         run: npm ci
+      - name: Source hygiene (no BOM)
+        run: node scripts/check-source-hygiene.mjs
       - name: Type check
         run: npx tsc -b
       - name: Unit tests

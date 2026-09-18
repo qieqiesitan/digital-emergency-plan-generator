@@ -1,4 +1,4 @@
-﻿import api from "./api";
+import api from "./api";
 import type { ApiResponse, PaginatedResponse } from "@/types/common";
 import type { RiskSource, RiskSourceCreate, RiskSourceUpdate } from "@/types/riskSource";
 

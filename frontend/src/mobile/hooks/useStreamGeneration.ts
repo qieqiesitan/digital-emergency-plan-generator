@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 
 export interface StreamGenerationState {
   isGenerating: boolean;

@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Table, Button, Select, Input, InputNumber, Modal, Space, message, Card, Slider, Checkbox, Row, Col, Divider } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, ThunderboltOutlined, SearchOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

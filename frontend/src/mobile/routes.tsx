@@ -1,4 +1,4 @@
-﻿import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { APP_BASE } from "@/utils/platform";
 import { AuthGuard } from "@/mobile/components/auth/AuthGuard";
 import MainTabsLayout from "@/mobile/layouts/MainTabsLayout";

@@ -1,4 +1,4 @@
-﻿// 平台检测工具
+// 平台检测工具
 // 用于在桌面端和移动端之间分发路由
 
 export function isMobile(): boolean {

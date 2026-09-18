@@ -1,4 +1,4 @@
-﻿export interface HazardousChemical {
+export interface HazardousChemical {
   id: string;
   enterprise_id: string;
   library_id: string | null;
