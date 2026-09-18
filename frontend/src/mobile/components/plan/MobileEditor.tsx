@@ -1,5 +1,6 @@
 import React, { forwardRef, useState, useCallback } from "react";
 import { Eye, Edit3 } from "lucide-react";
+import { sanitizeHtml } from "@/utils/sanitize";
 
 interface MobileEditorProps {
   value: string;
@@ -64,7 +65,7 @@ const MobileEditor = forwardRef<HTMLTextAreaElement, MobileEditorProps>(
           </div>
           <div
             className="p-md prose prose-sm max-w-none text-body leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: renderPreview(value) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderPreview(value)) }}
           />
         </div>
       );

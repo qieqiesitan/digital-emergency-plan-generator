@@ -154,11 +154,11 @@ async def lifespan(app: FastAPI):
     scheduler = None
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from app.services.hazard_scheduler import run_hazard_scans
+        from app.services.hazard_scheduler import run_hazard_scans_leader_only
 
         async def _run_hazard_scans_job() -> None:
             async with async_session() as session:
-                await run_hazard_scans(session)
+                await run_hazard_scans_leader_only(session)
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(_run_hazard_scans_job, "interval", minutes=5,

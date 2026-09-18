@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import mermaid from "mermaid";
+import { sanitizeHtml, sanitizeSvg } from "@/utils/sanitize";
 
 // Initialize mermaid once
 let initialized = false;
@@ -8,7 +9,8 @@ function initMermaid() {
   mermaid.initialize({
     startOnLoad: false,
     theme: "default",
-    securityLevel: "loose",
+    // W2：loose 允许标签内 HTML/点击回调注入，改 strict（标签按纯文本处理）
+    securityLevel: "strict",
     suppressErrorRendering: true,
     flowchart: { useMaxWidth: true, htmlLabels: true },
   });
@@ -138,7 +140,7 @@ export default function MermaidRenderer({ html, diagramSvgs = {} }: MermaidRende
         wrapper.appendChild(label);
         const svgContainer = document.createElement("div");
         svgContainer.style.cssText = "text-align:center;";
-        svgContainer.innerHTML = svg.outerHTML;
+        svgContainer.innerHTML = sanitizeSvg(svg.outerHTML);
         wrapper.appendChild(svgContainer);
         div.replaceWith(wrapper);
       }
@@ -180,7 +182,7 @@ export default function MermaidRenderer({ html, diagramSvgs = {} }: MermaidRende
       wrapper.appendChild(label);
 
       const svgContainer = document.createElement("div");
-      svgContainer.innerHTML = svg;
+      svgContainer.innerHTML = sanitizeSvg(svg);
       svgContainer.style.cssText = "text-align:center;";
       wrapper.appendChild(svgContainer);
 
@@ -209,5 +211,5 @@ export default function MermaidRenderer({ html, diagramSvgs = {} }: MermaidRende
     )
     .join("");
 
-  return <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html + svgHtml + diagramHtml }} />;
+  return <div ref={containerRef} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) + sanitizeSvg(svgHtml) + diagramHtml }} />;
 }

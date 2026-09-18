@@ -2,6 +2,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Spin, Button, Typography, message, Table, Tag, Collapse, Statistic, Row, Col, Card, Modal, Space } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, SaveOutlined } from "@ant-design/icons";
+import { sanitizeHtml } from "@/utils/sanitize";
 import {
   createRiskAssessmentVersion,
   downloadRiskAssessment,
@@ -410,7 +411,7 @@ export default function RiskAssessmentPreview() {
         ) : (
           <div
             className="risk-report-content"
-            dangerouslySetInnerHTML={{ __html: data.html }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.html) }}
           />
         )}
       </div>

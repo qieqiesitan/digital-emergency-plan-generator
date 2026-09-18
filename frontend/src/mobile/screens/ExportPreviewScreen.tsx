@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { sanitizeHtml } from "@/utils/sanitize";
 import { useQuery } from "@tanstack/react-query";
 import {
   Download, FileText, Loader2,
@@ -193,7 +194,7 @@ export default function ExportPreviewScreen() {
             {sec.content ? (
               <div
                 className="prose prose-sm max-w-none text-body leading-relaxed text-neutral-700"
-                dangerouslySetInnerHTML={{ __html: String(sec.content) }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(sec.content)) }}
               />
             ) : (
               <p className="text-body-sm text-neutral-400 italic">此章节暂无内容</p>
@@ -209,7 +210,7 @@ export default function ExportPreviewScreen() {
                 {child.content ? (
                   <div
                     className="prose prose-sm max-w-none text-body-sm leading-relaxed text-neutral-600"
-                    dangerouslySetInnerHTML={{ __html: String(child.content) }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(child.content)) }}
                   />
                 ) : (
                   <p className="text-caption text-neutral-400 italic">此章节暂无内容</p>
@@ -272,7 +273,7 @@ export default function ExportPreviewScreen() {
         {previewHtml ? (
           <div
             className="preview-html p-md"
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewHtml) }}
           />
         ) : sections.length > 0 ? (
           renderDocument()

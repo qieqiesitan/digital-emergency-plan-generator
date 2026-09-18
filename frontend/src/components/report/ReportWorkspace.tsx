@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { sanitizeHtml } from "@/utils/sanitize";
 import {
   Alert,
   Badge,
@@ -820,7 +821,7 @@ export default function ReportWorkspace({
           <style>{REPORT_TABLE_STYLE}</style>
           <div
             className="risk-report-content"
-            dangerouslySetInnerHTML={{ __html: renderReportMarkdown(doc.content || "") }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderReportMarkdown(doc.content || "")) }}
           />
         </div>
       </div>

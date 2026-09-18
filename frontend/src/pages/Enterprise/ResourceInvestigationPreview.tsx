@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Spin, Button, message, Modal, Table, Tag, Space } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, SaveOutlined } from "@ant-design/icons";
+import { sanitizeHtml } from "@/utils/sanitize";
 import {
   createResourceInvestigationVersion,
   downloadResourceInvestigation,
@@ -173,7 +174,7 @@ export default function ResourceInvestigationPreview() {
             maxWidth: 794,
             margin: "0 auto",
           }}
-          dangerouslySetInnerHTML={{ __html: data.html }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.html) }}
         />
       )}
 

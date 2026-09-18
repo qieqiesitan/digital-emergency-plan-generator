@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { sanitizeHtml } from "@/utils/sanitize";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle, RefreshCw, Download, Loader2,
@@ -219,7 +220,7 @@ export default function RiskAssessmentScreen() {
 
         {displayContent && (
           <div className="prose prose-sm max-w-none bg-white rounded-md shadow-card p-md m-md"
-               dangerouslySetInnerHTML={{ __html: String(displayContent) }} />
+               dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(displayContent)) }} />
         )}
 
         {!isLoading && !error && !displayContent && genStatus === "idle" && (
@@ -232,7 +233,7 @@ export default function RiskAssessmentScreen() {
 
         {genStatus === "cancelled" && streamContent && (
           <div className="prose prose-sm max-w-none bg-white rounded-md shadow-card p-md m-md"
-               dangerouslySetInnerHTML={{ __html: streamContent }} />
+               dangerouslySetInnerHTML={{ __html: sanitizeHtml(streamContent) }} />
         )}
       </div>
 

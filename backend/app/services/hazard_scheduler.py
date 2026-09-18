@@ -44,6 +44,10 @@ logger = logging.getLogger(__name__)
 # 提前提醒窗口：due_at 前 2 小时（规格 §6「due_at 前 2 小时生成 upcoming 通知」）
 REMINDER_HOURS = 2
 
+# 集群单实例选主锁（"HAZS"）：APScheduler 在每个 uvicorn worker 各起一份，
+# 4 worker 会同时到点；用 Postgres 会话级 advisory lock 保证一次扫描只跑一份。
+HAZARD_SCAN_LOCK_KEY = 0x48415A53
+
 # 任务超期/待办相关状态（规格 §5.2 status 值域：pending / processing / done / overdue）
 TASK_ACTIVE_STATUSES = ("pending", "processing")
 
@@ -230,3 +234,24 @@ async def run_hazard_scans(
     await db.commit()
     logger.info("hazard scans finished: %s", result)
     return result
+
+
+async def run_hazard_scans_leader_only(db: AsyncSession):
+    """集群安全入口：只有抢到 advisory lock 的进程执行本次扫描。
+
+    返回 None 表示本次被其他 worker 抢到（跳过），调用方无需区分。
+    """
+    from sqlalchemy import text
+
+    locked = (await db.execute(
+        text("SELECT pg_try_advisory_lock(:key)"), {"key": HAZARD_SCAN_LOCK_KEY}
+    )).scalar()
+    if not locked:
+        logger.debug("隐患扫描：其他 worker 正在执行，本进程跳过")
+        return None
+    try:
+        return await run_hazard_scans(db)
+    finally:
+        await db.execute(
+            text("SELECT pg_advisory_unlock(:key)"), {"key": HAZARD_SCAN_LOCK_KEY}
+        )
