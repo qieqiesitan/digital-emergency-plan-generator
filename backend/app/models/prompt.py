@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Integer, Float, DateTime, Text, func
+from sqlalchemy import String, Integer, Float, DateTime, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
 from app.database import Base
@@ -16,10 +16,12 @@ class PromptTemplate(Base):
     system_prompt: Mapped[Optional[str]] = mapped_column(Text)
     user_prompt_template: Mapped[Optional[str]] = mapped_column(Text)
     model_id: Mapped[Optional[int]] = mapped_column(Integer)
-    temperature: Mapped[float] = mapped_column(Float, default=0.7)
-    max_tokens: Mapped[int] = mapped_column(Integer, default=4096)
+    # server_default 与 ORM default 对齐：种子迁移/裸 SQL 插入时不写这三列也能成功
+    # （2026-09-19 空库演练复盘：模型只有 ORM default 时，空库建表没有库级默认值）
+    temperature: Mapped[float] = mapped_column(Float, default=0.7, server_default=text("0.7"))
+    max_tokens: Mapped[int] = mapped_column(Integer, default=4096, server_default=text("4096"))
     description: Mapped[Optional[str]] = mapped_column(String(500))
     variables: Mapped[Optional[dict]] = mapped_column(JSONB)
-    status: Mapped[str] = mapped_column(String(20), default="active")
+    status: Mapped[str] = mapped_column(String(20), default="active", server_default=text("'active'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

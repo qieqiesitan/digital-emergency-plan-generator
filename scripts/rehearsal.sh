@@ -145,6 +145,54 @@ else
   fail "缺少关键表：$missing"
 fi
 
+# 4b) 基线种子完整性（2026-09-19 新增）——空库能启动但"种子为空"属功能残缺
+seed_sql="select
+  (select count(*) from roles) || ',' ||
+  (select count(*) from permissions) || ',' ||
+  (select count(*) from role_permissions) || ',' ||
+  (select count(*) from prompt_templates) || ',' ||
+  (select count(*) from ai_capabilities) || ',' ||
+  (select count(*) from work_ticket_templates) || ',' ||
+  (select count(*) from data_dicts) || ',' ||
+  (select count(*) from hazard_checklist_templates);"
+seed_counts="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -tAc "$seed_sql" 2>/dev/null | tr -d '[:space:]')"
+IFS=',' read -r c_roles c_perms c_rp c_prompts c_ai c_tickets c_dicts c_check <<<"${seed_counts:-}"
+seed_problems=""
+[[ "${c_roles:-0}" -ge 3 ]] || seed_problems="$seed_problems roles=${c_roles:-0}(<3)"
+[[ "${c_perms:-0}" -ge 20 ]] || seed_problems="$seed_problems permissions=${c_perms:-0}(<20)"
+[[ "${c_rp:-0}" -ge 40 ]] || seed_problems="$seed_problems role_permissions=${c_rp:-0}(<40)"
+[[ "${c_prompts:-0}" -ge 61 ]] || seed_problems="$seed_problems prompt_templates=${c_prompts:-0}(<61)"
+[[ "${c_ai:-0}" -ge 8 ]] || seed_problems="$seed_problems ai_capabilities=${c_ai:-0}(<8)"
+[[ "${c_tickets:-0}" -ge 8 ]] || seed_problems="$seed_problems work_ticket_templates=${c_tickets:-0}(<8)"
+[[ "${c_dicts:-0}" -ge 30 ]] || seed_problems="$seed_problems data_dicts=${c_dicts:-0}(<30)"
+[[ "${c_check:-0}" -ge 5 ]] || seed_problems="$seed_problems hazard_checklist_templates=${c_check:-0}(<5)"
+if [[ -z "$seed_problems" ]]; then
+  pass "基线种子齐全（roles=$c_roles permissions=$c_perms role_permissions=$c_rp prompt_templates=$c_prompts ai=$c_ai tickets=$c_tickets dicts=$c_dicts checklists=$c_check）"
+else
+  fail "基线种子缺失：$seed_problems"
+fi
+
+# 4c) 普通用户菜单权限口径（W2 决策：user 无 menu:ai_config）
+user_ai="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -tAc \
+  "select count(*) from role_permissions rp join roles r on r.id=rp.role_id join permissions p on p.id=rp.permission_id where r.code='user' and p.code='menu:ai_config';" 2>/dev/null | tr -d '[:space:]')"
+if [[ "${user_ai:-1}" == "0" ]]; then
+  pass "普通用户无 menu:ai_config（AI 配置为系统级设置）"
+else
+  fail "普通用户被授予 menu:ai_config（AI 配置页对 user 会 403）"
+fi
+
+# 4d) v1 P1-4 复核：menu:regulations 必须对 admin/super_admin 存在（历史上只靠手工插库）
+reg_ok="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U postgres -d emergency_plan -tAc \
+  "select count(distinct r.code) from role_permissions rp join roles r on r.id=rp.role_id join permissions p on p.id=rp.permission_id where p.code='menu:regulations' and r.code in ('admin','super_admin');" 2>/dev/null | tr -d '[:space:]')"
+if [[ "${reg_ok:-0}" == "2" ]]; then
+  pass "admin/super_admin 均有 menu:regulations（法规管理页不再 403）"
+else
+  fail "menu:regulations 授权缺失（命中角色数=${reg_ok:-0}，应 2）"
+fi
+
 echo "==> 5/6 接口与加密健康"
 login_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
   -H 'Content-Type: application/json' \

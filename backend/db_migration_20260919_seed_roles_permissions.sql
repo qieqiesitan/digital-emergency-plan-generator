@@ -1,3 +1,12 @@
+-- 20260919 角色/权限基线种子（幂等，仅插入缺失项）
+--
+-- 背景（2026-09-19 空库演练）：`backend/app/seed_roles.sql` 从未被任何迁移/启动流程执行，
+-- 结果**全新安装的库里 roles/permissions 为空**：角色管理页空白、新用户的菜单权限
+-- 只能走前端降级路径。本迁移把该种子纳入迁移链，空库/缺权限的库都会补齐；
+-- 已存在的 code 一律跳过（ON CONFLICT DO NOTHING），不覆盖线上自定义角色与权限。
+--
+-- 说明：原 `app/seed_roles.sql` 已删除，本文件即唯一来源；需要调整基线时改这里。
+
 -- 角色预设
 INSERT INTO roles (id, code, name, is_system, description) VALUES
   (gen_random_uuid(), 'super_admin', '超级管理员', TRUE, '系统最高权限，可管理所有资源'),
@@ -50,10 +59,11 @@ BEGIN
     SELECT admin_id, id FROM permissions WHERE category = 'menu' AND code != 'menu:roles'
   ON CONFLICT DO NOTHING;
 
-  -- user: 基础菜单（工作台+预案列表+个人资料+AI配置）
+  -- user: 基础菜单（工作台+企业管理+预案列表+个人资料）
+  -- 注：menu:ai_config 属系统级设置（W2 起 require_admin），基线不给普通用户
   INSERT INTO role_permissions (role_id, permission_id)
     SELECT user_id, id FROM permissions WHERE code IN (
-      'menu:dashboard', 'menu:plans', 'menu:profile', 'menu:ai_config'
+      'menu:dashboard', 'menu:enterprises', 'menu:plans', 'menu:profile'
     )
   ON CONFLICT DO NOTHING;
 END $$;

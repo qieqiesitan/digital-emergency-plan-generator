@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 import pytest
+from sqlalchemy import Integer
 
 import app.main  # noqa: F401  确保所有模型已导入，Base.metadata 完整
 from app.database import Base
@@ -33,7 +34,10 @@ def _required_columns(table_name: str) -> set[str] | None:
         col.name
         for col in table.columns
         # 主键也纳入：种子 INSERT 若不写主键，就必须有库级默认值（gen_random_uuid() 等）
+        # 例外：单列整数主键由 SQLAlchemy 建成 SERIAL/IDENTITY，库级默认自动存在
+        # （如 prompt_templates.id → nextval('prompt_templates_id_seq')）
         if not col.nullable and col.server_default is None
+        and not (col.primary_key and isinstance(col.type, Integer))
     }
 
 

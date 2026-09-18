@@ -2,7 +2,7 @@
 -- 幂等：CREATE TABLE IF NOT EXISTS / ON CONFLICT DO NOTHING 保护式，可重复执行。
 -- 背景：企查查/高德/PROTEGO 密钥统一收口到 DB（secret 加密存储，env 兜底），
 -- 管理员页面（任务 4 API 已实现）按菜单权限 menu:third_party_config 门控展示。
--- 权限分配沿用 seed_roles.sql / db_migration_data_dicts_permission.sql 模式：
+-- 权限分配沿用 db_migration_20260919_seed_roles_permissions.sql / db_migration_data_dicts_permission.sql 模式：
 -- super_admin 全量权限、admin 菜单权限（除 menu:roles）。
 
 -- 1) 配置表（与 app/models/third_party_config.py 对齐）

@@ -1,7 +1,7 @@
 -- 数据字典管理菜单权限补种（幂等，可重复执行）
 -- 背景：MainLayout 菜单项受 hasMenu("/settings/data-dicts")（权限码 menu:data_dicts）
 -- 门控，但既有种子/迁移均未含该权限，导致任何角色侧栏都看不到入口。
--- 按 seed_roles.sql 中 menu:prompts / 存量库 menu:regulations 的分配模式：
+-- 按 db_migration_20260919_seed_roles_permissions.sql 中 menu:prompts / 存量库 menu:regulations 的分配模式：
 -- super_admin 全量权限、admin 菜单权限（除 menu:roles）。
 
 INSERT INTO permissions (id, code, name, resource, action, category) VALUES
