@@ -8,6 +8,7 @@ import type {
   HazardChecklistTemplateUpdate,
   HazardDashboardPayload,
   HazardGovernancePlanResult,
+  HazardInspectionItem,
   HazardInspectionPlan,
   HazardInspectionPlanCreate,
   HazardInspectionPlanUpdate,
@@ -99,6 +100,19 @@ export const getHazardTask = (eid: string, taskId: string) =>
   api.get<ApiResponse<HazardInspectionTaskDetail>>(`${BASE(eid)}/tasks/${taskId}`).then(r => r.data.data);
 export const submitHazardTask = (eid: string, taskId: string, data: HazardTaskSubmitPayload) =>
   api.put<ApiResponse<HazardInspectionTask>>(`${BASE(eid)}/tasks/${taskId}`, data, { skipGlobalError: true }).then(r => r.data.data);
+/** AI 清单补全落库：把页面勾选的建议项追加进任务（后端按 content 去重）。 */
+export const appendHazardTaskItems = (
+  eid: string,
+  taskId: string,
+  items: Array<{ content: string; expected_note?: string | null }>,
+) =>
+  api
+    .post<ApiResponse<{ task: HazardInspectionTask; appended: HazardInspectionItem[]; skipped: string[] }>>(
+      `${BASE(eid)}/tasks/${taskId}/items`,
+      { items },
+      { skipGlobalError: true },
+    )
+    .then(r => r.data.data);
 export const taskToRecord = (
   eid: string,
   taskId: string,

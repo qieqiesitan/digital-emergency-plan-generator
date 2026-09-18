@@ -54,7 +54,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -142,6 +142,32 @@ class TaskItemSubmit(BaseModel):
 
 class TaskSubmitBody(BaseModel):
     items: list[TaskItemSubmit]
+
+
+class TaskItemAppend(BaseModel):
+    content: str = Field(..., min_length=1, max_length=500)
+    expected_note: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("content")
+    @classmethod
+    def _reject_blank_content(cls, value: str) -> str:
+        """纯空白不算内容：min_length 拦不住空格，这里统一 strip 后判空。"""
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("content 不能为空白")
+        return stripped
+
+    @field_validator("expected_note")
+    @classmethod
+    def _blank_note_to_none(cls, value: Optional[str]) -> Optional[str]:
+        stripped = (value or "").strip()
+        return stripped or None
+
+
+class TaskItemsAppendBody(BaseModel):
+    """AI 清单补全的落库载荷：页面勾选后的建议项（单次最多 20 条）。"""
+
+    items: list[TaskItemAppend] = Field(..., min_length=1, max_length=20)
 
 
 class ToRecordBody(BaseModel):
@@ -961,6 +987,63 @@ async def submit_task(
     await db.commit()
     await db.refresh(task)
     return ApiResponse(data=_task_dict(task))
+
+
+@router.post("/tasks/{task_id}/items", response_model=ApiResponse[dict])
+async def append_task_items(
+    enterprise_id: str,
+    task_id: str,
+    body: TaskItemsAppendBody,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """AI 清单补全落库：把勾选的建议项追加进任务清单（按 content 去重）。
+
+    口径：AI 只"建议"，是否采纳由页面勾选决定（`POST /ai/checklist` 返回候选，
+    本端点负责落库）。去重与状态回退都放在服务端——否则前端漏判会出现重复项，
+    或"任务已完成但清单里还有未核对项"这种自相矛盾状态。
+    """
+    ent = await _get_ent(enterprise_id, current_user.id, db)
+    task = await _get_task(enterprise_id, task_id, db)
+    await _require_task_actor(ent, current_user.id, task, db)
+
+    existing = list((await db.execute(
+        select(HazardInspectionItem).where(HazardInspectionItem.task_id == task.id)
+    )).scalars().all())
+    seen = {(i.content or "").strip() for i in existing}
+    appended: list[HazardInspectionItem] = []
+    skipped: list[str] = []
+    for row in body.items:
+        content = row.content.strip()
+        if not content or content in seen:
+            skipped.append(content)
+            continue
+        seen.add(content)
+        item = HazardInspectionItem(
+            task_id=task.id,
+            content=content,
+            expected_note=(row.expected_note or "").strip() or None,
+        )
+        db.add(item)
+        appended.append(item)
+
+    if appended:
+        # 新追加项都是 pending：任务不能停留在 done，否则"已完成"与"还有未核对项"冲突
+        if task.status in ("pending", "processing", "done"):
+            has_checked = any((i.result or "pending") != "pending" for i in existing)
+            task.status = "processing" if has_checked else "pending"
+            task.completed_at = None
+        await db.commit()
+        await db.refresh(task)
+        for item in appended:
+            await db.refresh(item)
+    return ApiResponse(
+        data={
+            "task": _task_dict(task),
+            "appended": [_item_dict(i) for i in appended],
+            "skipped": skipped,
+        }
+    )
 
 
 @router.post("/tasks/{task_id}/to-record", response_model=ApiResponse[dict], status_code=201)

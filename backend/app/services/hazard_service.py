@@ -164,8 +164,10 @@ async def _build_inspection_items(db: AsyncSession, plan, task_id: str) -> list[
                 expected_note=tpl_item.get("expected_note") or None,
             ))
 
-    # TODO(task 12): AI 清单补全入口——任务 12 `ai/checklist` 端点返回建议项后，
-    # 在此合并（按 content 去重），AI 失败时任务仍可执行（默认项即可）。
+    # AI 清单补全走「建议 → 勾选 → 落库」两段式：生成任务时**不**自动调 LLM
+    # （避免每个任务都付一次调用与延迟，也不让 AI 静默改写清单）。
+    # 候选由 POST /ai/checklist 返回，页面勾选后 POST /tasks/{id}/items 落库，
+    # 服务端按 content 去重并把已 done 的任务回退为 processing。
     return items
 
 

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Alert,
   App as AntApp,
   Button,
+  Checkbox,
   Descriptions,
   Form,
   Image,
@@ -12,6 +14,7 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
   Tooltip,
   Upload,
 } from "antd";
@@ -20,6 +23,8 @@ import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import {
+  aiChecklistSuggestion,
+  appendHazardTaskItems,
   getHazardTask,
   listHazardTasks,
   submitHazardTask,
@@ -35,6 +40,8 @@ import type {
 import AppEmpty from "@/components/common/AppEmpty";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppBack } from "@/routing/useAppBack";
+
+const { Text } = Typography;
 
 const TASK_STATUS_LABELS: Record<HazardTaskStatus, string> = {
   pending: "待执行",
@@ -149,6 +156,11 @@ export default function HazardTaskPage() {
   const [toRecordItem, setToRecordItem] = useState<HazardInspectionItem | null>(null);
   const [toRecordSubmitting, setToRecordSubmitting] = useState(false);
   const [toRecordForm] = Form.useForm<{ title: string; description: string }>();
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSubmitting, setAiSubmitting] = useState(false);
+  const [aiItems, setAiItems] = useState<Array<{ content: string; expected_note?: string }>>([]);
+  const [aiSelected, setAiSelected] = useState<string[]>([]);
 
   const { data: tasks = [], isLoading, refetch } = useQuery({
     queryKey: ["hazard-tasks", enterpriseId, filters],
@@ -232,6 +244,58 @@ export default function HazardTaskPage() {
       description: [item.content, remark ? `备注：${remark}` : ""].filter(Boolean).join("；"),
     });
     setToRecordOpen(true);
+  };
+
+  /** AI 清单补全：只取建议，勾选后才落库（后端按 content 去重）。 */
+  const openAiSuggest = async () => {
+    if (!detail) return;
+    setAiLoading(true);
+    try {
+      const taskContext = [
+        detail.title,
+        ...detail.items.map(i => i.content).filter(Boolean),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const res = await aiChecklistSuggestion(enterpriseId, { task_context: taskContext });
+      if (!res.available || !res.items?.length) {
+        message.info(res.note || "AI 暂不可用，继续手工核对即可");
+        return;
+      }
+      setAiItems(res.items);
+      setAiSelected(res.items.map((_, idx) => String(idx)));
+      setAiOpen(true);
+    } catch (e) {
+      message.error(extractDetail(e) || "AI 补全失败，请稍后重试");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const confirmAiAppend = async () => {
+    if (!detail || aiSelected.length === 0) return;
+    setAiSubmitting(true);
+    try {
+      const picked = aiItems
+        .filter((_, idx) => aiSelected.includes(String(idx)))
+        .map(it => ({ content: it.content, expected_note: it.expected_note ?? null }));
+      const res = await appendHazardTaskItems(enterpriseId, detail.id, picked);
+      if (res.appended.length === 0) {
+        message.info("所选项目与现有清单重复，已全部跳过");
+      } else {
+        message.success(
+          `已补充 ${res.appended.length} 项清单` +
+            (res.skipped.length ? `，跳过 ${res.skipped.length} 项重复` : ""),
+        );
+      }
+      setAiOpen(false);
+      refetchDetail();
+      refetch();
+    } catch (e) {
+      message.error(extractDetail(e) || "补全失败，请稍后重试");
+    } finally {
+      setAiSubmitting(false);
+    }
   };
 
   const handleToRecord = async (values: { title: string; description: string }) => {
@@ -479,6 +543,14 @@ export default function HazardTaskPage() {
               <Descriptions.Item label="到期时间">{formatDateTime(detail.due_at)}</Descriptions.Item>
               <Descriptions.Item label="完成时间">{formatDateTime(detail.completed_at)}</Descriptions.Item>
             </Descriptions>
+            <Space style={{ marginBottom: 8 }} size={8}>
+              <Button size="small" loading={aiLoading} onClick={() => void openAiSuggest()}>
+                AI 补全清单
+              </Button>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                依据本任务已有清单与区域，给出可选的补充排查项（勾选后加入）
+              </Text>
+            </Space>
             <Table
               rowKey="id"
               size="small"
@@ -491,6 +563,42 @@ export default function HazardTaskPage() {
             />
           </div>
         )}
+      </Modal>
+
+      <Modal
+        title="AI 补全清单"
+        open={aiOpen}
+        confirmLoading={aiSubmitting}
+        okText={aiSelected.length ? `加入清单（${aiSelected.length}）` : "加入清单"}
+        okButtonProps={{ disabled: aiSelected.length === 0 }}
+        onOk={() => void confirmAiAppend()}
+        onCancel={() => setAiOpen(false)}
+        destroyOnHidden
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="AI 只给建议，勾选后才会写入清单；与现有清单重复的项会自动跳过。"
+        />
+        <Checkbox.Group
+          value={aiSelected}
+          onChange={values => setAiSelected(values as string[])}
+          style={{ width: "100%" }}
+        >
+          <Space direction="vertical" style={{ width: "100%" }} size={6}>
+            {aiItems.map((it, idx) => (
+              <Checkbox key={`${idx}-${it.content}`} value={String(idx)}>
+                <span>{it.content}</span>
+                {it.expected_note ? (
+                  <Text type="secondary" style={{ marginLeft: 6 }}>
+                    （{it.expected_note}）
+                  </Text>
+                ) : null}
+              </Checkbox>
+            ))}
+          </Space>
+        </Checkbox.Group>
       </Modal>
 
       <Modal
