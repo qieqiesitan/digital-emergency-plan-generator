@@ -9,7 +9,101 @@ from app.models.emergency_org import (
     EmergencyOrgUnit,
 )
 from app.models.enterprise_org import MemberPosition
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from fastapi import HTTPException
+
+from app.services.emergency_org_service import (
+    build_groups_for_consumers,
+    build_legacy_groups,
+    flatten_units,
+    save_emergency_org,
+)
 from app.services.org_tree_validate import validate_emergency_units, validate_tree
+
+
+def test_flatten_units_remaps_ids_and_parents():
+    units = [
+        {"id": "u1", "name": "应急组织机构", "roles": []},
+        {"id": "u2", "parent_id": "u1", "name": "应急指挥部", "roles": [
+            {"id": "r1", "name": "总指挥", "is_required": True, "member_ids": ["m1", "m2"]}]},
+    ]
+    unit_rows, role_rows, assignment_rows = flatten_units(units)
+    assert len(unit_rows) == 2
+    assert len(role_rows) == 1
+    assert len(assignment_rows) == 2
+    # 入参 id 不是 UUID，落库必须换成新 UUID 并重挂 parent
+    assert unit_rows[0]["id"] != "u1"
+    assert unit_rows[1]["parent_id"] == unit_rows[0]["id"]
+    assert role_rows[0]["unit_id"] == unit_rows[1]["id"]
+    assert role_rows[0]["is_required"] is True
+    assert assignment_rows[0]["role_id"] == role_rows[0]["id"]
+    assert assignment_rows[0]["member_id"] == "m1"
+    assert assignment_rows[1]["sort_order"] == 1
+
+
+def test_flatten_units_root_parent_is_none():
+    unit_rows, role_rows, assignment_rows = flatten_units([{"id": "u1", "name": "应急组织机构"}])
+    assert unit_rows[0]["parent_id"] is None
+    assert unit_rows[0]["name"] == "应急组织机构"
+    assert unit_rows[0]["sort_order"] == 0
+    assert role_rows == []
+    assert assignment_rows == []
+
+
+def test_build_legacy_groups_maps_names_and_roles():
+    units = [
+        {"id": "u1", "parent_id": None, "name": "应急组织机构", "roles": []},
+        {"id": "u2", "parent_id": "u1", "name": "应急指挥部", "duties": "统一指挥现场处置",
+         "roles": [{"name": "总指挥", "duties": "全面负责", "members": [
+             {"name": "刘昕野", "position": "总经理", "phone": "13800000000"}]}]},
+        {"id": "u3", "parent_id": "u1", "name": "抢险救灾组",
+         "roles": [{"name": "组长", "members": [{"name": "赵志龙", "position": "项目总监"}]}]},
+    ]
+    groups = build_legacy_groups(units)
+    assert [g["group_name"] for g in groups] == ["应急指挥部", "抢险救灾组"]
+    assert groups[0]["group_key"] == "headquarters"
+    assert groups[0]["responsibilities"] == "统一指挥现场处置"
+    assert groups[0]["members"][0]["role"] == "chief"
+    assert groups[0]["members"][0]["name"] == "刘昕野"
+    assert groups[0]["members"][0]["responsibilities"] == "全面负责"
+    assert groups[1]["group_key"] == "rescue"
+    assert groups[1]["members"][0]["role"] == "leader"
+
+
+def test_build_groups_for_consumers_shape():
+    units = [
+        {"id": "u1", "parent_id": None, "name": "应急组织机构", "roles": []},
+        {"id": "u2", "parent_id": "u1", "name": "应急指挥部", "duties": "统一指挥",
+         "roles": [{"name": "总指挥", "duties": "全面负责", "members": [
+             {"name": "刘昕野", "position": "总经理", "phone": "13800000000", "email": None}]}]},
+    ]
+    groups = build_groups_for_consumers(units)
+    assert len(groups) == 1
+    assert groups[0]["group_name"] == "应急指挥部"
+    assert groups[0]["responsibilities"] == "统一指挥"
+    assert groups[0]["members"] == [{
+        "name": "刘昕野",
+        "role": "chief",
+        "role_name": "总指挥",
+        "position": "总经理",
+        "phone": "13800000000",
+        "email": None,
+        "responsibilities": "全面负责",
+    }]
+
+
+@pytest.mark.asyncio
+async def test_save_emergency_org_rejects_unknown_member():
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(scalars=lambda: MagicMock(all=lambda: ["m1"]))
+    units = [{"id": "u1", "name": "应急指挥部", "roles": [
+        {"id": "r1", "name": "总指挥", "member_ids": ["ghost"]}]}]
+    with pytest.raises(HTTPException) as ei:
+        await save_emergency_org(db, "e1", units)
+    assert ei.value.status_code == 422
+    assert "不属于本企业" in ei.value.detail
 
 
 def test_validate_tree_rejects_cycle():
