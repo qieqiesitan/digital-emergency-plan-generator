@@ -21,7 +21,9 @@ export default function FloatingChat() {
   const { open, setOpen } = useChatDrawer();
   const [top, setTop] = useState(() => {
     const saved = localStorage.getItem("chat_btn_top");
-    return saved ? Number(saved) : window.innerHeight * 0.4;
+    // Number(脏数据) → NaN 会让按钮位置失效（top:NaN），这里回落默认位置
+    const parsed = saved ? Number(saved) : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : window.innerHeight * 0.4;
   });
   const dragging = useRef(false);
   const startY = useRef(0);

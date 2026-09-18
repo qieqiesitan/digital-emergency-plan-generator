@@ -392,8 +392,14 @@ export default function PlanEditorPage() {
   useEffect(() => {
     if ((autoGenerate !== "1" && autoGenerate !== "sample") || !sections || sections.length === 0) return;
     const storageKey = `plan_auto_gen_${id}`;
-    if (sessionStorage.getItem(storageKey) === "1") return;
-    sessionStorage.setItem(storageKey, "1");
+    // sessionStorage 在隐私模式/被策略禁用时会抛错：与文件内其它读取（74/77 行）保持一致做兜底，
+    // 读不到时按"未触发过"处理（紧随其后的 navigate 已把 auto_generate 参数摘掉，不会重复触发）
+    try {
+      if (sessionStorage.getItem(storageKey) === "1") return;
+      sessionStorage.setItem(storageKey, "1");
+    } catch {
+      /* 存储不可用时忽略去重标记 */
+    }
     // 只清 auto_generate 防重复触发，保留 enterprise_id 等其余参数，避免返回丢企业语境
     const keptQuery = sanitizeEditorSearchParams(searchParams.toString());
     navigate(`/plans/${id}/edit${keptQuery}`, { replace: true });
