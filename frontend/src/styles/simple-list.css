@@ -1,0 +1,159 @@
+/*
+ * SimpleList 度量：逐条对齐 antd v6 `List` 的组件样式。
+ *
+ * 数值来源（不要凭感觉改）：antd/es/list/style/index.js 的
+ * prepareComponentToken + genBaseStyle —— itemPadding 12px 0 / itemPaddingSM
+ * 8px 16px / itemPaddingLG 16px 24px、split 分隔线 1px rgba(5,5,5,0.06)、
+ * actions 起始间距 32px、Meta 标题 14px + 下间距 4px、描述色 rgba(0,0,0,0.45)、
+ * header/footer 内边距 12px、空态内边距 16px（色 rgba(0,0,0,0.25)）、
+ * loading 占位高度 53px。与 antd 视觉不一致时以 antd 源码为准改本文件。
+ */
+
+.simple-list {
+  position: relative;
+  /* antd 对组件根节点做 resetComponent：字号 14px / 行高 1.5714 / 主文本色 / 字体栈，
+     这些值会被所有子元素继承，缺了它们整段列表的字号与行高都会偏大。字体栈与
+     App.tsx 里 ConfigProvider 的 theme.token.fontFamily 保持一致。 */
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  color: rgba(0, 0, 0, 0.88);
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.5714285714285714;
+  list-style: none;
+}
+
+.simple-list__items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.simple-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+/* split（antd 默认开启）：项间分隔线；最后一项不画，除非其后还有 footer */
+.simple-list--split .simple-list__item {
+  border-bottom: 1px solid rgba(5, 5, 5, 0.06);
+}
+
+.simple-list--split .simple-list__item:last-child {
+  border-bottom: none;
+}
+
+.simple-list--split.simple-list--has-footer .simple-list__item:last-child {
+  border-bottom: 1px solid rgba(5, 5, 5, 0.06);
+}
+
+/* size 变体（antd itemPaddingSM / itemPaddingLG，注意 SM 带 16px 左右内边距） */
+.simple-list--small .simple-list__item {
+  padding: 8px 16px;
+}
+
+.simple-list--large .simple-list__item {
+  padding: 16px 24px;
+}
+
+/* bordered：外框 + 内容左右 24px 内边距 */
+.simple-list--bordered {
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+}
+
+.simple-list--bordered .simple-list__item,
+.simple-list--bordered .simple-list__header,
+.simple-list--bordered .simple-list__footer {
+  padding-inline: 24px;
+}
+
+/* Meta */
+.simple-list__meta {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.simple-list__meta-avatar {
+  margin-inline-end: 16px;
+}
+
+.simple-list__meta-content {
+  flex: 1 0;
+  width: 0;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.simple-list__meta-title {
+  margin: 0 0 4px 0;
+  color: rgba(0, 0, 0, 0.88);
+  font-size: 14px;
+  line-height: 1.5714285714285714;
+}
+
+.simple-list__meta-desc {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+  line-height: 1.5714285714285714;
+}
+
+/* actions：右对齐、起始间距 48px（antd marginXXL）、项间 1px 分割线（高度 14px，垂直居中） */
+.simple-list__actions {
+  flex: 0 0 auto;
+  margin-inline-start: 48px;
+  padding: 0;
+  font-size: 0;
+  list-style: none;
+}
+
+.simple-list__actions > li {
+  position: relative;
+  display: inline-block;
+  padding: 0 8px;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+  line-height: 1.5714285714285714;
+  text-align: center;
+}
+
+.simple-list__actions > li:first-child {
+  padding-inline-start: 0;
+}
+
+.simple-list__action-split {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 0;
+  width: 1px;
+  height: 14px;
+  transform: translateY(-50%);
+  background-color: rgba(5, 5, 5, 0.06);
+}
+
+/* header / footer */
+.simple-list__header,
+.simple-list__footer {
+  padding-block: 12px;
+}
+
+.simple-list--split .simple-list__header {
+  border-bottom: 1px solid rgba(5, 5, 5, 0.06);
+}
+
+/* 空态与加载占位 */
+.simple-list__empty-text {
+  padding: 16px;
+  color: rgba(0, 0, 0, 0.25);
+  font-size: 14px;
+  text-align: center;
+}
+
+.simple-list__placeholder {
+  min-height: 53px;
+}

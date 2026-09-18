@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Alert, Button, Checkbox, Collapse, Input, List, Modal, Space, Spin, Tag, Upload, message } from "antd";
+import { Alert, Button, Checkbox, Collapse, Input, Modal, Space, Spin, Tag, Upload, message } from "antd";
+import List from "@/components/common/SimpleList";
 import { InboxOutlined } from "@ant-design/icons";
 import {
   analyzeFourColorMap,

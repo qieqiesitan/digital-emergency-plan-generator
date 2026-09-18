@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Steps, Button, List, Tag, Input, Alert, Spin, Space, message } from "antd";
+import { Modal, Steps, Button, Tag, Input, Alert, Spin, Space, message } from "antd";
+import List from "@/components/common/SimpleList";
 import {
   CheckCircleOutlined,
   CloseOutlined,

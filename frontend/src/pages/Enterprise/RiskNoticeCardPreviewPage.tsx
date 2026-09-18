@@ -5,13 +5,13 @@ import {
   App as AntApp,
   Button,
   Checkbox,
-  List,
   Modal,
   Result,
   Space,
   Spin,
   Tag,
 } from "antd";
+import List from "@/components/common/SimpleList";
 import { useQuery } from "@tanstack/react-query";
 import RiskNoticeCard, { EMPTY_TEXT } from "@/components/enterprise/RiskNoticeCard";
 import { buildPublicUrl } from "@/utils/platform";

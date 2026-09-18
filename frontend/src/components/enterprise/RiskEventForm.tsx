@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import {
   Drawer, Form, Input, Select, Button, Segmented, Radio,
-  Space, Tag, message, Divider, Modal, List, Alert,
+  Space, Tag, message, Divider, Modal, Alert,
 } from "antd";
+import List from "@/components/common/SimpleList";
 import { CalculatorOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import AppIcon from "@/components/common/AppIcon";

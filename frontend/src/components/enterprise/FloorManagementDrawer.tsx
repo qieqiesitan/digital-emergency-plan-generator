@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { App, Button, Drawer, Input, List, Modal, Popconfirm, Space, Tag, Typography } from "antd";
+import { App, Button, Drawer, Input, Modal, Popconfirm, Space, Tag, Typography } from "antd";
+import List from "@/components/common/SimpleList";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {

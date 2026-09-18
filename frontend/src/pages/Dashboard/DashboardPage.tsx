@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Card, Row, Col, Statistic, List, Typography, Button, Skeleton, Empty, Modal, Input, Select, Tag, Progress, Space } from "antd";
+import { Alert, Card, Row, Col, Statistic, Typography, Button, Skeleton, Empty, Modal, Input, Select, Tag, Progress, Space } from "antd";
+import List from "@/components/common/SimpleList";
 import {
   BankOutlined,
   FileTextOutlined,

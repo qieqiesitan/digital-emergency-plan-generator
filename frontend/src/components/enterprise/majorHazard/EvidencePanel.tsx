@@ -5,13 +5,13 @@ import {
   Empty,
   Form,
   Input,
-  List,
   Modal,
   Select,
   Space,
   Tag,
   Typography,
 } from "antd";
+import List from "@/components/common/SimpleList";
 import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EvidenceItem } from "@/types/majorHazard";

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Button, Input, Space, Typography, List } from "antd";
+import { Button, Input, Space, Typography } from "antd";
+import List from "@/components/common/SimpleList";
 import { UndoOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import type { PlanAdvancedPromptOverrides } from "@/types/plan";
 
