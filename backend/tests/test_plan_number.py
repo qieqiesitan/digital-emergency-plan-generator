@@ -60,3 +60,20 @@ def test_build_signers_from_org_structure():
         {"seq": 1, "name": "张三", "title": "总指挥"},
         {"seq": 2, "name": "李四", "title": "副总指挥"},
     ]
+
+
+def test_build_signers_prefers_emergency_role_name_over_company_position():
+    """签署页职务列优先用应急角色（role_name），公司职位只作回落。"""
+    from app.routers.export import _build_signers_from_org
+
+    org = [
+        {"group_name": "应急指挥部", "members": [
+            {"name": "刘昕野", "role": "chief", "role_name": "总指挥", "position": "总经理"},
+            {"name": "赵志龙", "position": "项目总监"},
+        ]},
+    ]
+    signers = _build_signers_from_org(org)
+    assert signers == [
+        {"seq": 1, "name": "刘昕野", "title": "总指挥"},
+        {"seq": 2, "name": "赵志龙", "title": "项目总监"},
+    ]

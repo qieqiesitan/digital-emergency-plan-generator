@@ -125,44 +125,39 @@ def _org_ent_with_inline_members():
     return ent
 
 
-def test_collect_enterprise_data_uses_member_table_to_override_org_members():
-    """生成时若存在成员表数据，组织树节点成员必须以成员表为准（覆盖内嵌旧名）。"""
+def test_collect_enterprise_data_uses_emergency_groups():
+    """`org_structure` 键现在装应急组织的消费方分组格式，由调用方取好传入。"""
     ent = _org_ent_with_inline_members()
-    org_members = [
-        {"name": "刘昕野", "position": "总经理", "org_node_id": "preset-headquarters-0"},
-    ]
-    data = _collect_enterprise_data(ent, {"risk_sources": []}, [], org_members=org_members)
-    nodes = {n["id"]: n for n in data["org_structure"]}
-    assert nodes["preset-headquarters-0"]["members"] == [
-        {"name": "刘昕野", "position": "总经理", "phone": None, "email": None, "role": None}
-    ]
-    # 无成员表关联的节点：内嵌旧名（李四）必须被清空，而不是带入预案
-    assert nodes["node-6"]["members"] == []
+    emergency_groups = [{
+        "group_name": "应急指挥部",
+        "responsibilities": "统一指挥现场处置",
+        "members": [{
+            "name": "刘昕野", "role": "chief", "role_name": "总指挥",
+            "position": "总经理", "phone": "13800000000", "email": None,
+            "responsibilities": "全面负责",
+        }],
+    }]
+    data = _collect_enterprise_data(
+        ent, {"risk_sources": []}, [], emergency_groups=emergency_groups
+    )
+    assert data["org_structure"] == emergency_groups
 
 
-def test_collect_enterprise_data_keeps_inline_members_without_member_table():
-    """无成员表数据时保持向后兼容：组织树内嵌成员原样保留。"""
+def test_collect_enterprise_data_does_not_leak_company_org_tree():
+    """公司组织架构（含内嵌成员）不得再进入提示词：不传应急组织时 org_structure 必须为空。"""
     ent = _org_ent_with_inline_members()
     data = _collect_enterprise_data(ent, {"risk_sources": []}, [])
-    nodes = {n["id"]: n for n in data["org_structure"]}
-    assert nodes["preset-headquarters-0"]["members"] == [{"name": "张三", "position": "总指挥"}]
+    assert data["org_structure"] == []
 
 
-def test_collect_enterprise_data_accepts_orm_member_objects():
-    """成员表数据为 ORM 对象时同样生效（getattr 路径）。"""
+def test_collect_enterprise_data_ignores_deprecated_org_members_argument():
+    """org_members 已废弃（成员改由应急组织指派提供），传入也不再影响输出。"""
     ent = _org_ent_with_inline_members()
-    m = MagicMock()
-    m.name = "程磊"
-    m.position = "项目经理"
-    m.org_node_id = "node-6"
-    m.phone = "13800138000"
-    m.email = None
-    m.role = "team_leader"
-    data = _collect_enterprise_data(ent, {"risk_sources": []}, [], org_members=[m])
-    nodes = {n["id"]: n for n in data["org_structure"]}
-    assert nodes["node-6"]["members"] == [
-        {"name": "程磊", "position": "项目经理", "phone": "13800138000", "email": None, "role": "team_leader"}
+    legacy_members = [
+        {"name": "程磊", "position": "项目经理", "org_node_id": "node-6"},
     ]
+    data = _collect_enterprise_data(ent, {"risk_sources": []}, [], org_members=legacy_members)
+    assert data["org_structure"] == []
 
 
 def test_collect_enterprise_data_includes_chemical_msds_fields():

@@ -1116,8 +1116,9 @@ async def _export_plan_docx(db, user, args):
         return {"error": "请先设置预案编号与版本号"}
     try:
         from app.routers.export import _build_signers_from_org
+        from app.services.emergency_org_service import load_emergency_groups
         import asyncio
-        signers = _build_signers_from_org(ent.org_structure or [])
+        signers = _build_signers_from_org(await load_emergency_groups(db, ent.id))
         doc = await asyncio.to_thread(
             generate_plan_docx_func,
             company_name=ent.name,
@@ -1371,8 +1372,9 @@ async def _review_plan_tool(db, user, args):
         select(PlanSection).where(PlanSection.plan_project_id == plan_id)
         .order_by(PlanSection.sort_order)
     )).scalars().all()
+    from app.services.emergency_org_service import load_emergency_groups
     from app.services.plan_review_service import review_plan
-    result = review_plan(p, ent, sections)
+    result = review_plan(p, ent, sections, emergency_groups=await load_emergency_groups(db, p.enterprise_id))
     return {
         "plan_id": plan_id, "title": p.title,
         "issues": result["issues"], "warnings": result["warnings"],

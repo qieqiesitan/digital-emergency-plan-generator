@@ -11,17 +11,22 @@ router = APIRouter(prefix="/plans", tags=["Sections"])
 
 
 def _render_org_structure_html(org_structure: list) -> str:
-    """组织架构 → HTML 表格（每组一张表）。用户数据一律转义，防存储型 XSS。"""
+    """应急组织分组 → HTML 表格（每组一张表）。用户数据一律转义，防存储型 XSS。
+
+    职务列优先取应急角色名（如「总指挥」），无 role_name 时回落到公司职位；
+    职责列优先取成员级职责（角色职责），为空时回落到组级职责。
+    """
     parts = []
     for g in org_structure or []:
         members = [m for m in g.get("members", []) if m.get("name")]
         if not members:
             continue
+        group_duties = _html.escape(str(g.get("responsibilities") or ""), quote=True)
         rows = "".join(
             f"<tr><td>{i+1}</td><td>{_html.escape(str(m.get('name','')), quote=True)}</td>"
-            f"<td>{_html.escape(str(m.get('position','')), quote=True)}</td>"
+            f"<td>{_html.escape(str(m.get('role_name') or m.get('position') or ''), quote=True)}</td>"
             f"<td>{_html.escape(str(m.get('phone','')), quote=True)}</td>"
-            f"<td>{_html.escape(str(m.get('responsibilities','')), quote=True)}</td></tr>"
+            f"<td>{_html.escape(str(m.get('responsibilities') or ''), quote=True) or group_duties}</td></tr>"
             for i, m in enumerate(members)
         )
         group_name = _html.escape(str(g.get('group_name','')), quote=True)
@@ -71,11 +76,13 @@ async def autofill_section(plan_id: str, section_key: str, current_user=Depends(
     if s.auto_fill_source != "org_structure":
         raise HTTPException(400, "不支持的自动填充来源")
 
+    from app.services.emergency_org_service import load_emergency_groups
+
     ent = (await db.execute(select(Enterprise).where(Enterprise.id == p.enterprise_id))).scalar_one_or_none()
-    org = (ent.org_structure or []) if ent else []
-    html = _render_org_structure_html(org)
+    groups = await load_emergency_groups(db, p.enterprise_id) if ent else []
+    html = _render_org_structure_html(groups)
     if not html:
-        raise HTTPException(400, "请先维护企业组织架构")
+        raise HTTPException(400, "请先维护应急组织")
 
     s.content = html
     s.ai_generated = False

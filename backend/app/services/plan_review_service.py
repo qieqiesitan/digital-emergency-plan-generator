@@ -22,11 +22,12 @@ def _regulation_exists(name: str) -> bool:
     return False
 
 
-def review_plan(plan, enterprise, sections) -> dict:
+def review_plan(plan, enterprise, sections, emergency_groups: list | None = None) -> dict:
     """返回 {"issues": [...], "warnings": [...]}。
     issue 字段：section_key/section_title/issue；warning 字段：section_key/section_title/warning/evidence。
+    emergency_groups：应急组织消费方分组格式，由调用方取好传入（组织相关规则的数据源）。
     """
-    rules = check_plan(plan, enterprise, sections)
+    rules = check_plan(plan, enterprise, sections, emergency_groups=emergency_groups)
     issues = list(rules.get("issues", []))
     warnings = list(rules.get("warnings", []))
 

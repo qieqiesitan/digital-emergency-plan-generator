@@ -274,12 +274,16 @@ async def get_export_preview(
 # Route: Export DOCX (完全重写，使用模板引擎)
 
 def _build_signers_from_org(org_structure: list | None) -> list[dict]:
-    """组织架构 → 签署人列表（跳过无姓名成员）。"""
+    """应急组织分组 → 签署人列表（跳过无姓名成员；职务优先取应急角色，如「总指挥」）。"""
     signers = []
     for g in org_structure or []:
         for m in g.get("members", []):
             if m.get("name"):
-                signers.append({"seq": len(signers) + 1, "name": m["name"], "title": m.get("position", "")})
+                signers.append({
+                    "seq": len(signers) + 1,
+                    "name": m["name"],
+                    "title": m.get("role_name") or m.get("position", ""),
+                })
     return signers
 
 
@@ -357,11 +361,15 @@ async def export_plan_docx(
     resources = (await db.execute(
         select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
     )).scalars().all()
+    from app.services.emergency_org_service import load_emergency_groups
+
+    emergency_groups = await load_emergency_groups(db, plan.enterprise_id)
     quality_result = check_plan(
         plan, enterprise, sections,
         required_sections=required or None,
         resources=resources,
         has_risk=bool(enterprise.risk_sources) if enterprise else False,
+        emergency_groups=emergency_groups,
     )
     quality_evidence: dict[str, list[str]] = {}
     for w in quality_result["warnings"]:
@@ -371,7 +379,7 @@ async def export_plan_docx(
     # 生成文档
     if not plan.plan_number or not plan.version_number:
         raise HTTPException(400, "请先设置预案编号与版本号")
-    signers = _build_signers_from_org(enterprise.org_structure or [])
+    signers = _build_signers_from_org(emergency_groups)
     try:
         import asyncio as _asyncio_dbg
         # ponytail: 在线程中运行 generate_plan_docx，避免 Playwright sync API 与 asyncio 冲突
@@ -456,12 +464,16 @@ async def validate_plan_export(
     resources = (await db.execute(
         select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
     )).scalars().all()
+    from app.services.emergency_org_service import load_emergency_groups
+
+    emergency_groups = await load_emergency_groups(db, plan.enterprise_id)
     result = check_plan(
         plan, enterprise, sections,
         required_sections=required or None,
         resources=resources,
         # 风险点来源：企业档案风险源（selectin 已预加载），用于 E3「资源数量为 0」告警前提
         has_risk=bool(enterprise.risk_sources) if enterprise else False,
+        emergency_groups=emergency_groups,
     )
     # 结构化为 {section_key, section_title, warning, evidence}，前端可定位正文并高亮
     warnings = [

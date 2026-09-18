@@ -47,7 +47,9 @@ async def get_plan_review(plan_id: str, current_user=Depends(get_current_user),
         Enterprise.id == p.enterprise_id))).scalar_one_or_none()
     sections = (await db.execute(select(PlanSection).where(
         PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order))).scalars().all()
-    result = review_plan(p, ent, sections)
+    from app.services.emergency_org_service import load_emergency_groups
+
+    result = review_plan(p, ent, sections, emergency_groups=await load_emergency_groups(db, p.enterprise_id))
     return ApiResponse(data={"plan_id": plan_id, "title": p.title, **result})
 
 
@@ -97,7 +99,9 @@ async def apply_plan_review(plan_id: str, current_user=Depends(get_current_user)
         Enterprise.id == p.enterprise_id))).scalar_one_or_none()
     sections = (await db.execute(select(PlanSection).where(
         PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order))).scalars().all()
-    result = review_plan(p, ent, sections)
+    from app.services.emergency_org_service import load_emergency_groups
+
+    result = review_plan(p, ent, sections, emergency_groups=await load_emergency_groups(db, p.enterprise_id))
     target_keys = set(body.section_keys or [s.section_key for s in sections])
     issue_map = {}
     for it in result["issues"]:

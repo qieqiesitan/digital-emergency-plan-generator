@@ -19,7 +19,6 @@ from app.models.resource_investigation import ResourceInvestigationReport
 
 from app.models.hazardous_chemicals import HazardousChemical
 from app.models.enterprise_org import EnterpriseMember
-from app.models.user import User
 
 from app.dependencies import get_current_user
 
@@ -38,6 +37,7 @@ from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_
 from app.services.sse_utils import SSE_HEADERS, sse_event
 from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, get_additional_diagram_prompt, render_template, ensure_loaded
 from app.services.risk_context_builder import build_risk_management_context
+from app.services.emergency_org_service import load_emergency_groups
 from app.services.major_hazard_context import build_major_hazard_brief
 
 
@@ -475,7 +475,13 @@ async def _load_org_members(db, enterprise_id: str) -> list:
     return list(rows)
 
 
-def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list, chemicals: dict | None = None, org_members: list | None = None) -> dict:
+def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resources: list, chemicals: dict | None = None, org_members: list | None = None, emergency_groups: list | None = None) -> dict:
+    """组装喂给 AI 的企业数据。
+
+    `org_structure` 键现在装的是「应急组织」的消费方分组格式（应急指挥部/应急小组 + 成员），
+    由调用方用 emergency_org_service.load_emergency_groups 取好传入；公司组织架构不再进提示词。
+    `org_members` 仅保留签名兼容（旧调用方传参不再影响输出）。
+    """
     chemicals = chemicals or {}
 
     return {
@@ -489,7 +495,7 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
         "employee_count": enterprise.employee_count,
         "building_overview": _missing(enterprise.building_overview),
 
-        "org_structure": _merge_org_members(enterprise.org_structure, org_members),
+        "org_structure": emergency_groups or [],
         "surrounding_info": _missing(enterprise.surrounding_info),
 
         "legal_representative": _missing(enterprise.legal_representative),
@@ -605,32 +611,7 @@ def _collect_enterprise_data(enterprise: Enterprise, risk_context: dict, resourc
 
 
 async def _enrich_with_reports(enterprise_data: dict, enterprise_id: str, db: AsyncSession) -> dict:
-    """补充报告摘要与企业组织成员（成员按 org_node_id 挂到组织树节点，供预案组织章节/组织架构图使用）。"""
-    member_rows = (
-        await db.execute(
-            select(EnterpriseMember, User)
-            .join(User, User.id == EnterpriseMember.user_id)
-            .where(
-                EnterpriseMember.enterprise_id == enterprise_id,
-                EnterpriseMember.enabled.is_(True),
-            )
-        )
-    ).all()
-    member_map: dict[str, list[dict]] = {}
-    for em, user in member_rows:
-        if not em.org_node_id:
-            continue
-        member_map.setdefault(em.org_node_id, []).append({
-            "name": user.name or em.name or "",
-            "position": em.position,
-            "role": em.role,
-            "phone": em.phone,
-            "email": em.email,
-        })
-    for node in enterprise_data.get("org_structure") or []:
-        if isinstance(node, dict) and not node.get("members"):
-            node["members"] = member_map.get(node.get("id"), [])
-
+    """补充报告摘要（应急组织成员由 load_emergency_groups 在收集阶段注入，不在此处补）。"""
     ra = (await db.execute(
 
         select(RiskAssessmentReport).where(
@@ -1107,8 +1088,9 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
         select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
     )).scalars().all()
     chemicals = {c.id: c for c in chemicals_rows}
-    org_members = await _load_org_members(db, p.enterprise_id) if ent else []
-    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
+    # 应急组织（应急指挥部/应急小组）是预案组织章节与组织架构图的数据源；org_structure 键沿用旧名，内容已改
+    emergency_groups = await load_emergency_groups(db, p.enterprise_id) if ent else []
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, emergency_groups=emergency_groups) if ent else {}
     if ent:
         ent_data = await _attach_major_hazard(ent_data, p.enterprise_id, db)
 
@@ -1309,8 +1291,9 @@ async def regenerate_selection(
         select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
     )).scalars().all()
     chemicals = {c.id: c for c in chemicals_rows}
-    org_members = await _load_org_members(db, p.enterprise_id) if ent else []
-    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
+    # 应急组织（应急指挥部/应急小组）是预案组织章节与组织架构图的数据源；org_structure 键沿用旧名，内容已改
+    emergency_groups = await load_emergency_groups(db, p.enterprise_id) if ent else []
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, emergency_groups=emergency_groups) if ent else {}
     if ent:
         ent_data = await _attach_major_hazard(ent_data, p.enterprise_id, db)
     if ent:
@@ -1423,8 +1406,9 @@ async def generate_preview(
         select(HazardousChemical).where(HazardousChemical.enterprise_id == p.enterprise_id)
     )).scalars().all()
     chemicals = {c.id: c for c in chemicals_rows}
-    org_members = await _load_org_members(db, p.enterprise_id) if ent else []
-    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, org_members=org_members) if ent else {}
+    # 应急组织（应急指挥部/应急小组）是预案组织章节与组织架构图的数据源；org_structure 键沿用旧名，内容已改
+    emergency_groups = await load_emergency_groups(db, p.enterprise_id) if ent else []
+    ent_data = _collect_enterprise_data(ent, risk_context, resources, chemicals, emergency_groups=emergency_groups) if ent else {}
     if ent:
         ent_data = await _attach_major_hazard(ent_data, p.enterprise_id, db)
     if ent:

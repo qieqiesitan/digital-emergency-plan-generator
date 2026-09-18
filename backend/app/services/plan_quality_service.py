@@ -56,7 +56,19 @@ def _extract_address_fragments(address: str) -> list:
 
 
 def _role_matches(member: dict, role: str) -> bool:
-    """判断成员是否承担某角色：职务名精确/包含匹配，或总经理→总指挥/副总经理→副总指挥。"""
+    """判断成员是否承担某角色。
+
+    应急组织成员形如 {name, role: "chief", role_name: "总指挥", position: "总经理"}，
+    因此优先按 role_name（应急角色）判断，避免「副总指挥 + 公司职位总经理」被误判为总指挥；
+    没有 role_name 时回落到 position/role 的既有规则（兼容旧分组数据）。
+    """
+    role_name = str(member.get("role_name") or "").strip()
+    if role_name:
+        if role == "副总指挥":
+            return "副总指挥" in role_name
+        if role == "总指挥":
+            return "总指挥" in role_name and "副总指挥" not in role_name
+        return role in role_name
     pos = (member.get("position") or "") + (member.get("role") or "")
     if not pos:
         return False
@@ -67,7 +79,13 @@ def _role_matches(member: dict, role: str) -> bool:
     return role in pos
 
 
-def check_plan(plan, enterprise, sections, required_sections: list | None = None, resources: list | None = None, has_risk: bool = False) -> dict:
+def check_plan(plan, enterprise, sections, required_sections: list | None = None, resources: list | None = None, has_risk: bool = False, emergency_groups: list | None = None) -> dict:
+    """预案质检。
+
+    组织相关规则（人名一致性、联系电话、关键岗位覆盖）一律以 `emergency_groups`
+    （应急组织消费方分组格式）为准，不再读企业公司组织架构。
+    """
+    org_groups = emergency_groups or []
     issues = []
     warnings = []
 
@@ -179,7 +197,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                 "warning": f"跨章节{role}姓名不一致：{detail}",
             })
         org_names = {
-            m.get("name") for g in (getattr(enterprise, "org_structure", None) or [])
+            m.get("name") for g in org_groups
             for m in g.get("members", [])
             if _role_matches(m, role)
         }
@@ -187,7 +205,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
             warnings.append({
                 "section_key": "",
                 "section_title": entries[0][0],
-                "warning": f"正文{role}与企业组织架构不符",
+                "warning": f"正文{role}与应急组织不符",
             })
 
     # ── C2：地址/法人冲突（仅必含章节）──
@@ -275,21 +293,21 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                 "warning": f"术语表述不统一：{a} 与 {b} 混用",
             })
 
-    # ── E1：组织架构联系电话完整性（正文电话格式检查已收敛移除：
+    # ── E1：应急组织联系电话完整性（正文电话格式检查已收敛移除：
     #    正文数字语义判断纯正则不可靠，易误报身份证/证件号）──
-    for g in (getattr(enterprise, "org_structure", None) or []):
+    for g in org_groups:
         for m in g.get("members", []):
             if m.get("name") and not m.get("phone"):
                 warnings.append({
                     "section_key": "",
                     "section_title": "",
-                    "warning": f"企业组织架构中{m.get('name')}（{m.get('position','') or m.get('role','') or ''}）无联系电话",
+                    "warning": f"应急组织中{m.get('name')}（{m.get('role_name','') or m.get('position','') or m.get('role','') or ''}）无联系电话",
                 })
 
     # ── E2：关键岗位覆盖 ──
     org_roles = {
         role
-        for g in (getattr(enterprise, "org_structure", None) or [])
+        for g in org_groups
         for m in g.get("members", [])
         for role in ("总指挥", "副总指挥")
         if _role_matches(m, role)
@@ -306,7 +324,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
         warnings.append({
             "section_key": "",
             "section_title": "",
-            "warning": f"企业组织架构缺少{'、'.join(missing)}",
+            "warning": f"应急组织缺少{'、'.join(missing)}",
         })
         # 规则 2：正文提及指挥机构但档案缺总指挥（仅当规则 1 已报且缺总指挥时补充）
         if not has_commander:
@@ -316,7 +334,7 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
                     warnings.append({
                         "section_key": s.section_key,
                         "section_title": s.title,
-                        "warning": "正文提及应急指挥机构，但企业组织架构未设置总指挥",
+                        "warning": "正文提及应急指挥机构，但应急组织未设置总指挥",
                     })
 
     # ── E3：应急资源充分性 ──

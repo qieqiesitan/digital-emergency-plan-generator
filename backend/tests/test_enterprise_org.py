@@ -60,22 +60,25 @@ def test_merge_org_members_keeps_phone_orm_members():
 
 
 @pytest.mark.asyncio
-async def test_enrich_with_reports_includes_phone():
-    em = SimpleNamespace(
-        org_node_id="d1", name="", position="部长", role="team_leader",
-        phone="13800000000", email="wangwu@example.com",
-    )
-    user = SimpleNamespace(name="王五")
+async def test_enrich_with_reports_leaves_emergency_groups_untouched():
+    """应急组织分组由收集阶段注入；_enrich_with_reports 只补报告摘要，不再改写 org_structure。
+
+    2026-09-19 拆分后：成员不再从 enterprise_members 按 org_node_id 反查补进节点，
+    该键装的是应急组织的消费方分组格式，成员信息已随分组带齐。
+    """
     db = AsyncMock()
     db.execute.side_effect = [
-        MagicMock(all=lambda: [(em, user)]),                        # member join user
-        MagicMock(scalar_one_or_none=lambda: None),                 # risk assessment
-        MagicMock(scalar_one_or_none=lambda: None),                 # resource investigation
+        MagicMock(scalar_one_or_none=lambda: None),  # risk assessment
+        MagicMock(scalar_one_or_none=lambda: None),  # resource investigation
     ]
-    data = {"org_structure": [{"id": "d1", "type": "team", "name": "救援组", "members": []}]}
+    groups = [{
+        "group_name": "救援组",
+        "responsibilities": "现场抢险",
+        "members": [{"name": "王五", "phone": "13800000000", "role_name": "组长"}],
+    }]
+    data = {"org_structure": groups}
     out = await _enrich_with_reports(data, "ent1", db)
-    assert out["org_structure"][0]["members"][0]["phone"] == "13800000000"
-    assert out["org_structure"][0]["members"][0]["email"] == "wangwu@example.com"
+    assert out["org_structure"] == groups
 
 
 def test_org_node_preserves_extra_fields_in_dump():
