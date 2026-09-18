@@ -12,7 +12,7 @@ import Input from "@/mobile/components/ui/Input";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import FAB from "@/mobile/components/ui/FAB";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 import { listResources, createResource, deleteResource } from "@/services/emergencyResourceService";
 
 const RESOURCE_CATEGORIES = ["全部", "消防", "急救", "防护", "通讯", "照明", "破拆", "其他"];

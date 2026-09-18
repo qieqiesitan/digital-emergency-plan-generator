@@ -76,6 +76,7 @@ export default function Input({
             className="flex-1 h-full px-4 bg-transparent text-body text-neutral-900 placeholder:text-neutral-400 outline-none disabled:text-neutral-400"
             placeholder={placeholder as string}
             disabled={disabled}
+            {...props}
           />
         )}
         {suffixIcon && !showPasswordToggle && !suffix && (

@@ -234,7 +234,7 @@ export function RegulationGraph() {
               onMouseLeave={onMouseUp}
             >
               <defs>
-                {Object.entries(COLORS).map(([k, c]) => (
+                {Object.entries(COLORS).map(([k]) => (
                   <filter key={k} id={`g-${k}`} x="-50%" y="-50%" width="200%" height="200%">
                     <feGaussianBlur stdDeviation="2" result="b" />
                     <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>

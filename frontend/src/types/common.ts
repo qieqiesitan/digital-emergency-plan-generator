@@ -13,7 +13,7 @@ export interface PaginatedData<T> {
   page_size: number;
 }
 
-export interface PaginatedResponse<T> extends ApiResponse<PaginatedData<T>> {}
+export type PaginatedResponse<T> = ApiResponse<PaginatedData<T>>;
 
 export interface PaginationParams {
   page?: number;

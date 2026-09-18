@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import Input from "@/mobile/components/ui/Input";
 import Chip from "@/mobile/components/ui/Chip";

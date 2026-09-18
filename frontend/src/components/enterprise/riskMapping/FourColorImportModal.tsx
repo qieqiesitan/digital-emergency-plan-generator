@@ -402,7 +402,7 @@ export default function FourColorImportModal({
                         <List
                           size="small"
                           dataSource={g.items}
-                          renderItem={(z, i) => (
+                          renderItem={(z) => (
                             <List.Item
                               style={selectedZoneId === z.client_id ? { background: "#e6f4ff", borderRadius: 6 } : undefined}
                               onClick={() => selectZoneByRow(z)}

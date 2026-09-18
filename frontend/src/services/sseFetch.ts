@@ -169,7 +169,7 @@ export async function sseFetch(options: SseFetchOptions): Promise<SseStreamOutco
   const jsonBody = options.body !== undefined;
   const method = (options.method || (jsonBody ? "POST" : "GET")).toUpperCase();
 
-  let response: Response | null = null;
+  let response: Response;
   try {
     response = await fetch(url, {
       method,
@@ -222,7 +222,7 @@ export async function apiJsonFetch<T = unknown>(options: ApiJsonFetchOptions): P
   const jsonBody = options.body !== undefined;
   const method = (options.method || (jsonBody ? "POST" : "GET")).toUpperCase();
 
-  let response: Response | null = null;
+  let response: Response;
   try {
     response = await fetch(url, {
       method,
@@ -230,7 +230,7 @@ export async function apiJsonFetch<T = unknown>(options: ApiJsonFetchOptions): P
       body: jsonBody ? JSON.stringify(options.body) : undefined,
     });
   } catch (err) {
-    throw new Error(parseError(err, options.errorMessage));
+    throw new Error(parseError(err, options.errorMessage), { cause: err });
   }
 
   if (response.status === 401) {
@@ -245,7 +245,7 @@ export async function apiJsonFetch<T = unknown>(options: ApiJsonFetchOptions): P
         body: jsonBody ? JSON.stringify(options.body) : undefined,
       });
     } catch (err) {
-      throw new Error(parseError(err, options.errorMessage));
+      throw new Error(parseError(err, options.errorMessage), { cause: err });
     }
   }
 

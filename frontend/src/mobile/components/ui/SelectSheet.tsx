@@ -12,7 +12,6 @@ interface SelectSheetProps {
   label?: string;
   required?: boolean;
   onClose: () => void;
-  placeholder?: string;
   options: SelectOption[];
   value: string | null;
   onChange: (value: string) => void;
@@ -23,7 +22,6 @@ export default function SelectSheet({
   label,
   required,
   open,
-  placeholder,
   onClose,
   options,
   value,

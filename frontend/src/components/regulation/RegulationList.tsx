@@ -2,16 +2,16 @@
 import { useState } from "react";
 import {
   Table, Input, Select, Button, Space, Tag, Card, Row, Col,
-  Statistic, Tooltip, Badge, Typography, Modal, message,
+  Badge, Typography, Modal, message,
 } from "antd";
 import {
   PlusOutlined, SearchOutlined, StopOutlined, BookOutlined,
   CheckCircleOutlined, CloseCircleOutlined, FileTextOutlined,
-  EditOutlined, EyeOutlined, ClearOutlined, DeleteOutlined,
+  EditOutlined, EyeOutlined, DeleteOutlined,
 } from "@ant-design/icons";
 import AppIcon from "@/components/common/AppIcon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchRegulations, fetchStats, deleteRegulation, updateRegulation, batchAbolish } from "@/services/regulationService";
+import { fetchRegulations, fetchStats, deleteRegulation, batchAbolish } from "@/services/regulationService";
 import { RegulationForm } from "./RegulationForm";
 import type { RegulationNode } from "@/types/regulation";
 

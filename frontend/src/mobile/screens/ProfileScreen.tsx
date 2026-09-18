@@ -9,7 +9,7 @@ import Avatar from "@/mobile/components/ui/Avatar";
 import Card from "@/mobile/components/ui/Card";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import { useToast } from "@/mobile/components/ui/Toast";
-import { ChevronRight, Lock, LogOut } from "lucide-react";
+import { ChevronRight, Lock } from "lucide-react";
 
 export default function ProfileScreen() {
   const navigate = useNavigate();

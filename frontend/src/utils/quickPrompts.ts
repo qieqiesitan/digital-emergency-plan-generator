@@ -22,7 +22,9 @@ export function getQuickPrompts(): QuickPrompt[] {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
-  } catch {}
+  } catch {
+    // localStorage 不可用或内容非法：忽略并回退到默认提示词
+  }
   return [...DEFAULTS];
 }
 

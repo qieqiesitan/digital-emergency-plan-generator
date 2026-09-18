@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Descriptions, Tag, Timeline, Table, Button, Modal, Space, message } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRegulation, fetchRegulationHistory, fetchSourceFile, updateTopics } from "@/services/regulationService";
-import type { RegulationNode } from "@/types/regulation";
 
 interface Props {
   id: string;
@@ -12,7 +11,7 @@ interface Props {
 
 export function RegulationDetail({ id, onClose }: Props) {
   const [sourcePreview, setSourcePreview] = useState<{ filename: string; url: string; type: string; text?: string } | null>(null);
-  const { data: reg, isLoading } = useQuery({
+  const { data: reg } = useQuery({
     queryKey: ["regulation", id],
     queryFn: () => fetchRegulation(id),
   });

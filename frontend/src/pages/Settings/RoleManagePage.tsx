@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState } from "react";
 import {
-  Table, Modal, Form, Input, Select, Button, message, Space, Popconfirm, Checkbox, Divider,
+  Table, Modal, Form, Input, Button, message, Space, Popconfirm, Checkbox, Divider,
 } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {

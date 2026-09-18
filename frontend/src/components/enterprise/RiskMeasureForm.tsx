@@ -166,7 +166,7 @@ export default function RiskMeasureForm({
         <Form.List name="check_items">
           {(fields, { add, remove }) => (
             <>
-              {fields.map(({ key, name, ...restField }, _index) => (
+              {fields.map(({ key, name, ...restField }) => (
                 <div
                   key={key}
                   style={{

@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Plus, Sparkles, AlertTriangle } from "lucide-react";
+import { Plus, Sparkles, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import NavBar from "@/mobile/components/ui/NavBar";
 import SafeArea from "@/mobile/components/ui/SafeArea";
@@ -12,7 +12,7 @@ import Input from "@/mobile/components/ui/Input";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import FAB from "@/mobile/components/ui/FAB";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 import { listRiskSources, createRiskSource, deleteRiskSource } from "@/services/riskSourceService";
 import type { RiskSource } from "@/types/riskSource";
 

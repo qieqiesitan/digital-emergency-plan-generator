@@ -1,10 +1,10 @@
 // @ts-nocheck
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MoreHorizontal, Sparkles, Download,
-  GitBranch, Loader2, ArrowLeft, Check,
+  GitBranch, Loader2, Check,
   AlertTriangle, Save, ClipboardCheck,
 } from "lucide-react";
 import NavBar from "@/mobile/components/ui/NavBar";
@@ -12,7 +12,7 @@ import SafeArea from "@/mobile/components/ui/SafeArea";
 import Spinner from "@/mobile/components/ui/Spinner";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import ProgressBar from "@/mobile/components/ui/ProgressBar";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 import ChapterTree from "@/mobile/components/plan/ChapterTree";
 import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
@@ -89,7 +89,6 @@ export default function PlanEditorScreen() {
   const [toolbarVisible, setToolbarVisible] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genProgressPct, setGenProgressPct] = useState(0);
-  const [genProgressMsg, setGenProgressMsg] = useState("");
   const [thinkingBrief, setThinkingBrief] = useState("");
   const [generationBanner, setGenerationBanner] = useState<{
     status: "generating" | "done" | "cancelled"; message: string;

@@ -10,7 +10,7 @@ import Input from "@/mobile/components/ui/Input";
 import Chip from "@/mobile/components/ui/Chip";
 import Card from "@/mobile/components/ui/Card";
 import Button from "@/mobile/components/ui/Button";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 import { listEnterprises } from "@/services/enterpriseService";
 import { getFullHierarchy } from "@/services/riskManagementService";
 import { createPlan } from "@/services/planService";

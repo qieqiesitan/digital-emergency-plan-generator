@@ -8,6 +8,7 @@ import { PRESET_INTERNAL_RESOURCE_CATEGORIES, PRESET_EXTERNAL_RESOURCE_CATEGORIE
 import ResourceImportModal from "./ResourceImportModal";
 import ResourceAIGenerateModal from "./ResourceAIGenerateModal";
 import type { EmergencyResource, EmergencyResourceCreate } from "@/types/emergencyResource";
+import { omitFields } from "@/utils/omitFields";
 
 export default function EmergencyResourceForm({ enterpriseId }: { enterpriseId: string }) {
   const queryClient = useQueryClient();
@@ -93,7 +94,7 @@ export default function EmergencyResourceForm({ enterpriseId }: { enterpriseId: 
         onCancel={() => setModalOpen(false)} width={600}
         onOk={() => {
           if (!form.category || !form.name) return;
-          const { _ext, ...data } = form;
+          const data = omitFields(form, ["_ext"] as const);
           if (editing) updateMut.mutate({ id: editing.id, data });
           else createMut.mutate(data);
         }}

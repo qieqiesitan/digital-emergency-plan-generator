@@ -32,4 +32,4 @@ export interface RiskSourceCreate {
   control_measures?: string;
 }
 
-export interface RiskSourceUpdate extends Partial<RiskSourceCreate> {}
+export type RiskSourceUpdate = Partial<RiskSourceCreate>;

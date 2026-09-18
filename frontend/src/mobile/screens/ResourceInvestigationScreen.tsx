@@ -13,7 +13,7 @@ import Spinner from "@/mobile/components/ui/Spinner";
 import EmptyState from "@/mobile/components/ui/EmptyState";
 import ProgressBar from "@/mobile/components/ui/ProgressBar";
 import Button from "@/mobile/components/ui/Button";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 import {
   getResourceInvestigation,
   downloadResourceInvestigation,

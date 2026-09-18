@@ -44,4 +44,4 @@ export interface HazardousChemicalCreate {
   max_storage?: string;
 }
 
-export interface HazardousChemicalUpdate extends Partial<HazardousChemicalCreate> {}
+export type HazardousChemicalUpdate = Partial<HazardousChemicalCreate>;

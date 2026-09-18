@@ -41,7 +41,7 @@ export interface ChemicalLibraryPayload {
   protective_measures?: string | null;
 }
 
-export interface ChemicalLibraryCreate extends ChemicalLibraryPayload {}
+export type ChemicalLibraryCreate = ChemicalLibraryPayload;
 export type ChemicalLibraryUpdate = Partial<ChemicalLibraryPayload>;
 
 export interface CollectEnterpriseOption {

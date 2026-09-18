@@ -29,4 +29,4 @@ export interface EmergencyResourceCreate {
   external_distance_km?: number | null;
 }
 
-export interface EmergencyResourceUpdate extends Partial<EmergencyResourceCreate> {}
+export type EmergencyResourceUpdate = Partial<EmergencyResourceCreate>;

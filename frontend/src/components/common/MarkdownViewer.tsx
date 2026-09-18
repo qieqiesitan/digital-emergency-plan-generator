@@ -11,10 +11,9 @@ const md = new MarkdownIt({
 
 interface MarkdownViewerProps {
   content: string;
-  style?: React.CSSProperties;
 }
 
-export default function MarkdownViewer({ content, style }: MarkdownViewerProps) {
+export default function MarkdownViewer({ content }: MarkdownViewerProps) {
   const html = useMemo(() => md.render(content || ""), [content]);
   return <MermaidRenderer html={html} />;
 }

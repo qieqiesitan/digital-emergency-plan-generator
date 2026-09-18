@@ -125,15 +125,11 @@ function MatrixThumbnail({ config }: { config: MethodConfig }) {
     : undefined;
   const isLEC = config.formula?.includes("L × E × C") || config.parameters?.length >= 3;
 
-  let matrixData: { l: number; s: number; r: number; level: string; color: string }[][] = [];
-
-  if (isLEC) {
-    matrixData = [];
-  } else if (config.parameters?.length >= 2) {
-    matrixData = renderMatrixData("LS", thresholds as any);
-  } else {
-    matrixData = renderMatrixData("LS");
-  }
+  const matrixData: { l: number; s: number; r: number; level: string; color: string }[][] = isLEC
+    ? []
+    : config.parameters?.length >= 2
+      ? renderMatrixData("LS", thresholds as any)
+      : renderMatrixData("LS");
 
   if (isLEC) {
     return (

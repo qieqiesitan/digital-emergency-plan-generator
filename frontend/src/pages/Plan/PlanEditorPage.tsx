@@ -38,17 +38,6 @@ const streamMd = new MarkdownIt({
   breaks: true,
 });
 
-function findTemplate(key: string, templates: SectionTemplate[]): SectionTemplate | null {
-  for (const t of templates) {
-    if (t.key === key) return t;
-    if (t.subsections.length > 0) {
-      const f = findTemplate(key, t.subsections);
-      if (f) return f;
-    }
-  }
-  return null;
-}
-
 export default function PlanEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -414,7 +403,7 @@ export default function PlanEditorPage() {
   }, []);
 
   const handleAIGenerateComplete = useCallback(
-    (_fullText: string) => {
+    () => {
       setIsGenerating(false);
       // Backend already saved HTML via _md_to_html; reload from server
       queryClient.invalidateQueries({ queryKey: ["planSections", id] });
@@ -688,7 +677,7 @@ export default function PlanEditorPage() {
         {styleMode === "panel" ? (
           <StylePanel value={stylePreference}
             onChange={(sp) => { setStylePreference(sp); updatePlan(id!, { style_preference: sp } as any).catch(() => {}); }}
-            onPreview={() => { const s = sections && sections[0]; if (s && id) { generateBatchStream(id!, [s.section_key], (e: any) => {}, (err: string) => reportGenerationError(err), () => {}); setStyleModalOpen(false); } }}
+            onPreview={() => { const s = sections && sections[0]; if (s && id) { generateBatchStream(id!, [s.section_key], () => {}, (err: string) => reportGenerationError(err), () => {}); setStyleModalOpen(false); } }}
             onSwitchToAdvanced={() => setStyleMode("advanced")}
             showAdvanced />
         ) : (

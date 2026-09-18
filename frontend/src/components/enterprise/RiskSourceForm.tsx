@@ -10,6 +10,7 @@ import FloorPlanPicker from "./FloorPlanPicker";
 import RiskSourceImportModal from "./RiskSourceImportModal";
 import RiskSourceAIGenerateModal from "./RiskSourceAIGenerateModal";
 import type { RiskSource, RiskSourceCreate } from "@/types/riskSource";
+import { omitFields } from "@/utils/omitFields";
 
 interface Props {
   enterpriseId: string;
@@ -128,7 +129,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
         onCancel={() => setModalOpen(false)} width={600}
         onOk={() => {
           if (!form.categories.length || !form.name) return;
-          const { _desc, ...data } = form;
+          const data = omitFields(form, ["_desc"] as const);
           if (editing) updateMut.mutate({ id: editing.id, data });
           else createMut.mutate(data);
         }}

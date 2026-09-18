@@ -10,9 +10,8 @@ import Card from "@/mobile/components/ui/Card";
 import Badge from "@/mobile/components/ui/Badge";
 import Spinner from "@/mobile/components/ui/Spinner";
 import EmptyState from "@/mobile/components/ui/EmptyState";
-import Toast, { useToast } from "@/mobile/components/ui/Toast";
+import { useToast } from "@/mobile/components/ui/Toast";
 import { listVersions, rollbackVersion } from "@/services/planService";
-import { formatRelativeTime } from "@/utils/formatters";
 
 export default function VersionListScreen() {
   const { id: planId } = useParams<{ id: string }>();

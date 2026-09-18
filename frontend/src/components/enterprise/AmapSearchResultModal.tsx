@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal, Button, Input, Table, message, Card, Space, Tag, Select, InputNumber } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import type { NearbyUnit, SensitiveTarget, SurroundingInfo } from "@/types/enterprise";
+import { omitFields } from "@/utils/omitFields";
 
 interface Props {
   visible: boolean;
@@ -51,8 +52,8 @@ export default function AmapSearchResultModal({
     setImporting(true);
     try {
       const merged: SurroundingInfo = {
-        nearby_units: nearbyUnits.map(({ _key, _isNew, ...rest }) => rest),
-        sensitive_targets: sensitiveTargets.map(({ _key, _isNew, ...rest }) => rest),
+        nearby_units: nearbyUnits.map((unit) => omitFields(unit, ["_key", "_isNew"] as const)),
+        sensitive_targets: sensitiveTargets.map((target) => omitFields(target, ["_key", "_isNew"] as const)),
         traffic_info: trafficDraft,
       };
       await onImport(merged);

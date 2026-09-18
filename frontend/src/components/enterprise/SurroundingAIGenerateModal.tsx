@@ -8,6 +8,7 @@ import {
   updateSurrounding,
 } from "@/services/enterpriseService";
 import type { SurroundingInfo, NearbyUnit, SensitiveTarget } from "@/types/enterprise";
+import { omitFields } from "@/utils/omitFields";
 
 interface Props {
   enterpriseId: string;
@@ -139,8 +140,8 @@ export default function SurroundingAIGenerateModal({
     setSaving(true);
     try {
       const toSave: SurroundingInfo = {
-        nearby_units: nearbyUnits.map(({ _key, _isNew, ...rest }) => rest),
-        sensitive_targets: sensitiveTargets.map(({ _key, _isNew, ...rest }) => rest),
+        nearby_units: nearbyUnits.map((unit) => omitFields(unit, ["_key", "_isNew"] as const)),
+        sensitive_targets: sensitiveTargets.map((target) => omitFields(target, ["_key", "_isNew"] as const)),
         traffic_info: trafficInfo,
       };
       // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
