@@ -11,7 +11,7 @@ async def test_stream_llm_chunks_forwards_reasoning_cb(monkeypatch):
     captured = {}
 
     async def fake_completion(messages, ai_config, stream=True, timeout=120,
-                              payload_overrides=None, reasoning_cb=None):
+                              payload_overrides=None, reasoning_cb=None, **kwargs):
         captured["reasoning_cb"] = reasoning_cb
 
         async def _gen():

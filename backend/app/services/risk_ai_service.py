@@ -168,7 +168,8 @@ async def suggest_objects(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await llm_text_completion(messages, ai_config, timeout=60)
+    raw = await llm_text_completion(messages, ai_config, timeout=60,
+                                    module="risk", capability="risk_suggest_objects")
     data = _parse_ai_json(raw)
     return data.get("objects", [])
 
@@ -223,7 +224,8 @@ async def suggest_events(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await llm_text_completion(messages, ai_config, timeout=60)
+    raw = await llm_text_completion(messages, ai_config, timeout=60,
+                                    module="risk", capability="risk_suggest_events")
     data = _parse_ai_json(raw)
     return data.get("events", [])
 
@@ -273,7 +275,8 @@ async def suggest_measures(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await llm_text_completion(messages, ai_config, timeout=60)
+    raw = await llm_text_completion(messages, ai_config, timeout=60,
+                                    module="risk", capability="risk_suggest_measures")
     data = _parse_ai_json(raw)
     return data.get("measures", [])
 
@@ -341,7 +344,7 @@ async def smart_guide(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await llm_text_completion(messages, ai_config, timeout=60)
+    raw = await llm_text_completion(messages, ai_config, timeout=60, module="risk")
     data = _parse_ai_json(raw)
     return _normalize_smart_guide_hierarchy(data)
 
@@ -371,7 +374,7 @@ async def analyze_floor_plan(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await llm_text_completion(messages, ai_config, timeout=60)
+    raw = await llm_text_completion(messages, ai_config, timeout=60, module="risk")
     data = _parse_ai_json(raw)
     return data.get("zones", [])
 
@@ -403,6 +406,6 @@ async def migrate_preview(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await llm_text_completion(messages, ai_config, timeout=60)
+    raw = await llm_text_completion(messages, ai_config, timeout=60, module="risk")
     data = _parse_ai_json(raw)
     return data.get("mappings", [])

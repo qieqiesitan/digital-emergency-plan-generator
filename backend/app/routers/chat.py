@@ -180,12 +180,13 @@ def build_system_prompt_with_prefs(prefs: dict | None) -> str:
 
 
 async def _call_llm(messages: list, ai_config: AIConfig) -> dict:
-    return await llm_chat_completion(messages, ai_config, stream=False, timeout=60, tools=CHAT_TOOLS)
+    return await llm_chat_completion(messages, ai_config, stream=False, timeout=60,
+                                     tools=CHAT_TOOLS, module="chat")
 
 
 async def _call_llm_stream(messages: list, ai_config: AIConfig):
     try:
-        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=180)
+        gen = await llm_chat_completion(messages, ai_config, stream=True, timeout=180, module="chat")
         async for chunk in gen:
             yield chunk
     except LLMError as e:
@@ -195,7 +196,7 @@ async def _call_llm_stream(messages: list, ai_config: AIConfig):
 
 async def _collect_llm(messages: list, ai_config: AIConfig) -> str:
     """收集 LLM 完整响应（用于需要后处理的场景）"""
-    return await llm_collect_all(messages, ai_config, timeout=180)
+    return await llm_collect_all(messages, ai_config, timeout=180, module="chat")
 
 
 async def _generate_report_text(system_prompt: str, prompt: str, ai_config):

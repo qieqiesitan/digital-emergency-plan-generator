@@ -350,7 +350,7 @@ def _guard_decrypt(ai_config) -> None:
 async def _stream_llm_with_messages(messages: list[dict], ai_config: AIConfig) -> str:
     _guard_decrypt(ai_config)
     try:
-        return await llm_stream_all(messages, ai_config, timeout=120)
+        return await llm_stream_all(messages, ai_config, timeout=120, module="risk_assessment")
     except LLMError as e:
         # 保持原 risk_assessment 文案
         raise Exception(f"LLM call failed: {e.status_code} {e.text[:300]}")
@@ -362,6 +362,7 @@ async def _stream_llm_with_messages_chunked(messages: list[dict], ai_config: AIC
     try:
         gen = await llm_chat_completion(
             messages, ai_config, stream=True, timeout=120, reasoning_cb=reasoning_cb,
+            module="risk_assessment",
         )
         async for chunk in gen:
             yield chunk

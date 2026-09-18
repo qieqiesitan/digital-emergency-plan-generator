@@ -27,7 +27,7 @@ def test_normalize_smart_guide_forces_risk_point_false():
 async def test_smart_guide_prompt_includes_existing_names():
     captured = {}
 
-    async def fake_llm(messages, ai_config, timeout=120):
+    async def fake_llm(messages, ai_config, timeout=120, **kwargs):
         captured["messages"] = messages
         return '{"zones": [], "summary": {}}'
 

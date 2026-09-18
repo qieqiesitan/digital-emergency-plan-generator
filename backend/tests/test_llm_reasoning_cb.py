@@ -15,7 +15,8 @@ def test_delta_texts_extracts_reasoning_and_content():
 async def test_llm_chat_completion_stream_passes_reasoning_cb(monkeypatch):
     captured = {}
 
-    async def fake_stream(base, payload, ai_config, timeout=120, max_retries=2, reasoning_cb=None):
+    async def fake_stream(base, payload, ai_config, timeout=120, max_retries=2,
+                          reasoning_cb=None, metrics=None):
         captured["reasoning_cb"] = reasoning_cb
         yield
 

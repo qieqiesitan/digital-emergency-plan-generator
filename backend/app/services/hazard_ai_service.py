@@ -18,7 +18,7 @@ checklist-template 三个既有函数）。全部为文本通道、失败降级�
 
 from typing import Optional
 
-from app.services.llm_client import llm_text_completion
+from app.services.llm_client import CapabilityDisabledError, llm_text_completion
 from app.services.enterprise_org_service import suggest_org_tree
 from app.services.risk_ai_service import _parse_ai_json
 
@@ -76,7 +76,7 @@ async def generate_checklist_template(
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=60, module="hazard")
         data = _parse_ai_json(raw)
         items = _normalize_items(data.get("items"))
         if not items:
@@ -161,7 +161,8 @@ async def record_assist(
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=60,
+                                        module="hazard", capability="hazard_record_assist")
         data = _parse_ai_json(raw)
         title = str(data.get("title") or "").strip()[:255]
         hazard_type = str(data.get("hazard_type") or "").strip()
@@ -177,6 +178,10 @@ async def record_assist(
             "reason": reason,
             "note": "",
         }
+    except CapabilityDisabledError:
+        fallback = _record_assist_fallback()
+        fallback["note"] = "该 AI 能力已被管理员停用，请手动填写隐患信息"
+        return fallback
     except Exception:
         return _record_assist_fallback()
 
@@ -285,7 +290,8 @@ async def ai_grade(
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=60,
+                                        module="hazard", capability="hazard_grade")
         data = _parse_ai_json(raw)
         suggested_level = str(data.get("suggested_level") or "").strip()
         basis = str(data.get("basis") or "").strip()
@@ -303,6 +309,10 @@ async def ai_grade(
             "confidence": confidence,
             "note": "",
         }
+    except CapabilityDisabledError:
+        fallback = _grade_fallback()
+        fallback["note"] = "该 AI 能力已被管理员停用，请手动判定隐患等级"
+        return fallback
     except Exception:
         return _grade_fallback()
 
@@ -353,7 +363,7 @@ async def ai_governance_plan(
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=60, module="hazard")
         data = _parse_ai_json(raw)
         plan = _normalize_plan(data.get("plan"))
         if not plan:
@@ -476,7 +486,7 @@ async def build_inspection_plans(
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=60, module="hazard")
         data = _parse_ai_json(raw)
         raw_plans = data.get("plans")
         if not isinstance(raw_plans, list):
@@ -533,7 +543,7 @@ async def suggest_schedule(
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=60, module="hazard")
         data = _parse_ai_json(raw)
         frequency = str(data.get("suggested_frequency") or "").strip()
         responsible = data.get("suggested_responsible_user_id")
@@ -585,7 +595,7 @@ async def suggest_checklist_items(
         {"role": "user", "content": prompt},
     ]
     try:
-        raw = await llm_text_completion(messages, ai_config, timeout=60)
+        raw = await llm_text_completion(messages, ai_config, timeout=60, module="hazard")
         data = _parse_ai_json(raw)
         items = _normalize_items(data.get("items"))
         if not items:

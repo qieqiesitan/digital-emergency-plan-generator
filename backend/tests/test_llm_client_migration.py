@@ -179,7 +179,7 @@ async def test_chat_collect_llm_uses_llm_collect_all(monkeypatch):
     from app.routers import chat
     calls = {}
 
-    async def fake_collect(messages, cfg, timeout=120):
+    async def fake_collect(messages, cfg, timeout=120, **kwargs):
         calls["timeout"] = timeout
         return "collected"
 

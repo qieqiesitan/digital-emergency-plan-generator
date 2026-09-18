@@ -13,6 +13,10 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.llm_call_log import LlmCallLog
+# FK 目标表必须已注册：脚本/独立 worker 只导入本模块时，若 users/enterprises 未注册，
+# 写留痕会因找不到目标表而失败并被 best-effort 吞掉（探针实测踩到）。
+from app.models.enterprise import Enterprise  # noqa: F401
+from app.models.user import User  # noqa: F401
 
 logger = logging.getLogger("llm_telemetry")
 

@@ -116,7 +116,8 @@ async def extract_candidates(
 ) -> dict:
     """抽取并落队列。返回 {queued, skipped, invalid}。"""
     messages = build_messages(target_entity=target_entity, text=text, source_hint=filename)
-    raw = await llm_text_completion(messages, ai_config, timeout=timeout)
+    raw = await llm_text_completion(messages, ai_config, timeout=timeout,
+                                    module="major_hazard", capability="major_hazard_extract")
     try:
         rows = parse_model_json(raw)
     except ValueError as exc:

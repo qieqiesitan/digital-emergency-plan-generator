@@ -722,10 +722,12 @@ async def _stream_llm_chunks(prompt: str, ai_config: AIConfig, plan_type: str = 
             gen = await llm_chat_completion(
                 messages, ai_config, stream=True, timeout=120,
                 payload_overrides=payload_overrides, reasoning_cb=reasoning_cb,
+                module="generation",
             )
         else:
             gen = await llm_chat_completion(
                 messages, ai_config, stream=True, timeout=120, reasoning_cb=reasoning_cb,
+                module="generation",
             )
         async for chunk in gen:
             yield chunk
@@ -787,9 +789,10 @@ async def _stream_llm(prompt: str, ai_config: AIConfig, plan_type: str = "*",
         data = await llm_chat_completion(
             messages, ai_config, stream=False, timeout=120,
             payload_overrides=payload_overrides,
+            module="generation",
         )
         return data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    return await llm_collect_all(messages, ai_config, timeout=120)
+    return await llm_collect_all(messages, ai_config, timeout=120, module="generation")
 
 
 async def _get_plan_or_404(plan_id: str, user, db: AsyncSession) -> PlanProject:
