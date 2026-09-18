@@ -1,14 +1,13 @@
 """Enterprise autofill — QCC lookup with rate limiting and field mapping."""
-import logging, re, threading, time
+import logging, re, time
 from typing import Any
 
 from app.services.qcc_client import get_company_info
+from app.services.runtime_state import get_state, incr_counter, set_state
 
 logger = logging.getLogger("enterprise_autofill")
 
-# ── rate limiting (in-memory, per-user) ──
-_ratelimit: dict[str, list[float]] = {}
-_ratelimit_lock = threading.Lock()
+# ── rate limiting (W2：跨 worker 共享，per-user) ──
 MAX_CALLS_PER_MINUTE = 5
 MIN_INTERVAL = 3.0  # seconds
 
@@ -35,7 +34,7 @@ async def autofill(user_id: str, company_name: str) -> dict:
         {"ok": false, "reason": "rate_limited" | "credits_exhausted" | "not_found" | "network_error"}
     """
     # ── rate check ──
-    if not _check_rate(user_id):
+    if not await _check_rate(user_id):
         return {"ok": False, "reason": "rate_limited"}
 
     # ── call QCC ──
@@ -48,20 +47,18 @@ async def autofill(user_id: str, company_name: str) -> dict:
     return {"ok": True, "name": raw.get("企业名称", company_name), "fields": fields}
 
 
-def _check_rate(user_id: str) -> bool:
+async def _check_rate(user_id: str) -> bool:
+    """QCC 调用节流：同一用户 3s 最小间隔 + 每分钟最多 5 次（跨 worker）。"""
     now = time.time()
-    with _ratelimit_lock:
-        stamps = _ratelimit.get(user_id, [])
-        # prune old entries (> 60s)
-        stamps = [t for t in stamps if now - t < 60]
-        # check interval
-        if stamps and now - stamps[-1] < MIN_INTERVAL:
-            return False
-        # check max per minute
-        if len(stamps) >= MAX_CALLS_PER_MINUTE:
-            return False
-        stamps.append(now)
-        _ratelimit[user_id] = stamps
+    last = await get_state(f"qcc_last:{user_id}")
+    if last and now - float(last.get("ts", 0)) < MIN_INTERVAL:
+        return False
+    count = await incr_counter(
+        f"qcc_rl:{user_id}:{int(now // 60)}", ttl_seconds=61,
+    )
+    if count > MAX_CALLS_PER_MINUTE:
+        return False
+    await set_state(f"qcc_last:{user_id}", {"ts": now}, ttl_seconds=60)
     return True
 
 

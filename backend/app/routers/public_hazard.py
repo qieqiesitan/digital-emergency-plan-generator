@@ -50,28 +50,13 @@ from app.routers.hazard_management import (
 router = APIRouter(prefix="/public/hazard", tags=["Public Hazard"])
 
 NONCE_TTL_SECONDS = 300  # nonce 防重窗口 5 分钟（§8 幂等）
-# 进程内 nonce 缓存：键 `hazard_report:{nonce}` → 首次提交时间（time.monotonic）。
-# 成功落库后写入；查询时惰性清理过期键，避免无限增长。
-_nonce_cache: dict[str, float] = {}
+# W2：nonce 防重放改跨 worker 共享（app_runtime_state）：多 worker 下重复提交
+# 不再能"换个 worker 就绕过去"。
+from app.services.runtime_state import consume_once, delete_state
 
 
-def _purge_expired_nonces(now: float) -> None:
-    expired = [key for key, ts in _nonce_cache.items() if now - ts >= NONCE_TTL_SECONDS]
-    for key in expired:
-        _nonce_cache.pop(key, None)
-
-
-def _nonce_available(nonce: str) -> bool:
-    """nonce 未被使用过（TTL 内）；过期键先惰性清理。"""
-    _purge_expired_nonces(time.monotonic())
-    return f"hazard_report:{nonce}" not in _nonce_cache
-
-
-def _mark_nonce(nonce: str) -> None:
-    """成功落库后写入 nonce 缓存（防重窗口起点）。"""
-    now = time.monotonic()
-    _purge_expired_nonces(now)
-    _nonce_cache[f"hazard_report:{nonce}"] = now
+def _nonce_key(nonce: str) -> str:
+    return f"hazard_report:{nonce}"
 
 
 class PublicHazardReport(BaseModel):
@@ -117,7 +102,8 @@ async def public_hazard_report(token: str, body: PublicHazardReport, db: AsyncSe
         if not location:
             raise HTTPException(422, "企业通用二维码上报时 location 必填")
 
-    if not _nonce_available(body.nonce):
+    nonce_key = _nonce_key(body.nonce)
+    if not await consume_once(nonce_key, NONCE_TTL_SECONDS):
         raise HTTPException(409, "请勿重复提交")
 
     title = (body.title or "").strip()
@@ -135,9 +121,12 @@ async def public_hazard_report(token: str, body: PublicHazardReport, db: AsyncSe
         # created_by 留空 → NULL（扫码上报匿名，规格 §5.4/§8）
     )
     db.add(record)
-    await db.commit()
-    # 成功落库后再标记 nonce，避免失败提交误占防重窗口
-    _mark_nonce(body.nonce)
+    try:
+        await db.commit()
+    except Exception:
+        # 落库失败释放 nonce，允许用户重试（避免失败提交误占防重窗口）
+        await delete_state(nonce_key)
+        raise
     return ApiResponse(data={"message": "已提交，待企业管理员确认"}, message="已提交，待企业管理员确认")
 
 

@@ -1,19 +1,18 @@
 from datetime import datetime, timedelta, timezone
 import secrets
-import threading
 import time
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from app.config import settings, is_weak_secret_key
+from app.services.runtime_state import get_state, set_state
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # 密码找回令牌有效期（分钟）
 RESET_TOKEN_TTL_MINUTES = 30
 
-# 登出撤销表：jti -> 过期时间戳（进程内；多 worker/重启后失效，注释见 logout 路由）
-_revoked_tokens: dict[str, float] = {}
-_revoke_lock = threading.Lock()
+# W2：登出撤销表改跨 worker 共享（app_runtime_state，TTL=token 剩余有效期）。
+# 原进程内实现在 4 worker 下只有 1/4 概率命中，登出形同虚设。
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -42,22 +41,19 @@ def create_refresh_token(user_id: str) -> str:
     )
 
 def decode_token(token: str) -> dict:
-    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-    jti = payload.get("jti")
-    now = time.time()
-    with _revoke_lock:
-        if jti:
-            if _revoked_tokens.get(jti, 0) > now:
-                raise JWTError("Token has been revoked")
-            # 惰性清理过期条目
-            expired = [k for k, exp in _revoked_tokens.items() if exp <= now]
-            for k in expired:
-                _revoked_tokens.pop(k, None)
-    return payload
+    """解码并校验签名（撤销状态由 is_token_revoked 异步查询）。"""
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
 
 
-def revoke_token(token: str) -> None:
-    """将 token 加入撤销表（按其 exp 到期自动失效）。"""
+async def is_token_revoked(jti: str | None) -> bool:
+    """token 是否已被登出撤销（跨 worker 共享）。"""
+    if not jti:
+        return False
+    return (await get_state(f"revoked:{jti}")) is not None
+
+
+async def revoke_token(token: str) -> None:
+    """将 token 加入共享撤销表（按其 exp 到期自动失效）。"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
     except JWTError:
@@ -65,8 +61,8 @@ def revoke_token(token: str) -> None:
     jti = payload.get("jti")
     exp = payload.get("exp")
     if jti and exp:
-        with _revoke_lock:
-            _revoked_tokens[jti] = float(exp)
+        ttl_seconds = max(1, int(float(exp) - time.time()))
+        await set_state(f"revoked:{jti}", {"revoked": True}, ttl_seconds=ttl_seconds)
 
 
 def generate_password_reset_token() -> str:

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db, async_session
 from app.models.user import User
-from app.services.auth_service import decode_token
+from app.services.auth_service import decode_token, is_token_revoked
 
 security = HTTPBearer(auto_error=False)
 
@@ -28,6 +28,8 @@ async def get_current_user(
         payload = decode_token(token_str)
         if payload.get("type") != "access":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+        if await is_token_revoked(payload.get("jti")):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")

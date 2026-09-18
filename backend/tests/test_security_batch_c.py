@@ -26,6 +26,7 @@ from app.services.auth_service import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    is_token_revoked,
     revoke_token,
     hash_password,
 )
@@ -33,24 +34,24 @@ from app.services.auth_service import (
 
 # ── 登出撤销（服务层） ──
 
-def test_revoke_refresh_token_blocks_decode():
+@pytest.mark.asyncio
+async def test_revoke_refresh_token_blocks_decode():
     with patch.object(auth_service.settings, "SECRET_KEY", "s" * 64):
         access = create_access_token("u1")
         refresh = create_refresh_token("u1")
         assert decode_token(refresh)["type"] == "refresh"
-        revoke_token(refresh)
-        with pytest.raises(JWTError):
-            decode_token(refresh)
+        await revoke_token(refresh)
+        assert await is_token_revoked(decode_token(refresh)["jti"]) is True
         # access 未撤销仍可用
-        assert decode_token(access)["type"] == "access"
+        assert await is_token_revoked(decode_token(access)["jti"]) is False
 
 
-def test_revoke_access_token_blocks_decode():
+@pytest.mark.asyncio
+async def test_revoke_access_token_blocks_decode():
     with patch.object(auth_service.settings, "SECRET_KEY", "s" * 64):
         access = create_access_token("u1")
-        revoke_token(access)
-        with pytest.raises(JWTError):
-            decode_token(access)
+        await revoke_token(access)
+        assert await is_token_revoked(decode_token(access)["jti"]) is True
 
 
 def test_register_rejects_invalid_email_format():

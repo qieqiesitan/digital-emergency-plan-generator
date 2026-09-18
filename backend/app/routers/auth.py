@@ -14,7 +14,7 @@ from app.schemas.common import ApiResponse
 from app.services.auth_service import (
     hash_password, verify_password, create_access_token, create_refresh_token,
     decode_token, generate_password_reset_token, send_password_reset_email,
-    RESET_TOKEN_TTL_MINUTES, revoke_token,
+    RESET_TOKEN_TTL_MINUTES, revoke_token, is_token_revoked,
 )
 from jose import JWTError
 from app.middleware.rate_limit import rate_limited
@@ -62,6 +62,8 @@ async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
         payload = decode_token(data.refresh_token)
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
+        if await is_token_revoked(payload.get("jti")):
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
         user_id = payload.get("sub")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
@@ -84,10 +86,10 @@ async def logout(data: LogoutRequest, request: Request):
     token 在自然过期前仍可用——生产多 worker 部署需换共享存储。
     """
     if data.refresh_token:
-        revoke_token(data.refresh_token)
+        await revoke_token(data.refresh_token)
     auth_header = request.headers.get("authorization", "")
     if auth_header.lower().startswith("bearer "):
-        revoke_token(auth_header[7:].strip())
+        await revoke_token(auth_header[7:].strip())
     return {"code": 0, "message": "ok"}
 
 

@@ -32,8 +32,19 @@ router = APIRouter(prefix="/external", tags=["External"])
 EXPORT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "exports")
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
-# ── ponytail: background task tracking, in-process only
-_external_tasks: dict[str, dict] = {}
+# W2：任务状态改跨 worker 共享（回调/状态查询可能落到不同 worker）
+from app.services.runtime_state import get_state, set_state
+
+EXTERNAL_TASK_TTL_SECONDS = 24 * 3600
+
+
+def _external_task_key(plan_id: str) -> str:
+    return f"external_task:{plan_id}"
+
+
+async def _persist_task(plan_id: str, info: dict) -> None:
+    await set_state(_external_task_key(plan_id), dict(info),
+                    ttl_seconds=EXTERNAL_TASK_TTL_SECONDS)
 
 
 async def _ensure_user_and_enterprise(
@@ -79,19 +90,19 @@ async def _run_generation_then_callback(
     accident_type: str | None,
 ):
     task_info = {"status": "generating", "progress": 0}
-    _external_tasks[plan_id] = task_info
+    await _persist_task(plan_id, task_info)
     try:
         await ensure_loaded()
         async with async_session() as db:
             p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id))).scalar_one_or_none()
             if not p:
-                _external_tasks[plan_id] = {"status": "failed", "error": "Plan not found"}; return
+                await _persist_task(plan_id, {"status": "failed", "error": "Plan not found"}); return
 
             from app.services.ai_config_service import get_system_ai_config
             ai_config = await get_system_ai_config(db)
             if not ai_config:
                 p.status = "failed"; await db.commit()
-                _external_tasks[plan_id] = {"status": "failed", "error": "No AI config"}; return
+                await _persist_task(plan_id, {"status": "failed", "error": "No AI config"}); return
 
             ent = (await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id))).scalar_one_or_none()
             resources = (await db.execute(select(EmergencyResource).where(EmergencyResource.enterprise_id == enterprise_id))).scalars().all()
@@ -122,6 +133,7 @@ async def _run_generation_then_callback(
                     s.content = md_to_html(full, normalize=True); s.ai_generated = True
                     await db.commit(); completed += 1
                     task_info["progress"] = int(completed / total * 90)
+                    await _persist_task(plan_id, task_info)
                 except Exception as e:
                     logger.error(f"Section {s.section_key} failed: {e}")
 
@@ -153,6 +165,7 @@ async def _run_generation_then_callback(
                 task_info["files"] = []
 
             task_info["progress"] = 100; task_info["status"] = "completed"
+            await _persist_task(plan_id, task_info)
 
         if callback_url:
             await notify_callback(callback_url, {
@@ -163,7 +176,7 @@ async def _run_generation_then_callback(
             })
     except Exception as e:
         logger.error(f"External generation failed: {e}")
-        _external_tasks[plan_id] = {"status": "failed", "error": str(e)}
+        await _persist_task(plan_id, {"status": "failed", "error": str(e)})
         if callback_url:
             await notify_callback(callback_url, {
                 "task_id": plan_id, "external_order_id": external_order_id,
@@ -236,8 +249,8 @@ async def external_create_plan(data: ExternalPlanCreate, request: Request):
 
 @router.get("/plans/{task_id}/status", response_model=ApiResponse[ExternalTaskStatus])
 async def external_plan_status(task_id: str):
-    if task_id in _external_tasks:
-        t = _external_tasks[task_id]
+    t = await get_state(_external_task_key(task_id))
+    if t:
         return ApiResponse(data=ExternalTaskStatus(
             task_id=task_id, status=t.get("status", "unknown"),
             progress=t.get("progress", 0), files=t.get("files", []),

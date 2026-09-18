@@ -82,8 +82,7 @@ def _public_db(ent=None, obj=None, record_count=0):
 
 @pytest.fixture()
 def client():
-    # 每个用例前清空 nonce 缓存，避免跨用例污染
-    public_hazard._nonce_cache.clear()
+    # W2：nonce 状态由 conftest 的内存替身承载（每个用例独立），无需手工清理
     app = FastAPI()
     app.include_router(public_hazard.router)
     app.dependency_overrides[get_db] = lambda: _public_db()
@@ -216,16 +215,15 @@ def test_public_report_duplicate_nonce_409(client):
 
 
 def test_public_report_nonce_expired_allows_resubmit(client):
-    """nonce TTL 过期后惰性清理，允许再次提交（5 分钟防重窗口）。"""
+    """nonce 状态被清理（TTL 到期由 DB expires_at 保证）后允许再次提交。"""
     ent = _ent(hazard_report_token="ent-token-1")
     db = _public_db(ent=ent, obj=None)
     client.app.dependency_overrides[get_db] = lambda: db
     first = client.post("/public/hazard/report/ent-token-1", json=_BODY)
     assert first.status_code == 200
-    # 把防重窗口时间拨到 TTL 之前，模拟 5 分钟过期
-    key = f"hazard_report:{_BODY['nonce']}"
-    assert key in public_hazard._nonce_cache
-    public_hazard._nonce_cache[key] = time.monotonic() - public_hazard.NONCE_TTL_SECONDS - 1
+    import asyncio
+
+    asyncio.run(public_hazard.delete_state(f"hazard_report:{_BODY['nonce']}"))
     second = client.post("/public/hazard/report/ent-token-1", json=_BODY)
     assert second.status_code == 200
     assert len(db.added) == 2

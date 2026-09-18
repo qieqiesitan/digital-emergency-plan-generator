@@ -31,8 +31,9 @@ def _in_memory_runtime_state(monkeypatch, request):
         yield
         return
 
-    from app.services import generation_progress, runtime_state
-    from app.routers import resource_investigation, risk_assessment
+    from app.services import auth_service, enterprise_autofill, generation_progress, runtime_state
+    from app.middleware import rate_limit
+    from app.routers import external, public_hazard, resource_investigation, risk_assessment
 
     store: dict[str, dict] = {}
 
@@ -70,8 +71,8 @@ def _in_memory_runtime_state(monkeypatch, request):
         store[key] = {"used": True}
         return True
 
-    for module in (runtime_state, generation_progress,
-                   risk_assessment, resource_investigation):
+    for module in (runtime_state, generation_progress, auth_service, enterprise_autofill, rate_limit,
+                   public_hazard, external, risk_assessment, resource_investigation):
         for name, fn in (
             ("set_state", set_state), ("get_state", get_state),
             ("delete_state", delete_state),
