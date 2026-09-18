@@ -82,10 +82,25 @@ chmod o+x <网关静态目录> <网关静态目录>/emergency-plan-migration   #
 ```bash
 # 若从 Windows 复制过配置文件，先去掉 BOM：
 sed -i '1s/^\xEF\xBB\xBF//' /home/sxby/nginx/conf/root_domain.conf
+# 静态自检（2026-09-19 新增）：缺哪条直接列出来
+./scripts/check-gateway-config.sh /home/sxby/nginx/conf/root_domain.conf
 docker restart proxy
 ```
 
 三条铁律：文件无 BOM；`alias` 写容器内路径；`proxy_pass` 写宿主机 IP（不用 127.0.0.1）。
+
+**新增两条易漏项（2026-09-19 实测踩坑）**：
+
+1. `client_max_body_size 25m;` —— nginx 默认 **1MB**，应用侧上限是 **20MB**；不改的话
+   通过网关上传 >1MB 的 Excel / PDF / 计划图会被网关**直接 413**，后端日志里毫无记录，
+   用户只看到"上传失败"。
+2. `/api/` 段必须 **`proxy_buffering off` + `proxy_http_version 1.1` + `proxy_read_timeout ≥ 300s`**——
+   否则 SSE（流式生成 / AI 对话）会被攒满缓冲才下发，前端表现为"一直转圈到结束才出现内容"，
+   长生成还会被默认 60s 读超时掐成 502/504。
+   后端所有 SSE 响应已带 `X-Accel-Buffering: no`（见 `backend/app/services/sse_utils.py`），
+   nginx 原生识别该头，属于第二道保险。
+3. 真实 IP：`X-Real-IP` / `X-Forwarded-For` 必须透传，否则审计日志与登录限流会把
+   所有用户按网关 IP 计数（真实用户会互相顶掉限流额度）。
 
 ## 7. 部署验证
 
@@ -221,11 +236,28 @@ docker exec -e PYTHONPATH=/app -w /app emergency-plan-backend \
 # 4) 复核：脚本再次 --dry-run 应显示 0 行待处理；抽查聊天/AI 生成与第三方接口可用
 
 # 5) 确认无遗留后清空 .env 的 ENCRYPTION_KEY_LEGACY 并重启
+
+# 6) 加密健康巡检（2026-09-19 新增，只读）：列出"任何密钥都解不开"的行 + 打印生效密钥指纹
+docker exec -e PYTHONPATH=/app -w /app emergency-plan-backend \
+  python /app/scripts/check_encryption_health.py
 ```
 
 失败处理：脚本对解密失败的行**保持原值**并返回非 0 退出码，逐行列出；
 通常是该行密文与所有已知密钥都不匹配（例如更早的密钥未填进 LEGACY），
 此时把对应密钥补进 `ENCRYPTION_KEY_LEGACY` 后重跑即可；仍失败需在「AI 配置/第三方接口」页重新保存该 Key。
+
+`check_encryption_health.py` 输出示例（本机实测）：
+
+```
+==> 生效 ENCRYPTION_KEY 指纹=f6d527e6，ENCRYPTION_KEY_LEGACY 把数=0
+  ai_configs         511639fd-…  api_key_encrypted  undecryptable
+==> 密文格式分布： gcm=9, undecryptable=1
+!! 以下密文所有可用密钥都解不开（需人工重新保存）：
+   - ai_configs 511639fd-… .api_key_encrypted  →  设置 → AI 配置（重新保存该条 API Key）
+```
+
+指纹（生效密钥 SHA-256 前 8 位）用于快速区分两类问题：**真的坏密文** vs **脚本跑在了密钥环境不对的机器上**
+（例如在宿主机跑、而 `.env` 里的密钥与容器不同，会表现为"全表 undecryptable"）。
 
 回滚：清空 `ENCRYPTION_KEY_LEGACY` 前，任何时刻把 `ENCRYPTION_KEY` 换回旧值即可恢复；
 `--apply` 之后则必须保留新密钥（或同时保留新旧两把在 LEGACY 中）。
@@ -235,4 +267,29 @@ docker exec -e PYTHONPATH=/app -w /app emergency-plan-backend \
 - 页面白屏/资源 404 → 检查 `VITE_BASE_PATH` 与网关 location 是否一致，dist 是否复制到正确子目录
 - 登录后跳转 404 → 检查路由 basename（代码已支持，无需改）
 - 上传/接口 502 → 检查网关 proxy_pass 的宿主机 IP 与 backend 端口
+- **上传 >1MB 直接失败（无后端日志）** → 网关缺 `client_max_body_size`（默认 1MB），用
+  `./scripts/check-gateway-config.sh <nginx 配置>` 确认
+- **生成/对话没有流式效果、长任务 502/504** → 网关 `/api/` 缺 `proxy_buffering off` 与长超时，同上脚本检查
+- **限流误伤（多人共用一个来源）、审计日志全是网关 IP** → 网关未透传 `X-Real-IP` / `X-Forwarded-For`
 - 首次生成预案卡住 → 检查 chroma ONNX 模型缓存是否存在（见第 4 节）
+
+## 13. 升级演练（不出门先彩排）
+
+`scripts/rehearsal.sh`（2026-09-19 新增）用 `deploy/docker-compose.rehearsal.yml` 起一套
+**独立 project（ep-rehearsal）** 的空库栈：端口 18000/15432、独立命名卷，与生产栈互不影响。
+
+```bash
+# 仓库根目录执行；需要 docker compose v2
+./scripts/rehearsal.sh            # 完整彩排：构建镜像 → 空库跑全部迁移 → 健康检查 → 账本/关键表核对 → 清理
+./scripts/rehearsal.sh --keep     # 保留现场（docker compose -p ep-rehearsal -f deploy/docker-compose.rehearsal.yml down -v 清理）
+```
+
+它专门覆盖历史上最容易翻车的三件事：
+
+1. 升级包里的 backend 镜像能否**从零构建**；
+2. **空库**能否跑完 50 个 `db_migration_*.sql`（`MIGRATE_FRESH=1`）并把账本写全
+   （早期发生过"容器内 41 条 vs 仓库 46 条"的账本不一致）；
+3. 关键表（users/enterprises/plan_projects/ai_configs/app_runtime_state）是否齐全、
+   登录端点鉴权是否正常、空库加密健康是否通过。
+
+建议流程：**先在能联网的机器跑 `./scripts/rehearsal.sh` 全绿，再在公司服务器执行 `upgrade.sh`**。
