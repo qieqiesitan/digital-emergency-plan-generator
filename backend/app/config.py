@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ENCRYPTION_KEY: str = "a" * 32
+    # 轮换期间的旧密钥（逗号分隔）：新密钥写、新旧都能读，重加密完成后再移除
+    ENCRYPTION_KEY_LEGACY: str = ""
     EXPORT_DIR: str = "./exports"
     # CORS 白名单（逗号分隔）；未配置时 main.py 回退本地开发源
     CORS_ORIGINS: str = ""
@@ -68,4 +70,15 @@ if not os.environ.get("SECRET_KEY"):
     logger.warning(
         "SECRET_KEY 未通过环境变量显式设置，已自动生成随机密钥（进程重启后旧 token 失效）。"
         "生产部署必须显式配置 SECRET_KEY。"
+    )
+
+# W2 加密硬化：提示仍在使用公开默认加密密钥（可被任何拿到仓库的人解出密文）
+KNOWN_DEFAULT_ENCRYPTION_KEYS = {
+    "a" * 32,
+    "abcdefghijklmnopqrstuvwxyz123456",
+}
+if settings.ENCRYPTION_KEY in KNOWN_DEFAULT_ENCRYPTION_KEYS:
+    logger.warning(
+        "ENCRYPTION_KEY 仍为公开默认值，数据库中的 AI/第三方密钥可被解出。"
+        "轮换步骤见 docs/deploy/README-DEPLOY.md「加密密钥轮换」。"
     )

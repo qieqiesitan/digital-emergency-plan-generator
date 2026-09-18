@@ -192,7 +192,45 @@ tar xzf emergency-plan-migration-<版本>-upgrade.tar.gz -C . --strip-components
 
 迁移规范详见 `docs/reference/migration-guide.md`。
 
-## 11. 常见问题
+## 11. 加密密钥轮换（W2 起支持不停机轮换）
+
+背景：新密文使用 **AES-GCM**（`gcm$` 前缀）；历史 **AES-ECB** 密文在轮换完成前仍可解密，
+因此可以先上新密钥、再批量重加密、最后移除旧密钥，全程无需停机（重启一次即可）。
+
+覆盖范围：`ai_configs.api_key_encrypted`、`third_party_config`（secret 类型）。
+
+```bash
+# 0) 先备份
+./scripts/backup.sh
+
+# 1) 生成新密钥，编辑 .env：
+#    ENCRYPTION_KEY=<新随机值>
+#    ENCRYPTION_KEY_LEGACY=<旧的 ENCRYPTION_KEY 值>
+#    （旧值原样保留在 LEGACY 中，逗号分隔可填多把）
+python -c "import secrets; print(secrets.token_hex(32))"
+
+# 2) 重启后端使新密钥生效（此时新旧密文都能读）
+docker compose -f deploy/docker-compose.prod.yml --project-directory . up -d backend
+
+# 3) 先 dry-run 看要重加密多少行，再执行
+docker exec -e PYTHONPATH=/app -w /app emergency-plan-backend \
+  python /app/scripts/rotate_encryption_key.py --dry-run
+docker exec -e PYTHONPATH=/app -w /app emergency-plan-backend \
+  python /app/scripts/rotate_encryption_key.py --apply
+
+# 4) 复核：脚本再次 --dry-run 应显示 0 行待处理；抽查聊天/AI 生成与第三方接口可用
+
+# 5) 确认无遗留后清空 .env 的 ENCRYPTION_KEY_LEGACY 并重启
+```
+
+失败处理：脚本对解密失败的行**保持原值**并返回非 0 退出码，逐行列出；
+通常是该行密文与所有已知密钥都不匹配（例如更早的密钥未填进 LEGACY），
+此时把对应密钥补进 `ENCRYPTION_KEY_LEGACY` 后重跑即可；仍失败需在「AI 配置/第三方接口」页重新保存该 Key。
+
+回滚：清空 `ENCRYPTION_KEY_LEGACY` 前，任何时刻把 `ENCRYPTION_KEY` 换回旧值即可恢复；
+`--apply` 之后则必须保留新密钥（或同时保留新旧两把在 LEGACY 中）。
+
+## 12. 常见问题
 
 - 页面白屏/资源 404 → 检查 `VITE_BASE_PATH` 与网关 location 是否一致，dist 是否复制到正确子目录
 - 登录后跳转 404 → 检查路由 basename（代码已支持，无需改）

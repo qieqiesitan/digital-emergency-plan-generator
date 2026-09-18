@@ -1,5 +1,3 @@
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -8,19 +6,17 @@ from app.schemas.ai_config import AIConfigCreate, AIConfigUpdate, AIConfigRespon
 from app.schemas.common import ApiResponse
 from app.dependencies import require_admin
 from app.config import settings
+from app.services.secret_utils import decrypt_secret, encrypt_secret
 import httpx
 
 router = APIRouter(prefix="/settings", tags=["AI Config"])
 
 def _encrypt(plain: str) -> str:
-    key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-    cipher = AES.new(key, AES.MODE_ECB)
-    return cipher.encrypt(pad(plain.encode(), 16)).hex()
+    """统一走 secret_utils（W2：GCM + 兼容旧 ECB），不再重复实现加密。"""
+    return encrypt_secret(plain)
 
 def _decrypt(ciphertext_hex: str) -> str:
-    key = settings.ENCRYPTION_KEY.encode()[:32].ljust(32, b"\0")
-    cipher = AES.new(key, AES.MODE_ECB)
-    return unpad(cipher.decrypt(bytes.fromhex(ciphertext_hex)), 16).decode()
+    return decrypt_secret(ciphertext_hex)
 
 @router.get("/ai-config", response_model=ApiResponse[AIConfigResponse])
 async def get_ai_config(_=Depends(require_admin), db=Depends(get_db)):
