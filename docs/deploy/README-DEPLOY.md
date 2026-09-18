@@ -294,6 +294,24 @@ docker exec -e PYTHONPATH=/app -w /app emergency-plan-backend \
 
 建议流程：**先在能联网的机器跑 `./scripts/rehearsal.sh` 全绿，再在公司服务器执行 `upgrade.sh`**。
 
+演练从 2026-09-19 起还包含**备份/回滚全链路**（DR）：
+
+```text
+写入 sys_config.rehearsal_canary → backup.sh（应产出非空 dump）→ 删除标记行（模拟数据损坏）
+→ rollback.sh → 标记行恢复 + 后端健康 200          ← 全部在独立 project（ep-rehearsal）内完成
+```
+
+对应的脚本参数（生产可不用，演练/多环境部署时才用）：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `DB_CONTAINER` | `emergency-plan-db` | `backup.sh` / `rollback.sh` 使用的 postgres 容器名 |
+| `BACKEND_CONTAINER` | `emergency-plan-backend` | `rollback.sh` 停/起的后端容器名 |
+| `BACKUP_DIR` | `backups` | 备份与回滚前快照的存放目录 |
+| `ROLLBACK_CONFIRM` | 空（交互输入 ROLLBACK） | 设为 `ROLLBACK` 可非交互确认（CI/演练用，**生产建议保持交互**） |
+
+> 回滚务必在**原部署目录**执行（文件资产按 `backend/uploads`、`backend/exports` 相对路径还原）。
+
 演练还会核对**基线种子**（2026-09-19 起）——空库"能启动"不等于"能用"：
 
 | 项目 | 期望（实测通过） | 来源 |
