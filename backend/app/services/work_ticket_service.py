@@ -475,7 +475,7 @@ async def eligible_users_for_node(
 
 
 async def expire_overdue_tickets(db: AsyncSession, *, now: Optional[datetime] = None) -> int:
-    """把批准后超过有效期仍未开工的票置为 expired。由调度器周期调用。"""
+    """把批准后超过有效期仍未开工的票置为 expired。由调度器/运维端点周期调用。"""
     now = now or datetime.now(timezone.utc)
     res = await db.execute(
         select(WorkTicketInstance).where(
@@ -500,6 +500,35 @@ async def expire_overdue_tickets(db: AsyncSession, *, now: Optional[datetime] = 
     if rows:
         await db.commit()
     return len(rows)
+
+
+# 集群安全：与隐患扫描同一套 advisory lock 思路，避免多 worker 重复处理
+WORK_TICKET_EXPIRY_LOCK_KEY = 0x57544B31  # "WTK1"
+
+
+async def expire_overdue_tickets_leader_only(
+    db: AsyncSession, *, now: Optional[datetime] = None
+) -> Optional[int]:
+    """集群安全入口：只有抢到 advisory lock 的进程执行过期扫描；抢不到返回 None。
+
+    2026-09-18 补：`expire_overdue_tickets` 的 docstring 一直写着"由调度器周期调用"，
+    但全仓没有任何调用方——于是批准后超过有效期的作业票**永远停在「已批准」**，
+    状态机里的 `expired` 只能靠用户手动点"开始作业"触发（N-16 加的超期保护）。
+    """
+    from sqlalchemy import text
+
+    locked = (await db.execute(
+        text("SELECT pg_try_advisory_lock(:key)"), {"key": WORK_TICKET_EXPIRY_LOCK_KEY}
+    )).scalar()
+    if not locked:
+        logger.debug("作业票过期扫描：其他 worker 正在执行，本进程跳过")
+        return None
+    try:
+        return await expire_overdue_tickets(db, now=now)
+    finally:
+        await db.execute(
+            text("SELECT pg_advisory_unlock(:key)"), {"key": WORK_TICKET_EXPIRY_LOCK_KEY}
+        )
 
 
 # --- 审批待办（"我的待办"）-------------------------------------------------

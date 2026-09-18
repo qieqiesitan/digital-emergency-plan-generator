@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.config import settings
 from app.database import async_session
-from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, hazard_management, plans, sections, templates, versions, review, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, chemical_library, data_dicts, third_party_config, major_hazard, ingest, extraction, work_ticket, platform
+from app.routers import chat, auth, users, enterprises, enterprise_sub, enterprise_org, hazard_management, plans, sections, templates, versions, review, ai_config, dashboard, generation, export, export_tasks, risk_assessment, resource_investigation, risk_sources_ext, risk_management, resources_ext, surrounding_ai, hazardous_chemicals, prompts, config, roles, admin_users, external, regulations, diagrams, onboarding, risk_notice_card, public_risk_notice, public_risk, public_hazard, chemical_library, data_dicts, third_party_config, major_hazard, ingest, extraction, work_ticket, platform, maintenance
 from app.models.report_version import ResourceInvestigationVersion, RiskAssessmentVersion
 from app.models.risk_assessment import RiskAssessmentReport
 from app.models.resource_investigation import ResourceInvestigationReport
@@ -150,15 +150,19 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("启动自愈（generating 复位）失败，不影响服务启动", exc_info=True)
     # 任务 8：APScheduler 隐患定时扫描（每 5 分钟）。依赖缺失/启动异常仅告警降级，
-    # 不阻塞服务启动（规格 §16）；外部 cron 可退化为调用 run_hazard_scans 的内部端点。
+    # 不阻塞服务启动（规格 §16）；外部 cron 可退化为调用
+    # POST /api/v1/admin/maintenance/run-scans（仅管理员，见 app/routers/maintenance.py）。
     scheduler = None
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
         from app.services.hazard_scheduler import run_hazard_scans_leader_only
 
         async def _run_hazard_scans_job() -> None:
+            # 隐患四项扫描 + 作业票过期扫描（后者直到 2026-09-18 都没被任何调度器调用，见 N-27）
             async with async_session() as session:
                 await run_hazard_scans_leader_only(session)
+                from app.services.work_ticket_service import expire_overdue_tickets_leader_only
+                await expire_overdue_tickets_leader_only(session)
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(_run_hazard_scans_job, "interval", minutes=5,
@@ -291,6 +295,7 @@ app.include_router(config.router, prefix="/api/v1")
 app.include_router(roles.router, prefix="/api/v1")
 app.include_router(admin_users.router, prefix="/api/v1")
 app.include_router(external.router, prefix="/api")
+app.include_router(maintenance.router, prefix="/api/v1")
 app.include_router(regulations.router, prefix="/api/v1")
 app.include_router(diagrams.router, prefix="/api/v1")
 app.include_router(onboarding.router, prefix="/api/v1")

@@ -137,6 +137,21 @@ docker exec emergency-plan-backend sh -c \
 
 > 为什么必须在容器里跑：脚本要用容器的 `DATABASE_URL` 与本地向量库/图谱文件。
 
+### 7.2 没装 APScheduler / 调度器降级时的手动扫描
+
+后端默认用 APScheduler 每 5 分钟跑一轮周期任务（隐患到期建任务、超期提醒、作业票过期）。
+若镜像里没有 APScheduler（`main.py` 会打印"APScheduler 启动失败，隐患定时扫描已降级跳过"），
+用外部 cron 调用管理员端点替代：
+
+```bash
+curl -s -X POST https://<域名>/api/v1/admin/maintenance/run-scans \
+  -H "Authorization: Bearer <管理员 token>"
+# → {"data":{"hazard_scans":{...},"expired_tickets":1,"skipped_by_lock":false}}
+```
+
+该端点是幂等的（扫描内部都有防重），可安全地每 5 分钟触发一次；
+`skipped_by_lock=true` 表示本轮被其他 worker 抢到，属正常。
+
 ## 8. 踩坑记录
 
 | # | 坑 | 原因 | 解决 |
