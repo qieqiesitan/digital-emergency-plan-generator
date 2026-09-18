@@ -1,14 +1,20 @@
 """重大危险源 API：单元、单元品种、计算、快照、常量查询、档案与依据。"""
 
+import logging
+import os
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.enterprise import Enterprise
 from app.models.major_hazard import (
     MajorHazardCalculation,
     MajorHazardRecord,
@@ -42,6 +48,10 @@ from app.services.major_hazard_service import (
     compute_unit_snapshot,
     preview_unit_calculation,
 )
+from app.services.major_hazard_report_data import ReportNotReadyError, build_chapters
+from app.services.report_docx import generate_report_docx
+
+logger = logging.getLogger("major_hazard")
 
 router = APIRouter(prefix="/major-hazard", tags=["MajorHazard"])
 
@@ -357,6 +367,72 @@ async def api_link_risk_object(
     except LinkageError as exc:
         raise HTTPException(422, str(exc)) from exc
     return _ok(out)
+
+
+@router.get("/units/{unit_id}/report.docx")
+async def export_unit_report(unit_id: str, db: AsyncSession = Depends(get_db)):
+    """导出《危险化学品重大危险源辨识报告》。没有计算快照时拒绝导出。"""
+    unit_res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
+    unit = unit_res.scalar_one_or_none()
+    if unit is None:
+        raise HTTPException(404, "重大危险源单元不存在")
+
+    ent_res = await db.execute(select(Enterprise).where(Enterprise.id == unit.enterprise_id))
+    enterprise = ent_res.scalar_one_or_none()
+    enterprise_name = getattr(enterprise, "name", "") or "（未填写单位名称）"
+
+    chem_res = await db.execute(
+        select(MajorHazardUnitChemical).where(MajorHazardUnitChemical.unit_id == unit_id)
+    )
+    chemicals = list(chem_res.scalars().all())
+
+    calc_res = await db.execute(
+        select(MajorHazardCalculation)
+        .where(MajorHazardCalculation.unit_id == unit_id)
+        .order_by(MajorHazardCalculation.seq.desc())
+        .limit(1)
+    )
+    latest = calc_res.scalar_one_or_none()
+    snapshot = latest.inputs_snapshot if latest is not None else None
+
+    rec_res = await db.execute(select(MajorHazardRecord).where(MajorHazardRecord.unit_id == unit_id))
+    record = rec_res.scalar_one_or_none()
+
+    evidences = await list_evidence(db, owner_type="major_hazard_unit", owner_id=unit_id)
+
+    try:
+        chapters = build_chapters(
+            enterprise_name=enterprise_name,
+            unit=unit,
+            chemicals=chemicals,
+            snapshot=snapshot,
+            record=record,
+            evidences=evidences,
+        )
+    except ReportNotReadyError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    try:
+        doc = generate_report_docx(
+            company_name=enterprise_name,
+            report_kind="major_hazard_identification",
+            chapters=chapters,
+            report_title="危险化学品重大危险源辨识报告",
+        )
+        os.makedirs(settings.EXPORT_DIR, exist_ok=True)
+        safe_unit = re.sub(r'[\\/*?:"<>|]', "_", unit.name)
+        filename = f"重大危险源辨识报告-{safe_unit}.docx"
+        filepath = os.path.join(settings.EXPORT_DIR, filename)
+        doc.save(filepath)
+    except Exception as exc:  # pragma: no cover - 渲染失败路径
+        logger.exception("重大危险源辨识报告生成失败 unit=%s", unit_id)
+        raise HTTPException(500, f"报告生成失败: {exc}") from exc
+
+    return FileResponse(
+        filepath,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 @router.get("/ledger/chemicals")

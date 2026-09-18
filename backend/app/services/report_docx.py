@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 REPORT_KIND_TITLES = {
     "risk": "生产安全事故风险评估报告",
     "resource": "应急资源调查报告",
+    "major_hazard_identification": "危险化学品重大危险源辨识报告",
 }
 
 
