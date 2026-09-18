@@ -10,6 +10,7 @@ import { MENU_MAP } from "@/utils/menuMap";
 import LoginPage from "@/pages/Login/LoginPage";
 import RegisterPage from "@/pages/Register/RegisterPage";
 import DashboardPage from "@/pages/Dashboard/DashboardPage";
+import PlatformOverviewPage from "@/pages/Dashboard/PlatformOverviewPage";
 import EnterpriseListPage from "@/pages/Enterprise/EnterpriseListPage";
 import EnterpriseCreatePage from "@/pages/Enterprise/EnterpriseCreatePage";
 import EnterpriseEditPage from "@/pages/Enterprise/EnterpriseEditPage";
@@ -43,6 +44,7 @@ import ChemicalLibraryManagePage from "@/pages/Settings/ChemicalLibraryManagePag
 import DataHubPage from "@/pages/Settings/DataHubPage";
 import DataHubReviewPage from "@/pages/Settings/DataHubReviewPage";
 import DataHubImportPage from "@/pages/Settings/DataHubImportPage";
+import AiCapabilityPage from "@/pages/Settings/AiCapabilityPage";
 import RiskAssessmentPreview from "@/pages/Enterprise/RiskAssessmentPreview";
 import ResourceInvestigationPreview from "@/pages/Enterprise/ResourceInvestigationPreview";
 import RiskOverviewPage from "@/pages/Enterprise/RiskOverviewPage";
@@ -206,6 +208,8 @@ const contentRoutes = [
   { path: "/settings/data-hub", element: <DataHubPage /> },
   { path: "/settings/data-hub/import", element: <DataHubImportPage /> },
   { path: "/settings/data-hub/:jobId/review", element: <DataHubReviewPage /> },
+  { path: "/settings/ai-capabilities", element: <AiCapabilityPage /> },
+  { path: "/platform/overview", element: <PlatformOverviewPage /> },
 ];
 
 // 对 MENU_MAP 中收录的路由套用菜单权限守卫（如直接输入 /settings/users 等）
