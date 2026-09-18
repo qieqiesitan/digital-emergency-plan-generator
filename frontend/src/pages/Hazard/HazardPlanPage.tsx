@@ -22,6 +22,7 @@ import axios from "axios";
 import AppEmpty from "@/components/common/AppEmpty";
 import AppIcon from "@/components/common/AppIcon";
 import {
+  aiPlanBuilder,
   aiScheduleSuggestion,
   createHazardPlan,
   deleteHazardPlan,
@@ -31,7 +32,11 @@ import {
 } from "@/services/hazardService";
 import { listMembers } from "@/services/enterpriseOrgService";
 import { listZones } from "@/services/riskManagementService";
-import type { HazardInspectionPlan, HazardScheduleSuggestionResult } from "@/types/hazard";
+import type {
+  HazardInspectionPlan,
+  HazardPlanBuilderResult,
+  HazardScheduleSuggestionResult,
+} from "@/types/hazard";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppBack } from "@/routing/useAppBack";
 
@@ -124,6 +129,11 @@ export default function HazardPlanPage() {
   const [submitting, setSubmitting] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<HazardScheduleSuggestionResult | null>(null);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [builderLoading, setBuilderLoading] = useState(false);
+  const [builderAreas, setBuilderAreas] = useState("");
+  const [builderFrequency, setBuilderFrequency] = useState("");
+  const [builderResult, setBuilderResult] = useState<HazardPlanBuilderResult | null>(null);
 
   const frequency = Form.useWatch("frequency", form);
 
@@ -237,6 +247,67 @@ export default function HazardPlanPage() {
       message.error("获取 AI 建议失败: " + extractDetail(e));
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  /** AI 一键生成排查计划：端点只给建议，采用后走既有新建弹窗（人工复核再落库）。 */
+  const runPlanBuilder = async () => {
+    if (!builderAreas.trim() || !builderFrequency.trim()) {
+      message.warning("请填写区域/工艺说明与频次偏好");
+      return;
+    }
+    setBuilderLoading(true);
+    try {
+      const res = await aiPlanBuilder(enterpriseId, {
+        areas: builderAreas.trim(),
+        frequency_preference: builderFrequency.trim(),
+      });
+      setBuilderResult(res);
+      if (!res.available) {
+        message.warning(res.note || "AI 暂不可用，请手动配置计划");
+      }
+    } catch (e) {
+      message.error("AI 生成计划失败: " + extractDetail(e));
+    } finally {
+      setBuilderLoading(false);
+    }
+  };
+
+  /** 采用某条建议：分区名/责任人姓名映射为 id，映射不到的留给用户在下拉里补选。 */
+  const adoptBuiltPlan = (plan: HazardPlanBuilderResult["plans"][number]) => {
+    const zoneIds = (plan.zone_names || [])
+      .map(name => zones.find(z => z.name === name)?.id)
+      .filter((v): v is string => Boolean(v));
+    const unmatched = (plan.zone_names || []).filter(
+      name => !zones.some(z => z.name === name),
+    );
+    const member = plan.responsible_user_name
+      ? enabledMembers.find(
+          m => (m.name || m.email || m.user_id) === plan.responsible_user_name,
+        )
+      : undefined;
+    setEditingPlan(null);
+    setSuggestion(null);
+    form.setFieldsValue({
+      name: plan.name,
+      category: plan.category,
+      frequency: plan.frequency,
+      weekdays: plan.weekdays?.length
+        ? plan.weekdays
+        : plan.frequency === "weekly" || plan.frequency === "custom"
+          ? [1, 2, 3, 4, 5]
+          : undefined,
+      zone_ids: zoneIds,
+      responsible_user_id: member?.user_id ?? undefined,
+      template_id: undefined,
+      enabled: true,
+    });
+    setBuilderOpen(false);
+    setModalOpen(true);
+    if (unmatched.length) {
+      message.info(`有 ${unmatched.length} 个分区名未匹配到现有分区，请手动补选：${unmatched.join("、")}`);
+    } else if (plan.responsible_user_name && !member) {
+      message.info("建议责任人未匹配到启用成员，请手动选择");
     }
   };
 
@@ -389,9 +460,14 @@ export default function HazardPlanPage() {
         subtitle="配置排查计划、覆盖分区与责任人；AI 排程建议仅供参考，需人工确认后保存"
         onBack={appBack}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            新建计划
-          </Button>
+          <Space>
+            <Button icon={<AppIcon name="ai" size={14} />} onClick={() => setBuilderOpen(true)}>
+              AI 生成计划
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新建计划
+            </Button>
+          </Space>
         }
       />
 
@@ -415,6 +491,83 @@ export default function HazardPlanPage() {
       />
 
       <Modal
+        title="AI 生成排查计划"
+        open={builderOpen}
+        onCancel={() => setBuilderOpen(false)}
+        footer={null}
+        width={680}
+        destroyOnHidden
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          title="AI 只产出建议，采用后仍需在新建计划弹窗里复核并保存"
+          description="分区名与责任人姓名会自动映射为现有分区/成员；映射不到的会提示你手动补选。"
+        />
+        <Form layout="vertical">
+          <Form.Item label="区域 / 工艺说明" required>
+            <Input.TextArea
+              rows={3}
+              value={builderAreas}
+              onChange={e => setBuilderAreas(e.target.value)}
+              placeholder="如：罐区、生产车间、配电房、危废暂存间；两班倒，涉及动火作业"
+            />
+          </Form.Item>
+          <Form.Item label="频次偏好" required>
+            <Input
+              value={builderFrequency}
+              onChange={e => setBuilderFrequency(e.target.value)}
+              placeholder="如：日常每天一次，罐区每周一次"
+            />
+          </Form.Item>
+          <Button
+            type="primary"
+            icon={<AppIcon name="ai" size={14} />}
+            loading={builderLoading}
+            onClick={() => void runPlanBuilder()}
+            block
+          >
+            生成计划建议
+          </Button>
+        </Form>
+        {builderResult && (
+          <div style={{ marginTop: 16 }}>
+            {builderResult.available && builderResult.plans.length > 0 ? (
+              <Space orientation="vertical" style={{ width: "100%" }}>
+                {builderResult.plans.map((plan, idx) => (
+                  <Alert
+                    key={`${idx}-${plan.name}`}
+                    type="success"
+                    showIcon
+                    title={`${plan.name}（${CATEGORY_LABELS[plan.category] || plan.category} · ${FREQUENCY_LABELS[plan.frequency] || plan.frequency}）`}
+                    description={
+                      <div>
+                        <div>覆盖分区：{plan.zone_names?.join("、") || "—"}</div>
+                        <div>建议责任人：{plan.responsible_user_name || "—"}</div>
+                      </div>
+                    }
+                    action={
+                      <Button size="small" type="primary" onClick={() => adoptBuiltPlan(plan)}>
+                        采用
+                      </Button>
+                    }
+                  />
+                ))}
+              </Space>
+            ) : (
+              <Alert
+                type="warning"
+                showIcon
+                title="AI 暂不可用"
+                description={builderResult.note || "请手动新建排查计划"}
+              />
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         title={editingPlan ? "编辑计划" : "新建计划"}
         open={modalOpen}
         confirmLoading={submitting}
@@ -424,7 +577,7 @@ export default function HazardPlanPage() {
         onCancel={closeModal}
       >
         <Form form={form} layout="vertical" onFinish={values => void handleSave(values)} style={{ marginTop: 12 }}>
-          <Space direction="vertical" style={{ width: "100%", marginBottom: 4 }}>
+          <Space orientation="vertical" style={{ width: "100%", marginBottom: 4 }}>
             <Button icon={<AppIcon name="ai" size={14} />} loading={aiLoading} onClick={() => void handleAiSuggest()} block>
               获取 AI 排程建议
             </Button>
@@ -433,7 +586,7 @@ export default function HazardPlanPage() {
                 <Alert
                   type="success"
                   showIcon
-                  message="AI 排程建议"
+                  title="AI 排程建议"
                   description={
                     <div>
                       <div>
@@ -458,7 +611,7 @@ export default function HazardPlanPage() {
                   }
                 />
               ) : (
-                <Alert type="warning" showIcon message="AI 暂不可用" description={suggestion.note || "请手动配置计划"} />
+                <Alert type="warning" showIcon title="AI 暂不可用" description={suggestion.note || "请手动配置计划"} />
               ))}
           </Space>
 
