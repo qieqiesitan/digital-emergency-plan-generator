@@ -115,6 +115,28 @@ docker restart proxy
 - [ ] 生成预案 / 导出 / 上传图片 无 404
 - [ ] PWA 可安装（manifest 正常）
 
+### 7.1 聊天助手工具层自检（零模型额度）
+
+聊天助手的 37 个工具由模型按需调用，坏掉时只表现为"助手答不出来"，很难定位。
+这个脚本**绕过 LLM 直接调用工具层**，把"工具层"与"模型层"分开验证：
+
+```bash
+# 只读工具（默认；不写任何业务数据）
+docker cp backend/scripts/check_chat_tools.py emergency-plan-backend:/tmp/
+docker exec emergency-plan-backend sh -c \
+  'cd /app && PYTHONPATH=/app python /tmp/check_chat_tools.py --email <管理员邮箱>'
+
+# 追加写入闭环（资源/预案/企业 建→查→改→删，自建自删）
+docker exec emergency-plan-backend sh -c \
+  'cd /app && PYTHONPATH=/app python /tmp/check_chat_tools.py --include-write'
+```
+
+期望输出 `合计 18/18 PASS` 与 `写入闭环全部通过`。
+**2026-09-18 实测**：修复前 8/18 —— 一个工具读了不存在的字段，且失败后的一律回滚会让
+随后 9 个工具连锁报 `greenlet_spawn has not been called`（详见 `docs/系统诊断报告-v6-2026-09-18.md` N-23）。
+
+> 为什么必须在容器里跑：脚本要用容器的 `DATABASE_URL` 与本地向量库/图谱文件。
+
 ## 8. 踩坑记录
 
 | # | 坑 | 原因 | 解决 |
