@@ -94,6 +94,38 @@ def save_source_file(regulation_id: str, file_bytes: bytes, filename: str) -> st
     return fpath
 
 
+def remove_regulation_files(regulation_id: str) -> dict:
+    """删除法规时清理磁盘残留：`texts/{id}.md` 与 `uploads/{id}/` 下的源文件。
+
+    图谱节点删除后这些文件已经不可检索（检索从节点出发），但会一直堆在 data/ 里——
+    反复"入库→删除"就会累积孤儿文件。返回删除计数供审计留痕。
+    """
+    removed = {"texts": 0, "sources": 0}
+    md_path = os.path.join(TEXTS_DIR, f"{regulation_id}.md")
+    if os.path.isfile(md_path):
+        try:
+            os.remove(md_path)
+            removed["texts"] = 1
+        except OSError:
+            logger.warning("删除条文文本失败: %s", md_path, exc_info=True)
+
+    reg_dir = os.path.join(UPLOADS_DIR, regulation_id)
+    if os.path.isdir(reg_dir):
+        for name in os.listdir(reg_dir):
+            fpath = os.path.join(reg_dir, name)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                    removed["sources"] += 1
+                except OSError:
+                    logger.warning("删除法规源文件失败: %s", fpath, exc_info=True)
+        try:
+            os.rmdir(reg_dir)  # 目录已空才删得掉；非空说明有异常文件，保留即可
+        except OSError:
+            pass
+    return removed
+
+
 def get_source_files(regulation_id: str) -> list[dict]:
     """获取某法规的所有源文件。"""
     reg_dir = os.path.join(UPLOADS_DIR, regulation_id)

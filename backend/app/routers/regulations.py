@@ -379,12 +379,17 @@ async def delete_regulation(
     current_user: User = Depends(require_admin),
 ):
     graph = get_graph()
-    if not graph.delete_node(regulation_id):
+    removed_nodes = graph.delete_regulation(regulation_id)
+    if not removed_nodes.get("regulation"):
         raise HTTPException(404, "法规不存在")
     vs = get_vector_store()
     if vs:
         vs.delete_regulation(regulation_id)
-    log_event(regulation_id, "deleted", current_user.email or "admin", {})
+    # 磁盘残留一并清理：texts/{id}.md 与 uploads/{id}/ 源文件（此前只删图谱节点）
+    from app.regulations.sync import remove_regulation_files
+    removed = remove_regulation_files(regulation_id)
+    log_event(regulation_id, "deleted", current_user.email or "admin",
+              {**removed, "article_nodes": removed_nodes.get("articles", 0)})
     return {"code": 0, "message": "已删除"}
 
 

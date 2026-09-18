@@ -259,6 +259,30 @@ class RegulationGraph:
         self.save()
         return True
 
+    def delete_regulation(self, regulation_id: str) -> dict:
+        """删除法规节点**及其条文子节点**（级联），返回删除计数。
+
+        坑：`ingest_regulation` 除了写法规节点，还会为每条条文建 `art_{reg_id}_*`
+        子节点（本库 7414 个 article 节点）。原 DELETE 只调 `delete_node`，
+        条文节点会变成孤儿留在图谱里——实测历史遗留 109 个孤儿条文节点。
+        孤儿不会被检索到（检索都按 live 法规 id 过滤或跳过 article），但会让
+        graph.json 持续膨胀、统计与维护失真。
+        """
+        if regulation_id not in self._g:
+            return {"regulation": 0, "articles": 0}
+        with self._lock:
+            children = [
+                nid for nid, data in self._g.nodes(data=True)
+                if data.get("node_type") == "article"
+                and data.get("parent_regulation") == regulation_id
+            ]
+            self._g.remove_node(regulation_id)  # 关联边随之删除
+            for cid in children:
+                if cid in self._g:
+                    self._g.remove_node(cid)
+        self.save()
+        return {"regulation": 1, "articles": len(children)}
+
     def list_nodes(self, node_type: str = None, status: str = None,
                    keyword: str = "", page: int = 1, page_size: int = 20) -> dict:
         """分页列出节点。"""
