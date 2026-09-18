@@ -1,6 +1,8 @@
 """第三方（vendor）配置统一读写：DB → env（非空）→ None，secret 加密存储。"""
 
+import logging
 import os
+import re
 
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -9,6 +11,12 @@ from app.config import settings
 from app.database import async_session
 from app.models.third_party_config import ThirdPartyConfig
 from app.services.secret_utils import decrypt_secret, encrypt_secret
+
+logger = logging.getLogger(__name__)
+
+# 疑似把两行配置写成一行（如 "Bearer xxx`nQCC_API_KEY_FALLBACK=Bearer yyy"）：
+# 值里出现形如 ENV_NAME= 的全大写赋值片段时按「未配置」处理，避免把畸形串当密钥发出去。
+_EMBEDDED_ENV_ASSIGNMENT = re.compile(r"[A-Z][A-Z0-9_]{4,}=")
 
 # 单一映射：config_key -> (环境变量名, 存储类型)，避免 ENV_MAP / KEY_TYPES 双处维护漂移。
 KEY_SPEC: dict[str, tuple[str, str]] = {
@@ -34,14 +42,20 @@ def _effective_env_value(env_var: str) -> str:
     QCC_ENDPOINT 内置 URL），说明用户并未配置，返回空串，避免把类默认值当配置。
     """
     value = os.environ.get(env_var, "").strip()
-    if value:
-        return value
-    field = settings.model_fields.get(env_var)
-    if field is None:
-        return ""
-    value = str(getattr(settings, env_var, "") or "").strip()
-    default = field.default
-    if default is not None and value == default:
+    if not value:
+        field = settings.model_fields.get(env_var)
+        if field is None:
+            return ""
+        value = str(getattr(settings, env_var, "") or "").strip()
+        default = field.default
+        if default is not None and value == default:
+            return ""
+    if value and _EMBEDDED_ENV_ASSIGNMENT.search(value):
+        logger.warning(
+            "%s 的值里疑似黏进了另一个环境变量赋值（形如 KEY=...），已按未配置处理；"
+            "请把多行配置拆成各自独立的一行。",
+            env_var,
+        )
         return ""
     return value
 

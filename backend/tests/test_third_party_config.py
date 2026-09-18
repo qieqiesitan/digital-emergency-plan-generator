@@ -169,6 +169,25 @@ async def test_env_value_is_stripped(fake_session, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_merged_env_lines_treated_as_unconfigured(fake_session, monkeypatch):
+    """两行配置被写成一行（Bearer xxx`nQCC_API_KEY_FALLBACK=Bearer yyy）时不得当密钥使用。"""
+    monkeypatch.setenv(
+        "QCC_API_KEY", "Bearer aaaa`nQCC_API_KEY_FALLBACK=Bearer bbbb"
+    )
+    assert await tpc.get_third_party_config("third_party.qcc.api_key") is None
+
+
+@pytest.mark.asyncio
+async def test_keys_with_lowercase_or_base64_padding_not_rejected(fake_session, monkeypatch):
+    """合法密钥（含小写/base64 补齐 =）不能被误判为黏行。"""
+    monkeypatch.setenv("QCC_API_KEY", "Bearer abc123DEF+/==")
+    assert (
+        await tpc.get_third_party_config("third_party.qcc.api_key")
+        == "Bearer abc123DEF+/=="
+    )
+
+
+@pytest.mark.asyncio
 async def test_empty_env_does_not_override_db(fake_session, monkeypatch):
     await tpc.set_third_party_config("third_party.qcc.api_key", "db-secret")
     monkeypatch.setenv("QCC_API_KEY", "")
