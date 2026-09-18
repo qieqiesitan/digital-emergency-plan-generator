@@ -130,6 +130,18 @@ async def _load_capability(code: str):
     return capability
 
 
+def invalidate_capability_cache(code: str | None = None) -> None:
+    """清进程内能力缓存：管理端刚改过开关时立即生效（其余 worker 由 30s TTL 兜底）。
+
+    2026-09-19 审计：`PUT /platform/capabilities/{code}` 改完只写库，
+    当前 worker 最长 30s 内仍按旧值放行/拦截 —— 补一个显式失效让"停用/启用"立刻可见。
+    """
+    if code is None:
+        _CAPABILITY_CACHE.clear()
+        return
+    _CAPABILITY_CACHE.pop(code, None)
+
+
 async def _emit_telemetry(record) -> None:
     """best-effort 写一条调用留痕；任何失败都不影响业务请求。"""
     try:

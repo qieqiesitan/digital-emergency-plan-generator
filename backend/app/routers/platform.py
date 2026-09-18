@@ -10,6 +10,7 @@ from app.models.ai_capability import AICapability
 from app.schemas.platform import CapabilityOut, CapabilityUpdateIn
 from app.services.ai_usage_stats import usage_stats
 from app.services.platform_overview import overview_totals
+from app.services.llm_client import invalidate_capability_cache
 
 router = APIRouter(prefix="/platform", tags=["Platform"], dependencies=[Depends(require_admin)])
 
@@ -35,6 +36,8 @@ async def update_capability(
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(cap, key, value)
     await db.commit()
+    # 立即让本 worker 生效（其它 worker 由 llm_client 的 30s TTL 兜底）
+    invalidate_capability_cache(code)
     return _ok(CapabilityOut.model_validate(cap))
 
 
