@@ -1,5 +1,10 @@
 """企业信息自动填充预研 — 多轮搜索 + 字段提取 + 交叉验证"""
 import re, time
+
+import pytest
+
+# scrapling 是可选的预研依赖（未进 requirements），缺依赖时跳过而不是收集失败
+pytest.importorskip("scrapling", reason="企业信息预研脚本需要可选依赖 scrapling")
 from scrapling import Fetcher
 
 # 字段提取正则

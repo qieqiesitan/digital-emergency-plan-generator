@@ -11,6 +11,10 @@ import sys
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
+# 仓库根也在 sys.path：部分用例以 `from backend.tools...` 引用工具脚本
+REPO_ROOT = os.path.dirname(BACKEND_DIR)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 
 # ── 跨 worker 运行时状态的单测替身 ──

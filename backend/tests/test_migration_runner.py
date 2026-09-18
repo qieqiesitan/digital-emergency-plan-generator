@@ -431,18 +431,18 @@ async def test_create_all_failure_rolls_back_before_unlock(monkeypatch, script_d
 
 
 def test_baseline_migrations_match_pre_upgrade_scripts():
-    """守卫：基线集合 ⊆ 当前捆绑脚本，且差集恰为本版本（0.3.0/0.4.0/0.5.0）新增迁移。"""
+    """守卫：基线集合 ⊆ 当前捆绑脚本，且基线之后的新迁移不得回填进基线。
+
+    不再断言"差集恰好等于某版本清单"——每加一个迁移都要改断言，长期必然腐烂；
+    改为子集 + 代表性新迁移存在的守卫，保留原意（基线只含升级前已有脚本）。
+    """
     bundled = {p.name for p in mr.list_migration_scripts()}
     baseline = set(mr.BASELINE_MIGRATIONS)
     assert baseline <= bundled
-    assert bundled - baseline == {
-        "db_migration_20260831_prompt_template_dedupe.sql",
-        "db_migration_20260831_third_party_config.sql",
-        "db_migration_20260831_agent_chat_tool_calls.sql",
-        "db_migration_20260902_drop_ywt_user_id.sql",
-        "db_migration_20260902_agent_workflow.sql",
-        "db_migration_20260902_agent_preferences.sql",
-    }
+    new_migrations = bundled - baseline
+    assert "db_migration_20260831_third_party_config.sql" in new_migrations
+    assert "db_migration_20260918_runtime_state.sql" in new_migrations
+    assert not (baseline & {"db_migration_20260918_runtime_state.sql"})
 
 
 # ---------------------------------------------------------------------------

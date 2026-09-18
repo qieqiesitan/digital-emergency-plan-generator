@@ -87,8 +87,8 @@ def test_update_prompt_allowed_for_admin():
     assert resp.json()["data"]["templateName"] == "新名"
 
 
-def test_list_prompts_allowed_for_regular_user():
-    """只读列表不设管理员门禁，普通用户可访问。"""
+def test_list_prompts_forbidden_for_regular_user():
+    """W3 对齐现状：/prompts 读端点已收紧为管理员，普通用户必须 403。"""
     row = MagicMock()
     row.id = 1
     row.template_code = "demo_code"
@@ -104,5 +104,5 @@ def test_list_prompts_allowed_for_regular_user():
     row.status = "active"
     client = _make_client(role="user", rows=[row])
     resp = client.get("/prompts")
-    assert resp.status_code == 200
-    assert resp.json()["data"][0]["template_code"] == "demo_code"
+    assert resp.status_code == 403
+    assert "需要管理员权限" in resp.json()["detail"]

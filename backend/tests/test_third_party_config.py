@@ -115,9 +115,15 @@ def store():
 
 @pytest.fixture(autouse=True)
 def _clear_env(monkeypatch):
-    """清空所有相关 env，保证每个用例从无 env 基线开始。"""
+    """清空所有相关 env（含 .env 已加载进 settings 的值），保证用例从无 env 基线开始。
+
+    只 monkeypatch.delenv 不够：pydantic 在 import 时已把本机 .env 的 QCC/AMAP key
+    读进 settings，_effective_env_value 会兜底取到它们，导致断言拿到脏值。
+    """
     for env_var, _ in tpc.KEY_SPEC.values():
         monkeypatch.delenv(env_var, raising=False)
+        if hasattr(tpc.settings, env_var):
+            monkeypatch.setattr(tpc.settings, env_var, "", raising=False)
 
 
 @pytest.fixture
