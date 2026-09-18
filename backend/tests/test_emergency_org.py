@@ -81,6 +81,17 @@ def test_member_position_metadata():
     assert "uq_member_positions_primary" in index_names
 
 
+def test_new_tables_have_server_side_uuid_default():
+    """四张新表都会用裸 SQL 写入，id 必须有数据库端默认值，否则真库报 id 为 NULL。
+
+    2026-09-19 真库实测踩过：ORM 只有 Python 端 default 时，
+    `INSERT INTO member_positions (enterprise_id, member_id, org_node_id, is_primary)` 会
+    NotNullViolation。此测试锁住 server_default。
+    """
+    for model in (EmergencyOrgUnit, EmergencyOrgRole, EmergencyOrgAssignment, MemberPosition):
+        assert model.__table__.columns["id"].server_default is not None, model.__name__
+
+
 def test_member_position_foreign_keys_cascade():
     """任职表的成员与企业外键都必须级联删除，避免成员删除后留下孤儿任职。"""
     member_fks = {

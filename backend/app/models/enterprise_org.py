@@ -64,7 +64,14 @@ class MemberPosition(Base):
         kwargs.setdefault("is_primary", False)
         super().__init__(**kwargs)
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    # 除 Python 端 default 外必须有数据库端默认值：本表用裸 SQL INSERT 写入任职行，
+    # 只靠 Python default 会出现 id 为 NULL 的 NotNullViolation（2026-09-19 真库实测）。
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=lambda: str(uuid4()),
+        server_default=text("gen_random_uuid()"),
+    )
     enterprise_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, index=True
     )

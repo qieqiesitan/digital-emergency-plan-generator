@@ -8,7 +8,7 @@ from datetime import datetime
 from uuid import uuid4
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,7 +25,12 @@ class EmergencyOrgUnit(Base):
         kwargs.setdefault("sort_order", 0)
         super().__init__(**kwargs)
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=lambda: str(uuid4()),
+        server_default=text("gen_random_uuid()"),
+    )
     enterprise_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
     )
@@ -52,7 +57,12 @@ class EmergencyOrgRole(Base):
         kwargs.setdefault("is_required", False)
         super().__init__(**kwargs)
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=lambda: str(uuid4()),
+        server_default=text("gen_random_uuid()"),
+    )
     enterprise_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
     )
@@ -81,7 +91,12 @@ class EmergencyOrgAssignment(Base):
         kwargs.setdefault("sort_order", 0)
         super().__init__(**kwargs)
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=lambda: str(uuid4()),
+        server_default=text("gen_random_uuid()"),
+    )
     enterprise_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
     )
