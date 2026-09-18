@@ -70,3 +70,18 @@ def test_gas_test_required_only_for_two_types():
     mod = _load()
     required = {t["code"] for t in mod.TEMPLATES if t.get("requires_gas_test")}
     assert required == {"DHZY", "YXKJ"}
+
+
+def test_measure_parsing_is_scoped_to_appendix_tables():
+    """每类措施应来自各自的附录A 表，不能所有类型共用同一批措施。"""
+    mod = _load()
+    text = (
+        ROOT / "backend/app/regulations/data/texts/reg_gb_30871_2022.md"
+    ).read_text(encoding="utf-8")
+    counts = {
+        chapter: len(mod.parse_measures(text, chapter=chapter))
+        for chapter in range(5, 13)
+    }
+    assert all(count > 0 for count in counts.values()), counts
+    assert len(set(counts.values())) >= 3, counts
+    assert counts[5] != counts[12], counts

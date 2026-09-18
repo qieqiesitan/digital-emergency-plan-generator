@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "backend" / "db_migration_20260917_work_ticket_seed.sql"
+OUT = ROOT / "backend" / "db_migration_20260917_work_ticket_seed_v2.sql"
 STANDARD_TEXT = (
     ROOT / "backend" / "app" / "regulations" / "data" / "texts" / "reg_gb_30871_2022.md"
 )
@@ -44,9 +44,11 @@ def build_sql() -> str:
     text = STANDARD_TEXT.read_text(encoding="utf-8")
 
     lines = [
-        "-- 20260917 作业票模板种子（由 backend/seed_work_ticket_templates.py 生成，勿手改）",
+        "-- 20260917 作业票模板种子【增量 v2】：补齐至 8 类（GB 30871-2022 附录A/B）",
+        "-- 增量说明：已按 v1 部署过的环境用本文件补齐；v2 内容包含 v1，",
+        "-- 全部使用 ON CONFLICT (id) DO NOTHING，重复执行安全。",
         "-- 依据：GB 30871-2022 附录A（票面样式与措施）、附录B 表B.1（审批矩阵）。",
-        "-- id 使用 uuid5(NAMESPACE_URL, 'work-ticket/GB30871-2022/<表>/<自然键>')，配 ON CONFLICT (id) DO NOTHING。",
+        "-- id 使用 uuid5(NAMESPACE_URL, 'work-ticket/GB30871-2022/<表>/<自然键>')。",
         "",
     ]
 
@@ -76,7 +78,13 @@ def build_sql() -> str:
                 "ON CONFLICT (id) DO NOTHING;"
             )
 
-        for m in seed.parse_measures(text, chapter=tpl["chapter"]):
+        parsed = seed.parse_measures(text, chapter=tpl["chapter"])
+        if not parsed:
+            raise RuntimeError(
+                f"「{tpl['name']}」未能从第 {tpl['chapter']} 章解析出任何安全措施，"
+                "请检查标准文本的表格结构是否被清洗脚本破坏"
+            )
+        for m in parsed:
             mid = _uid("measure", f"{tpl_key}/{m['sort_order']}")
             lines.append(
                 "INSERT INTO work_ticket_template_measures "

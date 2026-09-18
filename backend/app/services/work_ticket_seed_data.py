@@ -225,19 +225,30 @@ APPROVAL_MATRIX.extend([
 ])
 
 _MEASURE_ROW = re.compile(r"^\|\s*\d+\s*\|\s*(?P<text>[^|]{4,})\|")
+_APPENDIX_TABLE = re.compile(r"^表A[.．](?P<no>[1-8])\b")
+_CHAPTER_TABLE = {5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 10: 6, 11: 7, 12: 8}
 
 
 def parse_measures(text: str, *, chapter: int) -> list[dict]:
     """从附录A 的措施表格里抽出措施条目。
 
     只认「序号 | 措施正文 | 是否涉及 | 确认人」这种四列行；
-    条款锚点按章节号生成（如第 5 章 → GB 30871-2022 5）。
+    按章节号定位对应的附录A 表，条款锚点按章节号生成（如第 5 章 → GB 30871-2022 5）。
     """
     if not text:
         return []
+    table_no = _CHAPTER_TABLE.get(chapter)
     out: list[dict] = []
+    in_target_table = table_no is None
     for line in text.splitlines():
-        m = _MEASURE_ROW.match(line.strip())
+        stripped = line.strip()
+        table_match = _APPENDIX_TABLE.match(stripped)
+        if table_match:
+            in_target_table = int(table_match.group("no")) == table_no
+            continue
+        if not in_target_table:
+            continue
+        m = _MEASURE_ROW.match(stripped)
         if not m:
             continue
         measure = m.group("text").strip()
