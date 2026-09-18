@@ -293,3 +293,17 @@ docker exec -e PYTHONPATH=/app -w /app emergency-plan-backend \
    登录端点鉴权是否正常、空库加密健康是否通过。
 
 建议流程：**先在能联网的机器跑 `./scripts/rehearsal.sh` 全绿，再在公司服务器执行 `upgrade.sh`**。
+
+演练还会核对**基线种子**（2026-09-19 起）——空库"能启动"不等于"能用"：
+
+| 项目 | 期望（实测通过） | 来源 |
+|---|---|---|
+| roles / permissions / role_permissions | 3 / 20 / 41 | `db_migration_20260919_seed_roles_permissions.sql`（原 `app/seed_roles.sql` 从未被执行，已纳入迁移） |
+| prompt_templates | 61 | `db_migration_20260919_prompt_templates_seed.sql`（由 `seed_prompts_full.json` 生成，仅插入缺失项） |
+| ai_capabilities | 8 | `db_migration_20260917_ai_capability.sql` |
+| work_ticket_templates | 15 | `db_migration_20260917_work_ticket_seed*.sql` |
+| data_dicts / hazard_checklist_templates | 33 / 5 | `db_migration_data_dicts.sql`、`db_migration_hazard_management.sql` |
+| 权限口径 | user 无 `menu:ai_config`；admin+super_admin 有 `menu:regulations` | W2 收口决策 + v1 P1-4 |
+
+> 提示词模板的**刷新**（覆盖语义）仍走人工脚本 `python seed_prompts_full.py`；
+> 迁移只负责"缺失即补"，不会覆盖页面上的人工编辑。
