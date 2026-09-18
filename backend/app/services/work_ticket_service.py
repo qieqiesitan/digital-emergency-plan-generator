@@ -38,6 +38,15 @@ logger = logging.getLogger("work_ticket_service")
 
 GAS_TEST_MAX_AGE = timedelta(minutes=30)
 
+# 强制气体检测的作业类型。依据 GB 30871-2022 第 5 章（动火）与第 6 章（受限空间）：
+# 这两类作业在作业前及作业过程中必须进行气体分析。其余类型不作强制。
+GAS_TEST_REQUIRED_TYPES = ("DHZY", "YXKJ")
+
+
+def requires_gas_test(ticket_type: str) -> bool:
+    """该类型是否强制气体检测。"""
+    return ticket_type in GAS_TEST_REQUIRED_TYPES
+
 
 class SubmitValidationError(ValueError):
     """提交前校验未通过。"""
@@ -225,7 +234,7 @@ async def submit_ticket(
         measures=measures,
         confirmed_measure_orders=values.get("confirmed_measures", []),
         gas_tests=gas_tests,
-        requires_gas_test=instance.ticket_type in ("DHZY", "YXKJ"),
+        requires_gas_test=requires_gas_test(instance.ticket_type),
     )
     if errors:
         raise SubmitValidationError("；".join(errors))

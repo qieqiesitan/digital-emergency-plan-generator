@@ -135,3 +135,19 @@ def test_validate_has_no_skip_switch():
     params = set(inspect.signature(validate_before_submit).parameters)
     for banned in ("skip", "force", "bypass", "ignore_required", "ai_check_mode"):
         assert banned not in params, f"校验函数不应接受 {banned} 参数"
+
+
+def test_gas_test_required_types_is_exactly_two():
+    """只有动火与受限空间强制气体检测；扩到 8 类后这个集合不能变。"""
+    from app.services.work_ticket_service import GAS_TEST_REQUIRED_TYPES
+
+    assert set(GAS_TEST_REQUIRED_TYPES) == {"DHZY", "YXKJ"}
+
+
+def test_other_six_types_do_not_require_gas_test():
+    from app.services.work_ticket_service import requires_gas_test
+
+    for code in ("MBCD", "GCZY", "QZDZ", "LSYD", "PTZY", "DLZY"):
+        assert requires_gas_test(code) is False, code
+    for code in ("DHZY", "YXKJ"):
+        assert requires_gas_test(code) is True, code
