@@ -143,3 +143,119 @@ class WorkTicketFlowNode(Base):
     timeout_hours: Mapped[Optional[int]] = mapped_column(Integer)
 
     flow_template = relationship("WorkTicketFlowTemplate", back_populates="nodes", lazy="selectin")
+
+
+class WorkTicketInstance(Base):
+    """作业票实例。编号规则 {类型}-{企业码}-{YYYYMMDD}-{4位序号}。"""
+
+    __tablename__ = "work_ticket_instances"
+    __table_args__ = (
+        UniqueConstraint("enterprise_id", "code", name="uq_wti_ent_code"),
+        Index("idx_wti_enterprise_status", "enterprise_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    enterprise_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
+    )
+    template_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_templates.id", ondelete="RESTRICT"), nullable=False
+    )
+    flow_template_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_flow_templates.id", ondelete="SET NULL")
+    )
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    ticket_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    level: Mapped[Optional[str]] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    current_node_key: Mapped[Optional[str]] = mapped_column(String(60))
+    current_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    values: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    valid_from: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    valid_to: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    extend_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cancel_reason: Mapped[Optional[str]] = mapped_column(Text)
+    submitted_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class WorkTicketNodeRecord(Base):
+    """节点办理记录。"""
+
+    __tablename__ = "work_ticket_node_records"
+    __table_args__ = (Index("idx_wtnr_instance", "instance_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    node_key: Mapped[str] = mapped_column(String(60), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    opinion: Mapped[Optional[str]] = mapped_column(Text)
+    acted_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkTicketGasTest(Base):
+    """气体检测记录。动火/受限空间类为提交前必填，一次作业可多次取样。"""
+
+    __tablename__ = "work_ticket_gas_tests"
+    __table_args__ = (Index("idx_wtgt_instance", "instance_id", "sampled_at"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    sampled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    location: Mapped[Optional[str]] = mapped_column(String(200))
+    gas_type: Mapped[Optional[str]] = mapped_column(String(100))
+    result: Mapped[Optional[str]] = mapped_column(String(100))
+    tester: Mapped[Optional[str]] = mapped_column(String(100))
+    conclusion: Mapped[Optional[str]] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkTicketAuditLog(Base):
+    """全状态变更留痕（对齐 HazardAuditLog）。"""
+
+    __tablename__ = "work_ticket_audit_logs"
+    __table_args__ = (Index("idx_wtal_instance", "instance_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    from_status: Mapped[Optional[str]] = mapped_column(String(20))
+    to_status: Mapped[Optional[str]] = mapped_column(String(20))
+    detail: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    acted_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkTicketPrintSnapshot(Base):
+    """打印快照。打印即固化，之后只能新建版本。"""
+
+    __tablename__ = "work_ticket_print_snapshots"
+    __table_args__ = (UniqueConstraint("instance_id", "version", name="uq_wtps_instance_version"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    instance_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    printed_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
