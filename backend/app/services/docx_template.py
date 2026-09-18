@@ -867,6 +867,26 @@ def _build_docx_section_numbers(sections: list) -> dict:
     return numbers
 
 
+def missing_mermaid_codes(codes: list[str], mermaid_svgs: dict, rendered_hashes: set[str]) -> list[str]:
+    """返回「内容里有 Mermaid 代码，但缓存/内联 SVG 都没覆盖」的代码。
+
+    这些是导出时必须**就地渲染**的图：典型来源是用户手工编辑/粘贴的 mermaid 块
+    （生成期预渲染只覆盖 AI 生成的内容）。缺了这步，图会被静默丢弃——
+    导出的"完整预案"少了流程图，且没有任何提示。
+    """
+    from app.services.mermaid_renderer import _mermaid_hash
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for code in codes:
+        h = _mermaid_hash(code)
+        if h in rendered_hashes or h in (mermaid_svgs or {}) or h in seen:
+            continue
+        seen.add(h)
+        out.append(code)
+    return out
+
+
 def generate_plan_docx(
     *,
     company_name: str,
@@ -997,6 +1017,9 @@ def generate_plan_docx(
         # 来源2：<div class="mermaid-rendered" data-mermaid-hash="..."> （新格式，被 _embed_mermaid_svgs 替换后）
         # 来源3：mermaid_svgs 缓存（内容中无水印代码但缓存有 SVG）
         rendered_hashes = set()
+        # 「真的拿到 SVG」的集合（来源2 内联 / 来源3 缓存）；来源1 只是"见过这个 code"，
+        # 不能算覆盖，否则下面按代码就地渲染的兜底永远不会触发（本轮实测踩过）。
+        covered_hashes: set[str] = set()
         mermaid_items = []  # (hash, code_or_none, svg_or_none)
         import re as _re2
 
@@ -1013,6 +1036,7 @@ def generate_plan_docx(
             if _h not in rendered_hashes:
                 mermaid_items.append((_h, None, _svg))
                 rendered_hashes.add(_h)
+                covered_hashes.add(_h)
         # 从内容中移除所有 mermaid-rendered div
         cleaned = _re2.sub(r'<div class="mermaid-rendered"[^>]*>.*?</div>', '', cleaned, flags=_re2.DOTALL)
 
@@ -1021,6 +1045,14 @@ def generate_plan_docx(
             if h not in rendered_hashes:
                 mermaid_items.append((h, None, svg))
                 rendered_hashes.add(h)
+                covered_hashes.add(h)
+
+        # 来源1 兜底：内容里的 Mermaid 代码若没被缓存/内联 SVG 覆盖（用户手工编辑过的），
+        # 导出时就地渲染，避免图被静默丢弃（见 missing_mermaid_codes docstring）
+        from app.services.mermaid_renderer import _mermaid_hash as _mh
+        for code in missing_mermaid_codes(codes, mermaid_svgs, covered_hashes):
+            mermaid_items.append((_mh(code), code, None))
+            rendered_hashes.add(_mh(code))
 
         logger.info('generate_plan_docx: total mermaid_items to render=%d', len(mermaid_items))
 
@@ -1044,6 +1076,7 @@ def generate_plan_docx(
             _browser = _pw.chromium.launch(headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"])
         except Exception as _pwe:
             logger.warning("Playwright init failed: %s", _pwe)
+
 
         for h, code, svg_raw in mermaid_items:
             png_bytes = None
