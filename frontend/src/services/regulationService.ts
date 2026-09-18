@@ -41,7 +41,8 @@ export async function createRegulation(data: RegulationCreateRequest, file?: Fil
   const res = await api.post("/regulations", fd, { skipGlobalError: true });
   return res.data.data;
 }
-export async function updateRegulation(id: string, data: RegulationCreateRequest, file?: File): Promise<void> {
+// 更新接口是增量更新（后端对缺省字段取默认值），因此允许只提交被编辑的字段
+export async function updateRegulation(id: string, data: Partial<RegulationCreateRequest>, file?: File): Promise<void> {
   const fd = new FormData();
   fd.append("data", JSON.stringify(data));
   if (file) fd.append("file", file);

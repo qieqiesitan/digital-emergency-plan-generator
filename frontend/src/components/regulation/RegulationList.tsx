@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import {
   Table, Input, Select, Button, Space, Tag, Card, Row, Col,
@@ -39,8 +38,8 @@ export function RegulationList({ onAdd, onView, onAbolish }: Props) {
   const [editingRegulation, setEditingRegulation] = useState<RegulationNode | null>(null);
   const queryClient = useQueryClient();
   const [kw, setKw] = useState("");
-  const [st, setSt] = useState<string>("all");
-  const [nt, setNt] = useState<string>("all");
+  const [st, setSt] = useState<"all" | "effective" | "abolished">("all");
+  const [nt, setNt] = useState<"law" | "standard" | "policy" | "all">("all");
   const [pg, setPg] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -121,12 +120,12 @@ export function RegulationList({ onAdd, onView, onAbolish }: Props) {
               style={{ width: 260, borderRadius: 8 }}
               allowClear
             />
-            <Select value={st} onChange={(v) => { setSt(v); setPg(1); }} style={{ width: 120 }}>
+            <Select value={st} onChange={(v) => { setSt(v as "all" | "effective" | "abolished"); setPg(1); }} style={{ width: 120 }}>
               <Select.Option value="all">全部状态</Select.Option>
               <Select.Option value="effective">现行有效</Select.Option>
               <Select.Option value="abolished">已废止</Select.Option>
             </Select>
-            <Select value={nt} onChange={(v) => { setNt(v); setPg(1); }} style={{ width: 120 }}>
+            <Select value={nt} onChange={(v) => { setNt(v as "law" | "standard" | "policy" | "all"); setPg(1); }} style={{ width: 120 }}>
               <Select.Option value="all">全部类型</Select.Option>
               <Select.Option value="law">法律</Select.Option>
               <Select.Option value="standard">标准</Select.Option>

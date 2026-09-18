@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -140,12 +139,12 @@ export default function DashboardScreen() {
   const handleSelectEnterprise = (id: string, name: string) => {
     setCurrentEnterprise(id, name);
     setEnterpriseSheetOpen(false);
-    showToast?.(`已切换到 ${name}`, "info");
+    showToast?.({ type: "info", message: `已切换到 ${name}` });
   };
 
   const handleQuickAction = (type: string) => {
     if (!activeEnterpriseId) {
-      showToast?.("请先添加企业", "warning");
+      showToast?.({ type: "warning", message: "请先添加企业" });
       return;
     }
     navigate(`/m/plans/new?enterprise_id=${activeEnterpriseId}&type=${type}`);
@@ -347,8 +346,7 @@ export default function DashboardScreen() {
               icon={<FileText size={40} className="text-neutral-300" />}
               title="暂无编辑记录"
               description="创建第一个预案开始使用"
-              action="新建预案"
-              onAction={() => handleQuickAction("comprehensive")}
+              action={{ label: "新建预案", onPress: () => handleQuickAction("comprehensive") }}
             />
           ) : (
             <div className="space-y-3">

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Sparkles, AlertTriangle } from "lucide-react";
@@ -70,13 +69,13 @@ export default function RiskSourceListScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["risk-sources", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
-      showToast?.("风险源已添加", "success");
+      showToast?.({ type: "success", message: "风险源已添加" });
       setAddOpen(false);
       setNewName("");
       setNewLocation("");
       setNewDesc("");
     },
-    onError: () => showToast?.("添加失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "添加失败" }),
   });
 
   const deleteMutation = useMutation({
@@ -84,9 +83,9 @@ export default function RiskSourceListScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["risk-sources", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
-      showToast?.("已删除", "success");
+      showToast?.({ type: "success", message: "已删除" });
     },
-    onError: () => showToast?.("删除失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "删除失败" }),
   });
 
   return (
@@ -207,7 +206,7 @@ export default function RiskSourceListScreen() {
           <button
             className="w-full h-11 bg-indigo-600 text-white rounded-md font-semibold"
             onClick={() => {
-              showToast?.("AI 生成功能需对接后端 API", "info");
+              showToast?.({ type: "info", message: "AI 生成功能需对接后端 API" });
               setAiOpen(false);
             }}
           >

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -200,7 +199,12 @@ export default function PlanEditorScreen() {
       setSaveStatus("error");
       if (planId && selectedChapter) {
         persistStoredDraft(planId, selectedChapter.key, content);
-        addDraft(planId, selectedChapter.key, content);
+        addDraft({
+          planId,
+          sectionKey: selectedChapter.key,
+          content,
+          updatedAt: Date.now(),
+        });
       }
       showToast?.({ type: "error", message: "保存失败，内容已暂存为本地草稿" });
     },
@@ -292,7 +296,6 @@ export default function PlanEditorScreen() {
     setGenerating(true);
     setGenProgressPct(0);
     setThinkingBrief("");
-    setGenProgressMsg(`AI 正在撰写"${selectedChapter.title}"…`);
     setGenerationBanner({ status: "generating", message: `AI 正在撰写"${selectedChapter.title}"…` });
 
     const targetPlanId = planId;
@@ -312,7 +315,6 @@ export default function PlanEditorScreen() {
           if (event.type === "thinking") {
             setThinkingBrief(event.message || "");
           } else if (event.type === "progress" || event.type === "chapter_start") {
-            setGenProgressMsg(event.message ?? event.chapter ?? "");
             setGenProgressPct(Math.min(95, (event.current ?? 0) / Math.max(1, event.total ?? 1) * 100));
           } else {
             const chunk = event.content ?? event.token ?? event.chunk ?? "";
@@ -371,7 +373,6 @@ export default function PlanEditorScreen() {
               } · ${status.data.section_title}`
             : "";
           if (progressText) {
-            setGenProgressMsg(progressText);
             setGenerationBanner({ status: "generating", message: progressText });
           }
           if (!status?.data?.generating || failed.length > 0) {

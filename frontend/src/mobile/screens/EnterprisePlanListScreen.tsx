@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -245,8 +244,11 @@ export default function EnterprisePlanListScreen() {
               icon={<FileText size={48} className="text-neutral-300" />}
               title={hasFilters ? "未找到匹配预案" : "暂无预案"}
               description={hasFilters ? "尝试调整筛选条件" : "为当前企业创建第一个应急预案"}
-              action={hasFilters ? undefined : "新建预案"}
-              onAction={hasFilters ? undefined : () => navigate(`/m/plans/new?enterprise_id=${enterpriseId}`)}
+              action={
+                hasFilters
+                  ? undefined
+                  : { label: "新建预案", onPress: () => navigate(`/m/plans/new?enterprise_id=${enterpriseId}`) }
+              }
             />
           </div>
         )}

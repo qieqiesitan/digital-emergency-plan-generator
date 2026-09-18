@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import {
   Table, Modal, Form, Input, Button, message, Space, Popconfirm, Checkbox, Divider,
@@ -155,13 +154,13 @@ export default function RoleManagePage() {
 
           <Form.Item name="permission_ids" label="权限配置">
             <Checkbox.Group style={{ display: "block", width: "100%" }}>
-              <Divider orientation="left" plain style={{ fontSize: 13, margin: "4px 0" }}>菜单权限</Divider>
+              <Divider titlePlacement="start" plain style={{ fontSize: 13, margin: "4px 0" }}>菜单权限</Divider>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 12px", marginBottom: 12 }}>
                 {menuPermissions.map(p => (
                   <Checkbox key={p.id} value={p.id}>{p.name}</Checkbox>
                 ))}
               </div>
-              <Divider orientation="left" plain style={{ fontSize: 13, margin: "4px 0" }}>操作权限</Divider>
+              <Divider titlePlacement="start" plain style={{ fontSize: 13, margin: "4px 0" }}>操作权限</Divider>
               {Object.entries(groupedActions).map(([resource, perms]) => (
                 <div key={resource} style={{ marginBottom: 10 }}>
                   <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 12, color: "#999" }}>{resource}</div>

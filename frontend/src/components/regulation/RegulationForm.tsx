@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect } from "react";
 import { Modal, Input, Button, Upload, Select, message, Descriptions, Collapse, Spin, Tag, Alert, AutoComplete } from "antd";
 import { InboxOutlined, UploadOutlined } from "@ant-design/icons";

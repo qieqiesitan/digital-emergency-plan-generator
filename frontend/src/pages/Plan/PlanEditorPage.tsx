@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Input, Button, Space, Badge, message, Progress, Alert, Tag } from "antd";
@@ -17,7 +16,7 @@ import SectionTree from "@/components/plan/SectionTree";
 import RichTextEditor from "@/components/plan/RichTextEditor";
 import AIGenerateButton from "@/components/plan/AIGenerateButton";
 import { StylePanel } from "@/components/plan/StylePanel";
-import { AdvancedStylePanel } from "@/components/plan/AdvancedStylePanel";
+import { AdvancedStylePanel, type AdvancedPromptOverrides } from "@/components/plan/AdvancedStylePanel";
 import MarkdownIt from "markdown-it";
 import { DEFAULT_STYLE, type StylePreference } from "@/components/plan/stylePreference";
 import type { PlanSection, SectionTemplate } from "@/types/plan";
@@ -57,7 +56,7 @@ export default function PlanEditorPage() {
   const [thinkingText, setThinkingText] = useState("");
   const [aiUnavailable, setAiUnavailable] = useState(false);
   const [stylePreference, setStylePreference] = useState<StylePreference>(DEFAULT_STYLE);
-  const [advancedOverrides, setAdvancedOverrides] = useState<Record<string, unknown> | null>(null);
+  const [advancedOverrides, setAdvancedOverrides] = useState<AdvancedPromptOverrides | null>(null);
   const [styleMode, setStyleMode] = useState<"panel" | "advanced">("panel");
   const [styleModalOpen, setStyleModalOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
