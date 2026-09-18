@@ -32,13 +32,12 @@ export async function deleteEnterprise(id: string, config?: AxiosRequestConfig):
   await api.delete(`/enterprises/${id}`, config);
 }
 
+/**
+ * 组织架构兼容视图：后端已改为读应急组织并返回旧分组格式。
+ * 新代码请用 `@/services/emergencyOrgService`（应急组织）或 `@/services/enterpriseOrgService`（公司组织树）。
+ */
 export async function getOrgStructure(id: string): Promise<OrgGroup[]> {
   const res = await api.get<ApiResponse<OrgGroup[]>>(`/enterprises/${id}/org-structure`);
-  return res.data.data;
-}
-
-export async function updateOrgStructure(id: string, data: OrgGroup[], config?: AxiosRequestConfig): Promise<OrgGroup[]> {
-  const res = await api.put<ApiResponse<OrgGroup[]>>(`/enterprises/${id}/org-structure`, data, config);
   return res.data.data;
 }
 

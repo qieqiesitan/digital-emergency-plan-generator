@@ -20,6 +20,13 @@ const MODULES: ModuleItem[] = [
     icon: <AppIcon name="org" size={24} />,
   },
   {
+    // 应急组织与公司组织架构是两套数据：公司部门/班组/岗位在「组织架构」，
+    // 应急指挥部/应急小组及人员指派在这里（同一人可担任多个应急角色）。
+    key: "emergencyOrg", label: "应急组织", en: "EMERGENCY", hot: true,
+    to: (id) => `/enterprises/${id}/emergency-org`,
+    icon: <AppIcon name="rescue" size={24} />,
+  },
+  {
     key: "geo", label: "周边环境", en: "GEO", to: (id) => `/enterprises/${id}/modules/surrounding`,
     icon: <AppIcon name="geo" size={24} />,
   },

@@ -1,3 +1,5 @@
+import type { OrgNode } from "@/types/enterpriseOrg";
+
 export interface OrgMember {
   role: string;
   name: string;
@@ -45,7 +47,8 @@ export interface Enterprise {
   business_scope: string;
   employee_count: number | null;
   building_overview: string | null;
-  org_structure: OrgGroup[];
+  /** 公司组织架构树（部门/班组/岗位）；应急组织见 `@/types/emergencyOrg`。 */
+  org_structure: OrgNode[];
   surrounding_info: SurroundingInfo | null;
   floor_plan_url: string | null;
   gis_lat: number | null;

@@ -47,7 +47,7 @@ let importSeq = 0;
 
 const STEPS: StepDef[] = [
   { key: "enterprise", label: "企业信息", component: StepEnterprise },
-  { key: "org", label: "组织架构", component: StepOrg },
+  { key: "org", label: "应急组织", component: StepOrg },
   { key: "risk", label: "风险与危化品", component: StepRiskChemical },
   { key: "resources", label: "应急资源", component: StepResources },
   { key: "surrounding", label: "周边环境", component: StepSurrounding },

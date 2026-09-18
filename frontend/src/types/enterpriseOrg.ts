@@ -28,6 +28,8 @@ export interface EnterpriseMember {
   phone: string | null;
   org_node_id: string | null;
   position: string | null;
+  /** 全部任职（主岗 + 兼岗）；后端由 member_positions 提供，主岗在前。 */
+  positions?: Array<{ org_node_id: string; is_primary: boolean }>;
   role: string;
   enabled: boolean;
 }

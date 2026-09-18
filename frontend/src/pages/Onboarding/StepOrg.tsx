@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { Button, Input, Space, Table, message } from "antd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { getEnterprise, updateOrgStructure } from "@/services/enterpriseService";
+import { getEmergencyOrg, saveEmergencyOrg } from "@/services/emergencyOrgService";
+import { listMembers } from "@/services/enterpriseOrgService";
+import { mergeEmergencyUnits } from "@/utils/emergencyOrgPreset";
 import api from "@/services/api";
+import type { EnterpriseMember } from "@/types/enterpriseOrg";
+import type { EmergencyUnit } from "@/types/emergencyOrg";
 import type { OrgGroup, OrgMember } from "@/types/enterprise";
-import OrgStructureEditor from "@/components/enterprise/OrgStructureEditor";
 import ImportDrawer from "./ImportDrawer";
 import type { CandidateItem, ImportResult } from "@/types/onboarding";
-import { withRowKeys } from "@/utils/stableRowKey";
 
 interface Props {
   enterpriseId: string;
@@ -46,7 +48,7 @@ function normalizeMembers(members: OrgMember[] | undefined): OrgMember[] {
   }));
 }
 
-/** 解析请求错误：优先透出后端 detail（如 504「AI 响应超时」），其次 e.message，最后兜底文案 */
+/** 请求错误：优先透出后端 detail（如 504「AI 响应超时」），其次 e.message，最后兜底文案。 */
 function errorDetail(e: unknown, fallback: string): string {
   if (axios.isAxiosError(e) && e.response?.data?.detail) {
     return e.response.data.detail;
@@ -54,6 +56,67 @@ function errorDetail(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
+/** 已采纳的应急组织 → 展示用分组（每组展示 角色/姓名/公司职位/电话）。 */
+function unitsToCandidates(units: EmergencyUnit[]): OrgCandidate[] {
+  return units
+    .filter(u => u.parent_id)
+    .map(u => ({
+      group_key: u.id ?? u.name,
+      group_name: u.name,
+      responsibilities: u.duties ?? "",
+      members: (u.roles ?? []).flatMap(role =>
+        (role.members ?? []).map(m => ({
+          role: role.name,
+          name: m.name ?? "",
+          position: m.position ?? "",
+          phone: m.phone ?? "",
+          responsibilities: role.duties ?? "",
+        })),
+      ),
+      _key: u.id ?? u.name,
+    }));
+}
+
+/** 候选分组 → 应急组织单元：角色取自候选成员的 role 文案，人员按姓名匹配企业成员档案。 */
+function candidatesToUnits(groups: OrgCandidate[], members: EnterpriseMember[]): EmergencyUnit[] {
+  const rootId = "onboarding-emergency-root";
+  const memberIdByName = new Map<string, string>();
+  members.forEach(m => {
+    if (m.name) memberIdByName.set(m.name, m.id);
+  });
+  return [
+    { id: rootId, parent_id: null, name: "应急组织机构", duties: "", roles: [] },
+    ...groups.map((g, gi) => {
+      const roleNames = Array.from(
+        new Set((g.members ?? []).map(m => String(m.role || "").trim()).filter(Boolean)),
+      );
+      const effective = roleNames.length ? roleNames : ["组长", "组员"];
+      return {
+        id: `onboarding-${g.group_key || gi}`,
+        parent_id: rootId,
+        name: g.group_name,
+        duties: g.responsibilities ?? "",
+        sort_order: gi,
+        roles: effective.map((roleName, ri) => ({
+          id: `onboarding-${g.group_key || gi}-role-${ri}`,
+          name: roleName,
+          duties: "",
+          sort_order: ri,
+          is_required: roleName === "总指挥" || roleName === "副总指挥",
+          member_ids: (g.members ?? [])
+            .filter(m => String(m.role || "").trim() === roleName && m.name)
+            .map(m => memberIdByName.get(String(m.name)))
+            .filter((id): id is string => Boolean(id)),
+        })),
+      };
+    }),
+  ];
+}
+
+/**
+ * 应急组织采纳步骤（Onboarding）。
+ * 公司部门/班组/岗位在「组织与人员管理」页维护，本步骤只管应急组织。
+ */
 export default function StepOrg({
   enterpriseId,
   onDone,
@@ -66,14 +129,21 @@ export default function StepOrg({
   const [overview, setOverview] = useState("");
   const [candidates, setCandidates] = useState<OrgCandidate[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const { data: enterprise, isLoading } = useQuery({
-    queryKey: ["enterprise", enterpriseId],
-    queryFn: () => getEnterprise(enterpriseId),
+  const [memberEdits, setMemberEdits] = useState<Record<string, OrgMember[]>>({});
+
+  const { data: acceptedUnits = [], isLoading } = useQuery({
+    queryKey: ["emergency-org", enterpriseId],
+    queryFn: () => getEmergencyOrg(enterpriseId),
     enabled: !!enterpriseId,
   });
-  const accepted = enterprise?.org_structure || [];
+  const { data: members = [] } = useQuery({
+    queryKey: ["org-members", enterpriseId],
+    queryFn: () => listMembers(enterpriseId),
+    enabled: !!enterpriseId,
+  });
+
+  const accepted = useMemo(() => unitsToCandidates(acceptedUnits), [acceptedUnits]);
   const importedGroups = useMemo(
     () => toOrgCandidates(imported || [], "") as unknown as OrgCandidate[],
     [imported],
@@ -82,8 +152,6 @@ export default function StepOrg({
     () => [...candidates, ...importedGroups],
     [candidates, importedGroups],
   );
-  // 候选组成员的本地可编辑副本（姓名/电话），按 group_key 维护；采纳时随组保存
-  const [memberEdits, setMemberEdits] = useState<Record<string, OrgMember[]>>({});
 
   const getEditedMembers = (g: OrgCandidate): OrgMember[] =>
     memberEdits[g.group_key] ?? normalizeMembers(g.members);
@@ -107,27 +175,19 @@ export default function StepOrg({
     try {
       const r = await api.post(
         "/onboarding/candidates",
-        {
-          enterprise_id: enterpriseId,
-          module: "org",
-          overview,
-        },
+        { enterprise_id: enterpriseId, module: "org", overview },
         { skipGlobalError: true },
       );
       const ts = Date.now();
       setCandidates(
         ((r.data.data.items || []) as OrgCandidate[]).map((g, i) => {
-          const key = String(
-            g.group_key || g.group_name || `imp-org-${ts}-${i}`,
-          );
+          const key = String(g.group_key || g.group_name || `imp-org-${ts}-${i}`);
           return {
             ...g,
             group_key: key,
             group_name: String(g.group_name || "AI 候选组"),
             members: Array.isArray(g.members) ? g.members : [],
-            responsibilities: g.responsibilities
-              ? String(g.responsibilities)
-              : undefined,
+            responsibilities: g.responsibilities ? String(g.responsibilities) : undefined,
             _key: String(g._key || key),
           };
         }),
@@ -140,24 +200,23 @@ export default function StepOrg({
   };
 
   const saveMut = useMutation({
-    mutationFn: (groups: OrgGroup[]) => updateOrgStructure(enterpriseId, groups, { skipGlobalError: true }),
+    mutationFn: (units: EmergencyUnit[]) =>
+      saveEmergencyOrg(enterpriseId, units, { skipGlobalError: true }),
     onSuccess: () => {
-      message.success("组织架构已保存");
-      queryClient.invalidateQueries({ queryKey: ["enterprise", enterpriseId] });
+      message.success("应急组织已保存");
+      queryClient.invalidateQueries({ queryKey: ["emergency-org", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
     },
-    onError: (e) => message.error(errorDetail(e, "保存失败，请重试")),
+    onError: e => message.error(errorDetail(e, "保存失败，请重试")),
   });
 
-  const adoptGroup = async (g: OrgCandidate, members: OrgMember[]) => {
+  const buildUnits = (groups: OrgCandidate[]) =>
+    mergeEmergencyUnits(acceptedUnits, candidatesToUnits(groups, members));
+
+  const adoptGroup = async (g: OrgCandidate, edited: OrgMember[]) => {
     if (isLoading || saveMut.isPending) return;
-    const key = g.group_key || g.group_name || `g-${accepted.length}`;
-    const merged = [...accepted];
-    const idx = merged.findIndex(x => x.group_key === key || x.group_name === key);
-    if (idx >= 0) merged[idx] = { ...g, group_key: key, members };
-    else merged.push({ ...g, group_key: key, members });
     try {
-      await saveMut.mutateAsync(merged);
+      await saveMut.mutateAsync(buildUnits([{ ...g, members: edited }]));
       if (importedGroups.some(x => x._key === g._key)) onRemoveImported?.("org", g._key);
       else setCandidates(prev => prev.filter(x => x._key !== g._key));
       setMemberEdits(prev => {
@@ -172,16 +231,9 @@ export default function StepOrg({
 
   const adoptAll = async () => {
     if (isLoading || saveMut.isPending) return;
-    const merged = [...accepted];
-    allCandidates.forEach(g => {
-      const key = g.group_key || g.group_name || `g-${merged.length}`;
-      const members = getEditedMembers(g);
-      const idx = merged.findIndex(x => x.group_key === key || x.group_name === key);
-      if (idx >= 0) merged[idx] = { ...merged[idx], members };
-      else merged.push({ ...g, group_key: key, members });
-    });
+    const groups = allCandidates.map(g => ({ ...g, members: getEditedMembers(g) }));
     try {
-      await saveMut.mutateAsync(merged);
+      await saveMut.mutateAsync(buildUnits(groups));
       setCandidates([]);
       allCandidates.forEach(g => onRemoveImported?.("org", g._key));
       setMemberEdits({});
@@ -190,18 +242,13 @@ export default function StepOrg({
     }
   };
 
-  // 组织架构取消采纳：清空已保存结构并移回候选区，可重新编辑再采纳
+  // 取消采纳：清空应急组织并移回候选区，可重新编辑再采纳
   const unacceptAll = async () => {
-    const groups = accepted;
-    if (groups.length === 0 || isLoading || saveMut.isPending) return;
+    if (accepted.length === 0 || isLoading || saveMut.isPending) return;
     try {
       await saveMut.mutateAsync([]);
-      const backToCandidates: OrgCandidate[] = groups.map(g => ({
-        ...g,
-        _key: g.group_key || `g-${Date.now()}`,
-      }));
-      setCandidates(prev => [...prev, ...backToCandidates]);
-      message.success(`已全部取消采纳：${groups.length} 组`);
+      setCandidates(prev => [...prev, ...accepted]);
+      message.success(`已全部取消采纳：${accepted.length} 组`);
     } catch {
       // onError 已提示
     }
@@ -217,13 +264,13 @@ export default function StepOrg({
         }}
       >
         <div>
-          <h3>组织架构</h3>
+          <h3>应急组织</h3>
           <p style={{ color: "#666", fontSize: 13 }}>
-            突发事件谁来指挥、谁负责什么——预案「应急组织机构及职责」章节直接用它
+            突发事件谁来指挥、谁负责什么——预案「应急组织机构及职责」章节直接用它。
+            公司部门/班组/岗位请在「组织与人员管理」页维护
           </p>
         </div>
         <Space>
-          <Button onClick={() => setManualOpen(true)}>✍️ 手动填写</Button>
           <Button onClick={() => setImportOpen(true)}>📄 导入现有数据</Button>
         </Space>
       </div>
@@ -275,10 +322,10 @@ export default function StepOrg({
               <Table
                 size="small"
                 pagination={false}
-                rowKey="__rowKey"
-                dataSource={withRowKeys(g.members || [], m => `a-${m.role ?? ""}`)}
+                rowKey={(_, i) => `a-${i}`}
+                dataSource={g.members || []}
                 columns={[
-                  { title: "角色", dataIndex: "role" },
+                  { title: "应急角色", dataIndex: "role" },
                   {
                     title: "姓名",
                     dataIndex: "name",
@@ -296,12 +343,15 @@ export default function StepOrg({
               />
             </div>
           ))}
+          <p style={{ color: "#8c8c8c", fontSize: 12 }}>
+            人员指派请在「应急组织」页从企业成员中选择（同一人可担任多个应急角色）
+          </p>
         </div>
       )}
       {allCandidates.length > 0 && (
         <>
           {allCandidates.map(g => {
-            const members = getEditedMembers(g);
+            const editedMembers = getEditedMembers(g);
             return (
               <div
                 key={g.group_key}
@@ -323,10 +373,10 @@ export default function StepOrg({
                 <Table
                   size="small"
                   pagination={false}
-                  rowKey="__rowKey"
-                  dataSource={withRowKeys(members, m => `m-${m.role ?? ""}`)}
+                  rowKey={(_, i) => `m-${i}`}
+                  dataSource={editedMembers}
                   columns={[
-                    { title: "角色", dataIndex: "role" },
+                    { title: "应急角色", dataIndex: "role" },
                     {
                       title: "姓名",
                       dataIndex: "name",
@@ -364,7 +414,7 @@ export default function StepOrg({
                     type="primary"
                     loading={saveMut.isPending}
                     disabled={isLoading}
-                    onClick={() => adoptGroup(g, members)}
+                    onClick={() => adoptGroup(g, editedMembers)}
                   >
                     采纳本组
                   </Button>
@@ -389,15 +439,6 @@ export default function StepOrg({
           标记完成，下一步 →
         </Button>
       </div>
-      <OrgStructureEditor
-        enterpriseId={enterpriseId}
-        orgStructure={accepted}
-        visible={manualOpen}
-        onClose={() => {
-          setManualOpen(false);
-          queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
-        }}
-      />
       <ImportDrawer
         enterpriseId={enterpriseId}
         open={importOpen}

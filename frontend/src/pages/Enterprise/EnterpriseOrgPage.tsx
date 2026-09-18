@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { PRESET_EMERGENCY_GROUPS } from "@/utils/constants";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   App as AntApp,
@@ -36,6 +35,7 @@ import {
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
+import { mergeOrgNodes } from "@/utils/orgMerge";
 import {
   createMember,
   deleteMember,
@@ -48,7 +48,6 @@ import {
   suggestOrgTree,
   updateMember,
 } from "@/services/enterpriseOrgService";
-import { mergeOrgNodes } from "@/utils/orgMerge";
 import type {
   BindableUser,
   EnterpriseMember,
@@ -198,27 +197,6 @@ interface MemberModalState {
   member?: EnterpriseMember;
 }
 
-/** 预置应急预案组织结构：「应急组织机构」→ 六个应急小组 → 各组岗位（指挥部：总指挥/副总指挥/成员；其余组：组长/副组长/组员）。 */
-function buildPresetOrgNodes(): OrgNode[] {
-  const presetNodes: OrgNode[] = [
-    { id: "preset-org-root", type: "dept", name: "应急组织机构", members: [], parent_id: null },
-  ];
-  Object.entries(PRESET_EMERGENCY_GROUPS).forEach(([key, name]) => {
-    const teamId = `preset-${key}`;
-    presetNodes.push({ id: teamId, type: "team", name, members: [], parent_id: "preset-org-root" });
-    const positions = key === "headquarters" ? ["总指挥", "副总指挥", "成员"] : ["组长", "副组长", "组员"];
-    positions.forEach((pos, pi) => {
-      presetNodes.push({
-        id: `${teamId}-${pi}`,
-        type: "position",
-        name: pos,
-        members: [],
-        parent_id: teamId,
-      });
-    });
-  });
-  return presetNodes;
-}
 
 /** 企业组织与成员管理页：组织树 + 成员管理 + Excel 导入 + AI 建树。 */
 export default function EnterpriseOrgPage() {
@@ -243,15 +221,6 @@ export default function EnterpriseOrgPage() {
   const [localNodes, setLocalNodes] = useState<OrgNode[] | null>(null);
   const nodes = localNodes ?? fetchedNodes;
   const dirty = localNodes !== null;
-
-  // 组织架构为空时预置应急预案组织结构：
-  // 「应急组织机构」→ 六个应急小组（指挥部/抢险/疏散/医疗/通讯/后勤）→ 各组岗位（指挥部：总指挥/副总指挥/成员；其余组：组长/副组长/组员）
-  useEffect(() => {
-    if (!nodesLoading && fetchedNodes.length === 0 && localNodes === null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 空组织架构首次加载时播种预置应急小组，属一次性初始化；react-hooks v7 新规则对同步 setState 误报（全仓同类基线）
-      setLocalNodes(buildPresetOrgNodes());
-    }
-  }, [fetchedNodes, nodesLoading, localNodes]);
 
   const [nodeModal, setNodeModal] = useState<NodeModalState>({ open: false, mode: "add" });
   const [memberModal, setMemberModal] = useState<MemberModalState>({ open: false, mode: "create" });
@@ -357,22 +326,6 @@ export default function EnterpriseOrgPage() {
     }
   }, [enterpriseId, message, nodes, refetchAll]);
 
-  // ── 预置应急组织 ──
-
-  const applyPresetOrg = useCallback(() => {
-    modal.confirm({
-      title: "应用预置应急组织？",
-      content:
-        "将「应急组织机构 → 六个应急小组 → 岗位」合并到当前组织树：只补齐缺失的组与岗位，已有节点保留。确认后请点击右上角「保存组织树」生效。",
-      okText: "应用",
-      onOk: () => {
-        setLocalNodes(mergeOrgNodes(nodes, buildPresetOrgNodes()));
-        setSelectedNodeId(undefined);
-        message.info("已合并预置应急组织（保留已有节点），请核对后点击「保存组织树」");
-      },
-    });
-  }, [message, modal, nodes]);
-
   // ── AI 建树 ──
 
   const handleAiSuggest = useCallback(() => {
@@ -452,6 +405,9 @@ export default function EnterpriseOrgPage() {
         name: member.name ?? "",
         phone: member.phone ?? "",
         org_node_id: member.org_node_id ?? undefined,
+        extra_node_ids: (member.positions ?? [])
+          .filter(p => !p.is_primary)
+          .map(p => p.org_node_id),
         position: member.position ?? "",
         role: member.role,
         enabled: member.enabled,
@@ -471,6 +427,7 @@ export default function EnterpriseOrgPage() {
             name: values.name ?? undefined,
             phone: values.phone || null,
             org_node_id: values.org_node_id ?? null,
+            extra_node_ids: values.extra_node_ids ?? [],
             position: values.position || null,
             role: values.role,
             enabled: values.enabled,
@@ -488,6 +445,7 @@ export default function EnterpriseOrgPage() {
               name,
               phone: values.phone || null,
               org_node_id: values.org_node_id ?? null,
+              extra_node_ids: values.extra_node_ids ?? [],
               position: values.position || null,
               role: values.role,
             }, { skipGlobalError: true });
@@ -502,6 +460,7 @@ export default function EnterpriseOrgPage() {
               user_id: selectedUser.id,
               name: selectedUser.name,
               org_node_id: values.org_node_id ?? null,
+              extra_node_ids: values.extra_node_ids ?? [],
               position: values.position || null,
               role: values.role,
             }, { skipGlobalError: true });
@@ -609,10 +568,28 @@ export default function EnterpriseOrgPage() {
       { title: "邮箱", dataIndex: "email", width: 190, render: (v?: string | null) => v || "-" },
       { title: "手机号", dataIndex: "phone", width: 120, render: (v?: string | null) => v || "-" },
       {
-        title: "部门班组",
+        title: "任职",
         dataIndex: "org_node_id",
-        width: 150,
-        render: (v: string | null) => buildOrgPath(v, nodes) || "-",
+        width: 260,
+        render: (v: string | null, member) => {
+          // 主岗 + 兼岗；后端未返回 positions 的旧响应回落到主岗镜像列
+          const items = member.positions?.length
+            ? member.positions
+            : v
+              ? [{ org_node_id: v, is_primary: true }]
+              : [];
+          if (items.length === 0) return "-";
+          return (
+            <Space size={4} wrap>
+              {items.map(p => (
+                <Tag key={p.org_node_id} color={p.is_primary ? "blue" : "default"}>
+                  {buildOrgPath(p.org_node_id, nodes) || p.org_node_id}
+                  {p.is_primary ? "（主）" : "（兼）"}
+                </Tag>
+              ))}
+            </Space>
+          );
+        },
       },
       { title: "岗位", dataIndex: "position", width: 110, render: (v?: string | null) => v || "-" },
       {
@@ -738,9 +715,6 @@ export default function EnterpriseOrgPage() {
             </Button>
             <Button icon={<ApartmentOutlined />} onClick={() => openAddNode("position", null)}>
               添加根岗位
-            </Button>
-            <Button icon={<ApartmentOutlined />} onClick={applyPresetOrg}>
-              应用预置应急组织
             </Button>
             {dirty && <Tag color="orange">有未保存的修改</Tag>}
           </Space>
@@ -912,6 +886,16 @@ export default function EnterpriseOrgPage() {
             <Select
               allowClear
               placeholder="选择部门/班组/岗位"
+              options={nodeOptions}
+              showSearch
+              optionFilterProp="label"
+            />
+          </Form.Item>
+          <Form.Item name="extra_node_ids" label="兼岗（可多选）">
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="选填：该成员兼任的其他部门/班组/岗位"
               options={nodeOptions}
               showSearch
               optionFilterProp="label"

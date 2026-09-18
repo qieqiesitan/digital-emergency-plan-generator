@@ -8,6 +8,7 @@ import type {
   OrgNode,
   OrgTreeSuggestion,
 } from "@/types/enterpriseOrg";
+import type { AssignableMember } from "@/types/emergencyOrg";
 
 type OrgMemberRole = "enterprise_admin" | "team_leader" | "member";
 
@@ -17,6 +18,8 @@ interface MemberCreatePayload {
   name?: string;
   phone?: string | null;
   org_node_id?: string | null;
+  /** 兼岗节点（主岗仍走 org_node_id）。 */
+  extra_node_ids?: string[] | null;
   position?: string | null;
   role?: OrgMemberRole;
 }
@@ -26,10 +29,18 @@ interface MemberUpdatePayload {
   name?: string;
   phone?: string | null;
   org_node_id?: string | null;
+  /** null/undefined 表示不改任职；传数组则整体替换兼岗。 */
+  extra_node_ids?: string[] | null;
   position?: string | null;
   role?: OrgMemberRole | null;
   enabled?: boolean | null;
 }
+
+/** 可指派成员（应急组织页人员选择器复用）。 */
+export const listAvailableMembers = (enterpriseId: string) =>
+  api
+    .get<ApiResponse<AssignableMember[]>>(`/enterprises/${enterpriseId}/org/members/available`)
+    .then(r => r.data.data);
 
 /** 获取组织树节点。 */
 export const getOrgNodes = (enterpriseId: string) =>

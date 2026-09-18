@@ -57,6 +57,7 @@ import RiskControlListPage from "@/pages/Enterprise/RiskControlListPage";
 import RiskPublicityPage from "@/pages/Enterprise/RiskPublicityPage";
 import EnterpriseDictConfigPage from "@/pages/Enterprise/EnterpriseDictConfigPage";
 import EnterpriseOrgPage from "@/pages/Enterprise/EnterpriseOrgPage";
+import EmergencyOrgPage from "@/pages/Enterprise/EmergencyOrgPage";
 import PublicRiskNoticePage from "@/pages/PublicRiskNoticePage";
 import PublicRiskPage from "@/pages/PublicRiskPage";
 import HazardPlanPage from "@/pages/Hazard/HazardPlanPage";
@@ -180,6 +181,7 @@ const contentRoutes = [
   { path: "/enterprises/:id/risk-assessment/preview", element: <RiskAssessmentPreview /> },
   { path: "/enterprises/:id/resource-investigation/preview", element: <ResourceInvestigationPreview /> },
   { path: "/enterprises/:id/org", element: <EnterpriseOrgPage /> },
+  { path: "/enterprises/:id/emergency-org", element: <EmergencyOrgPage /> },
   { path: "/enterprises/:id/data-dicts", element: <RiskRedirect to="/risk-management/data-dicts" /> },
   { path: "/enterprises/:id/risk-overview", element: <RiskRedirect to="/risk-management/overview" /> },
   { path: "/enterprises/:id/risk-mapping-workbench", element: <RiskRedirect to="/risk-management/workbench" /> },
