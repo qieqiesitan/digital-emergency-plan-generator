@@ -1891,8 +1891,8 @@ if __name__ == "__main__":
 - [ ] **步骤 5：dry-run 核对真实库**
 
 运行：`backend\.venv\Scripts\python.exe backend/scripts/migrate_emergency_org_split.py --dry-run`
-预期输出四行统计，与规格 §7.3 表格一致：
-- 西安宝岳空间科技有限公司：`shape=tree`、`company_nodes_left=11`、`migrated_member_ids` 3 个
+预期输出四行统计，与规格 §7.3 表格一致（下列数字为 2026-09-19 实测值；注意规格初稿把 `node-9/10/11` 误算成公司岗位，实际这 3 个「总指挥/副总指挥/成员」挂在应急节点 `node-5` 下）：
+- 西安宝岳空间科技有限公司：`shape=tree`、`company_nodes_left=8`、`planned={units:8, roles:21, assignments:3}`
 - 延长壳牌石油有限公司（西安明光路加油站）：`shape=tree`、`company_nodes_left=0`
 - 陕西宝岳测绘有限公司：`shape=groups`、`created_members=28`、`company_nodes_left=0`
 - 两次编辑测试：`shape=groups`
@@ -1904,7 +1904,11 @@ if __name__ == "__main__":
 backend\.venv\Scripts\python.exe backend/scripts/migrate_emergency_org_split.py --apply
 docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "select e.name, (select count(*) from emergency_org_units u where u.enterprise_id=e.id) units, (select count(*) from emergency_org_roles r where r.enterprise_id=e.id) roles, (select count(*) from emergency_org_assignments a where a.enterprise_id=e.id) assigns from enterprises e order by 2 desc;"
 ```
-预期：西安宝岳 `units=8 roles=18 assigns=3`（顶层 + 7 子单元）；延长壳牌 `units=7 roles=18 assigns=0`；陕西宝岳 `units=7 roles=? assigns=28`；其余为 0。再次执行 `--apply`，数字不变（幂等）。
+预期：西安宝岳 `units=8 roles=21 assigns=3`（顶层 + 7 子单元）；延长壳牌 `units=7 roles=18 assigns=0`；陕西宝岳 `units=7 roles=21 assigns=28`；两次编辑测试 `units=2 roles=1 assigns=1`；其余为 0。再次执行 `--apply`（或 `--dry-run`）应全部 `skipped`，数字不变（幂等）。
+
+补充两条实测踩坑（2026-09-19）：
+- 脚本必须显式 `from app.models.user import User`：`enterprise_members.user_id` 的外键目标是 `users`，不导入时 dry-run 正常但 apply 建 ORM 对象会 `NoReferencedTableError`。
+- DB 在宿主机 5438 端口，脚本可在仓库根目录本地跑（`$env:DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5438/emergency_plan"`），备份文件才会落到仓库 `output/migrations/`；在容器内跑会把备份写进容器临时层。
 
 - [ ] **步骤 7：Commit**
 
