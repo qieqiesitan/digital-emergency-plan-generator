@@ -65,6 +65,17 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
 
 # ── 源文件存储 ──
 
+def _safe_source_filename(filename: str) -> str:
+    """把客户端提供的文件名压成安全的单段文件名（防目录穿越）。
+
+    2026-09-18 审计：`save_source_file` 之前直接拼 `f"{ts}_{filename}"`，
+    `filename="../../x.py"` 会写到 uploads 目录之外（管理员权限即可触发）。
+    """
+    base = os.path.basename((filename or "").replace("\\", "/")).strip()
+    base = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", base).lstrip(".")
+    return (base or "source")[:120]
+
+
 def save_source_file(regulation_id: str, file_bytes: bytes, filename: str) -> str:
     """保存源文件到 data/uploads/{reg_id}/。返回保存路径。"""
     reg_dir = os.path.join(UPLOADS_DIR, regulation_id)
@@ -72,8 +83,12 @@ def save_source_file(regulation_id: str, file_bytes: bytes, filename: str) -> st
 
     # 加时间戳避免重名覆盖
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    safe_name = f"{ts}_{filename}"
+    safe_name = f"{ts}_{_safe_source_filename(filename)}"
     fpath = os.path.join(reg_dir, safe_name)
+    # 兜底断言：最终路径必须仍在法规目录内
+    root = os.path.realpath(reg_dir)
+    if not os.path.realpath(fpath).startswith(root + os.sep):
+        raise ValueError(f"非法源文件名：{filename!r}")
     with open(fpath, "wb") as f:
         f.write(file_bytes)
     logger.info("源文件已保存: %s", fpath)
