@@ -18,6 +18,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
     UniqueConstraint,
     func,
 )
@@ -68,7 +69,11 @@ class WorkTicketTemplateField(Base):
     group_name: Mapped[str] = mapped_column(String(40), nullable=False, default="基本信息")
     is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     options: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
-    validation: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    # server_default 必须与 ORM default 一致：迁移里的种子 INSERT 不写该列，
+    # 只有 ORM default → 空库上会违反非空约束（2026-09-19 演练发现）
+    validation: Mapped[dict] = mapped_column(
+        JSONB, default=dict, nullable=False, server_default=text("'{}'::jsonb")
+    )
     allow_ai_prefill: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

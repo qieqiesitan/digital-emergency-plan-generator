@@ -62,7 +62,7 @@ def main():
             if not text or len(text) < 10:
                 continue
             try:
-                aid = graph.add_article_node(reg_id, {'number': title, 'text': text})
+                graph.add_article_node(reg_id, {'number': title, 'text': text})
                 count += 1
                 stats['articles_created'] += 1
             except Exception:

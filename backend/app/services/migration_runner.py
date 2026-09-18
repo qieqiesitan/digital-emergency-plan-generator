@@ -178,7 +178,10 @@ async def _apply_script(conn, script: Path) -> None:
     for statement in _split_sql_statements(sql):
         if _is_transaction_wrapper(statement):
             continue
-        await conn.execute(text(statement))
+        # 用 exec_driver_sql 原样下发：迁移脚本是裸 SQL，不是参数化查询。
+        # 用 text() 会把数据里的冒号当成绑定参数（例如 JSONB '{"factor":0.5}' 里的 `:0`），
+        # 报 "A value is required for bind parameter '0'" —— 2026-09-19 空库演练发现。
+        await conn.exec_driver_sql(statement)
 
 
 async def run_migrations() -> None:

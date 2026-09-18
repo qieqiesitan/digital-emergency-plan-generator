@@ -27,7 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Ruff (F/B/S focused gate)
-        run: python -m ruff check app tests
+        run: python -m ruff check app tests scripts
       - name: Pytest
         run: python -m pytest tests -q
 

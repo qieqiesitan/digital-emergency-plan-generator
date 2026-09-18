@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,9 +25,12 @@ class AICapability(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     prompt_ref: Mapped[Optional[str]] = mapped_column(String(120))  # 指向 prompt_templates.template_code
     model_override: Mapped[Optional[str]] = mapped_column(String(120))
-    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    allow_manual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 2026-09-19 演练发现：这里只有 ORM 侧 default，create_all 建表时**没有库级默认值**，
+    # 于是 db_migration_20260917_ai_capability.sql 的种子 INSERT（未列这三列）
+    # 在空库上直接违反非空约束 → 全新安装启动失败。补 server_default 与迁移 DDL 对齐。
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    allow_manual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -29,7 +29,7 @@ from app.services.report_chapter_utils import (
 )
 from app.services.report_generation_progress import save_generation_progress
 from app.services.report_review_service import review_report_chapters
-from app.services.sse_utils import sse_event
+from app.services.sse_utils import SSE_HEADERS, sse_event
 from app.services.background_stream import BackgroundStream
 from app.services.risk_assessment_service import (
     CHAPTER_DEFINITIONS as RA_CHAPTER_DEFINITIONS,
@@ -705,7 +705,7 @@ async def generate_risk_assessment(
         async for event in stream.events():
             yield event
 
-    return EventSourceResponse(event_sse())
+    return EventSourceResponse(event_sse(), headers=dict(SSE_HEADERS))
 
 
 @router.get("/{enterprise_id}/risk-assessment/chapters")
@@ -853,7 +853,7 @@ async def generate_risk_assessment_section(
     gen = _risk_section_event_generator(
         context, ai_config, cdef, report, style_pref, body.custom_instruction,
     )
-    return EventSourceResponse(gen())
+    return EventSourceResponse(gen(), headers=dict(SSE_HEADERS))
 
 
 @router.post("/{enterprise_id}/risk-assessment/sections/{chapter_key}/regenerate")
@@ -872,7 +872,7 @@ async def regenerate_risk_assessment_section(
         context, ai_config, cdef, report, style_pref,
         body.custom_instruction if body else None,
     )
-    return EventSourceResponse(gen())
+    return EventSourceResponse(gen(), headers=dict(SSE_HEADERS))
 
 
 @router.put("/{enterprise_id}/risk-assessment/sections/{chapter_key}")

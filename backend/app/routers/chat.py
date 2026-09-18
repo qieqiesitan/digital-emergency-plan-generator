@@ -15,7 +15,7 @@ from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
 from app.services.chat_dispatch import dispatch
 from app.services.user_preference_service import get_preferences, invalidate_cache
 from datetime import datetime, timezone
-from app.services.sse_utils import sse_line
+from app.services.sse_utils import SSE_HEADERS, sse_line
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -602,7 +602,9 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
             yield sse_line({"type": "done"})
             # 保存消息
             asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, text_content))
-        return StreamingResponse(text_gen(), media_type="text/event-stream")
+        return StreamingResponse(
+            text_gen(), media_type="text/event-stream", headers=dict(SSE_HEADERS)
+        )
 
     # 多轮工具调用循环（最多 MAX_ROUNDS 轮）
     async def agent_loop():
@@ -723,7 +725,9 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         asyncio.ensure_future(_save_messages(current_user.id, conv_id, body.message, final_text, tool_trace=trace))
         return
 
-    return StreamingResponse(agent_loop(), media_type="text/event-stream")
+    return StreamingResponse(
+        agent_loop(), media_type="text/event-stream", headers=dict(SSE_HEADERS)
+    )
 
 
 

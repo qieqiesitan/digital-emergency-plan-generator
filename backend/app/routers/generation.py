@@ -33,7 +33,7 @@ from app.services.agent.agents import LAYER_PARAMS
 from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMError
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import extract_mermaid_from_markdown, render_mermaid_svg, _mermaid_hash
-from app.services.sse_utils import sse_event
+from app.services.sse_utils import SSE_HEADERS, sse_event
 from app.services.prompt_cache import build_system_prompt_with_style, REGULATION_WRITING_RULE, get_section_prompt, get_diagram_prompt, get_additional_diagram_prompt, render_template, ensure_loaded
 from app.services.risk_context_builder import build_risk_management_context
 from app.services.major_hazard_context import build_major_hazard_brief
@@ -941,7 +941,7 @@ async def generate_batch(plan_id: str, request: Request, current_user=Depends(ge
 
 
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), headers=dict(SSE_HEADERS))
 
 
 
@@ -1249,7 +1249,7 @@ async def generate_section(plan_id: str, section_key: str, request: Request, cur
 
 
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), headers=dict(SSE_HEADERS))
 
 
 
@@ -1350,7 +1350,7 @@ async def regenerate_selection(
             await db.commit()
             yield sse_event("error", message=str(e))
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), headers=dict(SSE_HEADERS))
 
 class PreviewRequest(BaseModel):
     section_key: str = "sec_1"
@@ -1432,5 +1432,5 @@ async def generate_preview(
         except Exception as e:
             yield sse_event("error", message=str(e))
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), headers=dict(SSE_HEADERS))
 

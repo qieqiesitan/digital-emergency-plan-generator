@@ -105,6 +105,41 @@ else
   fail "无尾斜杠返回 $ns_code"
 fi
 
+# 9. 网关上传体积（2026-09-19 新增）
+# nginx 默认 client_max_body_size 1MB：>1MB 的上传会在网关被直接 413，后端毫无记录。
+# 这里用公开的登录端点发 2MB 垃圾体：413 = 网关仍卡 1MB（FAIL）；其他状态码 = 请求已到应用（PASS）。
+if [[ "$SKIP_API" == "1" ]]; then
+  echo "SKIP  网关上传体积检查（--skip-api）"
+else
+  big_tmp="$(mktemp)"
+  python3 - "$big_tmp" <<'PY' 2>/dev/null || head -c 2097152 /dev/zero > "$big_tmp"
+import sys
+with open(sys.argv[1], "wb") as fh:
+    fh.write(b'{"email":"check@example.com","password":"' + b"x" * (2 * 1024 * 1024) + b'"}')
+PY
+  up_body_code="$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' --data-binary "@$big_tmp" "$API/api/v1/auth/login" || true)"
+  rm -f "$big_tmp"
+  if [[ "$up_body_code" == "413" ]]; then
+    fail "网关上传体积：2MB 请求被 413（nginx client_max_body_size 仍为默认 1MB，见 deploy/gateway-nginx.conf.example）"
+  elif [[ "$up_body_code" =~ ^[0-9]{3}$ && "$up_body_code" != "000" ]]; then
+    pass "网关上传体积：2MB 请求到达应用（返回 $up_body_code，非 413）"
+  else
+    fail "网关上传体积：请求失败（code=$up_body_code）"
+  fi
+
+  # 10. SSE 响应头透传（后端对所有 SSE 响应带 X-Accel-Buffering: no）
+  sse_hdr="$(curl -s --max-time 10 -D - -o /dev/null "$API/api/v1/plans/__probe__/generate/__probe__" \
+    | grep -i '^x-accel-buffering:' | tr -d '\r' || true)"
+  if [[ -z "$sse_hdr" ]]; then
+    echo "WARN  未在 SSE 端点响应上取到 X-Accel-Buffering（未登录时端点会先 401，属预期；可用 check-gateway-config.sh 做静态核对）"
+  elif [[ "$sse_hdr" == *no* ]]; then
+    pass "SSE 响应头透传（$sse_hdr）"
+  else
+    fail "SSE 响应头异常（$sse_hdr）"
+  fi
+fi
+
 echo "----------------------------------------"
 echo "通过 $PASS 项，失败 $FAIL 项"
 if [[ "$FAIL" -gt 0 ]]; then

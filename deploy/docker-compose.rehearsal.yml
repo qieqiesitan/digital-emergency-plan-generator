@@ -1,0 +1,67 @@
+# ============================================================
+# 升级演练专用 compose（2026-09-19 新增）
+#
+# 与 deploy/docker-compose.prod.yml 同构（同镜像、同启动命令、同健康检查），但：
+#   1. 端口改用 18000/15432，可与生产栈并存（不影响 8000/5432）；
+#   2. 数据一律走独立命名卷（rehearsal_*），演练结束 -v 一键清空，不碰生产数据；
+#   3. 强制 MIGRATE_FRESH=1：空库执行【全部】捆绑迁移，专门演练升级包最容易翻车的环节
+#      （迁移账本 schema_migrations 与 50 个 db_migration_*.sql 是否对齐）。
+#
+# 用法（仓库根）：
+#   ./scripts/rehearsal.sh              # 完整演练（构建→起栈→校验→清理）
+#   ./scripts/rehearsal.sh --keep       # 保留容器便于排查
+# ============================================================
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: rehearsal-only
+      POSTGRES_DB: emergency_plan
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - rehearsal_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:rehearsal-only@postgres:5432/emergency_plan
+      SECRET_KEY: rehearsal-only-secret-key-0123456789abcdefghijklmnop
+      ENCRYPTION_KEY: rehearsal-only-encryption-key-0123456789abcdef
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      EXPORT_DIR: /app/exports
+      # 空库：执行全部捆绑迁移（见 app/services/migration_runner.py）
+      MIGRATE_FRESH: "1"
+    ports:
+      - "18000:8000"
+    volumes:
+      # 用【当前工作区代码】跑演练：镜像只需提供依赖，避免每次改代码都重建镜像
+      # （与发布包演练等价：发布包内容就是这份工作区；如需验证镜像构建本身，用 ./scripts/rehearsal.sh 不带 --no-build）
+      - ../backend:/app
+      - rehearsal_exports:/app/exports
+      - rehearsal_uploads:/app/uploads
+      - rehearsal_chroma:/root/.cache/chroma
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+
+volumes:
+  rehearsal_pgdata:
+  rehearsal_exports:
+  rehearsal_uploads:
+  rehearsal_chroma:

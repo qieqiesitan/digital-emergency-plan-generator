@@ -1,9 +1,16 @@
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import BigInteger, String, Text, DateTime, ForeignKey, func, text
+from sqlalchemy import BigInteger, Sequence, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
+
+# 会话消息序号序列：必须用 Sequence 声明，create_all 才会先建序列再建表。
+# 2026-09-19 演练发现：此前写成 server_default=text("nextval('chat_messages_seq')")，
+# 而没有任何地方创建该序列 —— **空库全新安装会直接启动失败**
+# （UndefinedTableError: relation "chat_messages_seq" does not exist）。
+chat_messages_seq = Sequence("chat_messages_seq")
+
 
 class ChatConversation(Base):
     __tablename__ = "chat_conversations"
@@ -23,7 +30,7 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     seq: Mapped[int] = mapped_column(
-        BigInteger, nullable=False,
-        server_default=text("nextval('chat_messages_seq')"),
+        BigInteger, chat_messages_seq, nullable=False,
+        server_default=chat_messages_seq.next_value(),
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

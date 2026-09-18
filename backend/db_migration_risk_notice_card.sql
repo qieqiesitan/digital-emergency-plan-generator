@@ -8,12 +8,18 @@ ALTER TABLE risk_objects
     ADD COLUMN IF NOT EXISTS public_token VARCHAR(64);
 
 -- 存量行补随机 token（迁移幂等：仅空值行，64 位 hex 与模型默认一致）
+-- 2026-09-19 空库演练发现：原实现用 gen_random_bytes(32)（pgcrypto 扩展），
+-- 而全新库未安装该扩展 → UndefinedFunctionError。改用内置 gen_random_uuid()：
+-- uuid_send() 取 16 字节随机值，两段拼接即 32 字节 / 64 hex，无需任何扩展。
 UPDATE risk_objects
-   SET public_token = encode(gen_random_bytes(32), 'hex')
+   SET public_token = encode(uuid_send(gen_random_uuid()), 'hex')
+                   || encode(uuid_send(gen_random_uuid()), 'hex')
  WHERE public_token IS NULL OR public_token = '';
 
 ALTER TABLE risk_objects ALTER COLUMN public_token SET NOT NULL;
-ALTER TABLE risk_objects ALTER COLUMN public_token SET DEFAULT encode(gen_random_bytes(32), 'hex');
+ALTER TABLE risk_objects ALTER COLUMN public_token
+    SET DEFAULT encode(uuid_send(gen_random_uuid()), 'hex')
+             || encode(uuid_send(gen_random_uuid()), 'hex');
 CREATE UNIQUE INDEX IF NOT EXISTS uq_risk_objects_public_token ON risk_objects(public_token);
 
 -- 风险告知卡快照表

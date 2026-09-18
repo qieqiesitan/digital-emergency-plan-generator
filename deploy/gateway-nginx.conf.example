@@ -6,7 +6,12 @@
 #   2. alias 必须写【容器内】路径；写宿主机路径会 500 rewrite 重定向循环
 #   3. 容器内 proxy_pass 到宿主机服务必须用宿主机 IP（如 192.168.3.17），
 #      不能用 127.0.0.1（会指向容器自身）
+# 校验：改完执行  ./scripts/check-gateway-config.sh <本文件路径>
 # ============================================================
+
+# 上传体积：nginx 默认 1MB，会把 >1MB 的 Excel/PDF/图片上传直接挡成 413
+# （应用侧上限 20MB）。这里放到 25MB 留余量，与 backend/app/services/upload_guard.py 对齐。
+client_max_body_size 25m;
 
 # 无尾斜杠访问时 301 跳转
 location = /emergency-plan-migration {
@@ -37,9 +42,31 @@ location ^~ /emergency-plan-migration/assets/ {
 # API 代理（宿主机 backend 容器端口 8000）
 location /api/ {
     proxy_pass http://{{宿主机IP}}:8000/api/;
+
+    # ---- SSE（流式生成/对话）必需：不缓冲 + 长超时 ----
+    # 不关缓冲时 nginx 会攒满缓冲区才下发，前端"流式生成"会退化为"转圈到结束才出内容"；
+    # 默认 60s 的 proxy_read_timeout 还会把长生成掐成 502/504。
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    chunked_transfer_encoding on;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+    # 双保险说明：后端所有 SSE 响应都带 X-Accel-Buffering: no（见 app/services/sse_utils.py），
+    # nginx 原生识别该头并自动关闭缓冲——即使这里漏配 proxy_buffering off 也不会退化成"攒满才下发"。
+
+    # ---- 真实 IP 透传（审计日志/限流按真实来源计数）----
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 
 # 上传文件代理
 location /uploads/ {
     proxy_pass http://{{宿主机IP}}:8000/uploads/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }

@@ -9,7 +9,7 @@ from datetime import datetime, date
 from uuid import uuid4
 from typing import Optional
 
-from sqlalchemy import String, Boolean, DateTime, Date, Text, ForeignKey, UniqueConstraint, func
+from sqlalchemy import String, Boolean, DateTime, Date, Text, ForeignKey, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,7 +26,12 @@ class HazardChecklistTemplate(Base):
         kwargs.setdefault("items", [])
         super().__init__(**kwargs)
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    # 种子 INSERT 不写 id，需要库级默认值（gen_random_uuid()，与迁移 DDL 一致）：
+    # 只写 ORM default 时 create_all 建表没有该默认值 → 空库插入违反非空约束（2026-09-19 演练发现）
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()),
+        server_default=text("gen_random_uuid()"),
+    )
     enterprise_id: Mapped[Optional[str]] = mapped_column(
         UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)

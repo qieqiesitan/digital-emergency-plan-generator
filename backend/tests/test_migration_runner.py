@@ -103,6 +103,26 @@ class _FakeConn:
         self.executed.append(sql)
         return _FakeResult([])
 
+    async def exec_driver_sql(self, statement):
+        """迁移脚本走裸 SQL 通道（不解析绑定参数）；与 execute 同样记账。"""
+        sql = statement if isinstance(statement, str) else str(statement)
+        self.calls.append((sql, None))
+        if self.fail_lock and "pg_advisory_lock" in sql:
+            raise RuntimeError("advisory lock unavailable")
+        if "pg_advisory_lock" in sql or "pg_advisory_unlock" in sql:
+            return _FakeResult([])
+        if "CREATE TABLE IF NOT EXISTS schema_migrations" in sql:
+            return _FakeResult([])
+        if "SELECT script_name FROM schema_migrations" in sql:
+            return _FakeResult(sorted(self.applied))
+        if "INSERT INTO schema_migrations" in sql:
+            self.records.append(sql)
+            return _FakeResult([])
+        if self.fail_statement is not None and self.fail_statement in sql:
+            raise RuntimeError(f"script statement failed: {sql[:80]}")
+        self.executed.append(sql)
+        return _FakeResult([])
+
     def begin(self):
         return _FakeBegin(self)
 
@@ -518,6 +538,20 @@ async def test_apply_script_skips_begin_commit_wrappers(tmp_path):
     conn = _FakeConn()
     await mr._apply_script(conn, script_path)
     assert conn.executed == ["CREATE TABLE wrapped (id int)"]
+
+
+@pytest.mark.asyncio
+async def test_apply_script_passes_sql_through_without_bind_parsing(tmp_path):
+    """守护：含冒号的种子数据（JSONB '{"factor":0.5}'）不得被当成绑定参数。"""
+    script_path = tmp_path / "db_migration_colon.sql"
+    script_path.write_text(
+        "INSERT INTO t (code, value) VALUES ('measure_factors', '{\"factor\":0.5}');\n",
+        encoding="utf-8",
+    )
+    conn = _FakeConn()
+    await mr._apply_script(conn, script_path)
+    assert len(conn.executed) == 1
+    assert '{"factor":0.5}' in conn.executed[0]
 
 
 # ---------------------------------------------------------------------------
