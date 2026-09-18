@@ -34,6 +34,7 @@ from app.services.floor_plan_storage_service import save_floor_plan, remove_floo
 from app.services.enterprise_cleanup_service import delete_floor_risk_mapping, floor_delete_counts
 from app.services.four_color_recognizer import recognize_from_bytes, build_output_image
 from app.services.upload_guard import read_upload_capped
+from app.services.db_guard import release_request_connection
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enterprises/{enterprise_id}/risk-management", tags=["Risk Management"])
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
@@ -1011,6 +1012,7 @@ async def ai_dual_level_suggestion(enterprise_id: str, event_id: str,
         # 系统未配置 AI 模型 → 由服务兜底返回 available:false
         ai_config = None
     measures_text = "；".join(f"{m.measure_category}:{m.description}" for m in (event.measures or []))
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await suggest_dual_level(event.description or event.accident_type, measures_text, ai_config)
     return ApiResponse(data=result)
 
@@ -1260,6 +1262,7 @@ async def reset_risk_publicity_token(
 async def ai_suggest_objects(body: dict, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
     ai_config = await _get_ai_config(current_user.id, db)
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await suggest_objects(body.get("zone_name",""), body.get("zone_desc",""), body.get("enterprise_info",{}), ai_config, body.get("existing_names",[]))
     return ApiResponse(data=result)
 
@@ -1267,6 +1270,7 @@ async def ai_suggest_objects(body: dict, enterprise_id: str, current_user=Depend
 async def ai_suggest_events(body: dict, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
     ai_config = await _get_ai_config(current_user.id, db)
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await suggest_events(body.get("unit_name",""), body.get("unit_type",""), body.get("object_name",""), body.get("zone_name",""), body.get("enterprise_info",{}), ai_config)
     return ApiResponse(data=result)
 
@@ -1274,6 +1278,7 @@ async def ai_suggest_events(body: dict, enterprise_id: str, current_user=Depends
 async def ai_suggest_measures(body: dict, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
     ai_config = await _get_ai_config(current_user.id, db)
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await suggest_measures(body.get("accident_type",""), body.get("risk_level",""), body.get("unit_name",""), body.get("object_name",""), body.get("enterprise_info",{}), ai_config)
     return ApiResponse(data=result)
 
@@ -1286,13 +1291,29 @@ async def ai_smart_guide(body: SmartGuideRequest, enterprise_id: str, current_us
     zone_rows = (await db.execute(select(RiskZone.name).where(RiskZone.enterprise_id == enterprise_id))).scalars().all()
     object_rows = (await db.execute(select(RiskObject.name).where(RiskObject.enterprise_id == enterprise_id))).scalars().all()
     existing_names = {"zones": list(zone_rows), "objects": list(object_rows)}
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await smart_guide(body.description, info, ai_config, existing_names=existing_names)
-    return ApiResponse(data=SmartGuideResponse(hierarchy=result.get("zones",[]), summary=result.get("summary",{})))
+    # 容错：模型把 summary 写成自然语言或数字都很常见，原样塞进 SmartGuideResponse 会抛
+    # Pydantic 校验错 → 没有任何提示的 500（2026-09-19 mock 实测命中），交给归一函数处理。
+    from app.services.risk_ai_service import normalize_smart_guide_summary
+
+    summary = normalize_smart_guide_summary(result.get("summary"))
+    zones = result.get("zones")
+    if not isinstance(zones, list):
+        logger.warning("smart-guide 返回的 zones 不是列表（%s），按空处理", type(zones).__name__)
+        zones = []
+    try:
+        data = SmartGuideResponse(hierarchy=zones, summary=summary)
+    except Exception:
+        logger.exception("smart-guide 返回结构无法映射为 SmartGuideResponse")
+        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
+    return ApiResponse(data=data)
 
 @router.post("/ai/analyze-floor-plan")
 async def ai_analyze_floor_plan(body: dict, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
     await _get_ent(enterprise_id, current_user.id, db)
     ai_config = await _get_ai_config(current_user.id, db)
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await analyze_floor_plan(body.get("enterprise_info",{}), ai_config)
     return ApiResponse(data=result)
 
@@ -1317,6 +1338,7 @@ async def ai_migrate_preview(enterprise_id: str, current_user=Depends(get_curren
                 "risk_level": s.risk_level,
                 "description": s.description,
             } for s in old]
+            await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
             mappings = await migrate_preview(sources, ai_config)
     except HTTPException:
         mappings = []

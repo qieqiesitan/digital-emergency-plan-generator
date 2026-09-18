@@ -10,6 +10,7 @@ from app.models.resource_investigation import ResourceInvestigationReport
 from app.services.ai_config_service import get_system_ai_config
 from app.services.llm_client import llm_text_completion
 from app.services.risk_ai_service import _parse_ai_json
+from app.services.db_guard import release_request_connection
 
 MODULE_WEIGHTS = {
     "enterprise_info": 10,
@@ -148,6 +149,7 @@ async def extract_candidates(module: str, text: str, db) -> list[dict]:
         "输出严格 JSON：{\"items\": [...]}，不要输出其他文字。\n\n"
         f"资料内容：\n{text[:12000]}"
     )
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     raw = await llm_text_completion(
         [{"role": "system", "content": "你是结构化数据提取器，只输出 JSON。"},
          {"role": "user", "content": prompt}],
@@ -167,6 +169,7 @@ async def classify_modules(text: str, db) -> list[str]:
         "输出严格 JSON：{\"modules\": [\"module_key\", ...]}，只输出 JSON。\n\n"
         f"资料内容：\n{text[:12000]}"
     )
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     raw = await llm_text_completion(
         [{"role": "system", "content": "你是企业资料分类器，只输出 JSON。"},
          {"role": "user", "content": prompt}],
@@ -198,6 +201,7 @@ async def generate_org_candidates(enterprise_info: dict, db) -> list[dict]:
         "\"responsibilities\": \"...\", \"members\": [{\"role\": \"总指挥\", \"name\": \"\", \"position\": \"\", \"phone\": \"\"}]}]}，只输出 JSON。\n\n"
         f"企业概况：\n{ent_text}"
     )
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     raw = await llm_text_completion(
         [{"role": "system", "content": "你是应急预案编制专家，只输出 JSON。"},
          {"role": "user", "content": prompt}],

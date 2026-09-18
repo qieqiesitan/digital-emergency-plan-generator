@@ -20,6 +20,7 @@ from app.regulations.sync import (
     ai_parse, ingest_regulation, log_event, get_history, get_source_files,
     extract_text, save_source_file, rebuild_index_with_ai,
 )
+from app.services.db_guard import release_request_connection
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +271,7 @@ async def parse_regulation(
         if not articles:
             try:
                 from app.regulations.sync import _ai_extract_articles
+                await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
                 articles = await _ai_extract_articles(raw_text, ai_config)
             except Exception as ex:
                 logger.warning("LLM article extraction fallback failed: %s", ex)

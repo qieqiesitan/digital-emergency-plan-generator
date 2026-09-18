@@ -31,6 +31,7 @@ from app.services.enterprise_org_service import (
     validate_org_tree,
 )
 
+from app.services.db_guard import release_request_connection
 router = APIRouter(prefix="/enterprises/{enterprise_id}/org", tags=["Enterprise Org"])
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,7 @@ async def ai_suggest_org_tree(
         "employee_count": ent.employee_count,
         "org_structure": ent.org_structure or [],
     }
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await suggest_org_tree(
         enterprise_info,
         ai_config,

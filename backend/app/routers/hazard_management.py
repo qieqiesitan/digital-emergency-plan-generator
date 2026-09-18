@@ -97,6 +97,7 @@ from app.services.hazard_ai_service import (
 from app.services.hazard_service import next_hazard_code
 from app.services.hazard_state_machine import apply_transition
 from app.services.risk_ai_service import _get_ai_config
+from app.services.db_guard import release_request_connection
 
 
 router = APIRouter(prefix="/enterprises/{enterprise_id}/hazard-inspection", tags=["Hazard Management"])
@@ -1122,6 +1123,7 @@ async def ai_checklist_template(
     except HTTPException:
         # 系统未配置 AI 模型 → 由服务兜底 available:false（与 risk_management 惯例一致）
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await generate_checklist_template(industry, risk_points, ai_config)
     return ApiResponse(data=result)
 
@@ -1558,6 +1560,7 @@ async def ai_record_assist(
     except HTTPException:
         # 系统未配置 AI 模型 → 由服务兜底 available:false（与既有 AI 端点惯例一致）
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await record_assist(description, ai_config, object_id=body.object_id, measure_id=body.measure_id)
     return ApiResponse(data=result)
 
@@ -1858,6 +1861,7 @@ async def ai_grade_suggestion(
     except HTTPException:
         # 系统未配置 AI 模型 → 由服务兜底 available:false（与既有 AI 端点惯例一致）
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await ai_grade(
         description, ai_config,
         judgment_points=body.judgment_points,
@@ -1887,6 +1891,7 @@ async def ai_governance_plan_draft(
         ai_config = await _get_ai_config(current_user.id, db)
     except HTTPException:
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await ai_governance_plan(
         description, ai_config,
         judgment_points=body.judgment_points,
@@ -1921,6 +1926,7 @@ async def ai_plan_builder(
     except HTTPException:
         # 系统未配置 AI 模型 → 由服务兜底 available:false（与既有 AI 端点惯例一致）
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await build_inspection_plans(areas, frequency_preference, ai_config)
     return ApiResponse(data=result)
 
@@ -1947,6 +1953,7 @@ async def ai_schedule_suggestion(
         ai_config = await _get_ai_config(current_user.id, db)
     except HTTPException:
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await suggest_schedule(
         plan_draft, ai_config,
         zone_risk_hints=body.zone_risk_hints,
@@ -1975,6 +1982,7 @@ async def ai_checklist_suggestion(
         ai_config = await _get_ai_config(current_user.id, db)
     except HTTPException:
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await suggest_checklist_items(task_context, ai_config)
     return ApiResponse(data=result)
 
@@ -2003,6 +2011,7 @@ async def ai_setup_wizard(
         ai_config = await _get_ai_config(current_user.id, db)
     except HTTPException:
         ai_config = None
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     result = await run_setup_wizard(
         industry,
         areas,

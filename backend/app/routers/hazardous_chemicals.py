@@ -14,6 +14,7 @@ from app.schemas.hazardous_chemicals import (
     HazardousChemicalResponse,
 )
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
+from app.services.db_guard import release_request_connection
 
 router = APIRouter(prefix="/enterprises", tags=["Hazardous Chemicals"])
 
@@ -225,6 +226,7 @@ async def get_chemical_ai_questions(
 只输出 JSON，不要任何解释或额外文本。"""
 
     try:
+        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
         raw = await llm_text_completion(
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             ai_config,
@@ -325,6 +327,7 @@ async def generate_chemicals_ai(
 只输出 JSON，不要任何解释。"""
 
     try:
+        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
         raw = await llm_text_completion(
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             ai_config,

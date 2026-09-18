@@ -35,6 +35,7 @@ from app.schemas.common import ApiResponse
 
 from app.dependencies import get_current_user
 from app.services.upload_guard import read_upload_capped
+from app.services.db_guard import release_request_connection
 
 
 
@@ -552,6 +553,7 @@ async def get_risk_ai_questions(
 
     try:
 
+        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
         raw = await llm_text_completion(
 
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
@@ -726,6 +728,7 @@ async def generate_risk_sources_ai(
 
     try:
 
+        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
         raw = await llm_text_completion(
 
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],

@@ -14,6 +14,7 @@ from app.dependencies import get_current_user
 from app.services.llm_client import llm_text_completion
 from app.services.prompt_cache import ensure_loaded
 from app.services.third_party_config import get_third_party_config
+from app.services.db_guard import release_request_connection
 
 router = APIRouter(prefix="/enterprises", tags=["Surrounding AI"])
 
@@ -229,6 +230,7 @@ async def get_surrounding_ai_questions(
 每个板块至少 2 个问题。只输出 JSON，不要任何解释。"""
 
     try:
+        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
         raw = await llm_text_completion(
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             ai_config,
@@ -328,6 +330,7 @@ async def generate_surrounding_ai(
 只输出 JSON，不要任何解释。"""
 
     try:
+        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
         raw = await llm_text_completion(
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             ai_config,

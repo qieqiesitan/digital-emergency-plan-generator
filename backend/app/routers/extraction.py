@@ -1,6 +1,5 @@
 """抽取 API：列映射建议、触发抽取、上传解析。"""
 
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -14,6 +13,7 @@ from app.services.extraction_prompts import ENTITY_SCHEMAS, ExtractionSchemaErro
 from app.services.extraction_service import extract_candidates
 from app.services.file_parser import parse_file_text
 from app.services.schema_matching import suggest_mapping
+from app.services.db_guard import release_request_connection
 
 router = APIRouter(prefix="/extraction", tags=["Extraction"], dependencies=[Depends(require_admin)])
 
@@ -26,6 +26,7 @@ def _ok(data):
 async def api_suggest_mapping(payload: SuggestMappingIn, db: AsyncSession = Depends(get_db)):
     """给出「表格列 → 目标字段」的映射建议。AI 不可用时退回精确匹配。"""
     ai_config = await get_system_ai_config(db)
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     out = await suggest_mapping(
         headers=payload.headers, target_entity=payload.target_entity, ai_config=ai_config
     )

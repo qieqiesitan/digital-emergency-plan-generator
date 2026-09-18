@@ -9,6 +9,7 @@ from app.models.enterprise import AIConfig
 from app.models.chat import ChatConversation, ChatMessage
 from app.dependencies import get_current_user
 from app.services.llm_client import llm_chat_completion, llm_collect_all, LLMError
+from app.services.db_guard import release_request_connection
 from app.services.markdown_utils import md_to_html
 from app.services.mermaid_renderer import render_mermaid_svg
 from app.schemas.chat import ChatRequest, ConversationResponse, MessageResponse
@@ -582,6 +583,11 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         logger.exception("用户偏好加载失败，回退默认 system prompt")
     messages = truncate_by_token_budget(messages)
 
+    # 推理前先把手里的数据库连接还给连接池：请求级会话执行过 SELECT 就会一直占着
+    # 连接（idle in transaction），而 LLM 要等几十秒。压测实测 24 个并发聊天会把
+    # 单 worker 的池（5+10）占满，导致同 worker 的其它请求排队 30s 后 500。
+    await release_request_connection(db)
+
     # 第一轮 LLM 调用
     try:
         llm_resp = await _call_llm(messages, ai_config)
@@ -677,6 +683,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
                 current_msgs.append({"role": "user", "content": "请检查上述操作结果（verified表示成功）。如需继续调用函数完成用户任务，请继续；如果任务已完成，请直接总结汇报。"})
 
             # 下一轮 LLM 调用
+            await release_request_connection(db)   # 本轮工具可能又开了事务，推理前先还连接
             try:
                 next_resp = await _call_llm(current_msgs, ai_config)
             except Exception as e:
@@ -694,6 +701,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
             if not next_tool_calls:
                 # 任务完成，流式输出最终总结
                 final_msgs = current_msgs + [{"role": "user", "content": "请直接用自然语言总结所有操作结果。每个操作说明是否成功（verified字段）。"}]
+                await release_request_connection(db)
                 try:
                     async for chunk in _call_llm_stream(final_msgs, ai_config):
                         final_text += chunk
@@ -713,6 +721,7 @@ async def chat(body: ChatRequest, current_user=Depends(get_current_user), db=Dep
         remaining = [tc.get("function", {}).get("name", "") for tc in pending_tool_calls]
         final_msgs = current_msgs + [{"role": "user",
                                       "content": _build_final_summary_prompt(done_names, remaining)}]
+        await release_request_connection(db)
         try:
             async for chunk in _call_llm_stream(final_msgs, ai_config):
                 final_text += chunk

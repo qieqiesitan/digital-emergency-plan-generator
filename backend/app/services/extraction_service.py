@@ -22,6 +22,7 @@ from app.services.extraction_prompts import (
 )
 from app.services.ingest_service import build_idempotency_key, create_item
 from app.services.llm_client import llm_text_completion
+from app.services.db_guard import release_request_connection
 
 logger = logging.getLogger("extraction_service")
 
@@ -116,6 +117,7 @@ async def extract_candidates(
 ) -> dict:
     """抽取并落队列。返回 {queued, skipped, invalid}。"""
     messages = build_messages(target_entity=target_entity, text=text, source_hint=filename)
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     raw = await llm_text_completion(messages, ai_config, timeout=timeout,
                                     module="major_hazard", capability="major_hazard_extract")
     try:

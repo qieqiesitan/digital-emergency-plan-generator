@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.risk_ai_service import _get_ai_config
 from app.services.llm_client import llm_text_completion
 from app.schemas.risk_notice_card import RightColumn
+from app.services.db_guard import release_request_connection
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ async def optimize_right_column(
         {"role": "system", "content": "你是安全生产专家。"},
         {"role": "user", "content": prompt},
     ]
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     raw = await llm_text_completion(messages, ai_config, timeout=60)
     try:
         data = _parse_optimized_json(raw)
@@ -100,6 +102,7 @@ async def review_signs(
         {"role": "system", "content": "你是安全生产专家。"},
         {"role": "user", "content": prompt},
     ]
+    await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
     raw = await llm_text_completion(messages, ai_config, timeout=60)
     try:
         data = _parse_optimized_json(raw)
