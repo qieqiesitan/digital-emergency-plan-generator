@@ -75,6 +75,22 @@ export const actOnNode = (
     )
     .then((r) => r.data.data);
 
+/**
+ * 生命周期推进（企业主）：开始作业 / 完工 / 归档 / 作废。
+ * 与审批节点动作（actOnNode）语义不同：这里推进的是作业过程状态。
+ */
+export const transitionTicket = (
+  ticketId: string,
+  payload: { action: "start" | "finish" | "close" | "cancel"; opinion?: string },
+) =>
+  api
+    .post<ApiResponse<{ instance_id: string; action: string; from_status: string; status: string }>>(
+      `${BASE}/tickets/${ticketId}/transition`,
+      payload,
+      { skipGlobalError: true },
+    )
+    .then((r) => r.data.data);
+
 /** 从 axios 错误里取后端可读文案（提交/审批失败时用）。 */
 export function errorDetail(err: unknown, fallback: string): string {
   const data = (err as { response?: { data?: { detail?: unknown; message?: unknown } } })

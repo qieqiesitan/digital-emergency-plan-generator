@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, App as AntApp, Button, Card, Descriptions, Space, Table, Tag, Timeline, Typography } from "antd";
+import {
+  Alert,
+  App as AntApp,
+  Button,
+  Card,
+  Descriptions,
+  Popconfirm,
+  Space,
+  Table,
+  Tag,
+  Timeline,
+  Typography,
+} from "antd";
 import type { TableColumnsType } from "antd";
 import { PrinterOutlined, SendOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +24,7 @@ import {
   getTicketDetail,
   listTemplates,
   submitTicket,
+  transitionTicket,
 } from "@/services/workTicketService";
 import type { GasTestRecord, WorkTicketMeasureDef } from "@/types/workTicket";
 import {
@@ -104,6 +117,25 @@ export default function WorkTicketDetailPage() {
     }
   };
 
+  /** 生命周期推进：开始作业 / 完工 / 归档 / 作废（企业主）。 */
+  const handleTransition = async (
+    action: "start" | "finish" | "close" | "cancel",
+    label: string,
+  ) => {
+    if (!ticket) return;
+    setSubmitting(true);
+    try {
+      const res = await transitionTicket(ticket.id, { action });
+      message.success(`${label}成功，当前状态：${TICKET_STATUS_LABEL[res.status] ?? res.status}`);
+      await qc.invalidateQueries({ queryKey: ["work-ticket-detail", ticketId] });
+      await qc.invalidateQueries({ queryKey: ["work-ticket-tickets", id] });
+    } catch (err) {
+      message.error(errorDetail(err, `${label}失败`));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const measureColumns: TableColumnsType<WorkTicketMeasureDef> = [
     { title: "序号", dataIndex: "sort_order", width: 70 },
     { title: "安全措施", dataIndex: "measure_text" },
@@ -157,6 +189,47 @@ export default function WorkTicketDetailPage() {
               >
                 提交审批
               </Button>
+            )}
+            {ticket?.status === "approved" && (
+              <Button
+                type="primary"
+                loading={submitting}
+                onClick={() => void handleTransition("start", "开始作业")}
+              >
+                开始作业
+              </Button>
+            )}
+            {ticket?.status === "working" && (
+              <Button
+                type="primary"
+                loading={submitting}
+                onClick={() => void handleTransition("finish", "完工")}
+              >
+                完工
+              </Button>
+            )}
+            {ticket?.status === "finished" && (
+              <Button
+                type="primary"
+                loading={submitting}
+                onClick={() => void handleTransition("close", "归档")}
+              >
+                归档
+              </Button>
+            )}
+            {["draft", "submitted", "approving", "approved"].includes(ticket?.status ?? "") && (
+              <Popconfirm
+                title="确认作废这张作业票？"
+                description="作废后不可恢复，需重新开票。"
+                okText="作废"
+                okButtonProps={{ danger: true }}
+                cancelText="取消"
+                onConfirm={() => void handleTransition("cancel", "作废")}
+              >
+                <Button danger loading={submitting}>
+                  作废
+                </Button>
+              </Popconfirm>
             )}
             <Button icon={<PrinterOutlined />} onClick={handlePrint} disabled={!ticket}>
               打印票面
@@ -231,21 +304,46 @@ export default function WorkTicketDetailPage() {
             <Text type="secondary">尚未产生审批记录。</Text>
           ) : (
             <Timeline
-              items={(data?.node_records ?? []).map((r) => ({
-                color: r.action === "reject" ? "red" : "green",
-                children: (
-                  <Space orientation="vertical" size={2}>
-                    <Text strong>
-                      {nodeLabel(r.node_key, approver)} · {r.action === "approve" ? "同意" : "退回"}
-                    </Text>
-                    {r.opinion && <Text type="secondary">意见：{r.opinion}</Text>}
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {r.acted_by ? `${r.acted_by} · ` : ""}
-                      {r.created_at ? dayjs(r.created_at).format("YYYY-MM-DD HH:mm") : ""}
-                    </Text>
-                  </Space>
-                ),
-              }))}
+              items={(data?.audit_logs ?? []).map((a) => {
+                const rejected = a.action === "reject" || a.action === "cancel";
+                const label =
+                  a.action === "open"
+                    ? "开票"
+                    : a.action === "submit"
+                      ? "提交审批"
+                      : a.action === "approve"
+                        ? `审批通过（${nodeLabel(
+                            (a.detail?.node as string | undefined) ?? undefined,
+                            approver,
+                          )}）`
+                        : a.action === "reject"
+                          ? "退回"
+                          : a.action === "start"
+                            ? "开始作业"
+                            : a.action === "finish"
+                              ? "完工"
+                              : a.action === "close"
+                                ? "归档"
+                                : a.action === "cancel"
+                                  ? "作废"
+                                  : a.action === "expire"
+                                    ? "已过期"
+                                    : a.action;
+                return {
+                  color: rejected ? "red" : "green",
+                  children: (
+                    <Space orientation="vertical" size={2}>
+                      <Text strong>{label}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {a.from_status ? `${TICKET_STATUS_LABEL[a.from_status] ?? a.from_status} → ` : ""}
+                        {a.to_status ? TICKET_STATUS_LABEL[a.to_status] ?? a.to_status : ""}
+                        {a.acted_by ? ` · ${a.acted_by}` : ""}
+                        {a.created_at ? ` · ${dayjs(a.created_at).format("YYYY-MM-DD HH:mm")}` : ""}
+                      </Text>
+                    </Space>
+                  ),
+                };
+              })}
             />
           )}
         </Card>

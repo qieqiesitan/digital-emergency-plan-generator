@@ -181,10 +181,22 @@ export interface WorkTicketNodeRecord {
   created_at?: string | null;
 }
 
+/** 全量流转留痕（开票/提交/审批/开始作业/完工/归档/作废/过期）。 */
+export interface WorkTicketAuditLog {
+  id: string;
+  action: string;
+  from_status?: string | null;
+  to_status?: string | null;
+  detail?: Record<string, unknown>;
+  acted_by?: string | null;
+  created_at?: string | null;
+}
+
 export interface WorkTicketDetail {
   ticket: WorkTicketInstance;
   gas_tests: GasTestRecord[];
   node_records: WorkTicketNodeRecord[];
+  audit_logs: WorkTicketAuditLog[];
 }
 
 export interface OpenTicketPayload {
