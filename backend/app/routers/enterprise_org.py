@@ -32,6 +32,7 @@ from app.services.enterprise_org_service import (
 )
 
 from app.services.db_guard import release_request_connection
+from app.services.member_position_service import positions_by_member, sync_member_positions
 router = APIRouter(prefix="/enterprises/{enterprise_id}/org", tags=["Enterprise Org"])
 logger = logging.getLogger(__name__)
 
@@ -201,18 +202,23 @@ async def create_member(
         )).first()
         if exists:
             raise HTTPException(409, "该用户已是企业成员")
-        payload = body.model_dump(exclude_none=True)
+        payload = body.model_dump(exclude_none=True, exclude={"extra_node_ids"})
         payload["name"] = body.name or (user.name or "")
         payload.setdefault("email", user.email)
     else:
         if not body.name.strip():
             raise HTTPException(422, "未绑定账号时姓名必填")
-        payload = body.model_dump(exclude_none=True)
+        payload = body.model_dump(exclude_none=True, exclude={"extra_node_ids"})
     member = EnterpriseMember(enterprise_id=enterprise_id, **payload)
     db.add(member)
+    await db.flush()
+    # 任职关系落在 member_positions：主岗 org_node_id + 兼岗 extra_node_ids
+    await sync_member_positions(db, member, body.org_node_id, body.extra_node_ids)
     await db.commit()
     await db.refresh(member)
-    return ApiResponse(data=MemberResponse.model_validate(member))
+    response = MemberResponse.model_validate(member)
+    response.positions = (await positions_by_member(db, enterprise_id, [member.id])).get(member.id, [])
+    return ApiResponse(data=response)
 
 
 @router.put("/members/{member_id}", response_model=ApiResponse[MemberResponse])
@@ -226,6 +232,8 @@ async def update_member(
     await _get_owned_ent(enterprise_id, current_user.id, db)
     member = await _get_member(enterprise_id, member_id, db)
     updates = body.model_dump(exclude_unset=True)
+    extra_node_ids = updates.pop("extra_node_ids", None)
+    touches_positions = "org_node_id" in updates or extra_node_ids is not None
     # role/enabled 为 NOT NULL 列，显式 null 会导致提交时 500，直接拒绝；
     # position/org_node_id 保留显式 null 的清空语义。
     for key in ("role", "enabled"):
@@ -233,9 +241,13 @@ async def update_member(
             raise HTTPException(422, f"{key} 不能为 null")
     for key, value in updates.items():
         setattr(member, key, value)
+    if touches_positions:
+        await sync_member_positions(db, member, member.org_node_id, extra_node_ids or [])
     await db.commit()
     await db.refresh(member)
-    return ApiResponse(data=MemberResponse.model_validate(member))
+    response = MemberResponse.model_validate(member)
+    response.positions = (await positions_by_member(db, enterprise_id, [member.id])).get(member.id, [])
+    return ApiResponse(data=response)
 
 
 @router.delete("/members/{member_id}")
@@ -267,6 +279,8 @@ async def list_members(
         .where(EnterpriseMember.enterprise_id == enterprise_id)
         .order_by(EnterpriseMember.created_at)
     )).all()
+    # 一次批量查询任职，避免逐成员 N+1
+    positions = await positions_by_member(db, enterprise_id, [m.id for m, _ in rows])
     items = [
         MemberResponse(
             id=m.id,
@@ -276,6 +290,7 @@ async def list_members(
             name=m.name or (u.name if u else None),
             phone=m.phone,
             org_node_id=m.org_node_id,
+            positions=positions.get(m.id, []),
             position=m.position,
             role=m.role,
             enabled=m.enabled,
@@ -424,7 +439,7 @@ async def import_members(
                 continue
         dept_id = _find_or_create_org_node(nodes, "dept", item["department"], None)
         team_id = _find_or_create_org_node(nodes, "team", item["team"], dept_id) if item["team"] else None
-        db.add(EnterpriseMember(
+        member = EnterpriseMember(
             enterprise_id=enterprise_id,
             user_id=user.id if user else None,
             name=item["name"],
@@ -432,7 +447,11 @@ async def import_members(
             org_node_id=team_id or dept_id,
             position=item["position"] or None,
             role=item["role"],
-        ))
+        )
+        db.add(member)
+        await db.flush()
+        # 导入的部门/班组即主岗，写入任职表（与手动新增走同一写入口）
+        await sync_member_positions(db, member, team_id or dept_id, [])
         imported += 1
         if user:
             imported_user_ids.add(user.id)

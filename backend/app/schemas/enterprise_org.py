@@ -36,6 +36,8 @@ class MemberCreate(BaseModel):
     phone: str | None = None
     email: str | None = None
     org_node_id: str | None = None
+    # 兼岗节点：主岗仍用 org_node_id，额外任职放这里（写 member_positions）
+    extra_node_ids: list[str] = Field(default_factory=list)
     position: str | None = None
     role: Literal["enterprise_admin", "team_leader", "member"] = "member"
 
@@ -45,6 +47,8 @@ class MemberUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     org_node_id: str | None = None
+    # None 语义 = 不改任职；传数组则整体替换兼岗（主岗仍由 org_node_id 决定）
+    extra_node_ids: list[str] | None = None
     position: str | None = None
     role: Literal["enterprise_admin", "team_leader", "member"] | None = None
     enabled: bool | None = None
@@ -58,6 +62,8 @@ class MemberResponse(BaseModel):
     name: str | None = None
     phone: str | None = None
     org_node_id: str | None = None
+    # 全部任职（主岗 + 兼岗），由 member_positions 提供，按主岗优先排序
+    positions: list[dict] = Field(default_factory=list)
     position: str | None = None
     role: str
     enabled: bool
