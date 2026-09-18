@@ -70,9 +70,12 @@ async def list_risk_sources(enterprise_id: str, page: int = Query(1, ge=1), page
     items = [RiskSourceResponse.model_validate(r) for r in rows]
     return PaginatedResponse(data=PaginatedData(items=items, total=total, page=page, page_size=page_size))
 
-@router.get("/{enterprise_id}/risk-sources/{risk_id}", response_model=ApiResponse[RiskSourceResponse])
-async def get_risk_source(enterprise_id: str, risk_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
-    r = (await db.execute(select(RiskSource).where(RiskSource.id == risk_id, RiskSource.enterprise_id == enterprise_id))).scalar_one_or_none()
+# ⚠ 同 resources：详情路由必须约束 `risk_id` 为 UUID，否则会把
+# `/enterprises/{id}/risk-sources/template` 抢先匹配（"template" 当 UUID → 422），
+# 风险源导入模板下载不可用（2026-09-18 实测复现并修复）。
+@router.get("/{enterprise_id}/risk-sources/{risk_id:uuid}", response_model=ApiResponse[RiskSourceResponse])
+async def get_risk_source(enterprise_id: str, risk_id: uuid_lib.UUID, current_user=Depends(get_current_user), db=Depends(get_db)):
+    r = (await db.execute(select(RiskSource).where(RiskSource.id == str(risk_id), RiskSource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "����Դ������")
     return ApiResponse(data=RiskSourceResponse.model_validate(r))
 
@@ -87,9 +90,9 @@ async def create_risk_source(enterprise_id: str, data: RiskSourceCreate, current
     _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=RiskSourceResponse.model_validate(r))
 
-@router.put("/{enterprise_id}/risk-sources/{risk_id}", response_model=ApiResponse[RiskSourceResponse])
-async def update_risk_source(enterprise_id: str, risk_id: str, data: RiskSourceUpdate, current_user=Depends(get_current_user), db=Depends(get_db)):
-    r = (await db.execute(select(RiskSource).where(RiskSource.id == risk_id, RiskSource.enterprise_id == enterprise_id))).scalar_one_or_none()
+@router.put("/{enterprise_id}/risk-sources/{risk_id:uuid}", response_model=ApiResponse[RiskSourceResponse])
+async def update_risk_source(enterprise_id: str, risk_id: uuid_lib.UUID, data: RiskSourceUpdate, current_user=Depends(get_current_user), db=Depends(get_db)):
+    r = (await db.execute(select(RiskSource).where(RiskSource.id == str(risk_id), RiskSource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "����Դ������")
     for k, v in data.model_dump(exclude_none=True).items():
         if k == "categories":
@@ -100,9 +103,9 @@ async def update_risk_source(enterprise_id: str, risk_id: str, data: RiskSourceU
     _schedule_enterprise_index_rebuild(enterprise_id)
     return ApiResponse(data=RiskSourceResponse.model_validate(r))
 
-@router.delete("/{enterprise_id}/risk-sources/{risk_id}")
-async def delete_risk_source(enterprise_id: str, risk_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
-    r = (await db.execute(select(RiskSource).where(RiskSource.id == risk_id, RiskSource.enterprise_id == enterprise_id))).scalar_one_or_none()
+@router.delete("/{enterprise_id}/risk-sources/{risk_id:uuid}")
+async def delete_risk_source(enterprise_id: str, risk_id: uuid_lib.UUID, current_user=Depends(get_current_user), db=Depends(get_db)):
+    r = (await db.execute(select(RiskSource).where(RiskSource.id == str(risk_id), RiskSource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "����Դ������")
     await db.delete(r); await db.commit()
     _schedule_enterprise_index_rebuild(enterprise_id)

@@ -224,7 +224,8 @@ async def download_risk_source_template(
 
     # Add a sample row
 
-    sample = ["火灾", "原料仓库", "仓库东区", "大量可燃物堆积，电气线路老化风险", "中", "高", "定期巡检，安装烟雾报警和自动喷淋"]
+    # 示例行（自标识）：导入时按「【示例】」前缀跳过，避免示例数据被整批导进真实台账
+    sample = ["火灾", "【示例】原料仓库", "仓库东区", "大量可燃物堆积，电气线路老化风险", "中", "高", "定期巡检，安装烟雾报警和自动喷淋"]
 
     for col, val in enumerate(sample, 1):
 
@@ -272,6 +273,9 @@ class ImportPreviewResponse(BaseModel):
 
     error_count: int
 
+    # 模板自带的示例行会被跳过并在预览里计数（不静默消失，也不计入 error）
+    skipped_examples: int = 0
+
 
 
 @router.post("/{enterprise_id}/risk-sources/import", response_model=ApiResponse[ImportPreviewResponse])
@@ -311,6 +315,8 @@ async def import_risk_sources(
 
     items: list[ImportPreviewItem] = []
 
+    skipped_examples = 0
+
 
 
     valid_likelihood = {"高", "中", "低"}
@@ -325,6 +331,11 @@ async def import_risk_sources(
 
         if not row or not any(cell for cell in row):
 
+            continue
+
+        # 模板示例行（名称带【示例】）不参与导入：前端会把所有有效行整批落库
+        if "【示例】" in str(row[1] or ""):
+            skipped_examples += 1
             continue
 
 
@@ -417,7 +428,7 @@ async def import_risk_sources(
 
 
 
-    return ApiResponse(data=ImportPreviewResponse(items=items, valid_count=valid_count, error_count=error_count))
+    return ApiResponse(data=ImportPreviewResponse(items=items, valid_count=valid_count, error_count=error_count, skipped_examples=skipped_examples))
 
 
 
