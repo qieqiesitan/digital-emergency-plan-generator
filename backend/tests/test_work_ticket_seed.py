@@ -13,10 +13,10 @@ def _load(name: str, rel: str):
     return mod
 
 
-def test_seed_data_covers_two_types_with_levels():
+def test_seed_data_covers_eight_types_with_levels():
     mod = _load("wt_seed", "backend/app/services/work_ticket_seed_data.py")
     codes = {t["code"] for t in mod.TEMPLATES}
-    assert codes == {"DHZY", "YXKJ"}, "计划 8 只做动火与受限空间"
+    assert codes == {"DHZY", "YXKJ", "MBCD", "GCZY", "QZDZ", "LSYD", "PTZY", "DLZY"}
     dhzy_levels = {t["level"] for t in mod.TEMPLATES if t["code"] == "DHZY"}
     assert dhzy_levels == {"特级", "一级", "二级"}, "动火票按等级分三种模板"
 
