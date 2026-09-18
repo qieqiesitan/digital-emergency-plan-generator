@@ -1,13 +1,11 @@
 import React, { useState } from "react";
 import { Button, Input, Space, Typography, List } from "antd";
 import { UndoOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import type { PlanAdvancedPromptOverrides } from "@/types/plan";
 
 const { Text } = Typography;
 
-export interface AdvancedPromptOverrides {
-  system_prompt_override: string;
-  section_overrides: Record<string, string>;
-}
+export type AdvancedPromptOverrides = PlanAdvancedPromptOverrides;
 
 interface AdvancedStylePanelProps {
   value: AdvancedPromptOverrides | null;

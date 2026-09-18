@@ -28,8 +28,25 @@ export interface PlanCreate {
   version_number?: string | null;
 }
 
+/** 预案风格参数（API 契约单一来源，组件侧 `StylePreference` 是它的别名） */
+export interface PlanStylePreference {
+  formality: "formal" | "standard" | "practical";
+  detail_level: "concise" | "balanced" | "comprehensive";
+  table_preference: "minimal" | "moderate" | "heavy";
+  diagram_preference: "none" | "mermaid";
+  mode: "panel" | "advanced";
+}
+
+/** 高级模式提示词覆盖（组件侧 `AdvancedPromptOverrides` 是它的别名） */
+export interface PlanAdvancedPromptOverrides {
+  system_prompt_override: string;
+  section_overrides: Record<string, string>;
+}
+
 export interface PlanUpdate {
   title?: string;
+  style_preference?: PlanStylePreference | null;
+  advanced_prompt_overrides?: PlanAdvancedPromptOverrides | null;
 }
 
 export interface PlanSection {

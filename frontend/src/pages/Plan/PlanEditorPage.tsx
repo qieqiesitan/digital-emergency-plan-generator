@@ -22,6 +22,13 @@ import { DEFAULT_STYLE, type StylePreference } from "@/components/plan/stylePref
 import type { PlanSection, SectionTemplate } from "@/types/plan";
 import type { SSEEvent } from "@/types/plan";
 import { isAiNotConfiguredError } from "@/utils/aiUnavailable";
+
+declare global {
+  interface Window {
+    /** 后台生成流控制器（供离开页面/重复触发时中止上一次生成） */
+    __genController?: AbortController | null;
+  }
+}
 import {
   planPreviewUrl,
   planVersionsUrl,
@@ -382,12 +389,12 @@ export default function PlanEditorPage() {
     );
 
     // Store controller for potential cancel
-    (window as any).__genController = controller;
+              window.__genController = controller;
   }, [id, sections, queryClient, saveMutation, isGenerating, reportGenerationError]);
 
   const handleStopGeneration = useCallback(() => {
-    (window as any).__genController?.abort();
-    (window as any).__genController = null;
+              window.__genController?.abort();
+              window.__genController = null;
     if (id) stopGeneration(id).catch(() => {});
     setIsGenerating(false);
     setGeneratingSections(new Set());
@@ -675,7 +682,7 @@ export default function PlanEditorPage() {
       <Modal title="创作风格" open={styleModalOpen} onCancel={() => setStyleModalOpen(false)} footer={null} width={520} destroyOnHidden>
         {styleMode === "panel" ? (
           <StylePanel value={stylePreference}
-            onChange={(sp) => { setStylePreference(sp); updatePlan(id!, { style_preference: sp } as any).catch(() => {}); }}
+            onChange={(sp) => { setStylePreference(sp); updatePlan(id!, { style_preference: sp }).catch(() => {}); }}
             onPreview={() => { const s = sections && sections[0]; if (s && id) { generateBatchStream(id!, [s.section_key], () => {}, (err: string) => reportGenerationError(err), () => {}); setStyleModalOpen(false); } }}
             onSwitchToAdvanced={() => setStyleMode("advanced")}
             showAdvanced />
@@ -683,7 +690,7 @@ export default function PlanEditorPage() {
           <AdvancedStylePanel value={advancedOverrides}
             sections={(sections || []).map(s => ({ key: s.section_key, title: s.title }))}
             defaultSystemPrompt="你是一位持有国家注册安全工程师资格的应急预案编制专家..."
-            onChange={(ao) => { setAdvancedOverrides(ao); updatePlan(id!, { style_preference: { ...stylePreference, mode: "advanced" }, advanced_prompt_overrides: ao } as any).catch(() => {}); }}
+            onChange={(ao) => { setAdvancedOverrides(ao); updatePlan(id!, { style_preference: { ...stylePreference, mode: "advanced" }, advanced_prompt_overrides: ao }).catch(() => {}); }}
             onExit={() => setStyleMode("panel")} />
         )}
       </Modal>

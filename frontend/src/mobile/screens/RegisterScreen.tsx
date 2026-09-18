@@ -8,6 +8,7 @@ import Button from "@/mobile/components/ui/Button";
 import Chip from "@/mobile/components/ui/Chip";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import { useToast } from "@/mobile/components/ui/useToast";
+import { errorMessage } from "@/utils/errorMessage";
 
 export default function RegisterScreen() {
   const navigate = useNavigate();
@@ -40,9 +41,8 @@ export default function RegisterScreen() {
         password_confirm: passwordConfirm,
       });
       navigate("/m/dashboard", { replace: true });
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message || err?.message || "注册失败，请重试";
+    } catch (err) {
+      const msg = errorMessage(err, "注册失败，请重试");
       showToast({ type: "error", message: msg });
     } finally {
       setIsSubmitting(false);

@@ -10,6 +10,8 @@ import {
   Transformer,
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
+import type { Node as KonvaNode } from "konva/lib/Node";
+import type { Transformer as KonvaTransformer } from "konva/lib/shapes/Transformer";
 import { Modal, Input, InputNumber, Button, Space } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { useRiskMappingWorkbenchStore } from "@/store/riskMappingWorkbenchStore";
@@ -131,11 +133,11 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
   const [editFontSize, setEditFontSize] = useState(14);
   const [editColor, setEditColor] = useState("#333333");
   const pendingDragOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
-  const regionNodeRefs = useRef<Map<string, any>>(new Map());
+  const regionNodeRefs = useRef<Map<string, KonvaNode>>(new Map());
   const regionTransformOriginRef = useRef<Map<string, RiskPolygonPoint[]>>(new Map());
   const groupDragRef = useRef<{ startX: number; startY: number; origin: Map<string, RiskPolygonPoint[]> } | null>(null);
   const dragWritebackRef = useRef(false);
-  const transformerRef = useRef<any>(null);
+  const transformerRef = useRef<KonvaTransformer>(null);
   const spacePressedRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number; viewX: number; viewY: number } | null>(null);
   const isPanningRef = useRef(false);
@@ -1156,7 +1158,7 @@ export default function WorkbenchCanvas({ colorMode = "current" }: { colorMode?:
             {tool === "select" && (() => {
               const nodes = selectedRegionIds
                 .map(id => regionNodeRefs.current.get(id))
-                .filter(Boolean);
+                .filter((node): node is KonvaNode => node !== undefined);
               if (!nodes.length) return null;
               return (
                 <Transformer

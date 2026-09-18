@@ -11,7 +11,8 @@ import { PlanTypeTag } from "@/components/plan/PlanTypeTag";
 import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
 import { ConfirmDeleteModal } from "@/components/common/ConfirmDeleteModal";
 import { fromNow } from "@/utils/formatters";
-import type { PlanType, PlanStatus } from "@/types/plan";
+import type { TableColumnsType } from "antd";
+import type { PlanProject, PlanType, PlanStatus } from "@/types/plan";
 
 export default function PlanListPage() {
   const navigate = useNavigate();
@@ -93,15 +94,15 @@ export default function PlanListPage() {
     );
   }
 
-  const columns = [
+  const columns: TableColumnsType<PlanProject> = [
     {
       title: "预案标题",
       dataIndex: "title",
-      render: (text: string, record: Record<string, unknown>) => (
+      render: (text: string, record: PlanProject) => (
         <span>
-          <PlanTypeTag type={(record.plan_type as string) as PlanType} />
+          <PlanTypeTag type={record.plan_type as PlanType} />
           {record.accident_type ? (
-            <span style={{ color: "gray", marginLeft: 8 }}>{record.accident_type as string}</span>
+            <span style={{ color: "gray", marginLeft: 8 }}>{record.accident_type}</span>
           ) : null}
           {" "}{text}
         </span>
@@ -118,9 +119,9 @@ export default function PlanListPage() {
       title: "完成度",
       key: "progress",
       width: 160,
-      render: (_: unknown, record: Record<string, unknown>) => {
-        const sec = (record.sections_count as number) || 0;
-        const comp = (record.completed_sections as number) || 0;
+      render: (_: unknown, record: PlanProject) => {
+        const sec = record.sections_count || 0;
+        const comp = record.completed_sections || 0;
         return (
           <Progress
             percent={sec > 0 ? Math.round((comp / sec) * 100) : 0}
@@ -146,15 +147,15 @@ export default function PlanListPage() {
       title: "操作",
       key: "actions",
       width: 140,
-      render: (_: unknown, record: Record<string, unknown>) => (
+      render: (_: unknown, record: PlanProject) => (
         <Space>
           <Button type="link" size="small" onClick={(e) => {
             e.stopPropagation();
-            navigate(`/plans/${record.id as string}/edit${enterprise_id ? `?enterprise_id=${enterprise_id}` : ""}`);
+            navigate(`/plans/${record.id}/edit${enterprise_id ? `?enterprise_id=${enterprise_id}` : ""}`);
           }}>
             编辑
           </Button>
-          <Button type="link" size="small" danger onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: record.id as string, name: record.title as string }); }}>
+          <Button type="link" size="small" danger onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: record.id, name: record.title }); }}>
             删除
           </Button>
         </Space>
@@ -212,7 +213,7 @@ export default function PlanListPage() {
 
       <Table
         columns={columns}
-        dataSource={plans as any}
+        dataSource={plans}
         rowKey="id"
         loading={isLoading}
         pagination={{

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Spin, Button, message, Modal, Table, Tag, Space } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, SaveOutlined } from "@ant-design/icons";
 import { sanitizeHtml } from "@/utils/sanitize";
+import { errorMessage } from "@/utils/errorMessage";
 import {
   createResourceInvestigationVersion,
   downloadResourceInvestigation,
@@ -50,8 +51,8 @@ export default function ResourceInvestigationPreview() {
     if (id) {
       try {
         await downloadResourceInvestigation(id);
-      } catch (err: any) {
-        message.error(err.message || "download failed");
+      } catch (err) {
+        message.error(errorMessage(err, "download failed"));
       }
     }
   };

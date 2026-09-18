@@ -33,6 +33,7 @@ import type {
   ReportChapter,
   ReportDocument,
   ReportIssue,
+  ReportStreamEvent,
 } from "@/types/reportWorkspace";
 import type { ChapterDef } from "@/services/riskAssessmentService";
 import { createRiskAssessmentVersion } from "@/services/riskAssessmentService";
@@ -330,7 +331,7 @@ export default function ReportWorkspace({
     const controller = adapter.generateAll(
       enterpriseId,
       {
-        onEvent: (event) => {
+        onEvent: (event: ReportStreamEvent) => {
           switch (event.type) {
             case "thinking": {
               setThinkingText(event.message || "");
@@ -444,7 +445,7 @@ export default function ReportWorkspace({
       setAiUnavailable(false);
 
       const cb = {
-        onEvent: (event: any) => {
+        onEvent: (event: ReportStreamEvent) => {
           switch (event.type) {
             case "thinking": {
               setThinkingText(event.message || "");

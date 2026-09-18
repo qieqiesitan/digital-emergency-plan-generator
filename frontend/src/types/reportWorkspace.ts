@@ -26,8 +26,20 @@ export interface ReportIssue {
   suggestion: string;
 }
 
+/** 报告生成 SSE 事件（后端按 type 下发不同字段，未知字段保持前向兼容） */
+export interface ReportStreamEvent {
+  type: string;
+  message?: string;
+  content?: string;
+  section_key?: string;
+  current?: number;
+  total?: number;
+  chapters?: Array<{ key: string; title: string }>;
+  failed_sections?: Array<{ section_key: string; title: string }>;
+}
+
 export interface ReportSSECallback {
-  onEvent: (event: any) => void;
+  onEvent: (event: ReportStreamEvent) => void;
   onError: (error: string) => void;
   onComplete: () => void;
 }

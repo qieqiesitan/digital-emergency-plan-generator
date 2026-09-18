@@ -6,6 +6,8 @@ import { updateSurrounding, searchAmapSurrounding } from "@/services/enterpriseS
 import SurroundingAIGenerateModal from "./SurroundingAIGenerateModal";
 import AmapSearchResultModal from "./AmapSearchResultModal";
 import type { SurroundingInfo, NearbyUnit, SensitiveTarget } from "@/types/enterprise";
+import { ensureRowKey } from "@/utils/rowKey";
+import { errorMessage } from "@/utils/errorMessage";
 
 interface Props {
   enterpriseId: string;
@@ -189,8 +191,8 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
       setAmapResult(result.surrounding);
       setAmapSearchedAddress(result.searched_address);
       setAmapResultOpen(true);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || err?.message || "搜索失败";
+    } catch (err) {
+      const detail = errorMessage(err, "搜索失败");
       message.error(detail);
     } finally {
       setAmapSearching(false);
@@ -228,7 +230,7 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
       <Card title="周边单位" size="small" style={{ marginBottom: 16 }}>
         <Table
           dataSource={nearbyUnits}
-          rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
+          rowKey={ensureRowKey}
           columns={nearbyColumns}
           pagination={false}
           size="small"
@@ -239,7 +241,7 @@ export default function SurroundingInfoPanel({ enterpriseId, surroundingInfo, on
       <Card title="敏感目标" size="small" style={{ marginBottom: 16 }}>
         <Table
           dataSource={sensitiveTargets}
-          rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
+          rowKey={ensureRowKey}
           columns={targetColumns}
           pagination={false}
           size="small"

@@ -7,6 +7,7 @@ import {
   type AIQuestion,
 } from "@/services/hazardousChemicalService";
 import type { HazardousChemicalCreate } from "@/types/hazardousChemical";
+import { errorMessage } from "@/utils/errorMessage";
 
 interface Props {
   enterpriseId: string;
@@ -126,9 +127,9 @@ export default function HazardousChemicalAIGenerateModal({ enterpriseId, visible
       message.success(`成功导入 ${toImport.length} 种危险化学品`);
       onImported();
       resetAll();
-    } catch (e: any) {
+    } catch (e) {
       console.error("[AI Generate Chem] Batch create failed:", e);
-      const detail = e?.response?.data?.detail || e?.message || String(e);
+      const detail = errorMessage(e, "导入失败");
       message.error(`导入失败: ${detail}`);
     } finally {
       setImporting(false);

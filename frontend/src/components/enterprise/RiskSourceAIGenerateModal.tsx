@@ -7,6 +7,7 @@ import {
   type AIQuestion,
 } from "@/services/riskSourceService";
 import type { RiskSourceCreate } from "@/types/riskSource";
+import { errorMessage } from "@/utils/errorMessage";
 
 interface Props {
   enterpriseId: string;
@@ -115,9 +116,9 @@ export default function RiskSourceAIGenerateModal({ enterpriseId, visible, onClo
       message.success(`成功导入 ${toImport.length} 个风险源`);
       onImported();
       resetAll();
-    } catch (e: any) {
+    } catch (e) {
       console.error("[AI Generate Risk] Batch create failed:", e);
-      const detail = e?.response?.data?.detail || e?.message || String(e);
+      const detail = errorMessage(e, "导入失败");
       message.error(`导入失败: ${detail}`);
     } finally {
       setImporting(false);

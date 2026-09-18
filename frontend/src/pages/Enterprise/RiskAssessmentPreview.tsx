@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Spin, Button, Typography, message, Table, Tag, Collapse, Statistic, Row, Col, Card, Modal, Space } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, SaveOutlined } from "@ant-design/icons";
 import { sanitizeHtml } from "@/utils/sanitize";
+import { errorMessage } from "@/utils/errorMessage";
 import {
   createRiskAssessmentVersion,
   downloadRiskAssessment,
@@ -70,7 +71,7 @@ export default function RiskAssessmentPreview() {
   const handleExport = async () => {
     if (id) {
       try { await downloadRiskAssessment(id); }
-      catch (err: any) { message.error(err.message || "下载失败"); }
+      catch (err) { message.error(errorMessage(err, "下载失败")); }
     }
   };
 

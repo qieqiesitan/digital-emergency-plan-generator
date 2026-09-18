@@ -16,6 +16,7 @@ import { getFullHierarchy } from "@/services/riskManagementService";
 import { listResources } from "@/services/emergencyResourceService";
 import { flattenHierarchyEvents } from "@/utils/riskHierarchyEvents";
 import type { Enterprise } from "@/types/enterprise";
+import type { EmergencyResource } from "@/types/emergencyResource";
 
 type TabKey = "info" | "risk" | "resource" | "report";
 
@@ -137,7 +138,7 @@ function RiskTab({ enterpriseId }: { enterpriseId: string }) {
 // 应急资源 Tab（内嵌列表）
 function ResourceTab({ enterpriseId }: { enterpriseId: string }) {
   const navigate = useNavigate();
-  const { data: resources = [], isLoading } = useQuery({
+  const { data: resources, isLoading } = useQuery({
     queryKey: ["emergency-resources", enterpriseId],
     queryFn: () => listResources(enterpriseId, { page: 1, page_size: 50 }),
     enabled: !!enterpriseId,
@@ -151,7 +152,8 @@ function ResourceTab({ enterpriseId }: { enterpriseId: string }) {
     );
   }
 
-  const items = Array.isArray(resources) ? resources : (resources as any)?.items ?? [];
+  // listResources 返回的是 ApiResponse 包装（data.items），此前误读成顶层 items 导致永远空列表
+  const items: EmergencyResource[] = resources?.data?.items ?? [];
 
   return (
     <div>
@@ -178,7 +180,7 @@ function ResourceTab({ enterpriseId }: { enterpriseId: string }) {
               查看全部 <ChevronRight size={14} />
             </button>
           </div>
-          {items.slice(0, 5).map((res: any) => (
+          {items.slice(0, 5).map((res) => (
             <div key={res.id} className="flex items-center gap-md px-md py-3 bg-white border-b border-neutral-50">
               <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
                 <Shield size={16} className="text-blue-600" />
@@ -186,7 +188,7 @@ function ResourceTab({ enterpriseId }: { enterpriseId: string }) {
               <div className="flex-1 min-w-0">
                 <p className="text-body text-neutral-900 truncate">{res.name ?? "未命名"}</p>
                 <p className="text-caption text-neutral-400">
-                  {[res.type, res.quantity ? `${res.quantity}${res.unit ?? ""}` : ""].filter(Boolean).join(" · ")}
+                  {[res.category, res.quantity ? `${res.quantity}${res.unit ?? ""}` : ""].filter(Boolean).join(" · ")}
                 </p>
               </div>
             </div>

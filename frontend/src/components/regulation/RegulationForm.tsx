@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Modal, Input, Button, Upload, Select, message, Descriptions, Collapse, Spin, Tag, Alert, AutoComplete } from "antd";
+import type { UploadFile } from "antd";
+import { errorMessage } from "@/utils/errorMessage";
 import { InboxOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RegulationNode } from "@/types/regulation";
@@ -74,7 +76,7 @@ export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
   const parseMut = useMutation({
     mutationFn: () => parseRegulation(rawText || undefined, file || undefined),
     onSuccess: (data) => { setParsed(data); setStep("preview"); },
-    onError: (err: any) => message.error(err?.response?.data?.detail || err?.message || "解析失败，请重试"),
+    onError: (err: unknown) => message.error(errorMessage(err, "解析失败，请重试")),
   });
 
   const updateMut = useMutation({
@@ -95,7 +97,7 @@ export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
       queryClient.invalidateQueries({ queryKey: ["regulations"] });
       handleClose();
     },
-    onError: (err: any) => message.error(err?.response?.data?.detail || err?.message || "更新失败"),
+    onError: (err: unknown) => message.error(errorMessage(err, "更新失败")),
   });
 
   const createMut = useMutation({
@@ -121,8 +123,8 @@ export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
       reset();
       onClose();
     },
-    onError: (err: any) => {
-      const detail = err?.response?.data?.detail || err?.message || "入库失败";
+    onError: (err: unknown) => {
+      const detail = errorMessage(err, "入库失败");
       message.error(detail);
     },
   });
@@ -207,7 +209,7 @@ export function RegulationForm({ open, onClose, regulation, onSaved }: Props) {
           <Upload maxCount={1} accept=".md,.txt,.pdf,.docx,.doc"
             beforeUpload={f => { setEditFile(f); return false; }}
             onRemove={() => setEditFile(null)}
-            fileList={editFile ? [{ uid: "-1", name: editFile.name, status: "done" } as any] : []}>
+            fileList={editFile ? ([{ uid: "-1", name: editFile.name, status: "done" }] satisfies UploadFile[]) : []}>
             <Button icon={<UploadOutlined />} size="small">更新法规文件（可选）</Button>
           </Upload>
         </div>

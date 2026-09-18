@@ -94,8 +94,8 @@ export default function ExportPreviewScreen() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         showToast?.({ type: "success", message: "文档已开始下载" });
-      } else if ((result as any).task_id) {
-        const taskId = (result as any).task_id;
+      } else if ("task_id" in result) {
+        const taskId = result.task_id;
         const poll = setInterval(async () => {
           try {
             const status = await getExportTaskStatus(taskId);

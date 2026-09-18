@@ -7,6 +7,7 @@ import {
   type AIQuestion,
 } from "@/services/emergencyResourceService";
 import type { EmergencyResourceCreate } from "@/types/emergencyResource";
+import { errorMessage } from "@/utils/errorMessage";
 
 interface Props {
   enterpriseId: string;
@@ -120,9 +121,9 @@ export default function ResourceAIGenerateModal({ enterpriseId, visible, onClose
       message.success(`成功导入 ${toImport.length} 个应急资源`);
       onImported();
       resetAll();
-    } catch (e: any) {
+    } catch (e) {
       console.error("[AI Generate] Batch create failed:", e);
-      const detail = e?.response?.data?.detail || e?.message || String(e);
+      const detail = errorMessage(e, "导入失败");
       message.error(`导入失败: ${detail}`);
     } finally {
       setImporting(false);

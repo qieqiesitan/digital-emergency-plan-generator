@@ -7,6 +7,7 @@ import Input from "@/mobile/components/ui/Input";
 import Button from "@/mobile/components/ui/Button";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import { useToast } from "@/mobile/components/ui/useToast";
+import { errorMessage } from "@/utils/errorMessage";
 
 export default function LoginScreen() {
   const navigate = useNavigate();
@@ -25,9 +26,8 @@ export default function LoginScreen() {
     try {
       await login({ email, password });
       navigate("/m/dashboard", { replace: true });
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message || err?.message || "登录失败，请重试";
+    } catch (err) {
+      const msg = errorMessage(err, "登录失败，请重试");
       showToast({ type: "error", message: msg });
     } finally {
       setIsSubmitting(false);

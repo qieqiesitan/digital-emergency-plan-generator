@@ -128,7 +128,7 @@ function MatrixThumbnail({ config }: { config: MethodConfig }) {
   const matrixData: { l: number; s: number; r: number; level: string; color: string }[][] = isLEC
     ? []
     : config.parameters?.length >= 2
-      ? renderMatrixData("LS", thresholds as any)
+      ? renderMatrixData("LS", thresholds)
       : renderMatrixData("LS");
 
   if (isLEC) {

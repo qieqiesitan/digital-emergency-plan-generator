@@ -7,6 +7,7 @@ import {
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useMutation } from "@tanstack/react-query";
+import { errorMessage } from "@/utils/errorMessage";
 import {
   getMigrationPreview,
   aiMigratePreview,
@@ -86,8 +87,8 @@ export default function RiskMigrationWizard({
       } catch {
         message.info("AI 建议不可用，已使用默认映射");
       }
-    } catch (e: any) {
-      message.error("加载迁移预览失败: " + (e?.message || "请重试"));
+    } catch (e) {
+      message.error("加载迁移预览失败: " + errorMessage(e, "请重试"));
       setItems([]);
     } finally {
       setLoadingPreview(false);

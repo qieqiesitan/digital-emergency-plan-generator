@@ -10,6 +10,7 @@ import {
 } from "@/services/hazardousChemicalService";
 import HazardousChemicalAIGenerateModal from "@/components/enterprise/HazardousChemicalAIGenerateModal";
 import ChemicalLibraryPickerModal from "@/components/enterprise/ChemicalLibraryPickerModal";
+import { errorMessage } from "@/utils/errorMessage";
 import { libraryItemToPrefill } from "@/utils/chemicalLibraryPrefill";
 import type { ChemicalLibraryItem } from "@/types/chemicalLibrary";
 import type { HazardousChemical, HazardousChemicalCreate, HazardousChemicalUpdate } from "@/types/hazardousChemical";
@@ -89,8 +90,8 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
       // 页面 catch 自带 toast，跳过全局统一 toast 避免双弹（F4 skip 机制）
       const res = await listChemicals(enterpriseId, { page_size: 200 }, { skipGlobalError: true });
       setData(res.data.items || []);
-    } catch (err: any) {
-      message.error(err?.response?.data?.detail || "加载失败");
+    } catch (err) {
+      message.error(errorMessage(err, "加载失败"));
     } finally {
       setLoading(false);
     }
@@ -131,8 +132,8 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
       await deleteChemical(enterpriseId, id, { skipGlobalError: true });
       message.success("已删除");
       fetchData();
-    } catch (err: any) {
-      message.error(err?.response?.data?.detail || "删除失败");
+    } catch (err) {
+      message.error(errorMessage(err, "删除失败"));
     }
   };
 
@@ -151,9 +152,10 @@ export default function HazardousChemicalsTab({ enterpriseId }: Props) {
       }
       setModalOpen(false);
       fetchData();
-    } catch (err: any) {
-      if (err?.errorFields) return;
-      message.error(err?.response?.data?.detail || "操作失败");
+    } catch (err) {
+      // antd 表单校验失败自带 errorFields，此时由表单自身提示
+      if ((err as { errorFields?: unknown } | null)?.errorFields) return;
+      message.error(errorMessage(err, "操作失败"));
     } finally {
       setSubmitting(false);
     }

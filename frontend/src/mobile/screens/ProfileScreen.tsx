@@ -9,6 +9,7 @@ import Card from "@/mobile/components/ui/Card";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import { useToast } from "@/mobile/components/ui/useToast";
 import { ChevronRight, Lock } from "lucide-react";
+import { errorMessage } from "@/utils/errorMessage";
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
@@ -25,10 +26,10 @@ export default function ProfileScreen() {
       await updateProfile(name.trim());
       setEditing(false);
       showToast({ type: "success", message: "姓名已更新" });
-    } catch (err: any) {
+    } catch (err) {
       showToast({
         type: "error",
-        message: err?.response?.data?.message || "更新失败",
+        message: errorMessage(err, "更新失败"),
       });
     } finally {
       setSaving(false);

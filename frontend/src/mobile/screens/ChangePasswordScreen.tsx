@@ -8,6 +8,7 @@ import Chip from "@/mobile/components/ui/Chip";
 import SafeArea from "@/mobile/components/ui/SafeArea";
 import { useToast } from "@/mobile/components/ui/useToast";
 import { Lock } from "lucide-react";
+import { errorMessage } from "@/utils/errorMessage";
 
 export default function ChangePasswordScreen() {
   const navigate = useNavigate();
@@ -40,10 +41,10 @@ export default function ChangePasswordScreen() {
       await changePassword(oldPassword, newPassword);
       showToast({ type: "success", message: "密码已修改，请重新登录" });
       navigate("/m/login", { replace: true });
-    } catch (err: any) {
+    } catch (err) {
       showToast({
         type: "error",
-        message: err?.response?.data?.message || "修改密码失败",
+        message: errorMessage(err, "修改密码失败"),
       });
     } finally {
       setIsSubmitting(false);

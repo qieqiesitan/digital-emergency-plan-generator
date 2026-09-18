@@ -1,8 +1,7 @@
 {
-  "errors": 130,
+  "errors": 75,
   "warnings": 20,
   "byRule": {
-    "error:@typescript-eslint/no-explicit-any": 55,
     "error:react-hooks/refs": 41,
     "error:react-hooks/set-state-in-effect": 24,
     "warning:react-hooks/exhaustive-deps": 20,

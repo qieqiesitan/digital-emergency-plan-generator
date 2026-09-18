@@ -9,7 +9,7 @@ import { ACCIDENT_TYPES_2025 } from "@/utils/accidentTypes";
 import FloorPlanPicker from "./FloorPlanPicker";
 import RiskSourceImportModal from "./RiskSourceImportModal";
 import RiskSourceAIGenerateModal from "./RiskSourceAIGenerateModal";
-import type { RiskSource, RiskSourceCreate } from "@/types/riskSource";
+import type { RiskLevel, RiskSource, RiskSourceCreate } from "@/types/riskSource";
 import { omitFields } from "@/utils/omitFields";
 
 interface Props {
@@ -77,7 +77,7 @@ export default function RiskSourceForm({ enterpriseId, floorPlanUrl }: Props) {
         );
       },
     },
-    { title: "风险等级", dataIndex: "risk_level", render: (v: string) => <RiskLevelTag level={v as any} /> },
+    { title: "风险等级", dataIndex: "risk_level", render: (v: string) => <RiskLevelTag level={v as RiskLevel} /> },
     { title: "控制措施", dataIndex: "control_measures", render: (v: string) => v ? (v.length > 30 ? v.slice(0, 30) + "..." : v) : "-" },
     {
       title: "操作",

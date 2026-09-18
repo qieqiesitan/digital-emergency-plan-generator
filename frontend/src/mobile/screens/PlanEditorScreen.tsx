@@ -12,6 +12,7 @@ import Spinner from "@/mobile/components/ui/Spinner";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import ProgressBar from "@/mobile/components/ui/ProgressBar";
 import { useToast } from "@/mobile/components/ui/useToast";
+import { errorMessage } from "@/utils/errorMessage";
 import ChapterTree from "@/mobile/components/plan/ChapterTree";
 import MobileEditor from "@/mobile/components/plan/MobileEditor";
 import EditorToolbar from "@/mobile/components/plan/EditorToolbar";
@@ -340,11 +341,11 @@ export default function PlanEditorScreen() {
         setGenerationBanner(null);
         showToast?.({ type: "error", message: message || "生成失败" });
       },
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
       setGenerating(false);
       setThinkingBrief("");
       setGenerationBanner(null);
-      showToast?.({ type: "error", message: err?.message ?? "生成失败" });
+      showToast?.({ type: "error", message: errorMessage(err, "生成失败") });
     });
   }, [planId, selectedChapter, localContent, autoSave, showToast]);
 
@@ -418,9 +419,9 @@ export default function PlanEditorScreen() {
         // 轮询结束后刷新章节内容与失败提示条
         queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
       }, 0);
-    } catch (e: any) {
+    } catch (e) {
       setGenerationBanner(null);
-      showToast?.({ type: "error", message: e?.message || "批量生成失败" });
+      showToast?.({ type: "error", message: errorMessage(e, "批量生成失败") });
     }
   }, [planId, showToast, queryClient, pollGenerationStatus]);
 
@@ -442,8 +443,8 @@ export default function PlanEditorScreen() {
       const data = await fetchPlanReview(planId);
       setReviewResult(data);
       setReviewSheetOpen(true);
-    } catch (e: any) {
-      showToast?.({ type: "error", message: e?.message || "获取审查结果失败" });
+    } catch (e) {
+      showToast?.({ type: "error", message: errorMessage(e, "获取审查结果失败") });
     } finally {
       setReviewLoading(false);
     }
@@ -459,8 +460,8 @@ export default function PlanEditorScreen() {
       setReviewResult(null);
       queryClient.invalidateQueries({ queryKey: ["plan-sections", planId] });
       queryClient.invalidateQueries({ queryKey: ["plan", planId] });
-    } catch (e: any) {
-      showToast?.({ type: "error", message: e?.message || "应用修订失败" });
+    } catch (e) {
+      showToast?.({ type: "error", message: errorMessage(e, "应用修订失败") });
     } finally {
       setApplyReviewLoading(false);
     }
@@ -768,8 +769,8 @@ export default function PlanEditorScreen() {
                     setLocalContent(sec.content || "");
                     autoSave(sec.content || "");
                     showToast?.({ type: "success", message: "自动填充完成" });
-                  } catch (e: any) {
-                    showToast?.({ type: "error", message: e?.message || "自动填充失败" });
+                  } catch (e) {
+                    showToast?.({ type: "error", message: errorMessage(e, "自动填充失败") });
                   }
                 }}
               >

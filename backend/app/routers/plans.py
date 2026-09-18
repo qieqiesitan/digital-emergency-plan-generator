@@ -192,6 +192,10 @@ async def update_plan(plan_id: str, data: PlanUpdate, current_user=Depends(get_c
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
     if not p: raise HTTPException(404, "预案不存在")
     if data.title is not None: p.title = data.title
+    # 创作风格与高级提示词覆盖也是本接口的公开字段（前端 PlanEditorPage 保存走这里），
+    # 之前只落 title 导致「风格保存」静默失效（2026-09-18 回归修复）。
+    if data.style_preference is not None: p.style_preference = data.style_preference
+    if data.advanced_prompt_overrides is not None: p.advanced_prompt_overrides = data.advanced_prompt_overrides
     await db.commit(); await db.refresh(p)
     ent_result = await db.execute(select(Enterprise.name).where(Enterprise.id == p.enterprise_id))
     ent_name = ent_result.scalar_one_or_none() or ""

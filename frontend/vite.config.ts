@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -30,7 +30,7 @@ if (majorVersion >= 24 && process.env.ALLOW_PWA_SKIP !== "1") {
 const skipPWA = process.env.ALLOW_PWA_SKIP === "1";
 
 async function getPlugins() {
-  const plugins: any[] = [
+  const plugins: PluginOption[] = [
     react(),
     tailwindcss(),
   ];

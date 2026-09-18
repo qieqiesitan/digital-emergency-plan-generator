@@ -1,11 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const BASE = 'http://localhost:5174';
 const API = 'http://localhost:8000/api/v1';
 const U = 'qa_e2e_test@test.com';
 const P = 'test123456';
 
-async function login(p: any) {
+async function login(p: Page) {
   await p.goto(BASE + '/login');
   await p.fill('input[id*="email"]', U);
   await p.fill('input[type="password"]', P);

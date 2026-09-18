@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOrgStructure } from "@/services/enterpriseService";
 import type { OrgGroup, OrgMember } from "@/types/enterprise";
 import { PRESET_EMERGENCY_GROUPS } from "@/utils/constants";
+import { ensureRowKey } from "@/utils/rowKey";
 
 interface Props {
   enterpriseId: string;
@@ -83,7 +84,7 @@ export default function OrgStructureEditor({ enterpriseId, orgStructure, visible
           <h4>{group.group_name}</h4>
           <Table
             dataSource={group.members}
-            rowKey={(r: any) => (r as any)._key || ((r as any)._key = crypto.randomUUID?.() || `k-${Math.random()}`)}
+            rowKey={ensureRowKey}
             pagination={false}
             size="small"
             columns={[
