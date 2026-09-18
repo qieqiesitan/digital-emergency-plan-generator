@@ -370,8 +370,15 @@ async def api_link_risk_object(
 
 
 @router.get("/units/{unit_id}/report.docx")
-async def export_unit_report(unit_id: str, db: AsyncSession = Depends(get_db)):
-    """导出《危险化学品重大危险源辨识报告》。没有计算快照时拒绝导出。"""
+async def export_unit_report(
+    unit_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """导出《危险化学品重大危险源辨识报告》。没有计算快照时拒绝导出。
+
+    报告含企业完整辨识数据，必须登录后才能导出（与同文件 compute/evidence 端点一致）。
+    """
     unit_res = await db.execute(select(MajorHazardUnit).where(MajorHazardUnit.id == unit_id))
     unit = unit_res.scalar_one_or_none()
     if unit is None:
