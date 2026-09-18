@@ -1,5 +1,3 @@
-// @ts-nocheck
-import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
@@ -23,7 +21,7 @@ export default function RiskManagementListScreen() {
   });
 
   const rows = flattenHierarchyEvents(zones).sort(
-    (a, b) => LEVEL_ORDER.indexOf(a.risk_level) - LEVEL_ORDER.indexOf(b.risk_level)
+    (a, b) => LEVEL_ORDER.indexOf(a.risk_level ?? "") - LEVEL_ORDER.indexOf(b.risk_level ?? "")
   );
 
   return (

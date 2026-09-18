@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Building2 } from "lucide-react";
@@ -27,13 +26,13 @@ export default function EnterpriseListScreen() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteEnterprise,
+    mutationFn: (id: string) => deleteEnterprise(id),
     onSuccess: (_data, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
       queryClient.invalidateQueries({ queryKey: ["completion", deletedId] });
-      showToast?.("企业已删除", "success");
+      showToast?.({ type: "success", message: "企业已删除" });
     },
-    onError: () => showToast?.("删除失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "删除失败" }),
   });
 
   const filtered = enterprises.filter(
@@ -85,8 +84,7 @@ export default function EnterpriseListScreen() {
             icon={<Building2 size={40} className="text-neutral-300" />}
             title="暂无企业档案"
             description="添加企业后即可开始创建应急预案"
-            action="创建企业"
-            onAction={() => navigate("/m/enterprises/new")}
+            action={{ label: "创建企业", onPress: () => navigate("/m/enterprises/new") }}
           />
         )}
       </div>

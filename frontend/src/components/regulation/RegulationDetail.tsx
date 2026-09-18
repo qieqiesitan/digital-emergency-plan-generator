@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import { Descriptions, Tag, Timeline, Table, Button, Modal, Space, message } from "antd";
 import { useQuery } from "@tanstack/react-query";
@@ -74,7 +73,7 @@ export function RegulationDetail({ id, onClose }: Props) {
                     }}
                   >{t}</Tag>
                 ))}
-                {reg.ai_topics?.filter((t: string) => !reg.topics?.includes(t)).length > 0 && (
+                {(reg.ai_topics?.filter((t: string) => !reg.topics?.includes(t)).length ?? 0) > 0 && (
                   <span style={{ fontSize: 12, color: '#8c8c8c', marginLeft: 8 }}>| AI建议:</span>
                 )}
                 {reg.ai_topics?.filter((t: string) => !reg.topics?.includes(t)).map((t: string) => (
@@ -124,8 +123,8 @@ export function RegulationDetail({ id, onClose }: Props) {
                   <div>
                     <div>{actionLabels[e.action] || e.action} — {e.operator}</div>
                     <div style={{ color: "#999", fontSize: 12 }}>{e.timestamp}</div>
-                    {e.detail?.filename && <div style={{ fontSize: 12 }}>文件: {String(e.detail.filename)}</div>}
-                    {e.detail?.replaced_by && <div style={{ fontSize: 12 }}>替代为: {String(e.detail.replaced_by)}</div>}
+                    {Boolean(e.detail?.filename) && <div style={{ fontSize: 12 }}>文件: {String(e.detail?.filename)}</div>}
+                    {Boolean(e.detail?.replaced_by) && <div style={{ fontSize: 12 }}>替代为: {String(e.detail?.replaced_by)}</div>}
                   </div>
                 ),
               }))} />

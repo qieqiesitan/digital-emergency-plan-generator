@@ -1,5 +1,3 @@
-// @ts-nocheck
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import NavBar from "@/mobile/components/ui/NavBar";
@@ -26,11 +24,11 @@ export default function EnterpriseCreateScreen() {
     onSuccess: (newEnt) => {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
       queryClient.invalidateQueries({ queryKey: ["completion", newEnt.id] });
-      showToast?.("企业创建成功", "success");
+      showToast?.({ type: "success", message: "企业创建成功" });
       navigate(`/m/enterprises/${newEnt.id}`);
     },
     onError: () => {
-      showToast?.("创建失败，请重试", "danger");
+      showToast?.({ type: "error", message: "创建失败，请重试" });
     },
   });
 
@@ -39,7 +37,9 @@ export default function EnterpriseCreateScreen() {
       <NavBar title="新建企业" showBack onBack={() => navigate(-1)} />
       <div className="px-md py-md">
         <EnterpriseForm
-          onSubmit={async (data) => mutation.mutateAsync(data)}
+          onSubmit={async (data) => {
+            await mutation.mutateAsync(data);
+          }}
           submitLabel={mutation.isPending ? "创建中…" : "创建企业"}
         />
       </div>

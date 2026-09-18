@@ -1,5 +1,3 @@
-// @ts-nocheck
-import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Clock, Bot, User, RotateCcw } from "lucide-react";
@@ -29,9 +27,9 @@ export default function VersionListScreen() {
     mutationFn: (versionId: string) => rollbackVersion(planId!, versionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["versions", planId] });
-      showToast?.("已回滚到选定版本", "success");
+      showToast?.({ type: "success", message: "已回滚到选定版本" });
     },
-    onError: () => showToast?.("回滚失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "回滚失败" }),
   });
 
   const handleRollback = (versionId: string, versionNumber: number) => {

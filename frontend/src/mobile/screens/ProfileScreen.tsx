@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/useAuth";
@@ -58,7 +57,7 @@ export default function ProfileScreen() {
                 <div className="flex-1 flex items-center gap-sm">
                   <Input
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={setName}
                     className="flex-1"
                   />
                   <Button size="sm" onClick={handleSave} loading={saving}>

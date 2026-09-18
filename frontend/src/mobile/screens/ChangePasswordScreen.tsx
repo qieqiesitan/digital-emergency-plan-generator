@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/useAuth";
@@ -61,7 +60,7 @@ export default function ChangePasswordScreen() {
             type="password"
             placeholder="请输入原密码"
             value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
+            onChange={setOldPassword}
             prefixIcon={<Lock size={20} />}
             showPasswordToggle
             fullWidth
@@ -71,7 +70,7 @@ export default function ChangePasswordScreen() {
             type="password"
             placeholder="请输入新密码"
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            onChange={setNewPassword}
             prefixIcon={<Lock size={20} />}
             showPasswordToggle
             fullWidth
@@ -96,7 +95,7 @@ export default function ChangePasswordScreen() {
             type="password"
             placeholder="请确认新密码"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={setConfirmPassword}
             prefixIcon={<Lock size={20} />}
             showPasswordToggle
             fullWidth

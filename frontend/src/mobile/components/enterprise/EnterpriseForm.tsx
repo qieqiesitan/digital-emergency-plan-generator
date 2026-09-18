@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Input from "@/mobile/components/ui/Input";
 import Chip from "@/mobile/components/ui/Chip";
@@ -97,6 +96,7 @@ export default function EnterpriseForm({
             options={INDUSTRY_OPTIONS.map(o => ({ label: o, value: o }))}
             onChange={(v) => set("industry", v)}
             placeholder="选择行业分类"
+            error={errors.industry}
           />
 
           {/* 经济类型 — 预设标签 + 自由输入 */}

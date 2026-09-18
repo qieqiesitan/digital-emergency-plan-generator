@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Sparkles, Package } from "lucide-react";
@@ -57,14 +56,14 @@ export default function ResourceListScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resources", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
-      showToast?.("资源已添加", "success");
+      showToast?.({ type: "success", message: "资源已添加" });
       setAddOpen(false);
       setNewName("");
       setNewQty("1");
       setNewLocation("");
       setNewPerson("");
     },
-    onError: () => showToast?.("添加失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "添加失败" }),
   });
 
   const deleteMutation = useMutation({
@@ -72,9 +71,9 @@ export default function ResourceListScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resources", enterpriseId] });
       queryClient.invalidateQueries({ queryKey: ["completion", enterpriseId] });
-      showToast?.("已删除", "success");
+      showToast?.({ type: "success", message: "已删除" });
     },
-    onError: () => showToast?.("删除失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "删除失败" }),
   });
 
   return (
@@ -86,7 +85,7 @@ export default function ResourceListScreen() {
         rightActions={[{
           icon: <Sparkles size={22} />,
           label: "AI生成",
-          onPress: () => showToast?.("AI 生成功能需对接后端 API", "info"),
+          onPress: () => showToast?.({ type: "info", message: "AI 生成功能需对接后端 API" }),
         }]}
       />
 
@@ -141,8 +140,7 @@ export default function ResourceListScreen() {
             icon={<Package size={40} className="text-neutral-300" />}
             title="暂无应急资源"
             description="点击右下角 + 添加应急资源"
-            action="添加资源"
-            onAction={() => setAddOpen(true)}
+            action={{ label: "添加资源", onPress: () => setAddOpen(true) }}
           />
         )}
       </div>

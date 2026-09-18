@@ -1,5 +1,3 @@
-// @ts-nocheck
-import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import NavBar from "@/mobile/components/ui/NavBar";
@@ -35,10 +33,10 @@ export default function EnterpriseEditScreen() {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
       queryClient.invalidateQueries({ queryKey: ["enterprise", id] });
       queryClient.invalidateQueries({ queryKey: ["completion", id] });
-      showToast?.("企业信息已更新", "success");
+      showToast?.({ type: "success", message: "企业信息已更新" });
       navigate(`/m/enterprises/${id}`);
     },
-    onError: () => showToast?.("更新失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "更新失败" }),
   });
 
   const deleteMutation = useMutation({
@@ -46,10 +44,10 @@ export default function EnterpriseEditScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["enterprises"] });
       queryClient.invalidateQueries({ queryKey: ["completion", id] });
-      showToast?.("企业已删除", "success");
+      showToast?.({ type: "success", message: "企业已删除" });
       navigate("/m/enterprises");
     },
-    onError: () => showToast?.("删除失败", "danger"),
+    onError: () => showToast?.({ type: "error", message: "删除失败" }),
   });
 
   const handleDelete = () => {
@@ -83,7 +81,9 @@ export default function EnterpriseEditScreen() {
             employee_count: enterprise.employee_count,
             address: enterprise.address ?? "",
           }}
-          onSubmit={async (data) => updateMutation.mutateAsync(data)}
+          onSubmit={async (data) => {
+            await updateMutation.mutateAsync(data);
+          }}
           submitLabel={updateMutation.isPending ? "保存中…" : "保存"}
         />
         {/* 删除按钮 */}

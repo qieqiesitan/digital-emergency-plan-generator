@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState } from "react";
+import { useState } from "react";
 import { Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import BottomSheet from "@/mobile/components/ui/BottomSheet";
 import SegmentedControl from "@/mobile/components/ui/SegmentedControl";
@@ -69,7 +68,13 @@ export default function AIGenerationSheet({
 
   const handleGenerate = () => {
     onClose();
-    onGenerate(mode === "single" && sectionName ? [chapters[0]?.key ?? ""] : selectedChapters);
+    // 生成风格 → 风格参数（与 Web 端 StylePanel 的 detail_level 对齐）
+    const detailLevel: MobileStyleParams["detail_level"] =
+      style === "detailed" ? "comprehensive" : style === "concise" ? "concise" : "balanced";
+    onGenerate(
+      mode === "single" && sectionName ? [chapters[0]?.key ?? ""] : selectedChapters,
+      { ...DEFAULT_MOBILE_STYLE, detail_level: detailLevel },
+    );
   };
 
   return (

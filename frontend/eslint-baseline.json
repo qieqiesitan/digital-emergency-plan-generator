@@ -1,15 +1,14 @@
 {
-  "errors": 157,
+  "errors": 141,
   "warnings": 20,
   "byRule": {
     "error:@typescript-eslint/no-explicit-any": 55,
     "error:react-hooks/refs": 41,
-    "error:@typescript-eslint/no-unused-vars": 1,
     "error:react-hooks/set-state-in-effect": 24,
     "warning:react-hooks/exhaustive-deps": 20,
     "error:react-hooks/immutability": 8,
     "error:react-hooks/purity": 2,
-    "error:@typescript-eslint/ban-ts-comment": 26
+    "error:@typescript-eslint/ban-ts-comment": 11
   },
   "recordedAt": "2026-09-18"
 }

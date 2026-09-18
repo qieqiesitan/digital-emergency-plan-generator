@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -44,12 +43,11 @@ export default function ResourceInvestigationScreen() {
     enabled: !!enterpriseId && genStatus === "idle",
   });
 
-  const hasReport = report && typeof report === "object" && "content" in report;
-  const reportContent = hasReport ? (report as Record<string, unknown>).content : null;
+  const reportContent: string | null = report?.content ?? null;
 
   // 后台生成中：每 4 秒拉一次报告，离开页面返回后仍能看到已保存产出
   useEffect(() => {
-    if (!enterpriseId || !report || (report as { status?: string }).status !== "generating") return;
+    if (!enterpriseId || !report || report.status !== "generating") return;
     const timer = setInterval(() => {
       queryClient.invalidateQueries({ queryKey: ["resource-investigation", enterpriseId] });
     }, 4000);
@@ -214,12 +212,14 @@ export default function ResourceInvestigationScreen() {
             icon={<Package size={40} className="text-red-400" />}
             title="加载失败"
             description="无法加载应急资源调查报告"
-            action="重试"
-            onAction={() => queryClient.invalidateQueries({ queryKey: ["resource-investigation", enterpriseId] })}
+            action={{
+              label: "重试",
+              onPress: () => queryClient.invalidateQueries({ queryKey: ["resource-investigation", enterpriseId] }),
+            }}
           />
         )}
 
-        {displayContent && (
+        {Boolean(displayContent) && (
           <div className="prose prose-sm max-w-none bg-white rounded-md shadow-card p-md m-md"
                dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(displayContent)) }} />
         )}

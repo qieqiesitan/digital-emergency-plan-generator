@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -16,6 +15,7 @@ import { getEnterprise } from "@/services/enterpriseService";
 import { getFullHierarchy } from "@/services/riskManagementService";
 import { listResources } from "@/services/emergencyResourceService";
 import { flattenHierarchyEvents } from "@/utils/riskHierarchyEvents";
+import type { Enterprise } from "@/types/enterprise";
 
 type TabKey = "info" | "risk" | "resource" | "report";
 
@@ -27,7 +27,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 // 基本信息 Tab
-function InfoTab({ enterprise }: { enterprise: Record<string, unknown> }) {
+function InfoTab({ enterprise }: { enterprise: Enterprise }) {
   const fields = [
     { label: "企业名称", value: enterprise.name },
     { label: "行业分类", value: enterprise.industry },
@@ -285,7 +285,7 @@ export default function EnterpriseDetailScreen() {
         />
       </div>
       <div className="pb-md">
-        {activeTab === "info" && <InfoTab enterprise={enterprise as Record<string, unknown>} />}
+        {activeTab === "info" && <InfoTab enterprise={enterprise} />}
         {activeTab === "risk" && <RiskTab enterpriseId={id!} />}
         {activeTab === "resource" && <ResourceTab enterpriseId={id!} />}
         {activeTab === "report" && <ReportTab enterpriseId={id!} />}

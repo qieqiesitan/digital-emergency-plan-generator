@@ -1,5 +1,3 @@
-// @ts-nocheck
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, User, Key, Bot, Info, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
@@ -39,7 +37,7 @@ export default function SettingsScreen() {
     if (window.confirm("确定退出登录？")) {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
-      showToast?.("已退出登录", "info");
+      showToast?.({ type: "info", message: "已退出登录" });
       navigate("/m/login");
     }
   };
@@ -75,9 +73,6 @@ export default function SettingsScreen() {
             >
               <span className="text-neutral-600">{item.icon}</span>
               <span className="flex-1 text-left text-body text-neutral-900">{item.label}</span>
-              {item.sub && (
-                <span className="text-caption text-neutral-400 mr-sm">{item.sub}</span>
-              )}
               <ChevronRight size={16} className="text-neutral-400" />
             </motion.button>
           ))}

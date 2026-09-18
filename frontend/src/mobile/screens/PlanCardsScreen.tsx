@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, FileText, Target, Factory, Building2, AlertTriangle, Search } from "lucide-react";
@@ -85,15 +84,14 @@ export default function PlanCardsScreen() {
             icon={<AlertTriangle size={48} className="text-red-300" />}
             title="加载失败"
             description="无法获取企业数据，请检查网络连接"
-            action="重试"
-            onAction={() => window.location.reload()}
+            action={{ label: "重试", onPress: () => window.location.reload() }}
           />
         </div>
       </SafeArea>
     );
   }
 
-  // 鏃犱紒涓?
+  // 无企业
   if (enterprises.length === 0) {
     return (
       <SafeArea className="bg-neutral-50 min-h-dvh">
@@ -103,15 +101,14 @@ export default function PlanCardsScreen() {
             icon={<Building2 size={48} className="text-neutral-300" />}
             title="暂无企业档案"
             description="先添加企业，再创建应急预案"
-            action="添加企业"
-            onAction={() => navigate("/m/enterprises/new")}
+            action={{ label: "添加企业", onPress: () => navigate("/m/enterprises/new") }}
           />
         </div>
       </SafeArea>
     );
   }
 
-  // 鍒嗙鏈夐妗堝拰鏃犻妗堢殑浼佷笟锛堜娇鐢ㄨ繃婊ゅ悗鐨勫垪琛級
+  // 分离有预案和无预案的企业（使用过滤后的列表）
   const withPlans = filteredEnterprises.filter(ent => {
     const s = getSummary(ent.id);
     return ((s?.comprehensive_count ?? 0) + (s?.special_count ?? 0) + (s?.onsite_count ?? 0)) > 0;
@@ -236,7 +233,7 @@ export default function PlanCardsScreen() {
           </>
         )}
 
-        {/* 鏃犻妗堢殑浼佷笟 — 涔熷睍绀哄嚭鏉ワ紝寮曞鍒涘缓 */}
+        {/* 无预案的企业 — 也展示出来，引导创建 */}
         {withoutPlans.length > 0 && (
           <>
             <div className="flex items-center justify-between">
@@ -279,7 +276,7 @@ export default function PlanCardsScreen() {
           </>
         )}
 
-        {/* 鎼滅储鏃犵粨鏋? */}
+        {/* 搜索无结果 */}
         {search && filteredEnterprises.length === 0 && (
           <div className="pt-4">
             <EmptyState
