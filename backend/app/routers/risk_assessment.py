@@ -514,13 +514,16 @@ async def export_risk_assessment(
 
     # ---- 公文版式（复用预案 docx_template 样式体系） ----
     from app.services.report_docx import (
+        coerce_report_chapters,
         generate_report_docx,
         split_report_content_chapters,
     )
 
-    chapters = ((report.summary or {}).get("chapters")) or []
+    chapters = coerce_report_chapters((report.summary or {}).get("chapters"))
     if not chapters:
-        chapters = split_report_content_chapters(report.content)
+        chapters = coerce_report_chapters(split_report_content_chapters(report.content))
+    if not chapters:
+        raise HTTPException(400, "报告内容为空或格式异常，无法导出")
     doc = generate_report_docx(
         company_name=ent.name,
         report_kind="risk",

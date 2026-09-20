@@ -43,6 +43,19 @@ REPORT_KIND_TITLES = {
 }
 
 
+def coerce_report_chapters(raw) -> list[dict]:
+    """把 `summary["chapters"]` 归一成 [{title, content, ...}]。
+
+    为什么需要：导出直接 `for ch in chapters: ch.get(...)`。当 summary 是**别的形状**
+    （例如历史版本写成 dict、或单元素写成字符串）时，会抛 `'str' object has no attribute
+    'get'` → 接口返回一个没有任何提示的 500（2026-09-20 定向回归实测命中）。
+    这里只保留 dict 元素；拿不到可用章节时返回空列表，由调用方回退到正文切章。
+    """
+    if not isinstance(raw, list):
+        return []
+    return [c for c in raw if isinstance(c, dict)]
+
+
 def split_report_content_chapters(content: str) -> list[dict]:
     """按 '## 标题' 切分合并正文，作为 summary.chapters 缺失时的兜底。"""
     chapters: list[dict] = []

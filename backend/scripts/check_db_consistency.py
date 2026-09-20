@@ -44,6 +44,51 @@ CUSTOM_CHECKS: list[tuple[str, str]] = [
           )
         """,
     ),
+    # ── 组织架构升级（2026-09-20）新增：应急组织三表 + 成员多岗表 ──
+    (
+        "member_positions 引用的组织节点在该企业组织树里找不到",
+        """
+        SELECT count(*) FROM member_positions mp
+        JOIN enterprise_members em ON em.id = mp.member_id
+        JOIN enterprises e ON e.id = em.enterprise_id
+        WHERE mp.org_node_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM jsonb_array_elements(coalesce(e.org_structure, '[]'::jsonb)) n
+            WHERE n->>'id' = mp.org_node_id
+          )
+        """,
+    ),
+    (
+        "应急组织任职（assignments）挂到了别的企业的成员上（跨租户串号）",
+        """
+        SELECT count(*) FROM emergency_org_assignments a
+        JOIN emergency_org_roles r ON r.id = a.role_id
+        JOIN emergency_org_units u ON u.id = r.unit_id
+        JOIN enterprise_members em ON em.id = a.member_id
+        WHERE em.enterprise_id <> u.enterprise_id
+        """,
+    ),
+    (
+        "应急组织单元/角色/任职的 enterprise_id 不一致（越权可见的根因）",
+        """
+        SELECT count(*) FROM emergency_org_roles r
+        JOIN emergency_org_units u ON u.id = r.unit_id
+        WHERE r.enterprise_id <> u.enterprise_id
+        UNION ALL
+        SELECT count(*) FROM emergency_org_assignments a
+        JOIN emergency_org_roles r ON r.id = a.role_id
+        WHERE a.enterprise_id <> r.enterprise_id
+        """,
+    ),
+    (
+        "多个主岗：同一成员存在 >1 条 is_primary 任职（部分唯一索引应已挡住）",
+        """
+        SELECT count(*) FROM (
+          SELECT member_id FROM member_positions WHERE is_primary
+          GROUP BY member_id HAVING count(*) > 1
+        ) t
+        """,
+    ),
     (
         "被标记为风险点但缺分区或坐标（应用层 validator 保证，历史数据可能违反）",
         """
