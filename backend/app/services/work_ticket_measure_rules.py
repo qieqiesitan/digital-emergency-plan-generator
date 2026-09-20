@@ -81,7 +81,7 @@ def suggest_measures(
         if any(value is True for value in values):
             hit = [
                 CONDITION_LABELS[key]
-                for key, value in zip(keys, values)
+                for key, value in zip(keys, values, strict=True)
                 if value is True
             ]
             out.append(
