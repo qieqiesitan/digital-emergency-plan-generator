@@ -89,6 +89,17 @@ def check_plan(plan, enterprise, sections, required_sections: list | None = None
     issues = []
     warnings = []
 
+    # 应急组织为空时，下面的组织类规则（人名一致性 / 电话完整性 / 关键岗位覆盖）
+    # 全部不会触发 —— 用户看到的是"没有组织相关问题"，其实是**整段检查被跳过**。
+    # 这里显式提示一次，避免"假阴性"被当成"通过"（2026-09-20 定向冒烟发现）。
+    if not org_groups:
+        warnings.append({
+            "section_key": "",
+            "section_title": "全局",
+            "warning": "未读取到应急组织分组（应急组织未配置，或人员只挂在最外层单元上）："
+                       "组织类检查（人名一致性/联系电话/关键岗位）已跳过，导出签署页也将为空。",
+        })
+
     for s in sections:
         if not s.content or not s.content.strip():
             issues.append({

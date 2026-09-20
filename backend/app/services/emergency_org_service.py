@@ -96,7 +96,17 @@ def build_groups_for_consumers(units: Iterable[dict]) -> list[dict]:
     unit_list = [u for u in units if isinstance(u, dict)]
     groups: list[dict] = []
     for u in unit_list:
-        if not u.get("parent_id"):
+        # 根单元（无 parent_id）传统上只是"容器"，分组=它下面的子单元；
+        # 但前端允许把角色/人直接挂在根单元上（新建单元 parent_id 就是 null），
+        # 原实现一律跳过根单元 → 这些角色/成员**被静默丢弃**（返回空列表）：
+        #   ① 导出 docx 的签署页变成空的；② 质检的组织类规则（人名一致性/电话/关键岗位）
+        #   因 org_groups 为空而整段跳过，表现为"没有问题"（2026-09-20 定向冒烟实测）。
+        # 修正：根单元只有"确实挂了人"时才作为一个分组输出，没人时维持原语义不产生噪音。
+        if not u.get("parent_id") and not any(
+            (m or {}).get("name")
+            for r in (u.get("roles") or []) if isinstance(r, dict)
+            for m in (r.get("members") or []) if isinstance(m, dict)
+        ):
             continue
         members: list[dict] = []
         for r in u.get("roles") or []:
