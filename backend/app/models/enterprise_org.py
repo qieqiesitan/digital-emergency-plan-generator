@@ -3,7 +3,7 @@ from uuid import uuid4
 from typing import Optional
 
 from sqlalchemy import Index, String, Boolean, DateTime, ForeignKey, text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -35,6 +35,11 @@ class EnterpriseMember(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255))
     org_node_id: Mapped[Optional[str]] = mapped_column(String(64))
     position: Mapped[Optional[str]] = mapped_column(String(100))
+    # 特种作业证照：[{"type": "焊接与热切割作业", "no": "T6101…", "valid_to": "2027-05-30"}]
+    # 用于开票时自动拼接「动火人及证书编号」「电工及证书编号」，避免每次手打。
+    certificates: Mapped[list] = mapped_column(
+        JSONB, default=list, nullable=False, server_default=text("'[]'::jsonb")
+    )
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="member")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -90,6 +90,8 @@ def validate_before_submit(
     confirmed_measure_orders: Sequence[int],
     gas_tests: Sequence[dict],
     requires_gas_test: bool,
+    values_meta: Optional[dict] = None,
+    measures_meta: Optional[dict] = None,
     now: Optional[datetime] = None,
 ) -> list[str]:
     """提交前合规校验。返回问题清单；空列表表示可以提交。
@@ -107,12 +109,35 @@ def validate_before_submit(
         if raw is None or (isinstance(raw, str) and not raw.strip()):
             errors.append(f"必填项「{getattr(field, 'label', key)}」尚未填写")
 
+    # AI 生成的值必须逐个人工确认（规格 §2.3）。只针对 source=ai，
+    # 其他来源与无 meta 的老票一律不新增阻断。
+    for field in getattr(template, "fields", []) or []:
+        if not getattr(field, "is_required", False):
+            continue
+        meta = (values_meta or {}).get(field.field_key) or {}
+        if meta.get("source") == "ai" and not meta.get("confirmed_at"):
+            errors.append(
+                f"「{getattr(field, 'label', field.field_key)}」为 AI 生成内容，尚未经人工确认"
+            )
+
     mandatory = [m for m in measures if getattr(m, "is_mandatory", True)]
-    confirmed = set(confirmed_measure_orders or [])
-    missing = [m for m in mandatory if getattr(m, "sort_order", 0) not in confirmed]
+    # 表态口径：confirmed_measures（老路径）∪ measures_meta 中的 confirmed/not_applicable
+    stated = set(confirmed_measure_orders or [])
+    for key, meta in (measures_meta or {}).items():
+        if not isinstance(meta, dict):
+            continue
+        state = meta.get("state")
+        if state == "not_applicable" and not (meta.get("reason_text") or "").strip():
+            errors.append(f"第 {key} 条措施标记为「本票不涉及」，但未填写理由")
+        if state in ("confirmed", "not_applicable"):
+            try:
+                stated.add(int(key))
+            except (TypeError, ValueError):
+                continue
+    missing = [m for m in mandatory if getattr(m, "sort_order", 0) not in stated]
     if missing:
         errors.append(
-            f"还有 {len(missing)} 条安全措施未确认（如「{missing[0].measure_text[:20]}…」）"
+            f"还有 {len(missing)} 条安全措施未表态（如「{missing[0].measure_text[:20]}…」）"
         )
 
     if requires_gas_test:
@@ -251,6 +276,8 @@ async def submit_ticket(
         confirmed_measure_orders=values.get("confirmed_measures", []),
         gas_tests=gas_tests,
         requires_gas_test=requires_gas_test(instance.ticket_type),
+        values_meta=instance.values_meta or {},
+        measures_meta=instance.measures_meta or {},
     )
     if errors:
         raise SubmitValidationError("；".join(errors))

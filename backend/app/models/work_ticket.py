@@ -179,6 +179,15 @@ class WorkTicketInstance(Base):
     current_node_key: Mapped[Optional[str]] = mapped_column(String(60))
     current_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     values: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    # 每个票面字段的来源留痕（source/source_ref/prefilled_at/confirmed_at/confirmed_by/edited）。
+    # 老票该列为 '{}'：一律按人工填写处理，不新增任何提交阻断。
+    values_meta: Mapped[dict] = mapped_column(
+        JSONB, default=dict, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    # 每条措施的三态（pending/confirmed/not_applicable）与"不适用"理由、操作人、时间。
+    measures_meta: Mapped[dict] = mapped_column(
+        JSONB, default=dict, nullable=False, server_default=text("'{}'::jsonb")
+    )
     valid_from: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     valid_to: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     extend_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
