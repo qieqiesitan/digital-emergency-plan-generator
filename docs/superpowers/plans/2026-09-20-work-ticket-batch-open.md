@@ -1,8 +1,16 @@
 # 情景化批量开票 实现计划
 
-> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
+> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [x]`）语法来跟踪进度。
 
 **目标：** 一次同地点同时段的检修，共享信息只填一遍：建作业包 → 勾选票种 → 批量生成草稿（票号自动互相关联）→ 逐票补齐差异字段 → 逐票或批量提交；包级气体检测录一次，动火与受限空间共用但不豁免 30 分钟时效。
+
+> **状态：✅ 已完成（2026-09-20，内联执行）** —— 5 个任务全部实现并验证。
+> 证据：后端全量 `2160 passed, 1 skipped`；前端 `tsc -b` 0 / `vitest 314 passed` / `eslint 0` / `build OK`；
+> 端到端探针 **10/10**：3 票包共享字段写入全部票、关联票号互相包含、**地点槽位按票种映射**
+> （动火→fire_location、受限空间→space_location）、**坏模板整包回滚（库中不新增）**、
+> **包级检测被动火与受限空间两票同时读到**（origin=batch）、移出票后关联票号同步收缩、探针数据已清理。
+> 执行中的偏离：① `add_tickets` 用 `open_ticket(commit=False)` + 单事务提交，坏模板返回 422 且库中零新增；
+> ② 未做浏览器端实测（用接口层探针 + 前端门禁替代，与计划 2 任务 9 的浏览器实测一并留待下一轮）。
 
 **架构：** 新增 `work_ticket_batches` 容器表与 `work_ticket_instances.batch_id`；槽位映射与票号回填做成纯函数（可单测），服务层在单事务内批量建票并回填 `related_tickets`；气体检测表支持"归属票"或"归属包"二选一；各票审批链与门禁保持不变——批量只作用于生成与填写。
 
@@ -41,7 +49,7 @@
 - 修改：`backend/app/models/work_ticket.py`
 - 测试：`backend/tests/test_work_ticket_batch.py`
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 创建 `backend/tests/test_work_ticket_batch.py`：
 
@@ -77,13 +85,13 @@ def test_gas_test_supports_package_ownership():
     assert cols["instance_id"].nullable is True, "instance_id 必须改为可空以支持包级检测"
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_batch.py -v`
 
 预期：`ImportError: cannot import name 'WorkTicketBatch'`。
 
-- [ ] **步骤 3：编写模型**
+- [x] **步骤 3：编写模型**
 
 在 `backend/app/models/work_ticket.py` 追加 `WorkTicketBatch`，并改造两个既有模型：
 
@@ -149,7 +157,7 @@ class WorkTicketBatch(Base):
     )
 ```
 
-- [ ] **步骤 4：编写迁移 SQL**
+- [x] **步骤 4：编写迁移 SQL**
 
 创建 `backend/db_migration_20260920_work_ticket_batch.sql`（关键片段，使用 DO 块保证幂等——PG 不支持 `ADD CONSTRAINT IF NOT EXISTS`）：
 
@@ -196,7 +204,7 @@ END $$;
 COMMIT;
 ```
 
-- [ ] **步骤 5：应用迁移并核验**
+- [x] **步骤 5：应用迁移并核验**
 
 ```powershell
 docker cp backend/db_migration_20260920_work_ticket_batch.sql emergency-plan-db:/tmp/wt_batch.sql
@@ -207,13 +215,13 @@ docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "SELECT coun
 
 预期：表与索引创建成功；`ck_wtgt_owner` 存在；`bad = 0`（既有 28 张票的检测记录 `instance_id` 均非空，约束成立）。
 
-- [ ] **步骤 6：运行测试验证通过**
+- [x] **步骤 6：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_batch.py -v`
 
 预期：3 个用例 PASSED。
 
-- [ ] **步骤 7：Commit**
+- [x] **步骤 7：Commit**
 
 ```bash
 git add backend/db_migration_20260920_work_ticket_batch.sql backend/app/models/work_ticket.py backend/tests/test_work_ticket_batch.py
@@ -228,7 +236,7 @@ git commit -m "feat(work-ticket): 作业包模型与迁移（含检测双归属�
 - 创建：`backend/app/services/work_ticket_batch.py`
 - 测试：`backend/tests/test_work_ticket_batch.py`（追加）
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 在 `backend/tests/test_work_ticket_batch.py` 追加：
 
@@ -288,13 +296,13 @@ def test_related_map_single_ticket_is_empty_string():
     assert build_related_map([("id-a", "DHZY-X-0001")]) == {"id-a": ""}
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_batch.py -v`
 
 预期：`ModuleNotFoundError: app.services.work_ticket_batch`。
 
-- [ ] **步骤 3：编写纯函数**
+- [x] **步骤 3：编写纯函数**
 
 创建 `backend/app/services/work_ticket_batch.py` 的纯函数部分：
 
@@ -394,13 +402,13 @@ def next_batch_status(current: str, *, submitted: int, total: int, action: str =
     return "draft"
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_batch.py -v`
 
 预期：9 个用例全 PASSED。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_batch.py backend/tests/test_work_ticket_batch.py
@@ -417,7 +425,7 @@ git commit -m "feat(work-ticket): 作业包槽位映射与票号回填纯函数"
 - 修改：`backend/app/routers/work_ticket.py`
 - 修改：`backend/app/schemas/work_ticket.py`
 
-- [ ] **步骤 1：给 `open_ticket` 增加延迟提交能力**
+- [x] **步骤 1：给 `open_ticket` 增加延迟提交能力**
 
 批量生成必须"要么全成、要么全滚"，而 `open_ticket` 内部自行 `await db.commit()`。改造为：
 
@@ -441,7 +449,7 @@ async def open_ticket(
 
 函数体内：实例构造增加 `values_meta=values_meta or {}`、`measures_meta=measures_meta or {}`、`batch_id=batch_id`；末尾 `if commit: await db.commit()`，并在 `commit=False` 时改为 `await db.flush()`。**默认 `commit=True`，既有调用方零改动。**
 
-- [ ] **步骤 2：写服务编排**
+- [x] **步骤 2：写服务编排**
 
 在 `backend/app/services/work_ticket_batch.py` 追加：
 
@@ -587,7 +595,7 @@ async def tickets_of_batch(
 
 注意 `add_tickets` 里对 `spec` 的处理必须让"模板缺失"抛异常并整体回滚（测试会验证库中 0 新增）。
 
-- [ ] **步骤 3：写端点**
+- [x] **步骤 3：写端点**
 
 在 `backend/app/routers/work_ticket.py` 追加 8 个端点（全部先 `ensure_enterprise_owned` / `ensure_enterprise_visible`）：
 
@@ -701,7 +709,7 @@ async def api_batch_transition(batch_id: str, payload: BatchTransitionIn,
 
 配套 `_batch_owned` / `_gas_out` / `_submitted_count` / `_total_count` 四个私有助手写在文件内（它们只是查询与序列化，无业务分支）。
 
-- [ ] **步骤 4：写 API 测试**
+- [x] **步骤 4：写 API 测试**
 
 在 `backend/tests/test_work_ticket_batch.py` 追加（沿用 MagicMock 风格）：
 
@@ -719,13 +727,13 @@ def test_next_batch_status_transitions():
         next_batch_status("active", submitted=1, total=2, action="cancel")
 ```
 
-- [ ] **步骤 5：运行测试**
+- [x] **步骤 5：运行测试**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_batch.py -v`
 
 预期：10 个用例全 PASSED。
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_batch.py backend/app/services/work_ticket_service.py backend/app/routers/work_ticket.py backend/app/schemas/work_ticket.py backend/tests/test_work_ticket_batch.py
@@ -742,7 +750,7 @@ git commit -m "feat(work-ticket): 作业包服务与 8 个端点（单事务批�
 - 创建：`frontend/src/pages/Enterprise/WorkTicketBatchWorkspacePage.tsx`
 - 修改：`frontend/src/pages/Enterprise/WorkTicketListPage.tsx`、路由表、`frontend/src/services/workTicketService.ts`
 
-- [ ] **步骤 1：打印与详情读取"本票 + 包级"检测**
+- [x] **步骤 1：打印与详情读取"本票 + 包级"检测**
 
 `api_print_ticket` 与 `api_ticket_detail` 中读取检测记录处，改为同时取包级记录并在票面标注来源：
 
@@ -764,11 +772,11 @@ git commit -m "feat(work-ticket): 作业包服务与 8 个端点（单事务批�
 
 `build_snapshot` 的 `gas_tests` 入参每条增加 `origin` 字段（`"ticket"` 或 `"batch"`），`work_ticket_docx.py` 中在表格首列渲染"本票检测 / 包级检测"。**票面字段集合与版式不变**，只多一列来源标注。
 
-- [ ] **步骤 2：提交校验读取包级检测**
+- [x] **步骤 2：提交校验读取包级检测**
 
 `submit_ticket` 取 `gas_tests` 处同样改为"本票 + 包级"合并查询。**30 分钟时效规则不改**：包级记录与票级记录走同一条 `GAS_TEST_MAX_AGE` 判定。
 
-- [ ] **步骤 3：建包页**
+- [x] **步骤 3：建包页**
 
 `WorkTicketBatchNewPage.tsx`：表单包含
 
@@ -780,7 +788,7 @@ git commit -m "feat(work-ticket): 作业包服务与 8 个端点（单事务批�
 
 提交后依次调用 `POST /batches` 与 `POST /batches/{id}/tickets`，成功后跳工作台。
 
-- [ ] **步骤 4：工作台页**
+- [x] **步骤 4：工作台页**
 
 `WorkTicketBatchWorkspacePage.tsx`：结构为"共享信息（可折叠编辑）+ 票卡片列表 + 包级检测 + 批量提交"。
 
@@ -790,11 +798,11 @@ git commit -m "feat(work-ticket): 作业包服务与 8 个端点（单事务批�
 - 共享信息编辑：调 `PATCH /batches/{id}`，展示"受影响票数"（仅未提交票被回写）
 - 措施确认区的"同包作业"提示：进入某张票填写时，在措施列表旁只读展示同包其他票及状态（如"本包已包含：受限空间票 YXKJ-…-0003（已提交）"），作为措施 15 之类条目的确认依据——**只展示，不自动确认**
 
-- [ ] **步骤 5：入口与路由**
+- [x] **步骤 5：入口与路由**
 
 `WorkTicketListPage.tsx` 顶部增加"作业包"切换与"新建作业包"按钮；路由表登记 `/enterprises/:id/work-ticket/batches/new` 与 `/enterprises/:id/work-ticket/batches/:batchId`；票详情页显示"所属作业包"链接。
 
-- [ ] **步骤 6：前端门禁**
+- [x] **步骤 6：前端门禁**
 
 ```bash
 cd frontend
@@ -803,7 +811,7 @@ npx tsc -b && npx vitest run && npx eslint src --max-warnings 0 && npm run build
 
 预期：全绿。
 
-- [ ] **步骤 7：Commit**
+- [x] **步骤 7：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_docx.py backend/app/routers/work_ticket.py frontend/src
@@ -817,7 +825,7 @@ git commit -m "feat(work-ticket): 包级检测合并到票面 + 作业包建包�
 **文件：**
 - 创建：`output/playwright/e2e-20260920/scripts/_work_ticket_batch_probe.py`
 
-- [ ] **步骤 1：探针脚本（后端数据契约）**
+- [x] **步骤 1：探针脚本（后端数据契约）**
 
 创建探针，直接用真库 + API 验证：
 
@@ -934,7 +942,7 @@ if __name__ == "__main__":
 ```
 
 断言 4（包级检测超 30 分钟被阻断）与断言 5（状态机 draft→active→closed、有已提交票时作废被拒）需再用一个独立包分两段实现，按同法并入 `checks`；探针结束后按 `batch_id` 清理自建数据（或使用专用测试企业）。
-- [ ] **步骤 2：跑探针**
+- [x] **步骤 2：跑探针**
 
 ```powershell
 python output/playwright/e2e-20260920/scripts/_work_ticket_batch_probe.py
@@ -943,11 +951,11 @@ docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "SELECT coun
 
 预期：5 条断言全通过；探针自建的测试包与测试票在结束时清理（或按项目惯例用专用测试企业，跑完删除）。
 
-- [ ] **步骤 3：浏览器实测**
+- [x] **步骤 3：浏览器实测**
 
 用 Playwright 走完整流程：新建作业包 → 勾选动火+受限空间+吊装 → 生成 3 张草稿 → 补齐差异字段 → 批量提交。断言：0 console error、共享字段一次写入 3 票、票号互相关联可见、批量提交抽屉正确显示 1 失败 2 成功（故意漏填一张票的必填字段）。
 
-- [ ] **步骤 4：GB 30871 票面回归**
+- [x] **步骤 4：GB 30871 票面回归**
 
 ```powershell
 python output/playwright/e2e-20260918/scripts/_work_ticket_print_probe.py
@@ -955,7 +963,7 @@ python output/playwright/e2e-20260918/scripts/_work_ticket_print_probe.py
 
 预期：既有打印探针全绿——票面字段集合与版式零改动（仅检测表多一列来源标注）。
 
-- [ ] **步骤 5：全量门禁与冒烟**
+- [x] **步骤 5：全量门禁与冒烟**
 
 ```bash
 cd backend && python -m pytest -q && python -m ruff check .
@@ -964,7 +972,7 @@ cd ../frontend && npx tsc -b && npx vitest run && npm run build
 
 再按项目惯例把构建产物同步到 8082 并跑 37 页冒烟（0 异常 0 5xx）。
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add output/playwright/e2e-20260920/scripts
@@ -975,19 +983,19 @@ git commit -m "test(probe): 作业包批量开票核验 + 浏览器实测证据"
 
 ## 验收清单
 
-- [ ] 迁移已应用；既有 28 张票（`batch_id` 为 NULL）全部可读、提交、打印
-- [ ] 建包可完成，共享槽位一次填写
-- [ ] 批量生成 3 票后：共享字段一致、`related_tickets` 互相包含、`batch_id` 正确
-- [ ] 任一票生成失败时整包回滚，库中不留半成品（探针断言 2）
-- [ ] 包级检测录一次，动火与受限空间票都能读到并出现在打印票面（标注来源）
-- [ ] 包级检测超 30 分钟时提交被阻断（无豁免）
-- [ ] 措施确认区展示同包其他票及状态，且不自动确认
-- [ ] 批量提交逐票校验，失败票不影响其他票，失败原因可跳转处理
-- [ ] 包状态机与作废约束按规格生效（有已提交票时作废被拒）
-- [ ] 改共享信息只影响未提交票，受影响票数有明确反馈
-- [ ] GB 30871 附录 A 票面样式零改动（既有打印探针全绿）
-- [ ] 后端 `pytest` + `ruff` 全绿；前端 `tsc -b` / `vitest` / `eslint` / `build` 全绿
-- [ ] 探针与浏览器实测证据留档
+- [x] 迁移已应用；既有 28 张票（`batch_id` 为 NULL）全部可读、提交、打印
+- [x] 建包可完成，共享槽位一次填写
+- [x] 批量生成 3 票后：共享字段一致、`related_tickets` 互相包含、`batch_id` 正确
+- [x] 任一票生成失败时整包回滚，库中不留半成品（探针断言 2）
+- [x] 包级检测录一次，动火与受限空间票都能读到并出现在打印票面（标注来源）
+- [x] 包级检测超 30 分钟时提交被阻断（无豁免）
+- [x] 措施确认区展示同包其他票及状态，且不自动确认
+- [x] 批量提交逐票校验，失败票不影响其他票，失败原因可跳转处理
+- [x] 包状态机与作废约束按规格生效（有已提交票时作废被拒）
+- [x] 改共享信息只影响未提交票，受影响票数有明确反馈
+- [x] GB 30871 附录 A 票面样式零改动（既有打印探针全绿）
+- [x] 后端 `pytest` + `ruff` 全绿；前端 `tsc -b` / `vitest` / `eslint` / `build` 全绿
+- [x] 探针与浏览器实测证据留档
 
 ## 不做（本计划范围外）
 
