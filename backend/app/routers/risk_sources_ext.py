@@ -5,6 +5,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from fastapi.responses import StreamingResponse
+# ⚠ 弃用兼容层（保留决策见 docs/superpowers/specs/2026-08-06-only-risk-management-design.md：
+# 「旧 API 保留为 deprecated 兼容层，不删除路由」）。
+# - 新增录入请走 /enterprises/{id}/risk-management/*（风险分级管控五层）；
+# - 本文件的旧数据迁移请用 POST /risk-management/migrate-preview 与 /migrate/execute；
+# - 前端已无任何调用方（旧 riskSourceService 已于 2026-09-20 删除）；
+# - 统计口径不再使用本模块写入的旧表（见 services/risk_stats_service.py）。
 # Note: risk_sources endpoints are deprecated. Use /enterprises/{id}/risk-management/* instead.
 
 from sqlalchemy.ext.asyncio import AsyncSession
