@@ -1,0 +1,107 @@
+{
+  "suggestion_distribution_by_type": {
+    "DHZY/特级": {
+      "unknown": 13,
+      "applicable": 0,
+      "not_applicable": 3,
+      "measures": 16
+    },
+    "DHZY/一级": {
+      "unknown": 13,
+      "applicable": 0,
+      "not_applicable": 3,
+      "measures": 16
+    },
+    "DHZY/二级": {
+      "unknown": 13,
+      "applicable": 0,
+      "not_applicable": 3,
+      "measures": 16
+    },
+    "YXKJ/-": {
+      "unknown": 15,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 15
+    },
+    "MBCD/-": {
+      "unknown": 11,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 11
+    },
+    "LSYD/-": {
+      "unknown": 14,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 14
+    },
+    "PTZY/-": {
+      "unknown": 11,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 11
+    },
+    "DLZY/-": {
+      "unknown": 4,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 4
+    },
+    "GCZY/Ⅰ级": {
+      "unknown": 15,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 15
+    },
+    "GCZY/Ⅱ级": {
+      "unknown": 15,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 15
+    },
+    "GCZY/Ⅲ级": {
+      "unknown": 15,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 15
+    },
+    "GCZY/Ⅳ级": {
+      "unknown": 15,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 15
+    },
+    "QZDZ/一级": {
+      "unknown": 20,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 20
+    },
+    "QZDZ/二级": {
+      "unknown": 20,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 20
+    },
+    "QZDZ/三级": {
+      "unknown": 20,
+      "applicable": 0,
+      "not_applicable": 0,
+      "measures": 20
+    }
+  },
+  "yxkj_plain": {
+    "unknown": 15,
+    "applicable": 0,
+    "not_applicable": 0
+  },
+  "yxkj_with_scenario": {
+    "unknown": 15,
+    "applicable": 0,
+    "not_applicable": 0
+  },
+  "checks": {
+    "yxkj_scenario_changes_nothing": true
+  }
+}
