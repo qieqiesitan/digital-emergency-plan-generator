@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { Descriptions, Tag, Timeline, Table, Button, Modal, Space, message } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { fetchRegulation, fetchRegulationHistory, fetchSourceFile, updateTopics } from "@/services/regulationService";
+import {
+  fetchRegulation, fetchRegulationHistory, fetchRegulationLineage,
+  fetchSourceFile, updateTopics,
+} from "@/services/regulationService";
 
 interface Props {
   id: string;
   onClose: () => void;
 }
+
+/** 文号特征：国务院令第708号 / 主席令第88号 / 〔2020〕1号 / 公告 …（用于区分"文号"与"误填成法规名"的 code） */
+const CODE_LIKE = /令|号|公告|〔|\[|决议|通知/;
 
 export function RegulationDetail({ id, onClose }: Props) {
   const [sourcePreview, setSourcePreview] = useState<{ filename: string; url: string; type: string; text?: string } | null>(null);
@@ -18,6 +24,13 @@ export function RegulationDetail({ id, onClose }: Props) {
   const { data: history } = useQuery({
     queryKey: ["regulationHistory", id],
     queryFn: () => fetchRegulationHistory(id),
+  });
+
+  // 法规体系链（只读图谱）：上位法链 + 直接下级
+  const { data: lineage } = useQuery({
+    queryKey: ["regulationLineage", id],
+    queryFn: () => fetchRegulationLineage(id),
+    enabled: !!id,
   });
 
   const statusColors: Record<string, string> = { effective: "green", abolished: "red" };
@@ -92,6 +105,45 @@ export function RegulationDetail({ id, onClose }: Props) {
               </Space>
             </Descriptions.Item>
           </Descriptions>
+
+          {lineage && (lineage.up.length > 0 || lineage.down.length > 0) && (
+            <>
+              <h4 style={{ marginTop: 16 }}>法规体系链</h4>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ color: "#999", marginRight: 8 }}>上位法链：</span>
+                {lineage.up.length === 0 ? (
+                  <Tag>本法规为顶层</Tag>
+                ) : (
+                  <Space wrap size={[4, 4]}>
+                    {lineage.up.map((item, i) => (
+                      <span key={item.id}>
+                        {i > 0 && <span style={{ color: "#bbb", margin: "0 4px" }}>←</span>}
+                        <Tag color={item.status === "abolished" ? "red" : "blue"}>
+                          {/* 数据里部分节点的 code 存的是法规名而不是文号（同名会显示成「XX XX」），
+                              因此只有看起来像文号（含 令/号/公告/〔〕）时才前缀展示 */}
+                          {CODE_LIKE.test(item.code) ? `${item.code} ` : ""}{item.title}
+                        </Tag>
+                      </span>
+                    ))}
+                  </Space>
+                )}
+              </div>
+              <div>
+                <span style={{ color: "#999", marginRight: 8 }}>直接下级：</span>
+                {lineage.down.length === 0 ? (
+                  <Tag>暂无下级法规</Tag>
+                ) : (
+                  <Space wrap size={[4, 4]}>
+                    {lineage.down.map((item) => (
+                      <Tag key={item.id} color={item.status === "abolished" ? "red" : "green"}>
+                        {CODE_LIKE.test(item.code) ? `${item.code} ` : ""}{item.title}
+                      </Tag>
+                    ))}
+                  </Space>
+                )}
+              </div>
+            </>
+          )}
 
           {reg.articles && reg.articles.length > 0 && (
             <>

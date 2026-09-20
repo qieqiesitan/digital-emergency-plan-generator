@@ -397,6 +397,48 @@ async def delete_regulation(
 
 # ── 影响分析 ──
 
+# ── 法规体系链（上位法链 / 直接下级） ──
+
+
+def _lineage_item(node_id: str, node: dict | None) -> dict:
+    """把图谱节点收敛成前端展示需要的字段（不泄露内部结构）。"""
+    node = node or {}
+    return {
+        "id": node_id,
+        "title": node.get("title") or node.get("full_name") or node_id,
+        "full_name": node.get("full_name") or "",
+        "code": node.get("code") or "",
+        "status": node.get("status") or "effective",
+        "node_type": node.get("node_type") or node.get("type") or "",
+    }
+
+
+@router.get("/{regulation_id}/lineage")
+async def regulation_lineage(
+    regulation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """法规体系链：**上位法链**（自己→上位法→…）与**直接下级**法规。
+
+    图里边是"子→父"方向（子 --下位法--> 父），因此：
+    - 上位法链 = `trace_chain(id, "下位法")`（沿出边向上，去掉起点自身）；
+    - 直接下级 = `lower_laws(id)`（入边，去掉自环噪声）。
+    两者都只读图谱文件，不碰数据库；节点不存在时 404（与 /impact 的口径一致）。
+    """
+    graph = get_graph()
+    node = graph.get_node(regulation_id)
+    if not node:
+        raise HTTPException(404, "法规不存在")
+
+    chain_ids = [rid for rid in graph.trace_chain(regulation_id, "下位法") if rid != regulation_id]
+    return {"code": 0, "data": {
+        "self": _lineage_item(regulation_id, node),
+        "up": [_lineage_item(rid, graph.get_node(rid)) for rid in chain_ids],
+        "down": [_lineage_item(rid, graph.get_node(rid)) for rid in graph.lower_laws(regulation_id)],
+    }}
+
+
 @router.get("/{regulation_id}/impact")
 async def regulation_impact(
     regulation_id: str,

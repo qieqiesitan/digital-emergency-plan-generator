@@ -145,6 +145,24 @@ export interface ImpactResponse {
   plans: ImpactResult[];
 }
 
+/** 法规体系链节点（后端 /regulations/{id}/lineage 的展示字段） */
+export interface LineageItem {
+  id: string;
+  title: string;
+  full_name: string;
+  code: string;
+  status: string;
+  node_type: string;
+}
+
+export interface RegulationLineage {
+  self: LineageItem;
+  /** 上位法链：自己 → 上位法 → 更上位法（不含自己） */
+  up: LineageItem[];
+  /** 直接下级法规 */
+  down: LineageItem[];
+}
+
 export interface BatchAbolishRequest {
   ids: string[];
 }

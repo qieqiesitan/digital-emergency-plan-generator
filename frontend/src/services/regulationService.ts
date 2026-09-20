@@ -4,6 +4,7 @@ import type {
   RegulationParseResult, RegulationCreateRequest, RegulationStats,
   RegulationGraphData, HistoryEvent, SourceFile,
   DuplicateCheckResponse, ImpactResponse, BatchAbolishResponse,
+  RegulationLineage,
 } from "@/types/regulation";
 
 import { getApiBaseUrl } from "@/utils/platform";
@@ -15,6 +16,12 @@ export async function fetchRegulations(params: RegulationListParams = {}): Promi
 
 export async function fetchRegulation(id: string): Promise<RegulationNode> {
   const res = await api.get(`/regulations/${id}`);
+  return res.data.data;
+}
+
+/** 法规体系链：上位法链（自己→上位法→…）+ 直接下级法规 */
+export async function fetchRegulationLineage(id: string): Promise<RegulationLineage> {
+  const res = await api.get(`/regulations/${id}/lineage`);
   return res.data.data;
 }
 

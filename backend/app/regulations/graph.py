@@ -172,7 +172,12 @@ class RegulationGraph:
                 for s, t, d in self._g.edges(data=True)]
 
     def trace_chain(self, node_id: str, relation: str = "上位法") -> list[str]:
-        """追溯关系链，返回 id 列表。"""
+        """沿出边追溯关系链，返回 id 列表（含起点）。
+
+        图里的**边方向是"子→父"**（`生产安全事故应急条例 --下位法--> 安全生产法`），
+        所以对某部法规调用本方法拿到的是**它的上位法链**（自己 → 上位法 → …）。
+        自环与环状引用由 visited 兜住。
+        """
         chain = []
         current = node_id
         visited = set()
@@ -183,6 +188,19 @@ class RegulationGraph:
                           if d.get("relation") == relation]
             current = successors[0] if successors else None
         return chain
+
+    def lower_laws(self, node_id: str, relation: str = "下位法") -> list[str]:
+        """直接下级法规 id（走入边、去掉自环）。
+
+        与 `trace_chain` 的方向相反：图里的边是"子→父"，所以入边才是下级。
+        数据里存在 `X --下位法--> X` 这类自环噪声，这里显式剔除。
+        """
+        if node_id not in self._g:
+            return []
+        return sorted({
+            s for s, _, d in self._g.in_edges(node_id, data=True)
+            if d.get("relation") == relation and s != node_id
+        })
 
     # ── 增删改 ──
 
