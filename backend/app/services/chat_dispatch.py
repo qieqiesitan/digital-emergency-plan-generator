@@ -6,7 +6,7 @@ import asyncio
 from uuid import uuid4
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from app.models.user import User
 from app.models.enterprise import (
     Enterprise, RiskSource, EmergencyResource, PlanProject,
@@ -582,6 +582,43 @@ async def _list_templates(db, user, args):
     ]}
 
 
+async def _list_hazard_templates(db, user, args):
+    """隐患排查检查表模板（系统预置 + 指定企业的自定义）。
+
+    为什么单独加这把工具（2026-09-20 真实模型实测）：用户问"有哪些隐患排查检查表模板"，
+    模型只能拿到 `list_templates`（那是**预案模板**），于是回答"系统里没有检查表模板"——
+    工具覆盖不到的能力，模型无法凭空补上。这里补一个只读查询，
+    与 `GET /hazard-inspection/templates` 同一套合并规则（同名同类别以企业自定义为准）。
+    """
+    from app.models.hazard_management import HazardChecklistTemplate
+
+    ent_id = (args.get("enterprise_id") or "").strip()
+    conds = [HazardChecklistTemplate.is_system.is_(True)]
+    if ent_id:
+        ent = (await db.execute(
+            select(Enterprise).where(Enterprise.id == ent_id, Enterprise.user_id == user.id)
+        )).scalar_one_or_none()
+        if not ent:
+            return {"error": "企业不存在"}
+        conds.append(HazardChecklistTemplate.enterprise_id == ent.id)
+    rows = (await db.execute(
+        select(HazardChecklistTemplate).where(or_(*conds))
+    )).scalars().all()
+    merged: dict = {}
+    for t in rows:                      # 同名同类别：企业自定义覆盖系统预置
+        merged[(t.name, t.category)] = t
+    return {"templates": [
+        {
+            "id": t.id,
+            "name": t.name,
+            "category": t.category,
+            "item_count": len(t.items or []),
+            "scope": "system" if t.enterprise_id is None else "enterprise",
+        }
+        for t in merged.values()
+    ]}
+
+
 # ── 风险评估报告 ──
 
 async def _verify_report_access(db, user, report_model, report_id):
@@ -833,7 +870,10 @@ def _corpus_lexical_matches(store, keywords: list[str]):
                 score += min(occ, 3) * len(kw) * len(kw)
                 df[kw] += 1
         if score > 0:
-            matches.append({"text": text, "metadata": meta, "distance": 1.0})
+            # 词面命中没有向量距离，用 recall 标记来源：上层据此把 similarity_score
+            # 置空，而不是报一个假的 0.0（2026-09-20 真实模型实测：模型会把 0.0 当成
+            # "相似度为 0、检索可能有问题"写进回答，用户看了会以为系统坏了）。
+            matches.append({"text": text, "metadata": meta, "distance": 1.0, "recall": "lexical"})
     return matches, df, len(corpus)
 
 
@@ -913,7 +953,12 @@ async def _search_regulation_articles(db, user, args):
                     "regulation_full_name": node.get("full_name", node.get("title", "")),
                     "regulation_code": node.get("code", ""),
                     "status": node.get("status", ""),
-                    "similarity_score": round(1 - float(hit.get("distance", 1)), 4),
+                    # 只有向量召回才有真实距离；词面召回返回 None（模型/前端不得把它当 0 分）
+                    "recall": "lexical" if hit.get("recall") == "lexical" else "vector",
+                    "similarity_score": (
+                        None if hit.get("recall") == "lexical"
+                        else round(1 - float(hit.get("distance", 1)), 4)
+                    ),
                 })
             if candidates:
                 df = lexical[1] if lexical else None
@@ -1494,6 +1539,7 @@ _FUNCTIONS = {
     "create_plan": _create_plan,
     "delete_plan": _delete_plan,
     "list_templates": _list_templates,
+    "list_hazard_templates": _list_hazard_templates,
     "list_risk_assessments": _list_risk_assessments,
     "get_risk_assessment": _get_risk_assessment,
     "list_resource_investigations": _list_resource_investigations,

@@ -32,6 +32,10 @@ API_BASE_MAP: dict[str, str] = {
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 DEFAULT_MAX_RETRIES = 3
 
+# 支持 stream_options.include_usage 的官方 provider（用于把流式调用的 token 用量留痕）。
+# 自定义 base_url 可能是严格网关，多送字段会被 400，所以只对这三家官方端点开启。
+STREAM_USAGE_PROVIDERS = {"openai", "deepseek", "qwen"}
+
 # 超时分类：优先按异常类型（LLMTimeoutError），文本特征仅作兼容兜底——
 # httpx 的 ReadTimeout 消息可能为空串，纯文本判定会漏（2026-09-18 复测踩到）。
 TIMEOUT_MARKERS = ("timed out", "timeout", "ReadTimeout", "ConnectTimeout", "PoolTimeout")
@@ -245,6 +249,12 @@ async def llm_chat_completion(
         payload["top_p"] = ai_config.top_p
     if tools is not None:
         payload["tools"] = tools
+    if stream and ai_config.provider in STREAM_USAGE_PROVIDERS and base in API_BASE_MAP.values():
+        # 流式请求默认不返回 usage，导致聊天/章节/报告这些**最贵的调用**在用量统计里
+        # token 全是 NULL（2026-09-20 真实额度验收时实测：25 章批量生成 89k 字、留痕里
+        # 一个 token 都没记）。OpenAI 兼容的三家都支持 stream_options.include_usage，
+        # 自定义 base_url / 未知 provider 一律不加，避免严格网关 400（B19 的教训）。
+        payload["stream_options"] = {"include_usage": True}
     retry_count = DEFAULT_MAX_RETRIES
     if payload_overrides:
         # B19：max_retries 是客户端重试参数，不得混入请求体（严格 API 400）。
@@ -284,7 +294,7 @@ async def llm_chat_completion(
         # 流式路径：AsyncClient 在生成器内部创建和管理
         inner = _stream_response(base, payload, ai_config, timeout, max_retries=retry_count,
                                  reasoning_cb=reasoning_cb, metrics=metrics)
-        return _telemetry_stream(inner, _record)
+        return _telemetry_stream(inner, _record, metrics=metrics)
 
     # 非流式路径
     headers = {"Authorization": f"Bearer {decrypt_api_key(ai_config.api_key_encrypted)}"}
@@ -300,8 +310,14 @@ async def llm_chat_completion(
     return data
 
 
-async def _telemetry_stream(inner: AsyncGenerator[str, None], record_factory):
-    """流式包装：正常结束/截断/失败各写一条留痕，并把原异常抛给调用方。"""
+async def _telemetry_stream(inner: AsyncGenerator[str, None], record_factory,
+                            metrics: dict | None = None):
+    """流式包装：正常结束/截断/失败各写一条留痕，并把原异常抛给调用方。
+
+    `metrics["usage"]` 由 `_stream_response` 从 `include_usage` 的最后一个分片里取，
+    这里补进留痕——否则流式调用（聊天 / 章节生成 / 报告）的 token 永远是 NULL，
+    用量统计只统计到非流式那部分，等于漏掉最贵的大头。
+    """
     try:
         async for piece in inner:
             yield piece
@@ -313,7 +329,7 @@ async def _telemetry_stream(inner: AsyncGenerator[str, None], record_factory):
                                              error_message=str(exc)))
         raise
     else:
-        await _emit_telemetry(record_factory(True))
+        await _emit_telemetry(record_factory(True, usage=(metrics or {}).get("usage")))
 
 
 async def _stream_response(
@@ -354,7 +370,15 @@ async def _stream_response(
                                 break
                             try:
                                 chunk = json.loads(data)
-                                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                                # include_usage 的最后一个分片是 {"choices": [], "usage": {...}}，
+                                # 用 [0] 会 IndexError 把整条流打断，所以先取值再兜底。
+                                usage = chunk.get("usage")
+                                if isinstance(usage, dict) and metrics is not None:
+                                    metrics["usage"] = usage
+                                choices = chunk.get("choices") or []
+                                if not choices:
+                                    continue
+                                delta = choices[0].get("delta", {})
                                 reasoning, content = _delta_texts(delta)
                                 if reasoning and reasoning_cb:
                                     emitted = True

@@ -35,6 +35,7 @@ READ_TOOLS = [
     "list_resource_investigations", "list_risk_assessments",
     "get_generation_progress", "search_regulations", "search_regulation_articles",
     "query_enterprise_knowledge",
+    "list_hazard_templates",
 ]
 
 
@@ -164,6 +165,7 @@ _ARGS = {
     "query_enterprise_knowledge": ("enterprise_id", "question"),
     "list_enterprises": ("keyword",),
     "list_regulations": ("keyword",),
+    "list_hazard_templates": ("enterprise_id",),
 }
 
 
