@@ -25,7 +25,7 @@ from app.models.emergency_org import (
     EmergencyOrgRole,
     EmergencyOrgUnit,
 )
-from app.models.enterprise import EmergencyResource, Enterprise
+from app.models.enterprise import EmergencyResource
 from app.models.risk_management import (
     RiskEvent,
     RiskMeasure,
@@ -97,9 +97,13 @@ def _resource_subqueries(enterprise_id: str) -> list:
 
 
 def _org_subqueries(enterprise_id: str) -> list:
+    """应急组织域时间戳：**只认应急组织自身三张表**。
+
+    刻意不含 `enterprises.updated_at`：企业记录会被改名/平面图/危化品文本等任意编辑刷新，
+    用它当信号会让"改个企业名称"就把组织类章节全部标成待更新（实测 128 个章节误报）。
+    成员姓名/电话被改但应急组织未动属已知残留（低频，见诊断报告「遗留与不做」）。
+    """
     return [
-        select(func.max(Enterprise.updated_at))
-        .where(Enterprise.id == enterprise_id).scalar_subquery(),
         select(func.max(EmergencyOrgUnit.updated_at))
         .where(EmergencyOrgUnit.enterprise_id == enterprise_id).scalar_subquery(),
         select(func.max(EmergencyOrgRole.updated_at))
