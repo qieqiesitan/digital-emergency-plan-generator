@@ -48,4 +48,19 @@ REGULATORY_COMPLIANCE = {
     },
 }
 
-TEMPLATES = {t["name"]: t for t in (CREATE_ENTERPRISE_PLAN, REGULATORY_COMPLIANCE)}
+PLAN_GENERATE_REVIEW = {
+    "name": "plan_generate_review",
+    "steps": [
+        # 对**已有预案**跑"生成正文 → 质量复核"。
+        # 生成是不可逆的耗时动作（25 章要十几分钟、消耗模型额度），所以设 confirm 门控：
+        # 工作流会暂停在 generate 这一步，等用户通过 confirm_workflow_step 放行。
+        {"name": "generate", "tool": "generate_plan_content",
+         "params_from": {"plan_id": "params.plan_id"}, "confirm": True},
+        # 复核走既有的 review_plan 工具（plan_review_service），返回 issues/warnings。
+        {"name": "review", "tool": "review_plan",
+         "params_from": {"plan_id": "params.plan_id"}},
+    ],
+    "dependencies": {"review": ["generate"]},
+}
+
+TEMPLATES = {t["name"]: t for t in (CREATE_ENTERPRISE_PLAN, REGULATORY_COMPLIANCE, PLAN_GENERATE_REVIEW)}

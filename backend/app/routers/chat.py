@@ -84,7 +84,7 @@ CHAT_TOOLS = [
                                    "question": {"type": "string", "description": "问题(必填)"}},
                     "required": ["enterprise_id", "question"]}}},
     {"type": "function", "function": {"name": "run_workflow",
-     "description": "启动端到端工作流并在后台执行。可用模板：create_enterprise_plan（录入企业→创建预案→生成正文→导出Word）、regulatory_compliance（企业法规合规报告）。工作流在后台运行，用 get_workflow_progress 查询进度",
+     "description": "启动端到端工作流并在后台执行。可用模板：create_enterprise_plan（录入企业→创建预案→生成正文→导出Word）、regulatory_compliance（企业法规合规报告）、plan_generate_review（对**已有预案**生成正文→质量复核，生成前需确认，参数 plan_id）。工作流在后台运行，用 get_workflow_progress 查询进度",
      "parameters": {"type": "object",
                     "properties": {"workflow_name": {"type": "string", "description": "工作流模板名（必填）"},
                                    "params": {"type": "object", "description": "工作流参数，如 {'name': '公司名称'} 或 {'enterprise_id': '企业ID'}"}},

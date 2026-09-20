@@ -1,7 +1,8 @@
-"""test_workflow_templates.py — 两个工作流模板结构校验。"""
+"""test_workflow_templates.py — 工作流模板结构校验。"""
 import pytest
 from app.services.workflow.templates import (
     CREATE_ENTERPRISE_PLAN,
+    PLAN_GENERATE_REVIEW,
     REGULATORY_COMPLIANCE,
     TEMPLATES,
 )
@@ -33,8 +34,9 @@ def test_regulatory_compliance_template_shape():
         "collect_enterprise", "search_regulations"]
 
 
-def test_templates_registry_contains_both():
-    assert set(TEMPLATES) == {"create_enterprise_plan", "regulatory_compliance"}
+def test_templates_registry_contains_all_declared():
+    """注册表必须包含全部已声明模板（新增模板别忘登记，2026-09-20 加 plan_generate_review）。"""
+    assert set(TEMPLATES) == {"create_enterprise_plan", "regulatory_compliance", "plan_generate_review"}
     for name, tpl in TEMPLATES.items():
         assert tpl["name"] == name
         assert isinstance(tpl["steps"], list) and tpl["steps"]
@@ -43,7 +45,17 @@ def test_templates_registry_contains_both():
         assert len(step_names) == len(tpl["steps"])
 
 
-@pytest.mark.parametrize("tpl_name", ["create_enterprise_plan", "regulatory_compliance"])
+def test_plan_generate_review_template_shape():
+    """对已有预案：生成（需确认）→ 复核；参数用 dict 形式（字符串形式会被硬编码成 name）。"""
+    assert PLAN_GENERATE_REVIEW["name"] == "plan_generate_review"
+    assert [s["name"] for s in PLAN_GENERATE_REVIEW["steps"]] == ["generate", "review"]
+    generate = PLAN_GENERATE_REVIEW["steps"][0]
+    assert generate["tool"] == "generate_plan_content" and generate["confirm"] is True
+    assert generate["params_from"] == {"plan_id": "params.plan_id"}
+    assert PLAN_GENERATE_REVIEW["steps"][1]["tool"] == "review_plan"
+
+
+@pytest.mark.parametrize("tpl_name", sorted(TEMPLATES))
 def test_template_params_from_references_existing_keys(tpl_name):
     tpl = TEMPLATES[tpl_name]
     step_names = {s["name"] for s in tpl["steps"]}
