@@ -1,0 +1,19 @@
+{
+  "measures_per_ticket": {
+    "DHZY": [
+      16,
+      16,
+      16
+    ],
+    "YXKJ": [
+      15
+    ]
+  },
+  "checks": {
+    "dhzy_all_levels_16": true,
+    "yxkj_15": true,
+    "dhzy_last_measure_is_placeholder": true,
+    "no_foreign_measure_leaked": true
+  },
+  "all_passed": true
+}
