@@ -19,6 +19,30 @@ body {
   min-height: 300px;
 }
 
+/* 版本对比：新旧正文并排展示时的阅读容器（限高滚动，避免长章节把弹窗撑爆） */
+.version-diff-pane {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 4px;
+  background: #fafafa;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.version-diff-pane table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.version-diff-pane th,
+.version-diff-pane td {
+  border: 1px solid #e8e8e8;
+  padding: 4px 6px;
+}
+
 .ProseMirror p.is-editor-empty:first-child::before {
   color: #adb5bd;
   content: attr(data-placeholder);

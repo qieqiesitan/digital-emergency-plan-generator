@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Table, Button, Modal, message, Tag } from "antd";
+import { Table, Button, Modal, Space, message, Tag } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPlan, listVersions, rollbackVersion } from "@/services/planService";
 import { PageHeader } from "@/components/common/PageHeader";
+import VersionCompareModal from "@/components/plan/VersionCompareModal";
 import { formatDate } from "@/utils/formatters";
 import { planEditorUrl } from "@/routing/planUrls";
 
@@ -26,6 +28,7 @@ export default function VersionListPage() {
     },
     onError: () => message.error("回滚失败"),
   });
+  const [compareA, setCompareA] = useState<number | null>(null);
 
   return (
     <div>
@@ -51,19 +54,30 @@ export default function VersionListPage() {
           {
             title: "",
             render: (_: unknown, r: { id: string; version_number: number }) => (
-              <Button
-                disabled={r.version_number === currentVersion}
-                onClick={() => Modal.confirm({
-                  title: "确定回滚？",
-                  content: "确定回滚到 V" + r.version_number + "？回滚后当前版本号将同步为该版本。",
-                  onOk: () => rollbackMut.mutate(r.id),
-                })}
-              >
-                {r.version_number === currentVersion ? "当前版本" : "回滚"}
-              </Button>
+              <Space>
+                <Button onClick={() => setCompareA(r.version_number)} disabled={(versions || []).length < 2}>
+                  对比
+                </Button>
+                <Button
+                  disabled={r.version_number === currentVersion}
+                  onClick={() => Modal.confirm({
+                    title: "确定回滚？",
+                    content: "确定回滚到 V" + r.version_number + "？回滚后当前版本号将同步为该版本。",
+                    onOk: () => rollbackMut.mutate(r.id),
+                  })}
+                >
+                  {r.version_number === currentVersion ? "当前版本" : "回滚"}
+                </Button>
+              </Space>
             ),
           },
         ]}
+      />
+      <VersionCompareModal
+        open={compareA !== null}
+        onClose={() => setCompareA(null)}
+        planId={id!}
+        initialA={compareA ?? undefined}
       />
     </div>
   );
