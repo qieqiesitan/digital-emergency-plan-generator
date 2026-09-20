@@ -11,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enterprise import Enterprise
 from app.models.enterprise_org import EnterpriseMember
 
+# 报告「可读」状态：生成中也要能看进度与预览，草稿可看，已完成可看
+READABLE_REPORT_STATUSES = ["completed", "draft", "generating"]
+
 
 async def ensure_enterprise_owned(
     db: AsyncSession,
@@ -29,6 +32,31 @@ async def ensure_enterprise_owned(
     if ent is None:
         raise HTTPException(404, detail)
     return ent
+
+
+async def load_report_for_owner(
+    db: AsyncSession,
+    user,
+    enterprise_id: str,
+    model,
+    *,
+    report_detail: str,
+    enterprise_detail: str = "企业不存在或无权访问",
+) -> tuple[Enterprise, object]:
+    """企业归属校验 + 取回该企业的可读报告，任一缺失都返回 404。
+
+    返回 (企业, 报告)：调用方常用企业名生成导出文件名。
+    """
+    ent = await ensure_enterprise_owned(db, user, enterprise_id, detail=enterprise_detail)
+    report = (await db.execute(
+        select(model).where(
+            model.enterprise_id == enterprise_id,
+            model.status.in_(READABLE_REPORT_STATUSES),
+        )
+    )).scalar_one_or_none()
+    if report is None:
+        raise HTTPException(404, report_detail)
+    return ent, report
 
 
 async def ensure_ticket_owned(db: AsyncSession, user, ticket_id: str):

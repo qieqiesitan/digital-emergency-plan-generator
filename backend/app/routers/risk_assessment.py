@@ -10,6 +10,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.database import get_db, async_session
 from app.dependencies import get_current_user
 from app.services.runtime_state import release_lease, try_acquire_lease
+from app.services.access_control import load_report_for_owner
 from uuid import uuid4
 from app.models.enterprise import Enterprise, AIConfig
 from app.models.risk_assessment import RiskAssessmentReport
@@ -422,20 +423,10 @@ async def get_risk_assessment(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
-    ent = (await db.execute(
-        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
-    )).scalar_one_or_none()
-    if not ent:
-        raise HTTPException(404, "企业不存在")
-
-    report = (await db.execute(
-        select(RiskAssessmentReport).where(
-            RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
-        )
-    )).scalar_one_or_none()
-    if not report:
-        raise HTTPException(404, "未找到已完成的风险评估报告")
+    _, report = await load_report_for_owner(
+        db, current_user, enterprise_id, RiskAssessmentReport,
+        report_detail="未找到已完成的风险评估报告", enterprise_detail="企业不存在",
+    )
 
     return ApiResponse(data=RiskAssessmentReportResponse.model_validate(report))
 
@@ -446,20 +437,10 @@ async def get_risk_assessment_summary(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
-    ent = (await db.execute(
-        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
-    )).scalar_one_or_none()
-    if not ent:
-        raise HTTPException(404, "企业不存在")
-
-    report = (await db.execute(
-        select(RiskAssessmentReport).where(
-            RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
-        )
-    )).scalar_one_or_none()
-    if not report:
-        raise HTTPException(404, "未找到已完成的风险评估报告")
+    _, report = await load_report_for_owner(
+        db, current_user, enterprise_id, RiskAssessmentReport,
+        report_detail="未找到已完成的风险评估报告", enterprise_detail="企业不存在",
+    )
 
     return ApiResponse(data=report.summary or {})
 
@@ -470,20 +451,10 @@ async def preview_risk_assessment(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
-    ent = (await db.execute(
-        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
-    )).scalar_one_or_none()
-    if not ent:
-        raise HTTPException(404, "企业不存在")
-
-    report = (await db.execute(
-        select(RiskAssessmentReport).where(
-            RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
-        )
-    )).scalar_one_or_none()
-    if not report:
-        raise HTTPException(404, "未找到已完成的风险评估报告")
+    _, report = await load_report_for_owner(
+        db, current_user, enterprise_id, RiskAssessmentReport,
+        report_detail="未找到已完成的风险评估报告", enterprise_detail="企业不存在",
+    )
 
     html = md_to_html(_clean_for_docx(report.content), output_format="html5")
     return ApiResponse(data=RiskAssessmentPreviewResponse(
@@ -497,20 +468,10 @@ async def export_risk_assessment(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
-    ent = (await db.execute(
-        select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id)
-    )).scalar_one_or_none()
-    if not ent:
-        raise HTTPException(404, "企业不存在")
-
-    report = (await db.execute(
-        select(RiskAssessmentReport).where(
-            RiskAssessmentReport.enterprise_id == enterprise_id,
-            RiskAssessmentReport.status.in_(["completed", "draft", "generating"]),
-        )
-    )).scalar_one_or_none()
-    if not report:
-        raise HTTPException(404, "未找到已完成的风险评估报告")
+    ent, report = await load_report_for_owner(
+        db, current_user, enterprise_id, RiskAssessmentReport,
+        report_detail="未找到已完成的风险评估报告", enterprise_detail="企业不存在",
+    )
 
     # ---- 公文版式（复用预案 docx_template 样式体系） ----
     from app.services.report_docx import (
