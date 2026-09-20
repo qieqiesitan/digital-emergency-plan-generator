@@ -67,9 +67,20 @@ def test_ai_generate_prompt_restored():
 
 
 def test_error_and_empty_messages_restored():
+    """W3 语义不变：对外只给通用提示，不回模型原文/异常细节。
+
+    2026-09-20 重构后这两句文案搬到了共用入口 `app/services/ai_json.py`
+    （原先 8 个端点各抄一遍，已在悄悄漂移），因此这里改为：
+    ① 路由确实走共用入口；② 文案在共用模块里且不含原始返回。
+    """
     src = _source()
-    # W3：错误文案改为通用提示，不得把模型原始返回/异常细节回给客户端
-    assert "AI 返回格式异常，请稍后重试" in src
-    assert "AI 调用失败" in src
+    assert "ai_json_completion(" in src, "危化品端点应改用共用 AI JSON 入口"
     assert "raw[:200]" not in src
     assert "至少需要一个危化品" in src
+
+    shared = (pathlib.Path(__file__).resolve().parents[1]
+              / "app" / "services" / "ai_json.py").read_text(encoding="utf-8")
+    assert "AI 返回格式异常，请稍后重试" in shared
+    assert "AI 调用失败" in shared
+    # 原始返回只进日志（服务端），不拼进对外的 detail
+    assert 'raise HTTPException(500, "AI 返回格式异常，请稍后重试")' in shared

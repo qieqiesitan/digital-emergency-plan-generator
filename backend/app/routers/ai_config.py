@@ -4,17 +4,10 @@ from app.models.enterprise import AIConfig
 from app.schemas.ai_config import AIConfigCreate, AIConfigResponse, AITestRequest, AITestResult
 from app.schemas.common import ApiResponse
 from app.dependencies import require_admin
-from app.services.secret_utils import decrypt_secret, encrypt_secret
+from app.services.secret_utils import encrypt_secret
 import httpx
 
 router = APIRouter(prefix="/settings", tags=["AI Config"])
-
-def _encrypt(plain: str) -> str:
-    """统一走 secret_utils（W2：GCM + 兼容旧 ECB），不再重复实现加密。"""
-    return encrypt_secret(plain)
-
-def _decrypt(ciphertext_hex: str) -> str:
-    return decrypt_secret(ciphertext_hex)
 
 @router.get("/ai-config", response_model=ApiResponse[AIConfigResponse])
 async def get_ai_config(_=Depends(require_admin), db=Depends(get_db)):
@@ -28,7 +21,7 @@ async def get_ai_config(_=Depends(require_admin), db=Depends(get_db)):
 async def update_ai_config(data: AIConfigCreate, _=Depends(require_admin), db=Depends(get_db)):
     from app.services.ai_config_service import get_system_ai_config
     r = await get_system_ai_config(db)
-    encrypted = _encrypt(data.api_key)
+    encrypted = encrypt_secret(data.api_key)
     if r:
         r.provider = data.provider; r.api_key_encrypted = encrypted; r.model_name = data.model_name
         r.base_url = data.base_url; r.temperature = data.temperature; r.max_tokens = data.max_tokens; r.top_p = data.top_p

@@ -1,5 +1,3 @@
-import json
-
 import io
 
 import logging
@@ -26,7 +24,7 @@ from app.database import get_db
 
 from app.models.enterprise import Enterprise, RiskSource
 
-from app.services.llm_client import llm_text_completion
+from app.services.ai_json import ai_json_completion, parse_items
 from app.services.accident_types import ACCIDENT_TYPES_2025
 
 from app.schemas.risk_source import RiskSourceCreate, RiskSourceResponse
@@ -35,7 +33,6 @@ from app.schemas.common import ApiResponse
 
 from app.dependencies import get_current_user
 from app.services.upload_guard import read_upload_capped
-from app.services.db_guard import release_request_connection
 
 
 
@@ -551,48 +548,11 @@ async def get_risk_ai_questions(
 
 
 
-    try:
-
-        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
-        raw = await llm_text_completion(
-
-            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-
-            ai_config,
-
-        )
-
-        # Strip markdown fences if present
-
-        raw = raw.strip()
-
-        if raw.startswith("```"):
-
-            lines = raw.split("\n")
-
-            raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-
-            if raw.endswith("```"):
-
-                raw = raw[:-3].strip()
-
-        data = json.loads(raw)
-
-        questions = [AIQuestionItem(**q) for q in data.get("questions", [])]
-
-        return ApiResponse(data=AIQuestionsResponse(questions=questions))
-
-    except HTTPException:
-
-        raise
-
-    except json.JSONDecodeError:
-
-        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
-
-    except Exception:
-
-        raise HTTPException(500, "AI 调用失败，请稍后重试")
+    data = await ai_json_completion(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        ai_config, db=db, module="risk_sources",
+    )
+    return ApiResponse(data=AIQuestionsResponse(questions=parse_items(data, "questions", AIQuestionItem)))
 
 
 
@@ -726,46 +686,11 @@ async def generate_risk_sources_ai(
 
 
 
-    try:
-
-        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
-        raw = await llm_text_completion(
-
-            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-
-            ai_config,
-
-        )
-
-        raw = raw.strip()
-
-        if raw.startswith("```"):
-
-            lines = raw.split("\n")
-
-            raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-
-            if raw.endswith("```"):
-
-                raw = raw[:-3].strip()
-
-        data = json.loads(raw)
-
-        items = [RiskSourceCreate(**item) for item in data.get("items", [])]
-
-        return ApiResponse(data=AIGenerateResponse(items=items))
-
-    except HTTPException:
-
-        raise
-
-    except json.JSONDecodeError:
-
-        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
-
-    except Exception:
-
-        raise HTTPException(500, "AI 调用失败，请稍后重试")
+    data = await ai_json_completion(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        ai_config, db=db, module="risk_sources",
+    )
+    return ApiResponse(data=AIGenerateResponse(items=parse_items(data, "items", RiskSourceCreate)))
 
 
 

@@ -45,17 +45,10 @@ def _parse_ai_json(raw: str) -> dict:
     Raises:
         HTTPException(500): JSON 解析失败
     """
-    raw = raw.strip()
-    if raw.startswith("```"):
-        lines = raw.split("\n")
-        raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        logger.error(f"AI JSON parse failed: {raw[:200]}")
-        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
+    # 围栏剥离 + 解析 + 错误映射统一由 ai_json 提供（此前这段在 4 个模块里各抄一遍）
+    from app.services.ai_json import parse_ai_json
+
+    return parse_ai_json(raw)
 
 
 def _normalize_measure(item) -> dict:

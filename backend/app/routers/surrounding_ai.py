@@ -1,4 +1,3 @@
-import json
 import math
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,10 +10,9 @@ from app.models.enterprise import Enterprise
 from app.schemas.enterprise import SurroundingInfo, NearbyUnit, SensitiveTarget
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
-from app.services.llm_client import llm_text_completion
+from app.services.ai_json import ai_json_completion, parse_items
 from app.services.prompt_cache import ensure_loaded
 from app.services.third_party_config import get_third_party_config
-from app.services.db_guard import release_request_connection
 
 router = APIRouter(prefix="/enterprises", tags=["Surrounding AI"])
 
@@ -229,27 +227,11 @@ async def get_surrounding_ai_questions(
 {{"questions": [{{"id": "q1", "question": "问题文本"}}]}}
 每个板块至少 2 个问题。只输出 JSON，不要任何解释。"""
 
-    try:
-        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
-        raw = await llm_text_completion(
-            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            ai_config,
-        )
-        raw = raw.strip()
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-            if raw.endswith("```"):
-                raw = raw[:-3].strip()
-        data = json.loads(raw)
-        questions = [AIQuestionItem(**q) for q in data.get("questions", [])]
-        return ApiResponse(data=AIQuestionsResponse(questions=questions))
-    except HTTPException:
-        raise
-    except json.JSONDecodeError:
-        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
-    except Exception:
-        raise HTTPException(500, "AI 调用失败，请稍后重试")
+    data = await ai_json_completion(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        ai_config, db=db, module="surrounding",
+    )
+    return ApiResponse(data=AIQuestionsResponse(questions=parse_items(data, "questions", AIQuestionItem)))
 
 
 # ---------- AI generate surrounding info ----------
@@ -329,36 +311,18 @@ async def generate_surrounding_ai(
 
 只输出 JSON，不要任何解释。"""
 
-    try:
-        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
-        raw = await llm_text_completion(
-            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            ai_config,
-        )
-        raw = raw.strip()
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-            if raw.endswith("```"):
-                raw = raw[:-3].strip()
-        data = json.loads(raw)
+    data = await ai_json_completion(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        ai_config, db=db, module="surrounding",
+    )
+    surrounding = SurroundingInfo(
+        nearby_units=parse_items(data, "nearby_units", NearbyUnit),
+        sensitive_targets=parse_items(data, "sensitive_targets", SensitiveTarget),
+        traffic_info=data.get("traffic_info", "") if isinstance(data, dict) else "",
+    )
+    return ApiResponse(data=AIGenerateSurroundingResponse(surrounding=surrounding))
 
-        nearby_units = [NearbyUnit(**u) for u in data.get("nearby_units", [])]
-        sensitive_targets = [SensitiveTarget(**t) for t in data.get("sensitive_targets", [])]
-        traffic_info = data.get("traffic_info", "")
 
-        surrounding = SurroundingInfo(
-            nearby_units=nearby_units,
-            sensitive_targets=sensitive_targets,
-            traffic_info=traffic_info,
-        )
-        return ApiResponse(data=AIGenerateSurroundingResponse(surrounding=surrounding))
-    except HTTPException:
-        raise
-    except json.JSONDecodeError:
-        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
-    except Exception:
-        raise HTTPException(500, "AI 调用失败，请稍后重试")
 class AmapSearchRequest(BaseModel):
     radius: int = 5000
     types: str | None = None  # comma-separated poi type codes, None = all

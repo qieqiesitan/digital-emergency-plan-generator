@@ -49,11 +49,15 @@ def _schedule_enterprise_index_rebuild(enterprise_id: str) -> None:
                 logger.warning("企业画像索引重建失败 enterprise=%s: %s", enterprise_id, e)
 
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             logger.warning("无运行中事件循环，跳过企业画像索引重建 enterprise=%s", enterprise_id)
             return
-        loop.create_task(_rebuild())
+        # 用统一注册表而不是裸 create_task：裸任务不保留强引用，可能在执行途中被 GC
+        # 取消（task_registry 的模块注释里记的正是这一类问题），且失败只在内部日志可见。
+        from app.services.task_registry import spawn
+
+        spawn(_rebuild(), name=f"enterprise-index:{enterprise_id}")
     except Exception as e:
         logger.warning("企业画像索引重建调度失败: %s", e)
 

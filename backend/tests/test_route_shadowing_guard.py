@@ -53,3 +53,98 @@ def test_literal_resource_routes_exist_in_resources_ext():
     ext = (ROUTER.parent / "resources_ext.py").read_text(encoding="utf-8")
     assert "/{enterprise_id}/resources/template" in ext
     assert "/{enterprise_id}/resources/import" in ext
+
+
+# ── 通用检测器（2026-09-20 补）：不再依赖"人工列举"，扫全量路由 ──────────────
+
+_TYPE_PATTERN = {
+    "uuid": r"[0-9a-fA-F\-]{36}",
+    "int": r"\d+",
+    "float": r"\d+(?:\.\d+)?",
+    "path": r".+",
+}
+
+
+def _route_regex(path: str) -> str:
+    """把 FastAPI 路径模板转成正则：`{x:uuid}` 按类型约束，`{x}` 视为任意非斜杠段。"""
+    import re
+
+    def repl(match: "re.Match") -> str:
+        body = match.group(1)
+        if ":" in body:
+            _, _, type_name = body.partition(":")
+            return _TYPE_PATTERN.get(type_name.strip(), r"[^/]+")
+        return r"[^/]+"
+
+    return "^" + re.sub(r"\{([^}]+)\}", repl, path) + "$"
+
+
+def test_no_literal_route_is_shadowed_by_earlier_parameterized_route():
+    """全量路由扫描：注册在前的**无约束**参数路由不得吞掉后面的字面量路由。
+
+    项目已经栽过 3 次（resources/template、risk-sources/template、versions/compare），
+    每次都表现为"422 或 404，功能整体不可用"。这里按注册顺序做一次全量判定：
+    若 `{x}` 未加类型约束且其正则可以匹配后来的字面量路径，则该字面量永不可达。
+    """
+    import re
+
+    from app.main import app
+
+    entries: list[tuple[str, str, str]] = []   # (method, path, raw_path)
+    for route in app.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None)
+        if not path or not methods:
+            continue
+        for method in methods:
+            if method in ("HEAD", "OPTIONS"):
+                continue
+            entries.append((method, _route_regex(path), path))
+
+    shadowed: list[str] = []
+    for i, (m1, rx1, raw1) in enumerate(entries):
+        if "{" not in raw1:
+            continue
+        for m2, _rx2, raw2 in entries[i + 1:]:
+            if m1 != m2 or "{" in raw2:
+                continue
+            if re.match(rx1, raw2):
+                shadowed.append(f"{m1} {raw2} 被更早注册的 {raw1} 吞掉")
+
+    assert not shadowed, "发现路由遮蔽（字面量路径不可达）：\n  " + "\n  ".join(shadowed)
+
+
+def test_no_duplicate_method_path_registration():
+    """同一个 method+path 不得注册两次（后者永不生效，且容易改错一处）。"""
+    from collections import Counter
+
+    from app.main import app
+
+    counter: Counter = Counter()
+    for route in app.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None)
+        if not path or not methods:
+            continue
+        for method in methods:
+            if method in ("HEAD", "OPTIONS"):
+                continue
+            counter[(method, path)] += 1
+    dup = [f"{m} {p} ×{n}" for (m, p), n in counter.items() if n > 1]
+    assert not dup, "重复注册的 method+path：\n  " + "\n  ".join(dup)
+
+
+def test_detector_actually_detects_historical_case():
+    """自我验证：检测器必须能报出历史上真实发生过的遮蔽（否则它是空转的绿灯）。
+
+    历史案例：`/{enterprise_id}/resources/{resource_id}`（无约束）注册在前，
+    把 `/{enterprise_id}/resources/template` 吞掉。
+    """
+    import re
+
+    bad = _route_regex("/enterprises/{enterprise_id}/resources/{resource_id}")
+    assert re.match(bad, "/enterprises/E1/resources/template"), "检测器没能识别未约束参数路由"
+
+    good = _route_regex("/enterprises/{enterprise_id}/resources/{resource_id:uuid}")
+    assert not re.match(good, "/enterprises/E1/resources/template"), ":uuid 约束后不该再吞字面量"
+    assert re.match(good, "/enterprises/E1/resources/6792266d-cd5f-41fc-b591-648fcb64b435")

@@ -87,11 +87,6 @@ PREVIEW_CSS = """<style>
 </style>"""
 
 
-def _strip_section_heading(html: str, section_title: str | None = None) -> str:
-    """兼容别名：导出预览与历史调用继续使用（实现已抽到 plan_section_content）。"""
-    return strip_section_heading(html, section_title)
-
-
 def _build_section_numbers(sections: list) -> dict:
     """为章节生成编号。level 0 → 1,2,3; level 1 → 1.1,1.2; level 2 → 1.1.1"""
     counters = [0] * 6
@@ -150,7 +145,7 @@ def _build_preview_section_html(section, sec_numbers: dict, plan_type: str = "")
     plan_type: 预案类型，onsite 时 sec_3* 章节卡片化渲染。
     """
     content = section.content or ""
-    content = _strip_section_heading(content, getattr(section, "title", None))
+    content = strip_section_heading(content, getattr(section, "title", None))
     # 仅当内容不含已被包裹的 Mermaid 时才包装原始代码
     if '<code class="language-mermaid"' not in content and '```mermaid' not in content:
         content = _wrap_raw_mermaid(content)
@@ -329,7 +324,7 @@ async def export_plan_docx(
         if not s.content or not s.content.strip():
             continue
         content = s.content
-        content = _strip_section_heading(content, s.title)
+        content = strip_section_heading(content, s.title)
 
         _ms = s.mermaid_svgs or {}
         sections_data.append({

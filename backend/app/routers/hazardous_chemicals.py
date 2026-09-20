@@ -2,9 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-import json
 from pydantic import BaseModel
-from app.services.llm_client import llm_text_completion
+from app.services.ai_json import ai_json_completion, parse_items
 from app.dependencies import get_current_user
 from app.models.enterprise import Enterprise
 from app.models.hazardous_chemicals import HazardousChemical
@@ -14,7 +13,6 @@ from app.schemas.hazardous_chemicals import (
     HazardousChemicalResponse,
 )
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
-from app.services.db_guard import release_request_connection
 
 router = APIRouter(prefix="/enterprises", tags=["Hazardous Chemicals"])
 
@@ -225,27 +223,11 @@ async def get_chemical_ai_questions(
 请以 JSON 格式输出，格式严格为：{{"questions": [{{"id": "q1", "question": "问题文本"}}]}}
 只输出 JSON，不要任何解释或额外文本。"""
 
-    try:
-        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
-        raw = await llm_text_completion(
-            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            ai_config,
-        )
-        raw = raw.strip()
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-            if raw.endswith("```"):
-                raw = raw[:-3].strip()
-        data = json.loads(raw)
-        questions = [AIQuestionItem(**q) for q in data.get("questions", [])]
-        return ApiResponse(data=AIQuestionsResponse(questions=questions))
-    except HTTPException:
-        raise
-    except json.JSONDecodeError:
-        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
-    except Exception:
-        raise HTTPException(500, "AI 调用失败，请稍后重试")
+    data = await ai_json_completion(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        ai_config, db=db, module="chemicals",
+    )
+    return ApiResponse(data=AIQuestionsResponse(questions=parse_items(data, "questions", AIQuestionItem)))
 
 
 # --- AI generate chemicals ---
@@ -326,27 +308,11 @@ async def generate_chemicals_ai(
 请以 JSON 格式输出：{{"items": [{{"name": "危化品名称", "cas_no": "8006-14-2", ...}}]}}
 只输出 JSON，不要任何解释。"""
 
-    try:
-        await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
-        raw = await llm_text_completion(
-            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            ai_config,
-        )
-        raw = raw.strip()
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-            if raw.endswith("```"):
-                raw = raw[:-3].strip()
-        data = json.loads(raw)
-        items = [HazardousChemicalCreate(**item) for item in data.get("items", [])]
-        return ApiResponse(data=AIGenerateResponse(items=items))
-    except HTTPException:
-        raise
-    except json.JSONDecodeError:
-        raise HTTPException(500, "AI 返回格式异常，请稍后重试")
-    except Exception:
-        raise HTTPException(500, "AI 调用失败，请稍后重试")
+    data = await ai_json_completion(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        ai_config, db=db, module="chemicals",
+    )
+    return ApiResponse(data=AIGenerateResponse(items=parse_items(data, "items", HazardousChemicalCreate)))
 
 
 # --- Batch create ---

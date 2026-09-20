@@ -14,14 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_optimized_json(raw: str) -> dict:
-    """剥离 markdown 代码块后解析 AI 返回的 JSON（等价于 risk_ai_service._parse_ai_json）。"""
-    raw = raw.strip()
-    if raw.startswith("```"):
-        lines = raw.split("\n")
-        raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
-    return json.loads(raw)
+    """剥离 markdown 代码块后解析 AI 返回的 JSON。
+
+    围栏剥离统一用 ai_json.strip_code_fence（同一段逻辑原先在 4 个模块各写一遍）；
+    这里**保持 JSONDecodeError 原样抛出**的既有语义（调用方据此走"保留原文"的降级分支）。
+    """
+    from app.services.ai_json import strip_code_fence
+
+    return json.loads(strip_code_fence(raw))
 
 
 async def optimize_right_column(
