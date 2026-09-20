@@ -21,6 +21,7 @@ import dayjs from "dayjs";
 import GasTestTable from "@/components/enterprise/workTicket/GasTestTable";
 import MeasureChecklist from "@/components/enterprise/workTicket/MeasureChecklist";
 import { SOURCE_LABEL } from "@/components/enterprise/workTicket/fieldSources";
+import { normalizeValues, toFormValues } from "@/components/enterprise/workTicket/formValues";
 import PrefillBadge from "@/components/enterprise/workTicket/PrefillBadge";
 import { PageHeader } from "@/components/common/PageHeader";
 import { getEnterprise } from "@/services/enterpriseService";
@@ -77,27 +78,6 @@ const SCENARIO_FIELDS = [
   { key: "height_work", label: "本次作业涉及高处作业" },
   { key: "in_tank_area", label: "作业点在油气罐区防火堤内" },
 ];
-
-/** datetime/datetimerange 字段在表单里是 dayjs 对象，落库前统一转 ISO 字符串。 */
-function normalizeValues(
-  fields: WorkTicketFieldDef[],
-  raw: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const f of fields) {
-    const value = raw[f.field_key];
-    if (value === undefined || value === null || value === "") continue;
-    if (f.field_type === "datetime" && dayjs.isDayjs(value)) {
-      out[f.field_key] = value.toISOString();
-    } else if (f.field_type === "datetimerange" && Array.isArray(value) && value.length === 2) {
-      const [start, end] = value as [dayjs.Dayjs, dayjs.Dayjs];
-      out[f.field_key] = [start.toISOString(), end.toISOString()];
-    } else {
-      out[f.field_key] = value;
-    }
-  }
-  return out;
-}
 
 function flowPreview(nodes: WorkTicketFlowNodeDef[]) {
   const chain = nodes.map((n) => n.name).filter(Boolean).join(" → ");
@@ -227,7 +207,9 @@ export default function WorkTicketNewPage() {
     })
       .then((payload) => {
         if (cancelled) return;
-        form.setFieldsValue(payload.values);
+        form.setFieldsValue(
+          toFormValues(template.fields ?? [], payload.values ?? {}),
+        );
         setValuesMeta(payload.values_meta ?? {});
         setSuggestions(payload.measures_suggestions ?? []);
         setMembers(payload.members ?? []);
