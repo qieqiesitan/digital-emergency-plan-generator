@@ -30,6 +30,11 @@ export interface EnterpriseMember {
   position: string | null;
   /** 全部任职（主岗 + 兼岗）；后端由 member_positions 提供，主岗在前。 */
   positions?: Array<{ org_node_id: string; is_primary: boolean }>;
+  /**
+   * 特种作业证照。开票时用于自动拼接「动火人及证书编号」「电工及证书编号」，
+   * 避免每次手打证书号。
+   */
+  certificates?: Array<{ type?: string; no?: string; valid_to?: string }>;
   role: string;
   enabled: boolean;
 }

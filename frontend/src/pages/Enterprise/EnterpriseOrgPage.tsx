@@ -4,6 +4,7 @@ import {
   App as AntApp,
   Alert,
   Button,
+  DatePicker,
   Empty,
   Form,
   Input,
@@ -21,6 +22,7 @@ import {
 } from "antd";
 import type { TableColumnsType } from "antd";
 import type { DataNode } from "antd/es/tree";
+import dayjs from "dayjs";
 import {
   ApartmentOutlined,
   DeleteOutlined,
@@ -67,6 +69,31 @@ const ROLE_META: Record<string, { label: string; color: string }> = {
   team_leader: { label: "班组长", color: "blue" },
   member: { label: "员工", color: "default" },
 };
+
+/** 特种作业证照类型（与《特种作业人员安全技术培训考核管理规定》的作业类别对应）。 */
+const CERT_TYPES = [
+  "焊接与热切割作业",
+  "低压电工作业",
+  "高压电工作业",
+  "高处安装、维护、拆除作业",
+  "起重机械指挥",
+  "危险化学品安全作业",
+];
+
+/** 表单里的证照 → 落库结构：过滤空行，日期转 YYYY-MM-DD。 */
+function normalizeCertificates(
+  items?: Array<{ type?: string; no?: string; valid_to?: unknown }>,
+) {
+  return (items ?? [])
+    .filter((item) => item?.no)
+    .map((item) => ({
+      type: item.type ?? "",
+      no: item.no ?? "",
+      valid_to: dayjs.isDayjs(item.valid_to)
+        ? item.valid_to.format("YYYY-MM-DD")
+        : (item.valid_to ?? null),
+    }));
+}
 
 const ROLE_OPTIONS = [
   { label: "企业管理员", value: "enterprise_admin" },
@@ -409,6 +436,7 @@ export default function EnterpriseOrgPage() {
           .filter(p => !p.is_primary)
           .map(p => p.org_node_id),
         position: member.position ?? "",
+        certificates: member.certificates ?? [],
         role: member.role,
         enabled: member.enabled,
       });
@@ -429,6 +457,7 @@ export default function EnterpriseOrgPage() {
             org_node_id: values.org_node_id ?? null,
             extra_node_ids: values.extra_node_ids ?? [],
             position: values.position || null,
+            certificates: normalizeCertificates(values.certificates),
             role: values.role,
             enabled: values.enabled,
           }, { skipGlobalError: true });
@@ -447,6 +476,7 @@ export default function EnterpriseOrgPage() {
               org_node_id: values.org_node_id ?? null,
               extra_node_ids: values.extra_node_ids ?? [],
               position: values.position || null,
+              certificates: normalizeCertificates(values.certificates),
               role: values.role,
             }, { skipGlobalError: true });
             message.success(`成员「${name}」已添加`);
@@ -462,6 +492,7 @@ export default function EnterpriseOrgPage() {
               org_node_id: values.org_node_id ?? null,
               extra_node_ids: values.extra_node_ids ?? [],
               position: values.position || null,
+              certificates: normalizeCertificates(values.certificates),
               role: values.role,
             }, { skipGlobalError: true });
             message.success(`成员「${selectedUser.name}」已添加`);
@@ -904,6 +935,45 @@ export default function EnterpriseOrgPage() {
           <Form.Item name="position" label="岗位名称">
             <Input placeholder="如 班组长/安全员" maxLength={50} />
           </Form.Item>
+          {/* 特种作业证照：开票时自动拼接「姓名 + 证书号」，免去每票手打证书号 */}
+          <Form.List name="certificates">
+            {(fields, { add, remove }) => (
+              <Form.Item
+                label="特种作业证照（开票时自动带出证书号）"
+                style={{ marginBottom: 12 }}
+              >
+                {fields.map((field) => (
+                  <Space
+                    key={field.key}
+                    align="baseline"
+                    style={{ display: "flex", marginBottom: 6 }}
+                  >
+                    <Form.Item name={[field.name, "type"]} noStyle>
+                      <Select
+                        placeholder="证照类型"
+                        style={{ width: 200 }}
+                        options={CERT_TYPES.map((t) => ({ value: t, label: t }))}
+                      />
+                    </Form.Item>
+                    <Form.Item name={[field.name, "no"]} noStyle>
+                      <Input placeholder="证书编号" style={{ width: 150 }} maxLength={50} />
+                    </Form.Item>
+                    <Form.Item name={[field.name, "valid_to"]} noStyle>
+                      <DatePicker placeholder="有效期至" style={{ width: 140 }} />
+                    </Form.Item>
+                    <Button
+                      type="text"
+                      icon={<DeleteOutlined />}
+                      onClick={() => remove(field.name)}
+                    />
+                  </Space>
+                ))}
+                <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({})}>
+                  添加证照
+                </Button>
+              </Form.Item>
+            )}
+          </Form.List>
           <Form.Item name="role" label="角色" rules={[{ required: true, message: "请选择角色" }]}>
             <Select options={ROLE_OPTIONS} />
           </Form.Item>

@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class OrgMember(BaseModel):
@@ -39,6 +39,9 @@ class MemberCreate(BaseModel):
     # 兼岗节点：主岗仍用 org_node_id，额外任职放这里（写 member_positions）
     extra_node_ids: list[str] = Field(default_factory=list)
     position: str | None = None
+    # 特种作业证照：[{"type": "...", "no": "...", "valid_to": "YYYY-MM-DD"}]
+    # 开票时用于自动拼接「动火人及证书编号」「电工及证书编号」
+    certificates: list[dict] = Field(default_factory=list)
     role: Literal["enterprise_admin", "team_leader", "member"] = "member"
 
 
@@ -50,6 +53,8 @@ class MemberUpdate(BaseModel):
     # None 语义 = 不改任职；传数组则整体替换兼岗（主岗仍由 org_node_id 决定）
     extra_node_ids: list[str] | None = None
     position: str | None = None
+    # None 语义 = 不改证照；传数组则整体替换
+    certificates: list[dict] | None = None
     role: Literal["enterprise_admin", "team_leader", "member"] | None = None
     enabled: bool | None = None
 
@@ -65,6 +70,13 @@ class MemberResponse(BaseModel):
     # 全部任职（主岗 + 兼岗），由 member_positions 提供，按主岗优先排序
     positions: list[dict] = Field(default_factory=list)
     position: str | None = None
+    certificates: list[dict] = Field(default_factory=list)
     role: str
     enabled: bool
     model_config = {"from_attributes": True}
+
+    @field_validator("certificates", mode="before")
+    @classmethod
+    def _certificates_default_empty(cls, value):
+        """证书列在库里是 NOT NULL DEFAULT '[]'，但容错 None（老对象/未刷新实例）。"""
+        return value or []

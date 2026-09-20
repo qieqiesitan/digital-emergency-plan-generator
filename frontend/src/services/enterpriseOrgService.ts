@@ -21,6 +21,8 @@ interface MemberCreatePayload {
   /** 兼岗节点（主岗仍走 org_node_id）。 */
   extra_node_ids?: string[] | null;
   position?: string | null;
+  /** 特种作业证照：开票时用于自动拼接「姓名 + 证书号」。 */
+  certificates?: Array<{ type?: string; no?: string; valid_to?: unknown }> | null;
   role?: OrgMemberRole;
 }
 
@@ -32,6 +34,8 @@ interface MemberUpdatePayload {
   /** null/undefined 表示不改任职；传数组则整体替换兼岗。 */
   extra_node_ids?: string[] | null;
   position?: string | null;
+  /** null/undefined 表示不改证照；传数组则整体替换。 */
+  certificates?: Array<{ type?: string; no?: string; valid_to?: unknown }> | null;
   role?: OrgMemberRole | null;
   enabled?: boolean | null;
 }
