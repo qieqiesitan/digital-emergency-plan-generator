@@ -1,0 +1,49 @@
+{
+  "counts_by_code": {
+    "DLZY": 4,
+    "PTZY": 11,
+    "GCZY": 60,
+    "YXKJ": 15,
+    "DHZY": 48,
+    "QZDZ": 60,
+    "MBCD": 11,
+    "LSYD": 14
+  },
+  "counts_by_level": {
+    "DHZY/一级": 16,
+    "DHZY/二级": 16,
+    "DHZY/特级": 16,
+    "DLZY/-": 4,
+    "GCZY/Ⅲ级": 15,
+    "GCZY/Ⅱ级": 15,
+    "GCZY/Ⅳ级": 15,
+    "GCZY/Ⅰ级": 15,
+    "LSYD/-": 14,
+    "MBCD/-": 11,
+    "PTZY/-": 11,
+    "QZDZ/一级": 20,
+    "QZDZ/三级": 20,
+    "QZDZ/二级": 20,
+    "YXKJ/-": 15
+  },
+  "total": 223,
+  "fire_count": 16,
+  "space_count": 15,
+  "fire_last": [
+    "其他安全措施：  编制人："
+  ],
+  "space_last": [
+    "其他安全措施：  编制人："
+  ],
+  "checks": {
+    "dhzy_levels_are_16": true,
+    "yxkj_is_15": true,
+    "other_types_unchanged": true,
+    "total_is_223": true,
+    "appendix_extract_fire_16": true,
+    "appendix_extract_space_15": true,
+    "fire_text_matches_appendix": true,
+    "space_text_matches_appendix": true
+  },
+  "all_passed": true
+}
