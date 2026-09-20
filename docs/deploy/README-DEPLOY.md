@@ -191,6 +191,43 @@ docker exec <backend 容器> sh -c "cd /app && python scripts/check_db_consisten
 
 ## 8. 踩坑记录
 
+### 8.0 开发容器只挂载 `src`，其余文件是镜像里的旧副本
+
+`docker-compose.yml` 里前端开发容器只挂了两处：
+
+```yaml
+volumes:
+  - ./frontend/src:/app/src
+  - ./frontend/vite.config.ts:/app/vite.config.ts
+```
+
+也就是说 **`eslint.config.js` / `scripts/` / `e2e/` / `tsconfig*.json` / `package.json` 都是镜像构建时的旧副本**。
+容器一旦被重建（`docker compose up -d --force-recreate`），这些文件就回到镜像里的版本——
+2026-09-20 实测踩到：容器内 `npx eslint .` 用**旧配置**去 lint **旧 e2e 文件**，报出一个
+仓库里其实早已修好的 `no-explicit-any`，棘轮随之失败，看起来像"新引入了债务"，实际是假警报。
+
+**正确做法（二选一）**：
+
+```bash
+# ① 在宿主机跑 lint（推荐，用仓库真实配置；宿主机只需 node，不需要 rollup 原生包）
+cd frontend && node node_modules/eslint/bin/eslint.js .
+cd frontend && node scripts/eslint-ratchet.mjs
+
+# ② 或者把仓库文件同步进容器后再在容器里跑
+docker cp frontend/eslint.config.js   <容器>:/app/eslint.config.js
+docker cp frontend/eslint-baseline.json <容器>:/app/eslint-baseline.json
+docker cp frontend/tsconfig.json      <容器>:/app/tsconfig.json
+docker cp frontend/tsconfig.app.json  <容器>:/app/tsconfig.app.json
+docker cp frontend/tsconfig.node.json <容器>:/app/tsconfig.node.json
+docker cp frontend/package.json       <容器>:/app/package.json
+docker cp frontend/scripts/.          <容器>:/app/scripts/
+docker cp frontend/e2e/.              <容器>:/app/e2e/
+```
+
+`tsc -b` / `vitest` / `vite build` 不受影响：它们只依赖 `src/` 与被挂载的 `vite.config.ts`。
+另外：宿主 5173 端口可能落在 Windows 动态保留段（5141–5240）导致 Docker 无法绑定，
+本仓库已把开发端口映射改为 **15173 → 容器 5173**（见 `docker-compose.yml`）。
+
 | # | 坑 | 原因 | 解决 |
 | --- | --- | --- | --- |
 | 1 | postgres:16-alpine 启动失败 | CentOS 7 XFS+overlay2 卷挂载 initdb 写 postmaster.pid 报 Operation not permitted | 改用 postgres:16（Debian 版） |
