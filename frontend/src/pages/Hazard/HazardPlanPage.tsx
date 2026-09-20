@@ -16,7 +16,7 @@ import {
   Tooltip,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, RobotOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import AppEmpty from "@/components/common/AppEmpty";
@@ -38,6 +38,8 @@ import type {
   HazardScheduleSuggestionResult,
 } from "@/types/hazard";
 import { PageHeader } from "@/components/common/PageHeader";
+import AiSetupWizardModal from "@/components/enterprise/hazard/AiSetupWizardModal";
+import { useCurrentEnterprise } from "@/contexts/useCurrentEnterprise";
 import { useAppBack } from "@/routing/useAppBack";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -134,6 +136,9 @@ export default function HazardPlanPage() {
   const [builderAreas, setBuilderAreas] = useState("");
   const [builderFrequency, setBuilderFrequency] = useState("");
   const [builderResult, setBuilderResult] = useState<HazardPlanBuilderResult | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const { enterprises } = useCurrentEnterprise();
+  const currentIndustry = enterprises.find(e => e.id === enterpriseId)?.industry ?? undefined;
 
   const frequency = Form.useWatch("frequency", form);
 
@@ -461,6 +466,9 @@ export default function HazardPlanPage() {
         onBack={appBack}
         extra={
           <Space>
+            <Button icon={<RobotOutlined />} onClick={() => setWizardOpen(true)}>
+              AI 智能引导
+            </Button>
             <Button icon={<AppIcon name="ai" size={14} />} onClick={() => setBuilderOpen(true)}>
               AI 生成计划
             </Button>
@@ -674,6 +682,20 @@ export default function HazardPlanPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <AiSetupWizardModal
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        enterpriseId={enterpriseId}
+        industry={currentIndustry}
+        zones={zones}
+        members={enabledMembers}
+        onWrote={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ["hazard-templates", enterpriseId] });
+          queryClient.invalidateQueries({ queryKey: ["org-nodes", enterpriseId] });
+        }}
+      />
     </div>
   );
 }
