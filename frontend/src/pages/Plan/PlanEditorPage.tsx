@@ -15,6 +15,7 @@ import { PlanStatusTag } from "@/components/plan/PlanStatusTag";
 import SectionTree from "@/components/plan/SectionTree";
 import RichTextEditor from "@/components/plan/RichTextEditor";
 import AIGenerateButton from "@/components/plan/AIGenerateButton";
+import PlanGenerateReviewModal from "@/components/plan/PlanGenerateReviewModal";
 import { StylePanel } from "@/components/plan/StylePanel";
 import { AdvancedStylePanel, type AdvancedPromptOverrides } from "@/components/plan/AdvancedStylePanel";
 import MarkdownIt from "markdown-it";
@@ -58,6 +59,7 @@ export default function PlanEditorPage() {
   const [saveStatus, setSaveStatus] = useState<string>("saved");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [genReviewOpen, setGenReviewOpen] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: "" });
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
   const [failedSections, setFailedSections] = useState<Array<{ section_key: string; title: string }>>([]);
@@ -510,6 +512,9 @@ export default function PlanEditorPage() {
             <Button icon={<AuditOutlined />} onClick={() => reviewMut.mutate()} loading={reviewMut.isPending}>
               AI 审查
             </Button>
+            <Button icon={<ThunderboltOutlined />} onClick={() => setGenReviewOpen(true)}>
+              生成并复核
+            </Button>
             <Button
               icon={<HistoryOutlined />}
               onClick={() => navigate(planVersionsUrl(id!, { enterpriseId }))}
@@ -531,6 +536,17 @@ export default function PlanEditorPage() {
       />
 
       {aiUnavailable && <AiNotConfiguredHint onClose={() => setAiUnavailable(false)} />}
+
+      <PlanGenerateReviewModal
+        key={genReviewOpen ? "gen-review-open" : "gen-review-closed"}
+        open={genReviewOpen}
+        onClose={() => setGenReviewOpen(false)}
+        planId={id!}
+        onFinished={() => {
+          queryClient.invalidateQueries({ queryKey: ["planSections", id] });
+          queryClient.invalidateQueries({ queryKey: ["plan", id] });
+        }}
+      />
 
       {sampleDone && sampleMode && (
         <div style={{ border: "1px solid #1677ff", borderRadius: 8, padding: 12, marginBottom: 12, background: "#f0f7ff" }}>
