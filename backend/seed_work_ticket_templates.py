@@ -85,6 +85,13 @@ def build_sql() -> str:
                 f"「{tpl['name']}」未能从第 {tpl['chapter']} 章解析出任何安全措施，"
                 "请检查标准文本的表格结构是否被清洗脚本破坏"
             )
+        # 自愈：v1 种子曾把附录A 全部措施（106 条）写给前 4 个模板；
+        # v2 的 ON CONFLICT DO NOTHING 只跳过同 ID 行、不删除多出的行。
+        # 因此每次生成本模板措施前先清理超额行，保证重放收敛。
+        lines.append(
+            "DELETE FROM work_ticket_template_measures "
+            f"WHERE template_id = {_q(tpl_id)} AND sort_order > {len(parsed)};"
+        )
         for m in parsed:
             mid = _uid("measure", f"{tpl_key}/{m['sort_order']}")
             lines.append(

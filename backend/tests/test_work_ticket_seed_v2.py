@@ -85,3 +85,51 @@ def test_measure_parsing_is_scoped_to_appendix_tables():
     assert all(count > 0 for count in counts.values()), counts
     assert len(set(counts.values())) >= 3, counts
     assert counts[5] != counts[12], counts
+
+
+def _build_sql() -> str:
+    """调用生成器的纯函数入口，拿 SQL 文本而不写文件。"""
+    spec = importlib.util.spec_from_file_location(
+        "wt_seed_gen", ROOT / "backend" / "seed_work_ticket_templates.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.build_sql()
+
+
+def test_measure_cleanup_statement_emitted_per_template():
+    """每个模板的措施 INSERT 之前必须有清理语句。
+
+    背景（2026-09-20 真库发现）：v1 种子把附录A 全部 106 条措施写给了动火与
+    受限空间的 4 个模板；v2 用确定性 UUID5 + ON CONFLICT DO NOTHING 修正了
+    同 ID 行的文本，但多出的行无人删除。若生成器只 INSERT 不清理，
+    任何一次「修复后重放」都无法自愈，故把清理语句锁进测试。
+    """
+    lines = _build_sql().splitlines()
+    insert_templates = {
+        ln.split("'")[3]
+        for ln in lines
+        if ln.startswith("INSERT INTO work_ticket_template_measures ")
+    }
+    delete_templates = {
+        ln.split("'")[1]
+        for ln in lines
+        if ln.startswith("DELETE FROM work_ticket_template_measures ")
+    }
+    assert insert_templates, "未生成任何措施 INSERT"
+    assert insert_templates == delete_templates, (
+        f"清理语句与模板集合不一致：缺 {insert_templates - delete_templates}"
+    )
+
+
+def test_measure_counts_per_template_match_appendix_tables():
+    """生成产物的措施总数必须等于各章节附录表条数之和（回归锁）。"""
+    mod = _load()
+    expected_by_chapter = {5: 16, 6: 15, 7: 11, 8: 15, 9: 20, 10: 14, 11: 11, 12: 4}
+    actual = sum(
+        1
+        for ln in _build_sql().splitlines()
+        if ln.startswith("INSERT INTO work_ticket_template_measures ")
+    )
+    expected = sum(expected_by_chapter[t["chapter"]] for t in mod.TEMPLATES)
+    assert actual == expected == 223, f"措施总数不符：actual={actual} expected={expected}"
