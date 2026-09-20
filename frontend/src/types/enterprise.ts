@@ -53,6 +53,7 @@ export interface Enterprise {
   floor_plan_url: string | null;
   gis_lat: number | null;
   gis_lng: number | null;
+  /** @deprecated 兼容字段名，语义已改为「风险事件数」，与 `risk_events_count` 同值（设计文档 2026-08-06） */
   risk_sources_count: number;
   risk_events_count: number;
   resources_count: number;

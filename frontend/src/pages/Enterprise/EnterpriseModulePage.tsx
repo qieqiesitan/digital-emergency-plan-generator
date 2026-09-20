@@ -72,24 +72,19 @@ function EnterpriseInfoOverview({ enterprise }: { enterprise: Enterprise }) {
         </Card>
       )}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8}>
           <Card hoverable size="small" onClick={() => navigate(`/enterprises/${id}/plans`)}>
             <Statistic title="应急预案" value={enterprise.plans_count ?? 0} />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8}>
           <Card hoverable size="small" onClick={() => navigate(`/enterprises/${id}/risk-management`)}>
             <Statistic title="风险事件" value={enterprise.risk_events_count ?? 0} />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8}>
           <Card hoverable size="small" onClick={() => navigate(`/enterprises/${id}/modules/resources`)}>
             <Statistic title="应急资源" value={enterprise.resources_count ?? 0} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card hoverable size="small" onClick={() => navigate(`/enterprises/${id}/risk-management`)}>
-            <Statistic title="风险源" value={enterprise.risk_sources_count ?? 0} />
           </Card>
         </Col>
       </Row>

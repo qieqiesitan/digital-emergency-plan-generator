@@ -25,6 +25,33 @@ def normalize_floor_plan_url(url: str | None) -> str | None:
     return url
 
 
+async def sync_default_floor_plan(db, enterprise, url: str | None) -> bool:
+    """把企业档案的厂区平面图同步到默认楼层（镜像的反方向）。
+
+    平面图是双存镜像：企业字段 `enterprises.floor_plan_url` 供预案疏散图兜底，
+    默认楼层 `enterprise_floors.floor_plan_url` 是四色图工作台与风险评估报告的数据源。
+    楼层侧改动已在 risk_management.py 里逐处回写企业字段；企业档案侧（本函数）
+    此前缺失，导致在企业档案换图后工作台/报告仍用旧图。
+
+    返回是否发生更新；不做 commit，由调用方与自身事务一起提交。
+    """
+    from sqlalchemy import select
+
+    from app.models.enterprise import EnterpriseFloor
+
+    safe_url = normalize_floor_plan_url(url)
+    floor = (await db.execute(
+        select(EnterpriseFloor).where(
+            EnterpriseFloor.enterprise_id == getattr(enterprise, "id", None),
+            EnterpriseFloor.is_default.is_(True),
+        )
+    )).scalar_one_or_none()
+    if floor is None or floor.floor_plan_url == safe_url:
+        return False
+    floor.floor_plan_url = safe_url
+    return True
+
+
 def _declared_size(file: UploadFile) -> int | None:
     """从 multipart 的 Content-Length（Starlette 已解析到 size）或请求头读取声明大小。"""
     size = getattr(file, "size", None)

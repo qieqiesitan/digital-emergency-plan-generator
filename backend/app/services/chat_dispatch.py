@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from app.models.user import User
 from app.models.enterprise import (
-    Enterprise, RiskSource, EmergencyResource, PlanProject,
+    Enterprise, EmergencyResource, PlanProject,
     PlanSection, PlanTemplate,
 )
 from app.models.risk_assessment import RiskAssessmentReport
@@ -252,23 +252,15 @@ async def _delegate_generic(op, db, user, args, cfg):
 
 
 # Entity registry - config for each model
-_RS_CFG = {
+# 说明（D-5 清仓）：旧 RiskSource 的增删改工具已按设计下线（2026-08-06 决策
+# 「chat 助手：移除旧风险源增删改工具，读取新分级管控数据」），此处只保留
+# 资源/预案两类在用配置；旧风险源配置块已成死代码，故删除。
+_BASE_CFG = {
     "model": None, "name_cn": None, "id_arg_name": None, "return_plural": None,
     "display_fields": None, "required_fields": None, "create_fields": None,
     "update_fields": None, "order_by": None, "enterprise_check": True,
 }
-_RES_CFG = dict(_RS_CFG)
-_RS_CFG.update({
-    "model": RiskSource,
-    "name_cn": "风险源",
-    "id_arg_name": "risk_source_id",
-    "return_plural": "risk_sources",
-    "display_fields": ["id", "name", "categories", "risk_level", "location", "description", "control_measures"],
-    "required_fields": ["enterprise_id", "name"],
-    "create_fields": ["enterprise_id", "name", "categories", "location", "description", "risk_level", "control_measures", "likelihood", "severity"],
-    "update_fields": ["name", "categories", "location", "description", "risk_level", "control_measures", "likelihood", "severity"],
-    "order_by": "sort_order",
-})
+_RES_CFG = dict(_BASE_CFG)
 _RES_CFG.update({
     "model": EmergencyResource,
     "name_cn": "应急资源",
@@ -297,7 +289,7 @@ _ENT_CFG = {
     "enterprise_check": False,
 }
 
-_PLAN_CFG = dict(_RS_CFG)
+_PLAN_CFG = dict(_BASE_CFG)
 _PLAN_CFG.update({
     "model": PlanProject,
     "name_cn": "预案",
@@ -321,11 +313,11 @@ async def _get_dashboard(db, user, args):
     ent_count = (await db.execute(select(func.count(Enterprise.id)).where(Enterprise.user_id == user.id))).scalar() or 0
     plan_count = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == user.id))).scalar() or 0
     completed = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == user.id, PlanProject.status == "completed"))).scalar() or 0
-    rs_count = (await db.execute(select(func.count(RiskSource.id)).join(Enterprise).where(Enterprise.user_id == user.id))).scalar() or 0
     res_count = (await db.execute(select(func.count(EmergencyResource.id)).join(Enterprise).where(Enterprise.user_id == user.id))).scalar() or 0
     generating = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == user.id, PlanProject.status == "generating"))).scalar() or 0
     risk_event_count = await count_user_risk_events(db, user.id)
-    return {"enterprise_count": ent_count, "plan_count": plan_count, "completed_plan_count": completed, "generating_plan_count": generating, "risk_source_count": rs_count, "risk_event_count": risk_event_count, "resource_count": res_count}
+    # 风险口径统一为新五层事件数；risk_source_count 保留为兼容字段名（设计文档 2026-08-06）
+    return {"enterprise_count": ent_count, "plan_count": plan_count, "completed_plan_count": completed, "generating_plan_count": generating, "risk_source_count": risk_event_count, "risk_event_count": risk_event_count, "resource_count": res_count}
 
 
 # ── 企业 + 自动填充 ──

@@ -10,7 +10,7 @@ from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
 from app.schemas.enterprise_cockpit import CockpitSummary
 from app.dependencies import get_current_user
 from app.services.enterprise_cleanup_service import delete_enterprise_complete
-from app.services.floor_plan_storage_service import remove_enterprise_uploads
+from app.services.floor_plan_storage_service import remove_enterprise_uploads, sync_default_floor_plan
 from app.services.enterprise_cockpit_service import build_cockpit_summary
 from app.services.risk_stats_service import (
     count_enterprise_risk_events,
@@ -49,6 +49,9 @@ async def autofill_enterprise(
 def _build_response(e: Enterprise, risk_events_count: int = 0) -> EnterpriseResponse:
     def _fmt_date(d):
         return d.strftime('%Y-%m-%d') if d else None
+    # 风险口径：统一为新五层事件数（设计文档 2026-08-06 决策）。
+    # `risk_sources_count` 是保留的兼容字段名，语义已改为「风险事件数」，
+    # 旧表 `risk_sources` 只在迁移提示里使用。
     return EnterpriseResponse(
         id=e.id, name=e.name, address=e.address, industry=e.industry,
         business_scope=e.business_scope, employee_count=e.employee_count,
@@ -80,7 +83,7 @@ def _build_response(e: Enterprise, risk_events_count: int = 0) -> EnterpriseResp
         annual_capacity=e.annual_capacity,
         hazardous_chemicals=e.hazardous_chemicals,
         special_equipment=e.special_equipment,
-        risk_sources_count=len(e.risk_sources) if e.risk_sources else 0,
+        risk_sources_count=risk_events_count,
         risk_events_count=risk_events_count,
         resources_count=len(e.resources) if e.resources else 0,
         plans_count=len(e.plans) if e.plans else 0,
@@ -162,7 +165,8 @@ async def create_enterprise(data: EnterpriseCreate, current_user: User = Depends
                 del values[df]
     e = Enterprise(user_id=current_user.id, **values)
     db.add(e); await db.commit(); await db.refresh(e)
-    return ApiResponse(data=_build_response(e))
+    # 新建企业必然没有风险事件；仍走同一口径函数，避免以后填写默认值漂移
+    return ApiResponse(data=_build_response(e, await count_enterprise_risk_events(db, e.id)))
 
 @router.put("/{enterprise_id}", response_model=ApiResponse[EnterpriseResponse])
 async def update_enterprise(enterprise_id: str, data: EnterpriseUpdate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -194,8 +198,13 @@ async def update_enterprise(enterprise_id: str, data: EnterpriseUpdate, current_
             # name 列 NOT NULL，显式 null 忽略以保留旧值
             continue
         setattr(e, k, v)
+    # 平面图是「企业字段 ↔ 默认楼层」双存镜像：企业侧改了要同步楼层，
+    # 否则四色图工作台/风险评估报告仍读旧图（楼层侧反向同步见 risk_management.py）
+    if "floor_plan_url" in data.model_dump(exclude_unset=True):
+        await sync_default_floor_plan(db, e, e.floor_plan_url)
     await db.commit(); await db.refresh(e)
-    return ApiResponse(data=_build_response(e))
+    # 详情/更新后同样回填真实风险事件数，否则刚编辑完企业就会显示 0
+    return ApiResponse(data=_build_response(e, await count_enterprise_risk_events(db, e.id)))
 
 @router.delete("/{enterprise_id}")
 async def delete_enterprise(enterprise_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

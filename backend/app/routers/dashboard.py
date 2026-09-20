@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from app.database import get_db
-from app.models.enterprise import Enterprise, PlanProject, RiskSource
+from app.models.enterprise import Enterprise, PlanProject
 from app.schemas.dashboard import DashboardResponse, DashboardStats, DashboardRecentPlan, DashboardRecentEnterprise
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
@@ -14,15 +14,14 @@ async def get_dashboard(current_user=Depends(get_current_user), db=Depends(get_d
     ent_count = (await db.execute(select(func.count(Enterprise.id)).where(Enterprise.user_id == current_user.id))).scalar() or 0
     plan_count = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == current_user.id))).scalar() or 0
     completed = (await db.execute(select(func.count(PlanProject.id)).where(PlanProject.user_id == current_user.id, PlanProject.status == "completed"))).scalar() or 0
-    rs_count = (await db.execute(
-        select(func.count(RiskSource.id)).join(Enterprise).where(Enterprise.user_id == current_user.id)
-    )).scalar() or 0
+    # 风险口径统一为新五层事件数；risk_source_count 是保留的兼容字段名
+    # （设计文档 2026-08-06：新「风险事件数」替代旧「风险源数」，字段名暂留）
     risk_event_count = await count_user_risk_events(db, current_user.id)
     stats = DashboardStats(
         enterprise_count=ent_count,
         plan_count=plan_count,
         completed_plan_count=completed,
-        risk_source_count=rs_count,
+        risk_source_count=risk_event_count,
         risk_event_count=risk_event_count,
     )
 

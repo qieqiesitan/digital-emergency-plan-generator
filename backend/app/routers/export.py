@@ -356,6 +356,8 @@ async def export_plan_docx(
     resources = (await db.execute(
         select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
     )).scalars().all()
+    from app.services.risk_stats_service import enterprise_has_risk
+
     from app.services.emergency_org_service import load_emergency_groups
 
     emergency_groups = await load_emergency_groups(db, plan.enterprise_id)
@@ -363,7 +365,9 @@ async def export_plan_docx(
         plan, enterprise, sections,
         required_sections=required or None,
         resources=resources,
-        has_risk=bool(enterprise.risk_sources) if enterprise else False,
+        # 风险口径统一走新五层（含未迁移旧表兜底）：只认旧表会让新建企业的
+        # E3「资源数量为 0」告警静默不触发（漏检）
+        has_risk=await enterprise_has_risk(db, plan.enterprise_id),
         emergency_groups=emergency_groups,
     )
     quality_evidence: dict[str, list[str]] = {}
@@ -459,6 +463,7 @@ async def validate_plan_export(
     resources = (await db.execute(
         select(EmergencyResource).where(EmergencyResource.enterprise_id == plan.enterprise_id)
     )).scalars().all()
+    from app.services.risk_stats_service import enterprise_has_risk
     from app.services.emergency_org_service import load_emergency_groups
 
     emergency_groups = await load_emergency_groups(db, plan.enterprise_id)
@@ -466,8 +471,8 @@ async def validate_plan_export(
         plan, enterprise, sections,
         required_sections=required or None,
         resources=resources,
-        # 风险点来源：企业档案风险源（selectin 已预加载），用于 E3「资源数量为 0」告警前提
-        has_risk=bool(enterprise.risk_sources) if enterprise else False,
+        # 风险点来源：新五层事件（含未迁移旧表兜底），用于 E3「资源数量为 0」告警前提
+        has_risk=await enterprise_has_risk(db, plan.enterprise_id),
         emergency_groups=emergency_groups,
     )
     # 结构化为 {section_key, section_title, warning, evidence}，前端可定位正文并高亮
