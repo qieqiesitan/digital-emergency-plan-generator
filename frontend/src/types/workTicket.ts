@@ -242,6 +242,41 @@ export interface LocationTree {
   }[];
 }
 
+/** 作业包：一次检修（同地点 + 同一时段）下的多张作业票。 */
+export interface WorkTicketBatch {
+  id: string;
+  enterprise_id: string;
+  title: string;
+  status: "draft" | "active" | "closed" | "cancelled" | string;
+  floor_id?: string | null;
+  zone_id?: string | null;
+  risk_object_id?: string | null;
+  location_text?: string | null;
+  work_period_start?: string | null;
+  work_period_end?: string | null;
+  shared_values: Record<string, unknown>;
+  content_base?: string | null;
+  risk_basis?: string | null;
+  created_at?: string | null;
+}
+
+export interface BatchTicketSpec {
+  ticket_type: string;
+  level?: string | null;
+  template_id: string;
+}
+
+export interface BatchDetail {
+  batch: WorkTicketBatch;
+  tickets: WorkTicketInstance[];
+  package_gas_tests: (GasTestRecord & { origin?: string })[];
+}
+
+export interface BatchSubmitAllResult {
+  results: { ticket_id: string; code: string; ok: boolean; errors: string[] }[];
+  succeeded: number;
+}
+
 export interface GasTestPayload {
   sampled_at: string;
   location?: string | null;

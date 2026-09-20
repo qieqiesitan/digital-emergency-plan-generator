@@ -4,6 +4,9 @@ import type { ApiResponse } from "@/types/common";
 import { filenameFromContentDisposition } from "@/utils/download";
 import type {
   AiPrefillResult,
+  BatchDetail,
+  BatchSubmitAllResult,
+  BatchTicketSpec,
   FieldMeta,
   GasTestPayload,
   LastTicketSummary,
@@ -12,6 +15,7 @@ import type {
   OpenTicketPayload,
   PrefillPayload,
   SubmitResult,
+  WorkTicketBatch,
   WorkTicketDetail,
   WorkTicketInstance,
   WorkTicketTemplate,
@@ -82,6 +86,89 @@ export const saveDraft = (
 ) =>
   api
     .patch<ApiResponse<WorkTicketInstance>>(`${BASE}/tickets/${ticketId}`, payload)
+    .then((r) => r.data.data);
+
+// ── 作业包（一次检修的批量开票） ──────────────────────────────────────────
+
+export const createBatch = (payload: {
+  enterprise_id: string;
+  title: string;
+  floor_id?: string | null;
+  zone_id?: string | null;
+  risk_object_id?: string | null;
+  location_text?: string | null;
+  work_period_start?: string | null;
+  work_period_end?: string | null;
+  shared_values?: Record<string, unknown>;
+  content_base?: string | null;
+  risk_basis?: string | null;
+}) =>
+  api
+    .post<ApiResponse<WorkTicketBatch>>(`${BASE}/batches`, payload)
+    .then((r) => r.data.data);
+
+export const listBatches = (enterpriseId: string, status?: string) =>
+  api
+    .get<ApiResponse<WorkTicketBatch[]>>(`${BASE}/batches`, {
+      params: { enterprise_id: enterpriseId, status },
+    })
+    .then((r) => r.data.data);
+
+export const getBatchDetail = (batchId: string) =>
+  api
+    .get<ApiResponse<BatchDetail>>(`${BASE}/batches/${batchId}`)
+    .then((r) => r.data.data);
+
+export const updateBatch = (
+  batchId: string,
+  payload: Partial<{
+    title: string;
+    location_text: string | null;
+    work_period_start: string | null;
+    work_period_end: string | null;
+    content_base: string | null;
+    risk_basis: string | null;
+    shared_values: Record<string, unknown>;
+  }>,
+) =>
+  api
+    .patch<ApiResponse<{ affected: number; skipped: number }>>(
+      `${BASE}/batches/${batchId}`,
+      payload,
+    )
+    .then((r) => r.data.data);
+
+export const addBatchTickets = (batchId: string, tickets: BatchTicketSpec[]) =>
+  api
+    .post<ApiResponse<WorkTicketInstance[]>>(`${BASE}/batches/${batchId}/tickets`, {
+      tickets,
+    })
+    .then((r) => r.data.data);
+
+export const removeBatchTicket = (batchId: string, ticketId: string) =>
+  api
+    .delete<ApiResponse<{ removed: string; affected: number }>>(
+      `${BASE}/batches/${batchId}/tickets/${ticketId}`,
+    )
+    .then((r) => r.data.data);
+
+export const addPackageGasTest = (batchId: string, payload: GasTestPayload) =>
+  api
+    .post(`${BASE}/batches/${batchId}/gas-tests`, payload)
+    .then((r) => r.data.data);
+
+export const submitBatchAll = (batchId: string) =>
+  api
+    .post<ApiResponse<BatchSubmitAllResult>>(`${BASE}/batches/${batchId}/submit-all`, {}, {
+      skipGlobalError: true,
+    })
+    .then((r) => r.data.data);
+
+export const transitionBatch = (batchId: string, action: "close" | "cancel") =>
+  api
+    .post<ApiResponse<WorkTicketBatch>>(`${BASE}/batches/${batchId}/transition`, { action }, {
+      skipGlobalError: true,
+    })
     .then((r) => r.data.data);
 
 export const listTickets = (

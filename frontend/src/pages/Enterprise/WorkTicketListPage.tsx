@@ -120,13 +120,21 @@ export default function WorkTicketListPage() {
         title="特殊作业票"
         subtitle="8 类作业票共用这一个入口：先用类型筛选切换，再开票"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => navigate(`/enterprises/${id}/work-ticket/new`)}
-          >
-            开票
-          </Button>
+          <Space>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => navigate(`/enterprises/${id}/work-ticket/batches/new`)}
+            >
+              新建作业包
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => navigate(`/enterprises/${id}/work-ticket/new`)}
+            >
+              开票
+            </Button>
+          </Space>
         }
       />
 

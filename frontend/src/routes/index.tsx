@@ -71,6 +71,8 @@ import MajorHazardUnitPage from "@/pages/Enterprise/MajorHazardUnitPage";
 import MajorHazardComputePage from "@/pages/Enterprise/MajorHazardComputePage";
 import WorkTicketListPage from "@/pages/Enterprise/WorkTicketListPage";
 import WorkTicketNewPage from "@/pages/Enterprise/WorkTicketNewPage";
+import WorkTicketBatchNewPage from "@/pages/Enterprise/WorkTicketBatchNewPage";
+import WorkTicketBatchWorkspacePage from "@/pages/Enterprise/WorkTicketBatchWorkspacePage";
 import WorkTicketDetailPage from "@/pages/Enterprise/WorkTicketDetailPage";
 import WorkTicketApprovalPage from "@/pages/Enterprise/WorkTicketApprovalPage";
 import MajorHazardRecordPage from "@/pages/Enterprise/MajorHazardRecordPage";
@@ -174,6 +176,8 @@ const contentRoutes = [
     children: [
       { index: true, element: <WorkTicketListPage /> },
       { path: "new", element: <WorkTicketNewPage /> },
+      { path: "batches/new", element: <WorkTicketBatchNewPage /> },
+      { path: "batches/:batchId", element: <WorkTicketBatchWorkspacePage /> },
       { path: "approval", element: <WorkTicketApprovalPage /> },
       { path: ":ticketId", element: <WorkTicketDetailPage /> },
     ],
