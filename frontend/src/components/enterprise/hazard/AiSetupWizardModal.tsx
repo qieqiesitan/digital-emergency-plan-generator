@@ -140,7 +140,10 @@ export default function AiSetupWizardModal({ open, onClose, enterpriseId, indust
   };
 
   const setStepsAfterGenerate = (res: HazardSetupWizardResult) => {
-    setOrgChecked(buildOrgNodes(res.org_suggestion).map((n) => n.id));
+    // 真实模型实测：一家 120 人企业会给 89 个节点，其中 51 个是**岗位**。
+    // 全量默认勾选会把一堆没有成员的岗位空节点灌进组织树，所以默认只勾部门/班组，
+    // 岗位留给用户按需勾（上方另给 全选/只选部门班组/清空 三个快捷操作）。
+    setOrgChecked(buildOrgNodes(res.org_suggestion).filter((n) => n.type !== "position").map((n) => n.id));
     setPlanChecked(buildPlanPayloads(res.plans_suggestion?.plans, zones, members).map((_, i) => i));
     setItemChecked(buildChecklistItems(res.checklist_suggestion?.items).map((_, i) => i));
     const firstArea = String(form.getFieldValue("areas") || "").split(/[、,，]/)[0]?.trim();
@@ -313,6 +316,23 @@ export default function AiSetupWizardModal({ open, onClose, enterpriseId, indust
             {/* ① 组织架构 */}
             <div>
               <Text strong>① 组织架构（{orgNodes.length} 个节点）</Text>
+              {orgNodes.length > 0 && (
+                <div style={{ marginTop: 6, marginBottom: 2 }}>
+                  <Space size={6}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      已选 {orgChecked.length}/{orgNodes.length}
+                    </Text>
+                    <Button size="small" type="link" style={{ padding: 0, fontSize: 12 }}
+                            onClick={() => setOrgChecked(orgNodes.map((n) => n.id))}>全选</Button>
+                    <Button size="small" type="link" style={{ padding: 0, fontSize: 12 }}
+                            onClick={() => setOrgChecked(orgNodes.filter((n) => n.type !== "position").map((n) => n.id))}>
+                      只选部门·班组
+                    </Button>
+                    <Button size="small" type="link" style={{ padding: 0, fontSize: 12 }}
+                            onClick={() => setOrgChecked([])}>清空</Button>
+                  </Space>
+                </div>
+              )}
               <div style={{ border: "1px solid #f0f0f0", borderRadius: 6, padding: 10, marginTop: 8, height: 240, overflow: "auto" }}>
                 {orgNodes.length === 0 ? (
                   <Text type="secondary">无建议</Text>
