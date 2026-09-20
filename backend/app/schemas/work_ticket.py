@@ -47,8 +47,27 @@ class TicketOut(BaseModel):
     status: str
     current_node_key: Optional[str] = None
     values: dict = Field(default_factory=dict)
+    values_meta: dict = Field(default_factory=dict)
+    measures_meta: dict = Field(default_factory=dict)
     valid_from: Optional[datetime] = None
     valid_to: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class DraftSaveIn(BaseModel):
+    """草稿保存：票面值 + 来源留痕 + 措施三态。"""
+
+    values: dict = Field(default_factory=dict)
+    values_meta: dict = Field(default_factory=dict)
+    measures_meta: dict = Field(default_factory=dict)
+
+
+class AiPrefillIn(BaseModel):
+    """AI 预填请求。work_content 可空（列表页直接点 AI 生成时）。"""
+
+    enterprise_id: str
+    ticket_type: str
+    level: Optional[str] = None
+    work_content: Optional[str] = None

@@ -21,12 +21,16 @@ from app.models.work_ticket import (
     WorkTicketTemplate,
 )
 from app.schemas.work_ticket import (
+    AiPrefillIn,
+    DraftSaveIn,
     GasTestIn,
     NodeActionIn,
     OpenTicketIn,
     TicketOut,
     TicketTransitionIn,
 )
+from app.models.enterprise import EnterpriseFloor
+from app.models.risk_management import RiskObject, RiskZone
 from app.services.access_control import (
     ensure_enterprise_owned,
     ensure_enterprise_visible,
@@ -45,6 +49,8 @@ from app.services.work_ticket_service import (
     tickets_pending_for_user,
     transition_ticket,
 )
+from app.services.work_ticket_ai_service import prefill as ai_prefill
+from app.services.work_ticket_prefill import _last_ticket, build_prefill
 
 router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Depends(get_current_user)])
 
@@ -128,6 +134,7 @@ async def list_templates(db: AsyncSession = Depends(get_db)):
                         "group_name": f.group_name,
                         "is_required": f.is_required,
                         "options": f.options,
+                        "allow_ai_prefill": f.allow_ai_prefill,
                     }
                     for f in sorted(t.fields, key=lambda x: x.sort_order)
                 ],
@@ -438,3 +445,156 @@ async def api_print_ticket(ticket_id: str, db: AsyncSession = Depends(get_db), u
         filename=filename,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
+
+
+@router.get("/prefill")
+async def api_prefill(
+    enterprise_id: str = Query(...),
+    template_id: str = Query(...),
+    level: str | None = Query(default=None),
+    risk_object_id: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """确定性预填：按来源优先级取数，不调用 AI（进页面即调，必须快）。"""
+    await ensure_enterprise_owned(db, user, enterprise_id)
+    template = (
+        await db.execute(
+            select(WorkTicketTemplate).where(WorkTicketTemplate.id == template_id)
+        )
+    ).scalar_one_or_none()
+    if template is None:
+        raise HTTPException(404, "模板不存在")
+    location_text = None
+    if risk_object_id:
+        obj = (
+            await db.execute(select(RiskObject).where(RiskObject.id == risk_object_id))
+        ).scalar_one_or_none()
+        if obj is not None:
+            location_text = obj.location or obj.name
+    payload = await build_prefill(
+        db,
+        enterprise_id=enterprise_id,
+        template=template,
+        level=level,
+        risk_object_location=location_text,
+    )
+    return _ok(payload)
+
+
+@router.get("/last-ticket")
+async def api_last_ticket(
+    enterprise_id: str = Query(...),
+    template_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """上次同类票摘要，供开票页「参考上次」入口（无历史票时返回 null）。"""
+    await ensure_enterprise_visible(db, user, enterprise_id)
+    last = await _last_ticket(db, enterprise_id=enterprise_id, template_id=template_id)
+    if last is None:
+        return _ok(None)
+    values = last.values or {}
+    return _ok(
+        {
+            "id": last.id,
+            "code": last.code,
+            "created_at": last.created_at,
+            "work_content": values.get("work_content"),
+            "risk_identification": values.get("risk_identification"),
+        }
+    )
+
+
+@router.get("/locations")
+async def api_locations(
+    enterprise_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """作业地点候选：楼层 → 区域 → 对象（含地点文本）。"""
+    await ensure_enterprise_visible(db, user, enterprise_id)
+    floors = (
+        (
+            await db.execute(
+                select(EnterpriseFloor)
+                .where(EnterpriseFloor.enterprise_id == enterprise_id)
+                .order_by(EnterpriseFloor.sort_order)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    zones = (
+        (
+            await db.execute(
+                select(RiskZone)
+                .where(RiskZone.enterprise_id == enterprise_id)
+                .order_by(RiskZone.sort_order)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    objects = (
+        (await db.execute(select(RiskObject).where(RiskObject.enterprise_id == enterprise_id)))
+        .scalars()
+        .all()
+    )
+    return _ok(
+        {
+            "floors": [{"id": f.id, "name": f.name} for f in floors],
+            "zones": [
+                {"id": z.id, "name": z.name, "floor_id": z.floor_id} for z in zones
+            ],
+            "objects": [
+                {
+                    "id": o.id,
+                    "name": o.name,
+                    "location": o.location,
+                    "zone_id": o.zone_id,
+                    "floor_id": o.floor_id,
+                }
+                for o in objects
+            ],
+        }
+    )
+
+
+@router.post("/ai/prefill")
+async def api_ai_prefill(
+    payload: AiPrefillIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """AI 预填：用户显式点击才调用；未配置/停用/超时/异常一律降级返回。"""
+    await ensure_enterprise_owned(db, user, payload.enterprise_id)
+    from app.services.ai_config_service import get_system_ai_config
+
+    ai_config = await get_system_ai_config(db)
+    result = await ai_prefill(
+        ticket_type=payload.ticket_type,
+        level=payload.level,
+        location_text=None,
+        work_content=payload.work_content,
+        ai_config=ai_config,
+    )
+    return _ok(result)
+
+
+@router.patch("/tickets/{ticket_id}")
+async def api_save_draft(
+    ticket_id: str,
+    payload: DraftSaveIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """草稿保存（仅 draft 状态）。"""
+    instance = await ensure_ticket_owned(db, user, ticket_id)
+    if instance.status != "draft":
+        raise HTTPException(409, "只有草稿状态的作业票可以保存")
+    instance.values = payload.values
+    instance.values_meta = payload.values_meta
+    instance.measures_meta = payload.measures_meta
+    await db.commit()
+    return _ok(TicketOut.model_validate(instance))

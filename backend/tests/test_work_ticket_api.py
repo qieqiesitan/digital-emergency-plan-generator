@@ -66,6 +66,8 @@ def test_list_tickets_filters_by_type(monkeypatch):
     t.status = "approving"
     t.current_node_key = "approve"
     t.values = {}
+    t.values_meta = {}
+    t.measures_meta = {}
     t.valid_from = None
     t.valid_to = None
     t.created_at = None
@@ -128,3 +130,66 @@ def test_submit_returns_422_on_validation_failure():
     resp = client.post("/api/v1/work-ticket/tickets/missing/submit")
     # W0：票不存在/无权访问统一 404（原 409/422 语义保留给校验失败场景）
     assert resp.status_code in (404, 409, 422)
+
+
+def _instance(status: str):
+    inst = MagicMock()
+    inst.id = "t1"
+    inst.status = status
+    inst.values = {}
+    inst.values_meta = {}
+    inst.measures_meta = {}
+    return inst
+
+
+def test_draft_save_rejects_non_draft_status(monkeypatch):
+    """已提交的票不能再走草稿保存。"""
+
+    async def _owned(_db, _user, _ticket_id):
+        return _instance(status="approving")
+
+    monkeypatch.setattr(work_ticket, "ensure_ticket_owned", _owned)
+
+    async def handler(stmt, *a, **k):
+        return _Result([])
+
+    client = _client(handler)
+    resp = client.patch(
+        "/api/v1/work-ticket/tickets/t1",
+        json={"values": {"work_content": "x"}, "values_meta": {}, "measures_meta": {}},
+    )
+    assert resp.status_code == 409
+    assert "草稿" in resp.json()["detail"]
+
+
+def test_templates_expose_allow_ai_prefill():
+    """模板接口必须把 allow_ai_prefill 透出，前端才能决定是否显示 AI 按钮。"""
+    field = MagicMock()
+    field.field_key = "risk_identification"
+    field.label = "风险辨识结果"
+    field.field_type = "textarea"
+    field.group_name = "危害因素"
+    field.is_required = True
+    field.options = {}
+    field.allow_ai_prefill = True
+    field.sort_order = 1
+    template = MagicMock()
+    template.id = "tpl1"
+    template.code = "DHZY"
+    template.name = "动火安全作业票"
+    template.level = "二级"
+    template.is_graded = True
+    template.fields = [field]
+    template.measures = []
+
+    calls = {"n": 0}
+
+    async def handler(stmt, *a, **k):
+        calls["n"] += 1
+        return _Result([template] if calls["n"] == 1 else [])
+
+    client = _client(handler)
+    resp = client.get("/api/v1/work-ticket/templates")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data[0]["fields"][0]["allow_ai_prefill"] is True
