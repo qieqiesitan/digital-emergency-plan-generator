@@ -1,0 +1,93 @@
+{
+  "per_type": [
+    {
+      "type": "动火作业",
+      "reachable": true,
+      "field_labels": 12,
+      "badges": [
+        "系统默认",
+        "向导联动",
+        "AI 生成"
+      ]
+    },
+    {
+      "type": "受限空间作业",
+      "reachable": true,
+      "field_labels": 10,
+      "badges": [
+        "系统默认",
+        "AI 生成"
+      ]
+    },
+    {
+      "type": "盲板抽堵作业",
+      "reachable": true,
+      "field_labels": 11,
+      "badges": [
+        "系统默认",
+        "AI 生成"
+      ]
+    },
+    {
+      "type": "高处作业",
+      "reachable": true,
+      "field_labels": 11,
+      "badges": [
+        "系统默认",
+        "向导联动",
+        "AI 生成"
+      ]
+    },
+    {
+      "type": "吊装作业",
+      "reachable": true,
+      "field_labels": 12,
+      "badges": [
+        "系统默认",
+        "向导联动",
+        "AI 生成"
+      ]
+    },
+    {
+      "type": "临时用电作业",
+      "reachable": true,
+      "field_labels": 12,
+      "badges": [
+        "系统默认",
+        "AI 生成"
+      ]
+    },
+    {
+      "type": "动土作业",
+      "reachable": true,
+      "field_labels": 11,
+      "badges": [
+        "系统默认",
+        "AI 生成"
+      ]
+    },
+    {
+      "type": "断路作业",
+      "reachable": true,
+      "field_labels": 11,
+      "badges": [
+        "系统默认",
+        "AI 生成"
+      ]
+    }
+  ],
+  "fire_measure_count": 16,
+  "fire_step_error": "",
+  "fire_page_excerpt": "数字化预案系统\n工作台\n企业管理\n预案列表\n设置\nE2E测试用户\n← 返回企业驾驶舱\n特殊作业\nSPECIAL WORK TICKET\n特殊作业\n作业票\n基础设置\n审批工作台\n← 返回\n开票\n按 GB 30871-2022 附录A 票面填报；带来源徽标的字段为系统自动带出，请核对\n类型与级别\n票面内容\n气体检测\n4\n安全措施\n5\nJSA\n6\n人员与提交\n已表态 0 / 16 条\n动火设备内部构件清洗干净，蒸汽吹扫或水洗、置换合格，达到动火条件 GB 30871-2022 5\n现场条件未确定\n确认涉及\n本票不涉及\n与动火设备相连接的所有管线已断开，加盲板（ ）块，未采取水封或仅关闭阀门的方式代替盲板 GB 30871-2022 5\n现场条件未确定\n确认涉及\n本票不涉及\n动火点周围及附近的孔洞、窨井、地沟、水封设施、污水井等已清除易燃物，并已采取覆盖、铺沙等手段进行隔离 GB 30871-20",
+  "errors": [],
+  "checks": {
+    "login_ok": true,
+    "batch_entry_visible": true,
+    "eight_types_reachable": true,
+    "fields_rendered": true,
+    "prefill_badges_visible": true,
+    "fire_measures_is_16": true,
+    "no_console_error": true
+  },
+  "all_passed": true
+}
