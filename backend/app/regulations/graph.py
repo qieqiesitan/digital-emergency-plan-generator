@@ -124,26 +124,6 @@ class RegulationGraph:
                 result.append(node)
         return sorted(result, key=lambda a: a.get("article_number", ""))
 
-    def set_article_status(self, article_id, status, superseded_by=""):
-        if article_id not in self._g:
-            return False
-        self._g.nodes[article_id]["status"] = status
-        self._g.nodes[article_id]["updated_at"] = _now()
-        if superseded_by:
-            self._g.nodes[article_id]["superseded_by"] = superseded_by
-        return True
-
-    def get_effective_articles(self, regulation_id):
-        return [a for a in self.get_articles_by_regulation(regulation_id)
-                if a.get("status") != "abolished"]
-
-    def query_articles_by_plan_type(self, plan_type):
-        plan_regs = self.query_by_plan_type(plan_type)
-        articles = []
-        for reg in plan_regs.get("effective", []):
-            articles.extend(self.get_articles_by_regulation(reg["id"]))
-        return articles
-
     def infer_article_topics(self, article_text: str, reg_topics: list[str] = None) -> list[str]:
         """从条文文本中推断 topic 标签。"""
         if not article_text:

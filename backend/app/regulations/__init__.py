@@ -42,14 +42,5 @@ def get_graph():
     return get_retriever().graph
 
 
-_scorer = None
-
-def get_scorer():
-    global _scorer
-    if _scorer is None:
-        from app.regulations.scorer import ArticleRelevanceScorer
-        _scorer = ArticleRelevanceScorer()
-    return _scorer
-
 def get_vector_store():
     return get_retriever().vector_store
