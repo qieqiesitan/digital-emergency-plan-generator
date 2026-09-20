@@ -1,0 +1,20 @@
+{
+  "checks": {
+    "batch_tickets_created": true,
+    "shared_fields_written_to_all": true,
+    "risk_basis_written_to_all": true,
+    "related_tickets_reciprocal": true,
+    "batch_id_set": true,
+    "location_slot_mapped_per_type": true,
+    "batch_is_transactional": true,
+    "package_gas_shared_by_both": true,
+    "related_updated_after_removal": true,
+    "probe_data_cleaned": true
+  },
+  "codes": [
+    "DHZY-10e11995-e682-405a-9-20260920-0001",
+    "QZDZ-10e11995-e682-405a-9-20260920-0001",
+    "YXKJ-10e11995-e682-405a-9-20260920-0001"
+  ],
+  "all_passed": true
+}
