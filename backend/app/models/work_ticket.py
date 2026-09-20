@@ -153,6 +153,48 @@ class WorkTicketFlowNode(Base):
     flow_template = relationship("WorkTicketFlowTemplate", back_populates="nodes", lazy="selectin")
 
 
+class WorkTicketBatch(Base):
+    """作业包：一次检修（同企业 + 同地点 + 同一时段）下的多张作业票。
+
+    共享信息按"语义槽位"存在 `shared_values`，落到各票的 field_key 由
+    `services.work_ticket_batch.SLOT_TARGETS` 决定（不同票种的地点字段名不同）。
+    """
+
+    __tablename__ = "work_ticket_batches"
+    __table_args__ = (Index("idx_wtb_enterprise_status", "enterprise_id", "status"),)
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    enterprise_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft", server_default="draft")
+    floor_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("enterprise_floors.id", ondelete="SET NULL")
+    )
+    zone_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("risk_zones.id", ondelete="SET NULL")
+    )
+    risk_object_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("risk_objects.id", ondelete="SET NULL")
+    )
+    location_text: Mapped[Optional[str]] = mapped_column(String(500))
+    work_period_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    work_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    shared_values: Mapped[dict] = mapped_column(
+        JSONB, default=dict, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    content_base: Mapped[Optional[str]] = mapped_column(Text)
+    risk_basis: Mapped[Optional[str]] = mapped_column(Text)
+    created_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class WorkTicketInstance(Base):
     """作业票实例。编号规则 {类型}-{企业码}-{YYYYMMDD}-{4位序号}。"""
 
@@ -165,6 +207,12 @@ class WorkTicketInstance(Base):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     enterprise_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
+    )
+    # 所属作业包（一次检修的多张票共享信息 / 票号互相关联）
+    batch_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("work_ticket_batches.id", ondelete="SET NULL"),
+        index=True,
     )
     template_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("work_ticket_templates.id", ondelete="RESTRICT"), nullable=False
@@ -221,14 +269,24 @@ class WorkTicketNodeRecord(Base):
 
 
 class WorkTicketGasTest(Base):
-    """气体检测记录。动火/受限空间类为提交前必填，一次作业可多次取样。"""
+    """气体检测记录。动火/受限空间类为提交前必填，一次作业可多次取样。
+
+    归属二选一：某张票（`instance_id`）或某个作业包（`batch_id`）。
+    包级记录由同包内的动火/受限空间票共享（同一地点同一时段一次检测），
+    **但不豁免 30 分钟时效**——超过 `GAS_TEST_MAX_AGE` 一样阻断提交。
+    """
 
     __tablename__ = "work_ticket_gas_tests"
     __table_args__ = (Index("idx_wtgt_instance", "instance_id", "sampled_at"),)
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
-    instance_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE"), nullable=False
+    instance_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("work_ticket_instances.id", ondelete="CASCADE")
+    )
+    batch_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("work_ticket_batches.id", ondelete="CASCADE"),
+        index=True,
     )
     sampled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     location: Mapped[Optional[str]] = mapped_column(String(200))
