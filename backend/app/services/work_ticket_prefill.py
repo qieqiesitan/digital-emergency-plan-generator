@@ -24,6 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enterprise import Enterprise
 from app.models.enterprise_org import EnterpriseMember
 from app.models.work_ticket import WorkTicketInstance
+from app.services.work_ticket_measure_rules import (
+    MeasureContext,
+    conditions_from_scenario,
+    suggest_measures,
+)
 
 DEFAULT_WORK_HOURS = 8
 
@@ -158,6 +163,10 @@ async def build_prefill(
     template,
     level: str | None = None,
     risk_object_location: str | None = None,
+    zone_name: str | None = None,
+    fire_method: str | None = None,
+    scenario: Mapping[str, bool | None] | None = None,
+    other_ticket_types: Sequence[str] = (),
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """确定性预填的取数入口。返回 values/values_meta 与页面所需的候选数据。"""
@@ -199,10 +208,24 @@ async def build_prefill(
             continue
         values[key] = value
         meta[key] = {"source": source, "source_ref": {}, "edited": False}
+    # 措施"是否涉及"建议：由作业情景（用户勾选）+ 可推断条件（动火方式、区域名、
+    # 同包其他票）共同决定；建议只影响分组，落地仍需人工点击。
+    conditions = conditions_from_scenario(
+        ticket_type=template.code,
+        fire_method=fire_method or history_values.get("fire_method"),
+        zone_name=zone_name,
+        other_ticket_types=other_ticket_types,
+        scenario=scenario,
+    )
+    measures_suggestions = suggest_measures(
+        list(getattr(template, "measures", []) or []),
+        MeasureContext(ticket_type=template.code, conditions=conditions),
+    )
     return {
         "values": values,
         "values_meta": meta,
         "last_ticket_id": str(last.id) if last else None,
+        "measures_suggestions": measures_suggestions,
         "members": [
             {
                 "id": str(m.id),

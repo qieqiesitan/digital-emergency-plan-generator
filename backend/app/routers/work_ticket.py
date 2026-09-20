@@ -1,5 +1,6 @@
 """作业票 API。"""
 
+import json
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -453,6 +454,10 @@ async def api_prefill(
     template_id: str = Query(...),
     level: str | None = Query(default=None),
     risk_object_id: str | None = Query(default=None),
+    fire_method: str | None = Query(default=None),
+    scenario: str | None = Query(
+        default=None, description='作业情景 JSON，如 {"in_tank_area": false}'
+    ),
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
@@ -466,18 +471,34 @@ async def api_prefill(
     if template is None:
         raise HTTPException(404, "模板不存在")
     location_text = None
+    zone_name = None
     if risk_object_id:
         obj = (
             await db.execute(select(RiskObject).where(RiskObject.id == risk_object_id))
         ).scalar_one_or_none()
         if obj is not None:
             location_text = obj.location or obj.name
+            if obj.zone_id:
+                zone = (
+                    await db.execute(select(RiskZone).where(RiskZone.id == obj.zone_id))
+                ).scalar_one_or_none()
+                zone_name = zone.name if zone is not None else None
+    scenario_dict = None
+    if scenario:
+        try:
+            parsed = json.loads(scenario)
+            scenario_dict = parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            scenario_dict = None
     payload = await build_prefill(
         db,
         enterprise_id=enterprise_id,
         template=template,
         level=level,
         risk_object_location=location_text,
+        zone_name=zone_name,
+        fire_method=fire_method,
+        scenario=scenario_dict,
     )
     return _ok(payload)
 
