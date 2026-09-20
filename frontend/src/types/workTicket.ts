@@ -126,6 +126,8 @@ export interface WorkTicketFieldDef {
   group_name?: string | null;
   is_required?: boolean;
   options?: { choices?: string[] } | null;
+  /** 该字段允许 AI 预填（模板层数据，后端 templates 接口透出）。 */
+  allow_ai_prefill?: boolean;
 }
 
 export interface WorkTicketMeasureDef {
@@ -153,9 +155,91 @@ export interface WorkTicketInstance {
   status: string;
   current_node_key?: string | null;
   values: Record<string, unknown>;
+  values_meta?: Record<string, FieldMeta>;
+  measures_meta?: Record<string, MeasureMeta>;
   valid_from?: string | null;
   valid_to?: string | null;
   created_at?: string | null;
+}
+
+/** 字段来源：决定开票页上的来源徽标与"哪些值需要人工确认"。 */
+export type FieldSource =
+  | "manual"
+  | "history"
+  | "member"
+  | "risk_object"
+  | "template_link"
+  | "system_default"
+  | "batch"
+  | "ai";
+
+export interface FieldMeta {
+  source: FieldSource;
+  source_ref?: Record<string, unknown>;
+  prefilled_at?: string | null;
+  confirmed_at?: string | null;
+  confirmed_by?: string | null;
+  edited?: boolean;
+}
+
+export type MeasureState = "pending" | "confirmed" | "not_applicable";
+
+export interface MeasureMeta {
+  state: MeasureState;
+  reason_code?: string;
+  reason_text?: string;
+  acted_by?: string | null;
+  acted_at?: string | null;
+}
+
+export interface MeasureSuggestion {
+  sort_order: number;
+  suggest: "applicable" | "not_applicable" | "unknown";
+  reason: string | null;
+}
+
+export interface PrefillMember {
+  id: string;
+  name: string;
+  position?: string | null;
+  certificates?: { type?: string; no?: string; valid_to?: string }[];
+}
+
+export interface PrefillPayload {
+  values: Record<string, unknown>;
+  values_meta: Record<string, FieldMeta>;
+  last_ticket_id?: string | null;
+  members: PrefillMember[];
+  /** 措施"是否涉及"建议：只影响分组排序，落地仍需人工点击。 */
+  measures_suggestions?: MeasureSuggestion[];
+}
+
+export interface AiPrefillResult {
+  available: boolean;
+  risk_identification?: { text: string; basis: string[] } | null;
+  jsa?: { text: string; hazards: { hazard: string; control: string }[] } | null;
+  measures_suggestions?: MeasureSuggestion[];
+  note?: string;
+}
+
+export interface LastTicketSummary {
+  id: string;
+  code: string;
+  created_at?: string | null;
+  work_content?: string | null;
+  risk_identification?: string | null;
+}
+
+export interface LocationTree {
+  floors: { id: string; name: string }[];
+  zones: { id: string; name: string; floor_id?: string | null }[];
+  objects: {
+    id: string;
+    name: string;
+    location?: string | null;
+    zone_id?: string | null;
+    floor_id?: string | null;
+  }[];
 }
 
 export interface GasTestPayload {

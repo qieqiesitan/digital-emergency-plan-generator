@@ -3,8 +3,14 @@ import type { AxiosResponse } from "axios";
 import type { ApiResponse } from "@/types/common";
 import { filenameFromContentDisposition } from "@/utils/download";
 import type {
+  AiPrefillResult,
+  FieldMeta,
   GasTestPayload,
+  LastTicketSummary,
+  LocationTree,
+  MeasureMeta,
   OpenTicketPayload,
+  PrefillPayload,
   SubmitResult,
   WorkTicketDetail,
   WorkTicketInstance,
@@ -17,6 +23,65 @@ const BASE = "/work-ticket";
 export const listTemplates = () =>
   api
     .get<ApiResponse<WorkTicketTemplate[]>>(`${BASE}/templates`)
+    .then((r) => r.data.data);
+
+/** 确定性预填：按来源优先级带出票面字段（进向导即调，不触发 AI）。 */
+export const getPrefill = (params: {
+  enterprise_id: string;
+  template_id: string;
+  level?: string | null;
+  risk_object_id?: string | null;
+  fire_method?: string | null;
+  /** 作业情景 JSON 字符串（勾选=true；已声明核实时未勾选项=false）。 */
+  scenario?: string | null;
+}) =>
+  api
+    .get<ApiResponse<PrefillPayload>>(`${BASE}/prefill`, { params })
+    .then((r) => r.data.data);
+
+/** 上次同类票摘要（供"参考上次"入口）。 */
+export const getLastTicket = (enterpriseId: string, templateId: string) =>
+  api
+    .get<ApiResponse<LastTicketSummary | null>>(`${BASE}/last-ticket`, {
+      params: { enterprise_id: enterpriseId, template_id: templateId },
+    })
+    .then((r) => r.data.data);
+
+/** 作业地点候选：楼层 → 区域 → 对象。 */
+export const listLocations = (enterpriseId: string) =>
+  api
+    .get<ApiResponse<LocationTree>>(`${BASE}/locations`, {
+      params: { enterprise_id: enterpriseId },
+    })
+    .then((r) => r.data.data);
+
+/**
+ * AI 预填：用户显式点击才调；后端未配置/停用/超时会返回 available:false，
+ * 故这里跳过全局错误 toast，由调用方按 available 决定提示。
+ */
+export const aiPrefill = (payload: {
+  enterprise_id: string;
+  ticket_type: string;
+  level?: string | null;
+  work_content?: string | null;
+}) =>
+  api
+    .post<ApiResponse<AiPrefillResult>>(`${BASE}/ai/prefill`, payload, {
+      skipGlobalError: true,
+    })
+    .then((r) => r.data.data);
+
+/** 草稿保存（仅 draft 状态）。 */
+export const saveDraft = (
+  ticketId: string,
+  payload: {
+    values: Record<string, unknown>;
+    values_meta: Record<string, FieldMeta>;
+    measures_meta: Record<string, MeasureMeta>;
+  },
+) =>
+  api
+    .patch<ApiResponse<WorkTicketInstance>>(`${BASE}/tickets/${ticketId}`, payload)
     .then((r) => r.data.data);
 
 export const listTickets = (
