@@ -9,7 +9,24 @@ road_position / pipe_position），而高处（GCZY）、吊装（QZDZ）、临�
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Sequence
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.work_ticket import (
+    WorkTicketBatch,
+    WorkTicketGasTest,
+    WorkTicketInstance,
+    WorkTicketTemplate,
+)
+from app.services.work_ticket_service import (
+    SubmitValidationError,
+    WorkTicketError,
+    open_ticket,
+    submit_ticket,
+)
 
 BATCH_SOURCE = "batch"
 
@@ -98,3 +115,227 @@ def next_batch_status(
     if submitted > 0:
         return "active"
     return "draft"
+
+
+# ── 服务编排（取数 + 事务） ──────────────────────────────────────────────
+
+
+async def _template_of(db: AsyncSession, template_id: str) -> WorkTicketTemplate | None:
+    return (
+        await db.execute(
+            select(WorkTicketTemplate).where(WorkTicketTemplate.id == template_id)
+        )
+    ).scalar_one_or_none()
+
+
+def _shared_payload(batch: WorkTicketBatch) -> dict[str, Any]:
+    """把作业包的共享信息整理成"槽位 → 值"（时段时间格式化后覆盖 period）。"""
+    shared: dict[str, Any] = dict(batch.shared_values or {})
+    if batch.work_period_start and batch.work_period_end:
+        shared["period"] = [
+            batch.work_period_start.isoformat(),
+            batch.work_period_end.isoformat(),
+        ]
+    if batch.location_text:
+        shared["location"] = batch.location_text
+    if batch.content_base:
+        shared["content"] = batch.content_base
+    if batch.risk_basis:
+        shared["risk_basis"] = batch.risk_basis
+    return shared
+
+
+async def tickets_of_batch(
+    db: AsyncSession, *, batch_id: str, include_package_gas: bool = True
+) -> tuple[list[WorkTicketInstance], list[WorkTicketGasTest]]:
+    """包内票（按创建顺序）+ 包级检测记录。"""
+    tickets = list(
+        (
+            await db.execute(
+                select(WorkTicketInstance)
+                .where(WorkTicketInstance.batch_id == batch_id)
+                .order_by(WorkTicketInstance.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    gas: list[WorkTicketGasTest] = []
+    if include_package_gas:
+        gas = list(
+            (
+                await db.execute(
+                    select(WorkTicketGasTest)
+                    .where(WorkTicketGasTest.batch_id == batch_id)
+                    .order_by(WorkTicketGasTest.sampled_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return tickets, gas
+
+
+async def create_batch(
+    db: AsyncSession, *, enterprise_id: str, payload, user_id: str | None
+) -> WorkTicketBatch:
+    batch = WorkTicketBatch(
+        enterprise_id=enterprise_id,
+        title=payload.title,
+        floor_id=payload.floor_id,
+        zone_id=payload.zone_id,
+        risk_object_id=payload.risk_object_id,
+        location_text=payload.location_text,
+        work_period_start=payload.work_period_start,
+        work_period_end=payload.work_period_end,
+        shared_values=payload.shared_values or {},
+        content_base=payload.content_base,
+        risk_basis=payload.risk_basis,
+        created_by=user_id,
+    )
+    db.add(batch)
+    await db.commit()
+    return batch
+
+
+async def add_tickets(
+    db: AsyncSession,
+    *,
+    batch: WorkTicketBatch,
+    enterprise_code: str,
+    specs: Sequence[Mapping[str, Any]],
+    user_id: str | None,
+) -> list[WorkTicketInstance]:
+    """批量生成草稿票并回填互相的 related_tickets —— 全流程单事务。"""
+    created: list[WorkTicketInstance] = []
+    try:
+        for spec in specs:
+            template = await _template_of(db, str(spec["template_id"]))
+            if template is None:
+                raise ValueError(f"模板不存在：{spec['template_id']}")
+            shared = _shared_payload(batch)
+            values, meta = apply_slots(
+                template.code, shared, {f.field_key for f in template.fields}
+            )
+            instance = await open_ticket(
+                db,
+                enterprise_id=batch.enterprise_id,
+                enterprise_code=enterprise_code,
+                ticket_type=template.code,
+                template_id=template.id,
+                level=spec.get("level"),
+                values=values,
+                values_meta=meta,
+                batch_id=batch.id,
+                user_id=user_id,
+                commit=False,
+            )
+            created.append(instance)
+
+        # 票号回填必须在同一事务内，否则会出现"A 的关联票号里有 B、B 里没有 A"
+        related = build_related_map([(i.id, i.code) for i in created])
+        for instance in created:
+            values = dict(instance.values or {})
+            values["related_tickets"] = related[instance.id]
+            instance.values = values
+            meta = dict(instance.values_meta or {})
+            meta["related_tickets"] = {
+                "source": BATCH_SOURCE,
+                "source_ref": {"slot": "related"},
+                "edited": False,
+            }
+            instance.values_meta = meta
+
+        batch.status = next_batch_status(
+            batch.status, submitted=0, total=len(created), action="refresh"
+        )
+        batch.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    for instance in created:
+        await db.refresh(instance)
+    return created
+
+
+async def update_batch_shared(db: AsyncSession, *, batch: WorkTicketBatch, payload) -> dict:
+    """改共享槽位：只回写**未提交**的票，已提交票提示作废重开。"""
+    if payload.title is not None:
+        batch.title = payload.title
+    if payload.location_text is not None:
+        batch.location_text = payload.location_text
+    if payload.work_period_start is not None:
+        batch.work_period_start = payload.work_period_start
+    if payload.work_period_end is not None:
+        batch.work_period_end = payload.work_period_end
+    if payload.content_base is not None:
+        batch.content_base = payload.content_base
+    if payload.risk_basis is not None:
+        batch.risk_basis = payload.risk_basis
+    if payload.shared_values is not None:
+        batch.shared_values = payload.shared_values
+    batch.updated_at = datetime.now(timezone.utc)
+
+    tickets, _ = await tickets_of_batch(db, batch_id=batch.id, include_package_gas=False)
+    shared = _shared_payload(batch)
+    affected = 0
+    for ticket in tickets:
+        if ticket.status != "draft":
+            continue
+        template = await _template_of(db, ticket.template_id)
+        if template is None:
+            continue
+        values, meta = apply_slots(
+            template.code, shared, {f.field_key for f in template.fields}
+        )
+        ticket.values = {**(ticket.values or {}), **values}
+        ticket.values_meta = {**(ticket.values_meta or {}), **meta}
+        affected += 1
+    await db.commit()
+    return {"affected": affected, "skipped": len(tickets) - affected}
+
+
+async def batch_counts(db: AsyncSession, *, batch_id: str) -> tuple[int, int]:
+    """(已提交票数, 总票数)。"""
+    tickets, _ = await tickets_of_batch(db, batch_id=batch_id, include_package_gas=False)
+    submitted = sum(1 for t in tickets if t.status != "draft")
+    return submitted, len(tickets)
+
+
+async def submit_all(db: AsyncSession, *, batch_id: str, user_id: str | None) -> dict:
+    """逐票提交：失败的票单独返回，不影响其他票（每票各自走法定门禁）。"""
+    tickets, _ = await tickets_of_batch(db, batch_id=batch_id, include_package_gas=False)
+    results: list[dict[str, Any]] = []
+    for ticket in tickets:
+        if ticket.status != "draft":
+            results.append(
+                {
+                    "ticket_id": ticket.id,
+                    "code": ticket.code,
+                    "ok": False,
+                    "errors": [f"当前状态（{ticket.status}）不允许提交"],
+                }
+            )
+            continue
+        try:
+            await submit_ticket(db, instance_id=ticket.id, user_id=user_id)
+            results.append({"ticket_id": ticket.id, "code": ticket.code, "ok": True, "errors": []})
+        except (SubmitValidationError, WorkTicketError) as exc:
+            await db.rollback()
+            results.append(
+                {
+                    "ticket_id": ticket.id,
+                    "code": ticket.code,
+                    "ok": False,
+                    "errors": [part for part in str(exc).split("；") if part],
+                }
+            )
+    batch = (
+        await db.execute(select(WorkTicketBatch).where(WorkTicketBatch.id == batch_id))
+    ).scalar_one_or_none()
+    if batch is not None:
+        submitted, total = await batch_counts(db, batch_id=batch_id)
+        batch.status = next_batch_status(batch.status, submitted=submitted, total=total)
+        await db.commit()
+    return {"results": results, "succeeded": sum(1 for r in results if r["ok"])}

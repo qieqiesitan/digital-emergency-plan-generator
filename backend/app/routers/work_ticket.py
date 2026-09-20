@@ -5,7 +5,7 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -13,6 +13,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.work_ticket import (
     WorkTicketAuditLog,
+    WorkTicketBatch,
     WorkTicketFlowNode,
     WorkTicketFlowTemplate,
     WorkTicketGasTest,
@@ -23,6 +24,11 @@ from app.models.work_ticket import (
 )
 from app.schemas.work_ticket import (
     AiPrefillIn,
+    BatchCreateIn,
+    BatchOut,
+    BatchTicketsIn,
+    BatchTransitionIn,
+    BatchUpdateIn,
     DraftSaveIn,
     GasTestIn,
     NodeActionIn,
@@ -30,7 +36,7 @@ from app.schemas.work_ticket import (
     TicketOut,
     TicketTransitionIn,
 )
-from app.models.enterprise import EnterpriseFloor
+from app.models.enterprise import Enterprise, EnterpriseFloor
 from app.models.risk_management import RiskObject, RiskZone
 from app.services.access_control import (
     ensure_enterprise_owned,
@@ -51,6 +57,16 @@ from app.services.work_ticket_service import (
     transition_ticket,
 )
 from app.services.work_ticket_ai_service import prefill as ai_prefill
+from app.services.work_ticket_batch import (
+    add_tickets,
+    batch_counts,
+    build_related_map,
+    create_batch,
+    next_batch_status,
+    submit_all,
+    tickets_of_batch,
+    update_batch_shared,
+)
 from app.services.work_ticket_prefill import _last_ticket, build_prefill
 
 router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Depends(get_current_user)])
@@ -58,6 +74,18 @@ router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Dep
 
 def _ok(data):
     return {"success": True, "code": 200, "message": "success", "data": data}
+
+
+def _gas_query(ticket_id: str, batch_id: str | None):
+    """票面检测记录 = 本票检测 + 所属作业包的包级检测（同一次检修常同批检测）。"""
+    conditions = [WorkTicketGasTest.instance_id == ticket_id]
+    if batch_id:
+        conditions.append(WorkTicketGasTest.batch_id == batch_id)
+    return (
+        select(WorkTicketGasTest)
+        .where(or_(*conditions))
+        .order_by(WorkTicketGasTest.sampled_at)
+    )
 
 
 async def _visible_ticket(db: AsyncSession, user, ticket_id: str) -> WorkTicketInstance:
@@ -309,11 +337,7 @@ async def api_ticket_detail(
     这两块数据无处可取，故补这一个只读端点（与列表同为统一信封）。
     """
     instance = await _visible_ticket(db, user, ticket_id)
-    gas_res = await db.execute(
-        select(WorkTicketGasTest)
-        .where(WorkTicketGasTest.instance_id == ticket_id)
-        .order_by(WorkTicketGasTest.sampled_at)
-    )
+    gas_res = await db.execute(_gas_query(ticket_id, instance.batch_id))
     rec_res = await db.execute(
         select(WorkTicketNodeRecord)
         .where(WorkTicketNodeRecord.instance_id == ticket_id)
@@ -327,18 +351,7 @@ async def api_ticket_detail(
     return _ok(
         {
             "ticket": TicketOut.model_validate(instance),
-            "gas_tests": [
-                {
-                    "id": g.id,
-                    "sampled_at": g.sampled_at,
-                    "location": g.location,
-                    "gas_type": g.gas_type,
-                    "result": g.result,
-                    "tester": g.tester,
-                    "conclusion": g.conclusion,
-                }
-                for g in gas_res.scalars().all()
-            ],
+            "gas_tests": [_gas_out(g) for g in gas_res.scalars().all()],
             "node_records": [
                 {
                     "id": r.id,
@@ -393,11 +406,7 @@ async def api_print_ticket(ticket_id: str, db: AsyncSession = Depends(get_db), u
         }
         for r in rec_res.scalars().all()
     ]
-    gas_res = await db.execute(
-        select(WorkTicketGasTest)
-        .where(WorkTicketGasTest.instance_id == ticket_id)
-        .order_by(WorkTicketGasTest.sampled_at)
-    )
+    gas_res = await db.execute(_gas_query(ticket_id, instance.batch_id))
     gas_tests = [
         {
             "sampled_at": g.sampled_at,
@@ -406,6 +415,7 @@ async def api_print_ticket(ticket_id: str, db: AsyncSession = Depends(get_db), u
             "result": g.result,
             "tester": g.tester,
             "conclusion": g.conclusion,
+            "origin": "batch" if g.batch_id else "ticket",
         }
         for g in gas_res.scalars().all()
     ]
@@ -619,3 +629,187 @@ async def api_save_draft(
     instance.measures_meta = payload.measures_meta
     await db.commit()
     return _ok(TicketOut.model_validate(instance))
+
+
+# ── 作业包（一次检修的同地点同时段多张票） ────────────────────────────────
+
+
+async def _batch_owned(db: AsyncSession, user, batch_id: str) -> WorkTicketBatch:
+    batch = (
+        await db.execute(select(WorkTicketBatch).where(WorkTicketBatch.id == batch_id))
+    ).scalar_one_or_none()
+    if batch is None:
+        raise HTTPException(404, "作业包不存在")
+    await ensure_enterprise_owned(db, user, batch.enterprise_id, detail="作业包不存在")
+    return batch
+
+
+def _gas_out(gas: WorkTicketGasTest) -> dict:
+    return {
+        "id": gas.id,
+        "sampled_at": gas.sampled_at,
+        "location": gas.location,
+        "gas_type": gas.gas_type,
+        "result": gas.result,
+        "tester": gas.tester,
+        "conclusion": gas.conclusion,
+        "origin": "batch" if gas.batch_id else "ticket",
+    }
+
+
+@router.post("/batches")
+async def api_create_batch(
+    payload: BatchCreateIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    await ensure_enterprise_owned(db, user, payload.enterprise_id)
+    batch = await create_batch(
+        db,
+        enterprise_id=payload.enterprise_id,
+        payload=payload,
+        user_id=getattr(user, "id", None),
+    )
+    return _ok(BatchOut.model_validate(batch))
+
+
+@router.get("/batches")
+async def api_list_batches(
+    enterprise_id: str = Query(...),
+    status: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    await ensure_enterprise_visible(db, user, enterprise_id)
+    stmt = select(WorkTicketBatch).where(WorkTicketBatch.enterprise_id == enterprise_id)
+    if status:
+        stmt = stmt.where(WorkTicketBatch.status == status)
+    rows = (
+        await db.execute(stmt.order_by(WorkTicketBatch.created_at.desc()))
+    ).scalars().all()
+    return _ok([BatchOut.model_validate(batch) for batch in rows])
+
+
+@router.get("/batches/{batch_id}")
+async def api_batch_detail(
+    batch_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    batch = await _batch_owned(db, user, batch_id)
+    tickets, gas = await tickets_of_batch(db, batch_id=batch_id)
+    return _ok(
+        {
+            "batch": BatchOut.model_validate(batch),
+            "tickets": [TicketOut.model_validate(t) for t in tickets],
+            "package_gas_tests": [_gas_out(g) for g in gas],
+        }
+    )
+
+
+@router.patch("/batches/{batch_id}")
+async def api_update_batch(
+    batch_id: str,
+    payload: BatchUpdateIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    batch = await _batch_owned(db, user, batch_id)
+    return _ok(await update_batch_shared(db, batch=batch, payload=payload))
+
+
+@router.post("/batches/{batch_id}/tickets")
+async def api_add_batch_tickets(
+    batch_id: str,
+    payload: BatchTicketsIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    batch = await _batch_owned(db, user, batch_id)
+    enterprise = (
+        await db.execute(select(Enterprise).where(Enterprise.id == batch.enterprise_id))
+    ).scalar_one_or_none()
+    enterprise_code = (getattr(enterprise, "credit_code", None) or batch.enterprise_id)[:20]
+    try:
+        created = await add_tickets(
+            db,
+            batch=batch,
+            enterprise_code=enterprise_code,
+            specs=[spec.model_dump() for spec in payload.tickets],
+            user_id=getattr(user, "id", None),
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ok([TicketOut.model_validate(t) for t in created])
+
+
+@router.delete("/batches/{batch_id}/tickets/{ticket_id}")
+async def api_remove_batch_ticket(
+    batch_id: str,
+    ticket_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    await _batch_owned(db, user, batch_id)
+    ticket = (
+        await db.execute(select(WorkTicketInstance).where(WorkTicketInstance.id == ticket_id))
+    ).scalar_one_or_none()
+    if ticket is None or ticket.batch_id != batch_id:
+        raise HTTPException(404, "作业票不存在")
+    if ticket.status != "draft":
+        raise HTTPException(409, "只有草稿状态的作业票可以移出作业包")
+    await db.delete(ticket)
+    await db.flush()
+    # 同步包内其余票的关联票号：移除一张票后，其他票的 related_tickets 必须一致
+    rest, _ = await tickets_of_batch(db, batch_id=batch_id, include_package_gas=False)
+    related = build_related_map([(t.id, t.code) for t in rest])
+    for other in rest:
+        values = dict(other.values or {})
+        values["related_tickets"] = related[other.id]
+        other.values = values
+    await db.commit()
+    return _ok({"removed": ticket_id, "affected": len(rest)})
+
+
+@router.post("/batches/{batch_id}/gas-tests")
+async def api_add_package_gas_test(
+    batch_id: str,
+    payload: GasTestIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """包级检测：同包内的动火/受限空间票共享（不豁免 30 分钟时效）。"""
+    await _batch_owned(db, user, batch_id)
+    db.add(WorkTicketGasTest(batch_id=batch_id, **payload.model_dump()))
+    await db.commit()
+    return _ok({"batch_id": batch_id})
+
+
+@router.post("/batches/{batch_id}/submit-all")
+async def api_submit_all(
+    batch_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """逐票提交：失败的票单独返回，不影响其他票。"""
+    await _batch_owned(db, user, batch_id)
+    return _ok(await submit_all(db, batch_id=batch_id, user_id=getattr(user, "id", None)))
+
+
+@router.post("/batches/{batch_id}/transition")
+async def api_batch_transition(
+    batch_id: str,
+    payload: BatchTransitionIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    batch = await _batch_owned(db, user, batch_id)
+    submitted, total = await batch_counts(db, batch_id=batch_id)
+    try:
+        batch.status = next_batch_status(
+            batch.status, submitted=submitted, total=total, action=payload.action
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await db.commit()
+    return _ok(BatchOut.model_validate(batch))

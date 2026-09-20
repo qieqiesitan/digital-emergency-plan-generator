@@ -12,7 +12,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enterprise import Enterprise
@@ -169,9 +169,17 @@ async def open_ticket(
     template_id: str,
     level: Optional[str] = None,
     values: Optional[dict] = None,
+    values_meta: Optional[dict] = None,
+    measures_meta: Optional[dict] = None,
+    batch_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    commit: bool = True,
 ) -> WorkTicketInstance:
-    """开票（草稿态）。编号冲突时重试，最终由数据库唯一约束兜底。"""
+    """开票（草稿态）。编号冲突时重试，最终由数据库唯一约束兜底。
+
+    `commit=False` 供作业包批量生成使用：整包建票必须同事务，
+    否则中途失败会留下半成品包（见 services/work_ticket_batch.add_tickets）。
+    """
     day = datetime.now(timezone.utc)
     prefix = f"{ticket_type}-{enterprise_code}-{day.strftime('%Y%m%d')}-"
     # 并发发号保护：同一企业内「读 MAX(seq) → 插入」必须串行，否则并发开票会撞
@@ -198,6 +206,9 @@ async def open_ticket(
         level=level,
         status="draft",
         values=values or {},
+        values_meta=values_meta or {},
+        measures_meta=measures_meta or {},
+        batch_id=batch_id,
         submitted_by=user_id,
     )
     db.add(instance)
@@ -211,7 +222,10 @@ async def open_ticket(
             acted_by=user_id,
         )
     )
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
     return instance
 
 
@@ -261,9 +275,12 @@ async def submit_ticket(
     )
     template = tpl_res.scalar_one_or_none()
     values = instance.values or {}
-    gas_res = await db.execute(
-        select(WorkTicketGasTest).where(WorkTicketGasTest.instance_id == instance_id)
-    )
+    # 检测记录 = 本票检测 + 所属作业包的包级检测（同一次检修常同批检测）。
+    # 30 分钟时效规则对包级记录同样适用，不做豁免。
+    gas_conditions = [WorkTicketGasTest.instance_id == instance_id]
+    if instance.batch_id:
+        gas_conditions.append(WorkTicketGasTest.batch_id == instance.batch_id)
+    gas_res = await db.execute(select(WorkTicketGasTest).where(or_(*gas_conditions)))
     gas_tests = [
         {"sampled_at": g.sampled_at, "conclusion": g.conclusion}
         for g in gas_res.scalars().all()

@@ -71,3 +71,64 @@ class AiPrefillIn(BaseModel):
     ticket_type: str
     level: Optional[str] = None
     work_content: Optional[str] = None
+
+
+class BatchCreateIn(BaseModel):
+    """新建作业包：一次检修（同地点 + 同一时段）的共享信息。"""
+
+    enterprise_id: str
+    title: str = Field(min_length=1, max_length=200)
+    floor_id: Optional[str] = None
+    zone_id: Optional[str] = None
+    risk_object_id: Optional[str] = None
+    location_text: Optional[str] = None
+    work_period_start: Optional[datetime] = None
+    work_period_end: Optional[datetime] = None
+    shared_values: dict = Field(default_factory=dict)
+    content_base: Optional[str] = None
+    risk_basis: Optional[str] = None
+
+
+class BatchUpdateIn(BaseModel):
+    """改共享信息：None 表示不改；只回写未提交的票。"""
+
+    title: Optional[str] = None
+    location_text: Optional[str] = None
+    work_period_start: Optional[datetime] = None
+    work_period_end: Optional[datetime] = None
+    content_base: Optional[str] = None
+    risk_basis: Optional[str] = None
+    shared_values: Optional[dict] = None
+
+
+class BatchTicketSpec(BaseModel):
+    ticket_type: str
+    level: Optional[str] = None
+    template_id: str
+
+
+class BatchTicketsIn(BaseModel):
+    tickets: list[BatchTicketSpec] = Field(min_length=1)
+
+
+class BatchOut(BaseModel):
+    id: str
+    enterprise_id: str
+    title: str
+    status: str
+    floor_id: Optional[str] = None
+    zone_id: Optional[str] = None
+    risk_object_id: Optional[str] = None
+    location_text: Optional[str] = None
+    work_period_start: Optional[datetime] = None
+    work_period_end: Optional[datetime] = None
+    shared_values: dict = Field(default_factory=dict)
+    content_base: Optional[str] = None
+    risk_basis: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class BatchTransitionIn(BaseModel):
+    action: str = Field(pattern="^(close|cancel)$")
