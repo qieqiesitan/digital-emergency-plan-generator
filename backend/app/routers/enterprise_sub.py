@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from app.database import get_db
 from app.models.enterprise import Enterprise, RiskSource, EmergencyResource
+from app.services.data_marks import DOMAIN_RESOURCES, mark_data_changed
 from app.schemas.risk_source import RiskSourceCreate, RiskSourceUpdate, RiskSourceResponse
 from app.schemas.emergency_resource import EmergencyResourceCreate, EmergencyResourceUpdate, EmergencyResourceResponse
 from app.schemas.enterprise import SurroundingInfo
@@ -64,6 +65,11 @@ async def update_surrounding(enterprise_id: str, data: SurroundingInfo, current_
 
 @router.get("/{enterprise_id}/risk-sources", response_model=PaginatedResponse[RiskSourceResponse])
 async def list_risk_sources(enterprise_id: str, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200), current_user=Depends(get_current_user), db=Depends(get_db)):
+    """⚠ 旧版风险源读取（弃用兼容层，勿在新功能中调用）。
+
+    新录入/读取统一走 /enterprises/{id}/risk-management/*（风险分级管控五层）；
+    旧数据用 POST /risk-management/migrate-preview 迁移，不需要重新录入。
+    """
     result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_id, Enterprise.user_id == current_user.id))
     if not result.scalar_one_or_none(): raise HTTPException(404, "��ҵ������")
     q = select(RiskSource).where(RiskSource.enterprise_id == enterprise_id)
@@ -158,6 +164,9 @@ async def update_resource(enterprise_id: str, resource_id: uuid_lib.UUID, data: 
 async def delete_resource(enterprise_id: str, resource_id: uuid_lib.UUID, current_user=Depends(get_current_user), db=Depends(get_db)):
     r = (await db.execute(select(EmergencyResource).where(EmergencyResource.id == str(resource_id), EmergencyResource.enterprise_id == enterprise_id))).scalar_one_or_none()
     if not r: raise HTTPException(404, "Ӧ����Դ������")
-    await db.delete(r); await db.commit()
+    await db.delete(r)
+    # 资源删除不会更新任何父行时间戳 → 打点，供章节「数据依赖已变更」检测（D-3）
+    await mark_data_changed(db, enterprise_id, DOMAIN_RESOURCES)
+    await db.commit()
     _schedule_enterprise_index_rebuild(enterprise_id)
     return {"code": 0, "message": "��ɾ��"}

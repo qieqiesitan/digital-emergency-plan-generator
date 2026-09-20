@@ -6,6 +6,7 @@ from app.models.enterprise import PlanProject, PlanSection, Enterprise
 from app.schemas.plan import SectionResponse, SectionUpdate
 from app.schemas.common import ApiResponse
 from app.dependencies import get_current_user
+from app.services.data_marks import stale_domains_for_sections
 
 router = APIRouter(prefix="/plans", tags=["Sections"])
 
@@ -43,7 +44,14 @@ async def list_sections(plan_id: str, current_user=Depends(get_current_user), db
     p = (await db.execute(select(PlanProject).where(PlanProject.id == plan_id, PlanProject.user_id == current_user.id))).scalar_one_or_none()
     if not p: raise HTTPException(404, "预案不存在")
     rows = (await db.execute(select(PlanSection).where(PlanSection.plan_project_id == plan_id).order_by(PlanSection.sort_order))).scalars().all()
-    return ApiResponse(data=[SectionResponse.model_validate(s) for s in rows])
+    # D-3：消费 data_dependencies，标出"依赖数据已变更、正文未更新"的章节
+    stale_map = await stale_domains_for_sections(db, p.enterprise_id, rows)
+    items = []
+    for s in rows:
+        item = SectionResponse.model_validate(s)
+        item.stale_domains = stale_map.get(s.section_key, [])
+        items.append(item)
+    return ApiResponse(data=items)
 
 @router.get("/{plan_id}/sections/{section_key}", response_model=ApiResponse[SectionResponse])
 async def get_section(plan_id: str, section_key: str, current_user=Depends(get_current_user), db=Depends(get_db)):

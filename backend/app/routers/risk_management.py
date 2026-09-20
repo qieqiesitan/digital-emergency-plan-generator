@@ -29,6 +29,7 @@ from app.services.risk_control_list_service import (
     is_major_publicity_row,
 )
 from app.services.hazard_service import open_hazard_count_by_objects
+from app.services.data_marks import DOMAIN_RISK, mark_data_changed
 from app.services.data_dict_service import get_dict_map
 from app.services.floor_plan_storage_service import save_floor_plan, remove_floor_plan, remove_floor_plan_dir, normalize_floor_plan_url, save_four_color_temp, promote_four_color_file, remove_four_color_temp_dir, four_color_temp_dir
 from app.services.enterprise_cleanup_service import delete_floor_risk_mapping, floor_delete_counts
@@ -758,6 +759,7 @@ async def delete_zone(zone_id: str, enterprise_id: str, current_user=Depends(get
     if not z: raise HTTPException(404, "分区不存在")
     cnt = (await db.execute(select(func.count(RiskObject.id)).where(RiskObject.zone_id==zone_id))).scalar() or 0
     await db.delete(z)
+    await mark_data_changed(db, enterprise_id, DOMAIN_RISK)  # 删除不会更新父行时间戳，必须打点
     await db.commit()
     return ApiResponse(message=f"已删除分区及 {cnt} 个对象", data={"cascade_count": cnt})
 
@@ -809,6 +811,7 @@ async def delete_object(object_id: str, enterprise_id: str, current_user=Depends
     o = (await db.execute(select(RiskObject).where(RiskObject.id==object_id, RiskObject.enterprise_id==enterprise_id))).scalar_one_or_none()
     if not o: raise HTTPException(404, "对象不存在")
     await db.delete(o)
+    await mark_data_changed(db, enterprise_id, DOMAIN_RISK)
     await db.commit()
     return ApiResponse(data=None, message="已删除对象及其下级数据")
 
@@ -847,6 +850,7 @@ async def delete_unit(object_id: str, unit_id: str, enterprise_id: str, current_
     u = (await db.execute(select(RiskUnit).where(RiskUnit.id==unit_id, RiskUnit.object_id==object_id))).scalar_one_or_none()
     if not u: raise HTTPException(404, "单元不存在")
     await db.delete(u)
+    await mark_data_changed(db, enterprise_id, DOMAIN_RISK)
     await db.commit()
     return ApiResponse(data=None, message="已删除单元及其下级数据")
 
@@ -932,6 +936,7 @@ async def delete_event(event_id: str, enterprise_id: str, current_user=Depends(g
     ev = (await db.execute(select(RiskEvent).where(RiskEvent.id==event_id))).scalar_one_or_none()
     if not ev: raise HTTPException(404, "事件不存在")
     await db.delete(ev)
+    await mark_data_changed(db, enterprise_id, DOMAIN_RISK)
     await db.commit()
     return ApiResponse(data=None, message="已删除事件及其下级数据")
 
@@ -1047,6 +1052,7 @@ async def delete_measure(event_id: str, measure_id: str, enterprise_id: str, cur
     m = (await db.execute(select(RiskMeasure).where(RiskMeasure.id==measure_id, RiskMeasure.event_id==event_id))).scalar_one_or_none()
     if not m: raise HTTPException(404, "措施不存在")
     await db.delete(m)
+    await mark_data_changed(db, enterprise_id, DOMAIN_RISK)
     await db.commit()
     return ApiResponse(data=None, message="已删除措施")
 
@@ -1288,6 +1294,16 @@ async def ai_smart_guide(body: SmartGuideRequest, enterprise_id: str, current_us
     ai_config = await _get_ai_config(current_user.id, db)
     ent = await _get_ent(enterprise_id, current_user.id, db)
     info = {"name":ent.name,"industry":ent.industry,"business_scope":ent.business_scope,"building_overview":ent.building_overview,"hazardous_chemicals":ent.hazardous_chemicals,"special_equipment":ent.special_equipment}
+    # 危化品交叉校验（D-2）：档案文本是台账的派生摘要，但历史数据可能不同步，
+    # 这里把台账品种一并喂给 AI，避免"风险 AI 只看文本、台账 AI 只看台账"。
+    ledger_rows = (await db.execute(
+        select(HazardousChemical.name, HazardousChemical.cas_no, HazardousChemical.location)
+        .where(HazardousChemical.enterprise_id == enterprise_id)
+        .order_by(HazardousChemical.name)
+    )).all()
+    info["chemicals_ledger"] = [
+        {"name": r[0], "cas_no": r[1], "location": r[2]} for r in ledger_rows
+    ]
     zone_rows = (await db.execute(select(RiskZone.name).where(RiskZone.enterprise_id == enterprise_id))).scalars().all()
     object_rows = (await db.execute(select(RiskObject.name).where(RiskObject.enterprise_id == enterprise_id))).scalars().all()
     existing_names = {"zones": list(zone_rows), "objects": list(object_rows)}

@@ -65,6 +65,8 @@ export interface PlanSection {
   auto_fill: boolean;
   auto_fill_source: string | null;
   data_dependencies: string[];
+  /** D-3：依赖数据在正文生成之后有变更的域（后端 data_marks 计算），非空即「待更新」 */
+  stale_domains: string[];
   updated_at: string;
   diagram_svgs: Record<string, {
     key?: string;

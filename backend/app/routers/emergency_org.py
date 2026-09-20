@@ -10,6 +10,7 @@ from app.models.enterprise import Enterprise
 from app.schemas.common import ApiResponse
 from app.schemas.emergency_org import EmergencyOrgUpdate, EmergencyUnitOut
 from app.services.emergency_org_service import load_emergency_org, save_emergency_org
+from app.services.data_marks import DOMAIN_ORG, mark_data_changed
 
 router = APIRouter(prefix="/enterprises/{enterprise_id}/emergency-org", tags=["Emergency Org"])
 
@@ -50,4 +51,8 @@ async def put_emergency_org(
 ):
     await _get_ent(enterprise_id, current_user.id, db)
     units = [u.model_dump() for u in data.units]
-    return ApiResponse(data=await save_emergency_org(db, enterprise_id, units))
+    result = await save_emergency_org(db, enterprise_id, units)
+    # 整树覆盖式保存：新增/删除/改人的差异不体现在任何一行的时间戳上，需显式打点（D-3）
+    await mark_data_changed(db, enterprise_id, DOMAIN_ORG)
+    await db.commit()
+    return ApiResponse(data=result)

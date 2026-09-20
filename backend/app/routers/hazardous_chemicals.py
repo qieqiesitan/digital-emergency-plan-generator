@@ -13,6 +13,7 @@ from app.schemas.hazardous_chemicals import (
     HazardousChemicalResponse,
 )
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginatedData
+from app.services.chemical_summary import archive_text_block, sync_after_ledger_change
 
 router = APIRouter(prefix="/enterprises", tags=["Hazardous Chemicals"])
 
@@ -105,6 +106,8 @@ async def create_chemical(
         **body.model_dump(exclude_none=True),
     )
     db.add(chemical)
+    # 档案文本是台账的派生摘要（D-2）：增删改后统一重算，消除两处不一致
+    await sync_after_ledger_change(db, enterprise_id)
     await db.commit()
     await db.refresh(chemical)
 
@@ -136,6 +139,7 @@ async def update_chemical(
     for key, value in update_data.items():
         setattr(chemical, key, value)
 
+    await sync_after_ledger_change(db, enterprise_id)
     await db.commit()
     await db.refresh(chemical)
 
@@ -163,6 +167,7 @@ async def delete_chemical(
         raise HTTPException(404, "危化品不存在")
 
     await db.delete(chemical)
+    await sync_after_ledger_change(db, enterprise_id)
     await db.commit()
 
     return ApiResponse(data=None)
@@ -218,6 +223,7 @@ async def get_chemical_ai_questions(
 - 经营范围：{ent.business_scope or "未知"}
 - 建筑/厂区概况：{ent.building_overview or "未知"}
 - 员工人数：{ent.employee_count or "未知"}
+{archive_text_block(ent)}
 {existing_summary}
 
 请以 JSON 格式输出，格式严格为：{{"questions": [{{"id": "q1", "question": "问题文本"}}]}}
@@ -281,6 +287,7 @@ async def generate_chemicals_ai(
 - 经营范围：{ent.business_scope or "未知"}
 - 建筑/厂区概况：{ent.building_overview or "未知"}
 - 员工人数：{ent.employee_count or "未知"}
+{archive_text_block(ent)}
 {existing_summary}
 
 用户回答：
@@ -341,6 +348,7 @@ async def batch_create_chemicals(
         db.add(c)
         created.append(c)
 
+    await sync_after_ledger_change(db, enterprise_id)
     await db.commit()
     for c in created:
         await db.refresh(c)

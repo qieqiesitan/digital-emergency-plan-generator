@@ -1,7 +1,14 @@
-import { Tree } from "antd";
+import { Tree, Tooltip } from "antd";
 import type { PlanSection } from "@/types/plan";
 import type { SectionTemplate } from "@/types/plan";
 import type { DataNode } from "antd/es/tree";
+
+/** 与后端 app/services/data_marks.py 的 DOMAIN_LABELS 保持一致 */
+const DOMAIN_LABELS: Record<string, string> = {
+  risk_sources: "风险分级管控",
+  emergency_resources: "应急资源",
+  org_structure: "应急组织",
+};
 
 interface SectionTreeProps {
   sections: PlanSection[];
@@ -21,6 +28,10 @@ function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[], g
       const isRequired = tpl.required;
 
       const isGenerating = generatingKeys?.has(tpl.key) ?? false;
+      const staleDomains = section?.stale_domains ?? [];
+      const staleText = staleDomains
+        .map((d) => DOMAIN_LABELS[d] ?? d)
+        .join("、");
 
 
       return {
@@ -39,6 +50,11 @@ function buildTreeNodes(sections: PlanSection[], templates: SectionTemplate[], g
             {tpl.title}
             {tpl.ai_generatable && (
               <span style={{ marginLeft: 4, fontSize: 12 }}>🤖</span>
+            )}
+            {staleDomains.length > 0 && (
+              <Tooltip title={`依赖数据已更新：${staleText}。建议重新生成本章节。`}>
+                <span style={{ marginLeft: 4, color: "#fa8c16", fontWeight: "bold" }}>⚠</span>
+              </Tooltip>
             )}
           </span>
         ),
@@ -68,7 +84,7 @@ export default function SectionTree({ sections, templateSections, selectedKey, o
       />
       <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed #eee", fontSize: 12, color: "#666", lineHeight: 1.8 }}>
         <b>图例</b><br />
-        ✓ 已完成 · ! 必填未完成 · ⏳ 生成中 · 🤖 可 AI 生成
+        ✓ 已完成 · ! 必填未完成 · ⏳ 生成中 · 🤖 可 AI 生成 · ⚠ 依赖数据已更新
         <div style={{ color: "#999", fontSize: 12 }}>空章节会列入导出校验清单</div>
       </div>
     </>

@@ -134,6 +134,10 @@ class EmergencyResource(Base):
     external_address: Mapped[Optional[str]] = mapped_column(String(500))
     external_distance_km: Mapped[Optional[float]] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # D-3：章节「数据依赖变更」检测需要更新时间（原表只有 created_at，改数量检测不到）
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     enterprise = relationship("Enterprise", back_populates="resources", lazy="selectin")
 

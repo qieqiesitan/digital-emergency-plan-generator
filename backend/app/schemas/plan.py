@@ -29,6 +29,8 @@ class SectionResponse(BaseModel):
     auto_fill: bool = False
     auto_fill_source: str | None = None
     data_dependencies: list = []
+    # D-3：依赖数据在章节生成之后有变更 → 列表里标记"待更新"
+    stale_domains: list[str] = []
     model_config = {"from_attributes": True}
 
 class SectionUpdate(BaseModel):
