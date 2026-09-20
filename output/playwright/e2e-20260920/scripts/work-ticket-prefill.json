@@ -1,0 +1,58 @@
+{
+  "values": {
+    "applicant_unit": "QA2_企业_9p90xrhl_改",
+    "apply_time": "2026-09-20T10:32:03.603418+00:00",
+    "fire_level": "二级",
+    "work_unit": "QA2_企业_9p90xrhl_改",
+    "work_period": [
+      "2026-09-20T10:32:03.603442+00:00",
+      "2026-09-20T18:32:03.603442+00:00"
+    ]
+  },
+  "values_meta": {
+    "applicant_unit": {
+      "source": "enterprise",
+      "source_ref": {},
+      "edited": false
+    },
+    "apply_time": {
+      "source": "system_default",
+      "source_ref": {},
+      "edited": false
+    },
+    "fire_level": {
+      "source": "template_link",
+      "source_ref": {},
+      "edited": false
+    },
+    "work_unit": {
+      "source": "enterprise",
+      "source_ref": {},
+      "edited": false
+    },
+    "work_period": {
+      "source": "system_default",
+      "source_ref": {},
+      "edited": false
+    }
+  },
+  "suggestion_counts": {
+    "unknown": 13,
+    "applicable": 0,
+    "not_applicable": 3
+  },
+  "checks": {
+    "applicant_unit_from_enterprise": true,
+    "values_meta_records_source": true,
+    "level_linked_into_ticket": true,
+    "apply_time_defaulted": true,
+    "work_period_defaulted": true,
+    "special_fields_not_prefilled": true,
+    "suggestion_per_measure": true,
+    "conservative_unknown_without_scenario": true,
+    "scenario_turns_into_not_applicable": true,
+    "locations_shape": true,
+    "last_ticket_nullable": true
+  },
+  "all_passed": true
+}
