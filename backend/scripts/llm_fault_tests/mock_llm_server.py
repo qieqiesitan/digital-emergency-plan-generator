@@ -9,6 +9,8 @@
     mock-hang          挂起 600s（验证超时映射）
     mock-slow-nonstream 非流式但先睡 6s（模拟长推理，并发压测用）
     mock-json          非流式，返回一个"什么字段都有、但都是空数组"的 JSON（AI 端点冒烟用）
+    mock-wizard        非流式，返回"智能引导"三块建议（组织 nodes + 计划 plans + 检查表 items），
+                       一次响应同时满足三个解析器（各取自己那个键，忽略其余）
     mock-truncate      流式：发 3 个分片后断开且不发 [DONE]
     mock-slow-stream   流式：每片间隔 2s，共 5 片（并发压测用）
 所有请求都会写一行到 --log 指定的 jsonl（含时间戳、model、stream）。
@@ -111,6 +113,35 @@ class Handler(BaseHTTPRequestHandler):
                 "model": model,
                 "choices": [{"index": 0, "message": {"role": "assistant",
                                                      "content": json.dumps(generic, ensure_ascii=False)},
+                             "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
+            })
+            return
+        if model == "mock-wizard":
+            wizard = {
+                "nodes": [
+                    {"id": "w1", "type": "dept", "name": "安全管理部", "parent_id": None},
+                    {"id": "w2", "type": "team", "name": "罐区班组", "parent_id": "w1"},
+                    {"id": "w3", "type": "position", "name": "安全总监", "parent_id": "w1"},
+                ],
+                "plans": [
+                    {"name": "罐区周排查（AI 引导）", "category": "comprehensive", "frequency": "weekly",
+                     "weekdays": [1, 5], "responsible_user_name": "", "zone_names": ["储罐区"]},
+                    {"name": "装卸区月排查（AI 引导）", "category": "special", "frequency": "monthly",
+                     "responsible_user_name": "", "zone_names": ["装卸区"]},
+                ],
+                "items": [
+                    {"content": "储罐液位计是否完好、读数正常", "expected_note": "现场查看仪表"},
+                    {"content": "围堰、排水阀完好、无积水积油", "expected_note": "拍照留证"},
+                    {"content": "可燃气体报警器是否在检定有效期内", "expected_note": "核对检定证书"},
+                ],
+            }
+            self._json(200, {
+                "id": "mock-wizard",
+                "object": "chat.completion",
+                "model": model,
+                "choices": [{"index": 0, "message": {"role": "assistant",
+                                                     "content": json.dumps(wizard, ensure_ascii=False)},
                              "finish_reason": "stop"}],
                 "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
             })
