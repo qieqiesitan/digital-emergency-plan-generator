@@ -2,6 +2,16 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
+> **状态：🟡 任务 1~8 全部完成并验证（2026-09-20，内联执行）；任务 9 部分完成。**
+> 已完成：三列迁移+门禁、措施建议引擎、确定性预填、AI 预填服务、五个端点、前端向导改造、成员证照。
+> 证据：后端全量 `2148 passed, 1 skipped`；前端 `tsc -b` 0 / `vitest 314 passed` / `eslint 0` / `build OK`；
+> 端到端探针 **11/11**（企业档案带出、级别联动、16 条措施建议、无情景时保守 unknown、明确"不在罐区"→第 4 条不涉及）。
+> 任务 9 未做部分（下一轮补）：改造前后的交互动作计数对比、真实浏览器 8 票种实测、8082 同步后 37 页冒烟。
+> 执行中的偏离：① 前端测试环境无 @testing-library，改用项目既有的 `renderToStaticMarkup`，
+> 并把措施分组/三态变更抽成纯函数（`measureMeta.ts`）单独测；② eslint 的 react-refresh 规则要求
+> 组件文件只导出组件，故 `SOURCE_LABEL` 与纯函数分别拆到 `fieldSources.ts` / `measureMeta.ts`；
+> ③ AI 能力复用既有 `work_ticket_jsa`（真库已注册），未新建能力 code；④ 后端容器无 --reload，验证前需 `docker restart emergency-plan-backend`。
+
 **目标：** 让开票时大部分字段由系统从既有数据（作业对象、历史票、成员台账）与 AI 带出，每个带出值可追溯来源并经人工确认；安全措施从"N 条全打勾"改为"全部表态"，并给出确定性的"建议不涉及"分组。
 
 **架构：** 后端新增一条"预填管道"——纯函数负责来源优先级与措施判定（可单测），服务层负责取数与拼装，端点只做鉴权与信封；AI 走既有 `llm_client` + 能力开关，失败静默降级。前端把 6 步向导改为"带来源徽标的表单 + 三态措施 + 提交前来源摘要"，并补上草稿保存端点。所有自动值写入新列 `values_meta` / `measures_meta`，老票无 meta 一律按人工填写处理。
@@ -48,7 +58,7 @@
 - 修改：`backend/app/models/enterprise_org.py`
 - 测试：`backend/tests/test_work_ticket_meta_gate.py`
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 创建 `backend/tests/test_work_ticket_meta_gate.py`：
 
@@ -74,13 +84,13 @@ def test_member_has_certificates_column():
     assert cols["certificates"].nullable is False
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_meta_gate.py -v`
 
 预期：两个用例 **FAILED**（`缺少 values_meta 列` / `缺少 certificates 列`）。
 
-- [ ] **步骤 3：编写最少实现代码**
+- [x] **步骤 3：编写最少实现代码**
 
 `backend/app/models/work_ticket.py` 的 `WorkTicketInstance` 中，在 `values` 列之后加入：
 
@@ -108,13 +118,13 @@ def test_member_has_certificates_column():
 
 `enterprise_org.py` 顶部 import 需要补 `text`：`from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, text, func`（`JSONB` 从 `sqlalchemy.dialects.postgresql` 引入，若未引入则补）。
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_meta_gate.py -v`
 
 预期：两个用例 PASSED。
 
-- [ ] **步骤 5：编写迁移 SQL**
+- [x] **步骤 5：编写迁移 SQL**
 
 创建 `backend/db_migration_20260920_work_ticket_prefill.sql`：
 
@@ -137,7 +147,7 @@ ALTER TABLE enterprise_members
 -- SELECT count(*) FROM work_ticket_instances WHERE values_meta IS NULL;  -- 期望 0
 ```
 
-- [ ] **步骤 6：应用迁移并核验**
+- [x] **步骤 6：应用迁移并核验**
 
 ```powershell
 docker cp backend/db_migration_20260920_work_ticket_prefill.sql emergency-plan-db:/tmp/wt_prefill.sql
@@ -148,7 +158,7 @@ docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "SELECT coun
 
 预期：`ALTER TABLE` ×3；核验列为 NO / 默认值正确；`null_meta = 0`。
 
-- [ ] **步骤 7：Commit**
+- [x] **步骤 7：Commit**
 
 ```bash
 git add backend/db_migration_20260920_work_ticket_prefill.sql backend/app/models/work_ticket.py backend/app/models/enterprise_org.py backend/tests/test_work_ticket_meta_gate.py
@@ -165,7 +175,7 @@ git commit -m "feat(work-ticket): 来源留痕/措施三态/成员证照 三列 
 
 **范围：** 首批只为**动火票 16 条**建立条件映射（缺陷最重、使用最频繁）；其他票种的措施一律 `unknown`（留在主列表由人工逐条处理）。这是刻意的增量策略：宁可少建议，也不猜。
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 创建 `backend/tests/test_work_ticket_measure_rules.py`：
 
@@ -235,13 +245,13 @@ def test_accepts_objects_with_sort_order_attribute():
     assert suggest_measures([_M()], ctx)[0]["suggest"] == NOT_APPLICABLE
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_measure_rules.py -v`
 
 预期：collection error（`ModuleNotFoundError: app.services.work_ticket_measure_rules`）。
 
-- [ ] **步骤 3：编写最少实现代码**
+- [x] **步骤 3：编写最少实现代码**
 
 创建 `backend/app/services/work_ticket_measure_rules.py`：
 
@@ -374,13 +384,13 @@ def conditions_from_scenario(
     return conditions
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_measure_rules.py -v`
 
 预期：7 个用例全 PASSED。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_measure_rules.py backend/tests/test_work_ticket_measure_rules.py
@@ -395,7 +405,7 @@ git commit -m "feat(work-ticket): 措施是否涉及建议引擎（动火 16 条
 - 创建：`backend/app/services/work_ticket_prefill.py`
 - 测试：`backend/tests/test_work_ticket_prefill.py`
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 创建 `backend/tests/test_work_ticket_prefill.py`：
 
@@ -476,13 +486,13 @@ def test_unregistered_field_is_never_prefilled():
     assert meta == {}
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_prefill.py -v`
 
 预期：collection error（模块不存在）。
 
-- [ ] **步骤 3：编写纯函数部分**
+- [x] **步骤 3：编写纯函数部分**
 
 创建 `backend/app/services/work_ticket_prefill.py`：
 
@@ -564,13 +574,13 @@ def build_values(
     return values, meta
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_prefill.py -v`
 
 预期：6 个用例全 PASSED。
 
-- [ ] **步骤 5：实现取数服务**
+- [x] **步骤 5：实现取数服务**
 
 在同一文件追加（这是把上面纯函数接到真库的薄层）：
 
@@ -709,13 +719,13 @@ def _member_text(members: Iterable[EnterpriseMember], field_key: str) -> str | N
     return None
 ```
 
-- [ ] **步骤 6：运行全部工作票相关测试**
+- [x] **步骤 6：运行全部工作票相关测试**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_prefill.py tests/test_work_ticket_measure_rules.py tests/test_work_ticket_meta_gate.py -v`
 
 预期：全 PASSED。
 
-- [ ] **步骤 7：Commit**
+- [x] **步骤 7：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_prefill.py backend/tests/test_work_ticket_prefill.py
@@ -730,7 +740,7 @@ git commit -m "feat(work-ticket): 确定性预填服务（来源优先级 + 成�
 - 修改：`backend/app/services/work_ticket_service.py:85-135`（`validate_before_submit`）
 - 测试：`backend/tests/test_work_ticket_meta_gate.py`（追加）
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 在 `backend/tests/test_work_ticket_meta_gate.py` 追加：
 
@@ -822,13 +832,13 @@ def test_confirmed_orders_still_work_without_meta():
     assert not any("未确认" in e for e in errors)
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_meta_gate.py -v`
 
 预期：`test_ai_field_without_confirmation_blocks`、`test_measures_stated_via_meta_are_handled`、`test_not_applicable_without_reason_blocks` **FAILED**（`TypeError: validate_before_submit() got an unexpected keyword argument 'values_meta'` 及断言失败）。
 
-- [ ] **步骤 3：编写最少实现代码**
+- [x] **步骤 3：编写最少实现代码**
 
 在 `backend/app/services/work_ticket_service.py` 的 `validate_before_submit` 签名中加入两个可选参数（放在 `now` 之前，保持 `now` 是最后一个参数）：
 
@@ -901,19 +911,19 @@ def validate_before_submit(
     )
 ```
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_meta_gate.py -v`
 
 预期：9 个用例全 PASSED。
 
-- [ ] **步骤 5：跑既有作业票测试确认无回归**
+- [x] **步骤 5：跑既有作业票测试确认无回归**
 
 运行：`cd backend; python -m pytest tests/ -k work_ticket -v`
 
 预期：全 PASSED。注意 `test_work_ticket_service.py` 里既有的"未确认"断言——若它断言的是旧文案 `还有 N 条安全措施未确认`，需同步改为 `未表态`（这是文案变更，不是行为放宽；把改动理由写进 commit message）。
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_service.py backend/tests/test_work_ticket_meta_gate.py backend/tests/test_work_ticket_service.py
@@ -928,7 +938,7 @@ git commit -m "feat(work-ticket): 提交门禁支持 AI 未确认阻断与措施
 - 创建：`backend/app/services/work_ticket_ai_service.py`
 - 测试：`backend/tests/test_work_ticket_ai_service.py`
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 创建 `backend/tests/test_work_ticket_ai_service.py`：
 
@@ -978,13 +988,13 @@ def test_normalize_keeps_measures_suggestions_optional():
     assert out["measures_suggestions"] == []
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_ai_service.py -v`
 
 预期：collection error（模块不存在）。
 
-- [ ] **步骤 3：编写实现**
+- [x] **步骤 3：编写实现**
 
 创建 `backend/app/services/work_ticket_ai_service.py`：
 
@@ -1143,13 +1153,13 @@ async def prefill(
 
 注意：`llm_text_completion` 的实际签名以 `backend/app/services/llm_client.py` 为准；若参数名不同（如 `system_prompt` 为关键字），以模块内既有调用范例（`hazard_ai_service.py`）为准对齐，不要改 `llm_client` 本身。
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_ai_service.py -v`
 
 预期：6 个用例全 PASSED。
 
-- [ ] **步骤 5：注册 AI 能力**
+- [x] **步骤 5：注册 AI 能力**
 
 在 AI 能力注册表（`backend/app/services/ai_capability_service.py` 内的能力清单常量）中加入：
 
@@ -1159,7 +1169,7 @@ async def prefill(
 
 若清单在数据库种子中维护，则同步补一条迁移 SQL 并在任务记录中写明。
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_ai_service.py backend/app/services/ai_capability_service.py backend/tests/test_work_ticket_ai_service.py
@@ -1175,7 +1185,7 @@ git commit -m "feat(work-ticket): AI 预填服务（降级 + 拒绝批准性表�
 - 修改：`backend/app/routers/work_ticket.py`
 - 测试：`backend/tests/test_work_ticket_api.py`（追加）
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 在 `backend/tests/test_work_ticket_api.py` 追加（复用文件内既有的 `_client(handler)` 助手）：
 
@@ -1238,13 +1248,13 @@ def _instance(status: str):
     return inst
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_api.py -v`
 
 预期：新增两个用例 **FAILED**（`405`/`404` 或 `KeyError: allow_ai_prefill`）。
 
-- [ ] **步骤 3：编写 schema**
+- [x] **步骤 3：编写 schema**
 
 在 `backend/app/schemas/work_ticket.py` 追加：
 
@@ -1267,7 +1277,7 @@ class AiPrefillIn(BaseModel):
     work_content: str | None = None
 ```
 
-- [ ] **步骤 4：实现端点**
+- [x] **步骤 4：实现端点**
 
 在 `backend/app/routers/work_ticket.py` 的 `list_templates` 字段序列化中加入一行：
 
@@ -1430,13 +1440,13 @@ async def api_locations(
 
 同时补 import：`from app.models.enterprise import EnterpriseFloor`、`from app.models.risk_management import RiskObject, RiskZone`、`from app.schemas.work_ticket import AiPrefillIn, DraftSaveIn`、`from app.services.work_ticket_prefill import build_prefill, _last_ticket`、`from app.services.work_ticket_ai_service import prefill as ai_prefill`。`load_ai_config` 用仓库既有的取 AI 配置服务（`grep -n "AI 配置" backend/app/services/*.py` 定位其真实函数名后替换），不要新写一个。
 
-- [ ] **步骤 5：运行测试验证通过**
+- [x] **步骤 5：运行测试验证通过**
 
 运行：`cd backend; python -m pytest tests/test_work_ticket_api.py -v`
 
 预期：全部 PASSED（含原有用例）。
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add backend/app/routers/work_ticket.py backend/app/schemas/work_ticket.py backend/tests/test_work_ticket_api.py
@@ -1455,7 +1465,7 @@ git commit -m "feat(work-ticket): 预填/AI/草稿保存/地点选择器 四个�
 - 修改：`frontend/src/pages/Enterprise/WorkTicketNewPage.tsx`
 - 测试：`frontend/src/components/enterprise/workTicket/__tests__/PrefillBadge.test.tsx`、`MeasureChecklist.test.tsx`
 
-- [ ] **步骤 1：补类型**
+- [x] **步骤 1：补类型**
 
 在 `frontend/src/types/workTicket.ts` 中追加，并给既有接口补字段：
 
@@ -1495,7 +1505,7 @@ export interface MeasureSuggestion {
 
 `WorkTicketFieldDef` 补 `allow_ai_prefill?: boolean;`，`WorkTicketInstance` 补 `values_meta?: Record<string, FieldMeta>; measures_meta?: Record<string, MeasureMeta>;`。
 
-- [ ] **步骤 2：补服务封装**
+- [x] **步骤 2：补服务封装**
 
 ```ts
 export const getPrefill = (params: {
@@ -1522,7 +1532,7 @@ export const listLocations = (enterpriseId: string) =>
     .then((r) => r.data.data);
 ```
 
-- [ ] **步骤 3：写徽标组件（含单测）**
+- [x] **步骤 3：写徽标组件（含单测）**
 
 创建 `frontend/src/components/enterprise/workTicket/PrefillBadge.tsx`：
 
@@ -1589,7 +1599,7 @@ describe("PrefillBadge", () => {
 });
 ```
 
-- [ ] **步骤 4：写措施三态列表（含单测）**
+- [x] **步骤 4：写措施三态列表（含单测）**
 
 创建 `frontend/src/components/enterprise/workTicket/MeasureChecklist.tsx`：核心是"主列表 + 建议不涉及折叠区 + 三态操作"，组件签名如下（完整实现包含三段交互：确认涉及 / 标记不涉及（弹理由选择）/ 撤销）：
 
@@ -1672,7 +1682,7 @@ describe("MeasureChecklist", () => {
 });
 ```
 
-- [ ] **步骤 5：改造向导页**
+- [x] **步骤 5：改造向导页**
 
 `WorkTicketNewPage.tsx` 的改动点（保持 6 步骨架）：
 
@@ -1685,7 +1695,7 @@ describe("MeasureChecklist", () => {
 7. 移除原"全部确认"按钮（`setConfirmed(mandatoryMeasures.map(...))`）
 8. 第 1 步顶部提供"参考上次（票号）"入口：调 `GET /last-ticket` 展示上次同类票的作业内容与风险辨识摘要（只读弹窗，**不自动填值**）
 
-- [ ] **步骤 6：运行前端门禁**
+- [x] **步骤 6：运行前端门禁**
 
 ```bash
 cd frontend
@@ -1696,7 +1706,7 @@ npx eslint src --max-warnings 0
 
 预期：`tsc` 0 错；vitest 全绿（原 300 例 + 新增 7 例）；eslint 0。
 
-- [ ] **步骤 7：Commit**
+- [x] **步骤 7：Commit**
 
 ```bash
 git add frontend/src/types/workTicket.ts frontend/src/services/workTicketService.ts frontend/src/components/enterprise/workTicket frontend/src/pages/Enterprise/WorkTicketNewPage.tsx
@@ -1712,7 +1722,7 @@ git commit -m "feat(work-ticket): 开票向导接入预填徽标/级别联动/�
 - 修改：`frontend/src/pages/Enterprise/EnterpriseOrgPage.tsx`
 - 修改：`frontend/src/pages/Enterprise/WorkTicketNewPage.tsx`（人员字段渲染）
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 在 `backend/tests/test_enterprise_org_members.py`（若无则创建）追加：
 
@@ -1735,13 +1745,13 @@ def test_member_certificates_default_empty():
     assert MemberIn(name="李四").certificates == []
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`cd backend; python -m pytest tests/test_enterprise_org_members.py -v`
 
 预期：FAILED（`certificates` 不是有效字段）。
 
-- [ ] **步骤 3：后端透传证照**
+- [x] **步骤 3：后端透传证照**
 
 在成员入参 schema（`backend/app/schemas/enterprise_org.py`）中加入：
 
@@ -1751,7 +1761,7 @@ def test_member_certificates_default_empty():
 
 并在成员创建/更新端点的字段赋值处加入 `certificates=payload.certificates`（若端点用 `model_dump()` 批量赋值则无需改动，确认后据实处理）。同时更新成员列表/详情响应，返回 `certificates`。
 
-- [ ] **步骤 4：前端证照编辑与人员选择器**
+- [x] **步骤 4：前端证照编辑与人员选择器**
 
 `EnterpriseOrgPage.tsx`：成员编辑弹窗增加"特种作业证照"区块（类型下拉 + 证书编号 + 有效期 DatePicker，支持增删多条），类型选项：
 
@@ -1769,7 +1779,7 @@ const CERT_TYPES = [
 
 落库格式与现状一致（`values.fire_person = "张三 T6101"`），因此 `work_ticket_docx.py`、打印快照、历史票全部零改动。
 
-- [ ] **步骤 5：运行前后端测试**
+- [x] **步骤 5：运行前后端测试**
 
 ```bash
 cd backend && python -m pytest tests/ -k "work_ticket or enterprise_org" -v
@@ -1778,7 +1788,7 @@ cd ../frontend && npx tsc -b && npx vitest run
 
 预期：全绿。
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add backend/app/schemas/enterprise_org.py backend/app/routers frontend/src/pages/Enterprise/EnterpriseOrgPage.tsx frontend/src/pages/Enterprise/WorkTicketNewPage.tsx backend/tests/test_enterprise_org_members.py
