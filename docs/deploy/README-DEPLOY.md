@@ -228,6 +228,46 @@ docker cp frontend/e2e/.              <容器>:/app/e2e/
 另外：宿主 5173 端口可能落在 Windows 动态保留段（5141–5240）导致 Docker 无法绑定，
 本仓库已把开发端口映射改为 **15173 → 容器 5173**（见 `docker-compose.yml`）。
 
+### 8.0.1 后端容器只挂 `backend/app`，新增迁移脚本要手动拷进去
+
+后端容器的挂载是 `backend/app → /app/app`（外加 `backend/exports`、`backend/uploads`），
+**`backend/` 根目录本身没挂**——而迁移脚本 `db_migration_*.sql` 就放在 `backend/` 根下。
+
+2026-09-20 实测踩到：新增 `db_migration_data_marks_20260920.sql` 后重启后端，
+启动器在锁内先跑 `Base.metadata.create_all`（**幂等建表**），于是**表被建出来了**，
+但脚本里的 `ALTER TABLE ... ADD COLUMN` 与 `CREATE INDEX` 属于脚本内容、**没有执行**，
+`schema_migrations` 里也没有记录 —— 表现为「迁移像是成功了、其实只做了一半」。
+
+```bash
+# 开发/验收环境新增迁移脚本后：显式同步 + 重启
+docker cp backend/db_migration_<name>.sql emergency-plan-backend:/app/
+docker restart emergency-plan-backend
+
+# 三重核验（缺一不可）：列、索引、迁移记账
+docker exec emergency-plan-db psql -U postgres -d emergency_plan -t -A \
+  -c "select count(*) from information_schema.columns where table_name='<表>' and column_name='<列>';"
+docker exec emergency-plan-db psql -U postgres -d emergency_plan -t -A \
+  -c "select indexname from pg_indexes where tablename='<表>';"
+docker exec emergency-plan-db psql -U postgres -d emergency_plan -t -A \
+  -c "select script_name from schema_migrations where script_name like '%<name>%';"
+```
+
+> 走镜像重建部署（正式环境）时脚本已在仓库内，无需这一步；此条只针对"只在容器里重启"的开发/验收环境。
+
+### 8.0.2 `docker cp` 不支持容器 → 容器，且失败会被重定向吞掉
+
+同步前端产物到验收站时**不能**直接 `docker cp 前端容器:/app/dist/. 验收站:/app/dist/`，
+Docker 会报 `copying between containers is not supported`。必须走宿主中转：
+
+```bash
+docker cp emergency-plan-frontend:/app/dist/. frontend/dist/   # 容器 → 宿主
+docker cp frontend/dist/. shuzihuayuan:/app/dist/              # 宿主 → 验收站
+```
+
+⚠ 若把 stderr 重定向丢弃（`2>&1 | Out-Null`），**失败会被静默吞掉**，表现为"同步完成但页面仍是旧版本"
+（本轮实测踩到，最后靠比对页面图例文案才定位）。同步后务必核验：
+`Invoke-WebRequest http://localhost:8082` 返回的 `assets/main-*.js` 文件名，与宿主 `frontend/dist/index.html` 的引用一致。
+
 | # | 坑 | 原因 | 解决 |
 | --- | --- | --- | --- |
 | 1 | postgres:16-alpine 启动失败 | CentOS 7 XFS+overlay2 卷挂载 initdb 写 postmaster.pid 报 Operation not permitted | 改用 postgres:16（Debian 版） |
