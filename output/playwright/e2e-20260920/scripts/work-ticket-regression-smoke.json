@@ -1,0 +1,217 @@
+{
+  "routes": [
+    {
+      "route": "/dashboard",
+      "status": 200,
+      "text_len": 7629,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises",
+      "status": 200,
+      "text_len": 1279,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213",
+      "status": 200,
+      "text_len": 641,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/edit",
+      "status": 200,
+      "text_len": 260,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org",
+      "status": 200,
+      "text_len": 227,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/emergency-org",
+      "status": 200,
+      "text_len": 147,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/overview",
+      "status": 200,
+      "text_len": 177,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/workbench",
+      "status": 200,
+      "text_len": 282,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/control-list",
+      "status": 200,
+      "text_len": 359,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/notice-cards",
+      "status": 200,
+      "text_len": 279,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard",
+      "status": 200,
+      "text_len": 207,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard/plans",
+      "status": 200,
+      "text_len": 245,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard/tasks",
+      "status": 200,
+      "text_len": 236,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/major-hazard",
+      "status": 200,
+      "text_len": 176,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/modules/resources",
+      "status": 200,
+      "text_len": 162,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/modules/risk-assessment",
+      "status": 200,
+      "text_len": 52,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/modules/resource-investigation",
+      "status": 200,
+      "text_len": 52,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/work-ticket",
+      "status": 200,
+      "text_len": 221,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/work-ticket/new",
+      "status": 200,
+      "text_len": 522,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/work-ticket/batches/new",
+      "status": 200,
+      "text_len": 367,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/work-ticket/approval",
+      "status": 200,
+      "text_len": 258,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/plans",
+      "status": 200,
+      "text_len": 6972,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/plans",
+      "status": 200,
+      "text_len": 186,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/settings/profile",
+      "status": 200,
+      "text_len": 150,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/settings/ai-config",
+      "status": 200,
+      "text_len": 77,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/settings/regulations",
+      "status": 200,
+      "text_len": 77,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/settings/ai-capabilities",
+      "status": 200,
+      "text_len": 77,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/platform/overview",
+      "status": 200,
+      "text_len": 77,
+      "pageerror": false,
+      "ok": true
+    },
+    {
+      "route": "/chat",
+      "status": 200,
+      "text_len": 1165,
+      "pageerror": false,
+      "ok": true
+    }
+  ],
+  "failed": [],
+  "page_errors": [],
+  "console_errors": [],
+  "http_5xx": [],
+  "checks": {
+    "all_routes_ok": true,
+    "no_page_error": true,
+    "no_5xx": true
+  },
+  "all_passed": true
+}
