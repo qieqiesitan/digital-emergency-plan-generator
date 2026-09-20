@@ -28,6 +28,13 @@ import { useDraftStore } from "@/mobile/store/draftStore";
 
 type EditorMode = "navigate" | "edit";
 
+/** 与后端 app/services/data_marks.py 的 DOMAIN_LABELS 保持一致 */
+const DOMAIN_LABELS: Record<string, string> = {
+  risk_sources: "风险分级管控",
+  emergency_resources: "应急资源",
+  org_structure: "应急组织",
+};
+
 // B15 修复：保存失败时按 planId 将章节草稿持久化到 localStorage，
 // 进入章节时优先恢复（避免刷新/切回后丢失），保存成功后清除。
 const DRAFT_STORAGE_PREFIX = "plan_editor_draft:";
@@ -178,6 +185,13 @@ export default function PlanEditorScreen() {
     });
     return states;
   }, [sections]);
+
+  // D-3：当前章节的依赖数据（风险分级管控/应急资源/应急组织）在正文之后有变更 →
+  // 桌面端章节树用 ⚠ 标记，移动端在编辑区顶部提示，避免"改完数据忘了重生成"
+  const staleDomains = useMemo(() => {
+    const sec = sections.find((s) => s.section_key === selectedChapter?.key);
+    return sec?.stale_domains ?? [];
+  }, [sections, selectedChapter]);
 
   // 保存章节（B15：不再静默吞错——失败时状态栏报错 + toast 提示，并把内容暂存为本地草稿）
   const saveMutation = useMutation({
@@ -768,6 +782,18 @@ export default function PlanEditorScreen() {
           </>
         ) : (
           <div className="flex-1 flex flex-col">
+            {staleDomains.length > 0 && (
+              <div className="w-full px-md py-sm bg-amber-50 border-b border-amber-200 text-body-sm text-amber-700 flex items-start gap-xs">
+                <AlertTriangle size={16} className="mt-[2px] shrink-0" />
+                <span className="flex-1">
+                  依赖数据已更新：
+                  {staleDomains
+                    .map((d) => DOMAIN_LABELS[d] ?? d)
+                    .join("、")}
+                  ，建议重新生成本章节
+                </span>
+              </div>
+            )}
             {selectedChapter?.autoFill && (
               <button
                 className="w-full h-10 bg-indigo-600 text-white text-body-sm font-medium"
