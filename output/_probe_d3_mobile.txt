@@ -1,8 +1,0 @@
-PASS 前置：接口已返回 stale_domains | stale=['risk_sources'] title=事故风险描述
-PASS 移动端进入预案编辑页 | http://localhost:8082/m/plans/6792266d-cd5f-41fc-b591-648fcb64b435/edit
-PASS 找到目标章节节点 | title=事故风险描述
-PASS 移动端编辑区出现「依赖数据已更新」提示 | 事故风险描述 | 依赖数据已更新：风险分级管控，建议重新生成本章节 | 预览 | 字数：12 | 已自动保存 | 工作台 | 企业 | 预案 | 设置
-PASS 移动端 0 pageerror / 0 console error | []
-清理后残留（探针分区/带正文的探针章节）: 0/0
-
-=== 5/5 PASS ===

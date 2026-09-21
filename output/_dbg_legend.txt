@@ -1,4 +1,0 @@
-[http://localhost:15173] 图例: ✓ 已完成 · ! 必填未完成 · ⏳ 生成中 · 🤖 可 AI 生成 · ⚠ 依赖数据已更新
-[http://localhost:15173] 含新文案: True
-[http://localhost:8082] 图例: ✓ 已完成 · ! 必填未完成 · ⏳ 生成中 · 🤖 可 AI 生成
-[http://localhost:8082] 含新文案: False

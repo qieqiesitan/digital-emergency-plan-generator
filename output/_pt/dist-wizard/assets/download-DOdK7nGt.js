@@ -1,1 +1,0 @@
-function f(r,t){var m;if(!r)return t;const e=/filename\*=UTF-8''([^;]+)/i.exec(r);if(e!=null&&e[1])try{return decodeURIComponent(e[1].trim())}catch{}const n=/filename="?([^";]+)"?/i.exec(r);return((m=n==null?void 0:n[1])==null?void 0:m.trim())||t}export{f};

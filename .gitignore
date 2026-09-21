@@ -119,6 +119,19 @@ backups/
 # 本地模型缓存（chroma ONNX 等，随 release 包分发，不入仓库）
 /model-cache/
 
+# 前端构建产物与一次性命令输出（2026-09-21 清理 134.9 MB 后补的规则）
+# 成因：容器间不能直接 docker cp，每次部署 8082 都要经宿主中转一份 dist；
+# 加上"把门禁输出重定向到文件留证"的习惯，根级 output/ 与 tmp/ 一直没被忽略。
+# 注意：下面几条按**产物形态**收窄，不能用 /output/* 一刀切——
+#   output/playwright/  实测证据（探针脚本+截图+JSON），有意入库
+#   output/migrations/  应急组织拆分的回滚备份，migrate_emergency_org_split.py 依赖
+#   output/evidence-*/  改配置前的证据备份
+/tmp/
+/output/dist-*/
+/output/_pt/dist-*/
+/output/eslint-report*.json
+/output/_*.txt
+
 # 3DGS 高斯泼溅实验（2026-09-03 已整体独立到项目外 Documents/3dgs-experiment；
 # 此规则防目录残留/重建后混入图谱索引与打包）
 3dgs-experiment/

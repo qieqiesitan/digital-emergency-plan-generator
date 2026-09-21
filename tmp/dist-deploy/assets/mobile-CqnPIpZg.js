@@ -1,1 +1,0 @@
-import"./platform-DM0BCedK.js";import{j as o}from"./mobile-ui-CxIfqYIF.js";import{b as t}from"./mobile-vendor-BW7Wdt1C.js";import{R as r}from"./desktop-DMup1oH1.js";import{M as e}from"./MobileApp-DC0-aYcG.js";import"./react-BfvYI6Yh.js";r.createRoot(document.getElementById("root")).render(o.jsx(t.StrictMode,{children:o.jsx(e,{})}));

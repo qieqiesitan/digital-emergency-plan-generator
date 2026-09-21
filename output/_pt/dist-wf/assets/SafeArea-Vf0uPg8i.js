@@ -1,1 +1,0 @@
-import{j as n}from"./mobile-ui-CxIfqYIF.js";import"./mobile-vendor-BW7Wdt1C.js";function r({edge:t="both",children:o,className:a=""}){const s=[(t==="top"||t==="both")&&"pt-[env(safe-area-inset-top,0px)]",(t==="bottom"||t==="both")&&"pb-[env(safe-area-inset-bottom,0px)]"].filter(Boolean).join(" ");return n.jsx("div",{className:`${s} ${a}`,children:o})}export{r as S};
