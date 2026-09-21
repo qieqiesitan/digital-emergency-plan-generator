@@ -1,0 +1,345 @@
+# 作业票措施条件映射（唯一事实源）。
+# 改这里 → 重跑 backend/seed_work_ticket_conditions.py → 同步入库；不需要改代码、不发版。
+# 锚定键 = 票种 + 措施正文（规范化后精确匹配），不用序号：标准修订插入条文时不会错判。
+# 正文必须完整——生成器失配会报错中止，不会静默放过。
+version: 1
+
+conditions:
+  has_other_tickets:
+    label: "本次作业还办理了其他特殊作业票"
+    auto: tickets_in_batch
+  night_work:
+    label: "作业时段涉及夜间（20:00~06:00）"
+    auto: period_at_night
+  internal_work:
+    label: "本次动火在设备内部"
+    auto: null
+  connected_pipeline:
+    label: "作业设备连接有管线/阀门"
+    auto: null
+  surroundings_ignition:
+    label: "作业点周围有孔洞/窨井/地沟/污水井"
+    auto: null
+  in_tank_area:
+    label: "作业点在油气罐区防火堤内"
+    auto: null
+  height_work:
+    label: "本次作业涉及高处作业"
+    auto: null
+  has_flammable_lining:
+    label: "设备内有可燃物构件或防腐内衬"
+    auto: null
+  surrounding_hazardous_ops:
+    label: "作业点周围有装卸/排放/喷漆等危险作业"
+    auto: null
+  gas_welding:
+    label: "本次动火使用气焊/气割"
+    auto: fire_method_gas
+  electric_welding:
+    label: "本次动火使用电焊"
+    auto: fire_method_electric
+  hazardous_residue:
+    label: "受限空间盛装过有毒/可燃物料"
+    auto: null
+  rotating_equipment:
+    label: "内部有转动设备"
+    auto: null
+  flammable_atmosphere:
+    label: "内部存在易燃易爆物料"
+    auto: null
+  dust_inside:
+    label: "内部存在大量扬尘"
+    auto: null
+  corrosive_medium:
+    label: "存在强腐蚀性介质"
+    auto: null
+  toxic_medium:
+    label: "存在有毒介质"
+    auto: null
+  explosion_hazard_area:
+    label: "作业点在火灾爆炸危险场所"
+    auto: null
+  high_temp_medium:
+    label: "介质温度较高（可能烫伤）"
+    auto: null
+  low_temp_medium:
+    label: "介质温度较低（可能冻伤）"
+    auto: null
+  multi_point_same_pipe:
+    label: "同一管道多处同时抽堵"
+    auto: null
+  hazardous_area:
+    label: "作业点存在易燃易爆/有毒气体"
+    auto: null
+  toxic_gas_area:
+    label: "作业点可能散发有毒气体"
+    auto: null
+  scaffold_used:
+    label: "现场搭设脚手架/防护网"
+    auto: null
+  layered_work:
+    label: "垂直分层作业"
+    auto: null
+  ladder_used:
+    label: "使用梯子/安全绳"
+    auto: null
+  light_shed:
+    label: "作业处有轻型棚"
+    auto: null
+  load_bearing_plate:
+    label: "在不承重物处作业并搭设承重板"
+    auto: null
+  night_or_poor_light:
+    label: "夜间作业或采光不足"
+    auto: null
+  above_30m:
+    label: "作业高度 30m 以上"
+    auto: work_height_ge_30
+  outdoor:
+    label: "露天作业"
+    auto: null
+  level_1_or_2:
+    label: "一、二级吊装作业"
+    auto: lift_level_1_or_2
+  hazardous_equipment_nearby:
+    label: "吊装场所含危险物料的设备/管道"
+    auto: null
+  building_as_anchor:
+    label: "以建筑物/构筑物作锚点"
+    auto: null
+  near_power_line:
+    label: "吊装范围附近有带电线路/架空线路"
+    auto: null
+  pipe_as_anchor:
+    label: "以管道/管架作吊装锚点"
+    auto: null
+  underground_facilities:
+    label: "吊装区域地下有电缆/管线/排水沟"
+    auto: null
+  overhead_facilities:
+    label: "吊装高度有管线/电缆桥架"
+    auto: null
+  line_elevated:
+    label: "临时用电线路架高敷设"
+    auto: null
+  cross_road:
+    label: "线路跨越道路"
+    auto: null
+  line_along_surface:
+    label: "线路沿墙面或地面敷设"
+    auto: null
+  underground_cable:
+    label: "有暗管埋设/地下电缆"
+    auto: null
+  underground_pipeline:
+    label: "地下有供排水/消防/工艺管线"
+    auto: null
+  on_road:
+    label: "在道路范围施工"
+    auto: null
+  deep_excavation:
+    label: "动土深度超过 1.2m"
+    auto: dig_depth_gt_1_2
+
+tickets:
+  DHZY:
+    scenario:
+      - internal_work
+      - connected_pipeline
+      - surroundings_ignition
+      - in_tank_area
+      - height_work
+      - has_flammable_lining
+      - surrounding_hazardous_ops
+    measures:
+      - text: "动火设备内部构件清洗干净，蒸汽吹扫或水洗、置换合格，达到动火条件"
+        conditions: [internal_work]
+      - text: "与动火设备相连接的所有管线已断开，加盲板（ ）块，未采取水封或仅关闭阀门的方式代替盲板"
+        conditions: [connected_pipeline]
+      - text: "动火点周围及附近的孔洞、窨井、地沟、水封设施、污水井等已清除易燃物，并已采取覆盖、铺沙等手段进行隔离"
+        conditions: [surroundings_ignition]
+      - text: "油气罐区动火点同一防火堤内和防火间距内的油品储罐未进行脱水和取样作业"
+        conditions: [in_tank_area]
+      - text: "高处作业已采取防火花飞溅措施，作业人员佩戴必要的个体防护装备"
+        conditions: [height_work]
+      - text: "在有可燃物构件和使用可燃物做防腐内衬的设备内部动火作业，已采取防火隔绝措施"
+        conditions: [has_flammable_lining]
+      - text: "乙炔气瓶直立放置，已采取防倾倒措施并安装防回火装置；乙炔气瓶、氧气瓶与火源间的距离不应小于10m,两气瓶相互间距不应小于5m"
+        conditions: [gas_welding]
+      - text: "电焊机所处位置已考虑防火防爆要求，且已可靠接地"
+        conditions: [electric_welding]
+      - text: "动火点周围规定距离内没有易燃易爆化学品的装卸、排放、喷漆等可能引起火灾爆炸的危险作业"
+        conditions: [surrounding_hazardous_ops]
+      - text: "动火点30m内垂直空间未排放可燃气体；15m内垂直空间未排放可燃液体；10m范围内及动火点下方未同时进行可燃溶剂清洗或喷漆等作业，10m范围内未见有可燃性粉尘清扫作业"
+        conditions: [surrounding_hazardous_ops]
+      - text: "已开展作业危害分析，制定相应的安全风险管控措施，交叉作业已明确协调人"
+        conditions: [has_other_tickets]
+      - text: "用于连续检测的移动式可燃气体检测仪已配备到位"
+        conditions: [gas_welding, electric_welding]
+      - text: "其他相关特殊作业已办理相应安全作业票，作业现场四周已设立警戒区"
+        conditions: [has_other_tickets]
+  YXKJ:
+    scenario:
+      - hazardous_residue
+      - connected_pipeline
+      - rotating_equipment
+      - flammable_atmosphere
+      - dust_inside
+      - corrosive_medium
+    measures:
+      - text: "盛装过有毒、可燃物料的受限空间，所有与受限空间有联系的阀门、管线已加盲板隔离，并落实盲板责任人，未采用水封或关闭阀门代替盲板"
+        conditions: [hazardous_residue, connected_pipeline]
+      - text: "盛装过有毒、可燃物料的受限空间，设备已经过置换、吹扫或蒸煮"
+        conditions: [hazardous_residue]
+      - text: "转动设备已切断电源，电源开关处已加锁并悬挂“禁止合闸”标志牌"
+        conditions: [rotating_equipment]
+      - text: "受限空间内部已具备进人作业条件，易燃易爆物料容器内作业，作业人员未采用非防爆工具，手持电动工具符合作业安全要求"
+        conditions: [flammable_atmosphere]
+      - text: "盛装过可燃有毒液体、气体的受限空间，已分析其中的可燃、有毒有害气体和氧气含量，且在安全范围内"
+        conditions: [hazardous_residue]
+      - text: "存在大量扬尘的设备已停止扬尘"
+        conditions: [dust_inside]
+      - text: "已配备作业应急设施：消防器材（ ）、救生绳（ ）、气防装备（ ），盛有腐蚀性介质的容器作业现场已配备应急用冲洗水"
+        conditions: [corrosive_medium]
+      - text: "其他相关特殊作业已办理相应安全作业票"
+        conditions: [has_other_tickets]
+  MBCD:
+    scenario:
+      - toxic_medium
+      - explosion_hazard_area
+      - corrosive_medium
+      - high_temp_medium
+      - low_temp_medium
+      - multi_point_same_pipe
+    measures:
+      - text: "在有毒介质的管道、设备上作业时，作业人员应穿戴适合的个体防护装备"
+        conditions: [toxic_medium]
+      - text: "火灾爆炸危险场所，作业人员穿防静电工作服、工作鞋；作业时使用防爆灯具和防爆工具"
+        conditions: [explosion_hazard_area]
+      - text: "火灾爆炸危险场所的气体管道，距作业地点30m内无其他动火作业"
+        conditions: [explosion_hazard_area]
+      - text: "在强腐蚀性介质的管道、设备上作业时，作业人员已采取防止酸碱化学灼伤的措施"
+        conditions: [corrosive_medium]
+      - text: "介质温度较高、可能造成烫伤的情况下，作业人员已采取防烫措施"
+        conditions: [high_temp_medium]
+      - text: "介质温度较低、可能造成人员冻伤情况下，作业人员已采取防冻伤措施"
+        conditions: [low_temp_medium]
+      - text: "同一管道上未同时进行两处及两处以上的盲板抽堵作业"
+        conditions: [multi_point_same_pipe]
+      - text: "其他相关特殊作业已办理相应安全作业票"
+        conditions: [has_other_tickets]
+  GCZY:
+    scenario:
+      - toxic_gas_area
+      - scaffold_used
+      - layered_work
+      - ladder_used
+      - light_shed
+      - load_bearing_plate
+      - night_or_poor_light
+      - outdoor
+    measures:
+      - text: "作业人员佩戴符合标准要求的安全帽、安全带，有可能散发有毒气体的场所携带正压式空气呼吸器或面罩备用"
+        conditions: [toxic_gas_area]
+      - text: "现场搭设的脚手架、防护网、围栏符合安全规定"
+        conditions: [scaffold_used]
+      - text: "垂直分层作业中间有隔离设施"
+        conditions: [layered_work]
+      - text: "梯子、绳子符合安全规定"
+        conditions: [ladder_used]
+      - text: "轻型棚的承重梁、柱能承重作业过程最大负荷的要求"
+        conditions: [light_shed]
+      - text: "作业人员在不承重物处作业所搭设的承重板稳定牢固"
+        conditions: [load_bearing_plate]
+      - text: "采光、夜间作业照明符合作业要求"
+        conditions: [night_or_poor_light]
+      - text: "30m以上高处作业时，作业人员已配备通信、联络工具"
+        conditions: [above_30m]
+      - text: "露天作业，风力满足作业安全要求"
+        conditions: [outdoor]
+      - text: "其他相关特殊作业已办理相应安全作业票"
+        conditions: [has_other_tickets]
+  QZDZ:
+    scenario:
+      - hazardous_equipment_nearby
+      - building_as_anchor
+      - near_power_line
+      - pipe_as_anchor
+      - underground_facilities
+      - overhead_facilities
+      - explosion_hazard_area
+      - outdoor
+    measures:
+      - text: "一、二级吊装作业已编制吊装作业方案，已经审查批准；吊装物体形状复杂、刚度小、长径比大、精密贵重，作业条件特殊的三级吊装作业，已编制吊装作业方案，已经审查批准"
+        conditions: [level_1_or_2]
+      - text: "吊装场所如有含危险物料的设备、管道时，应制定详细吊装方案，并对设备、管道采取有效防护措施，必要时停车，放空物料，置换后再进行吊装作业"
+        conditions: [hazardous_equipment_nearby]
+      - text: "将建筑物、构筑物作为锚点，应经所属单位工程管理部门审查核算并批准"
+        conditions: [building_as_anchor]
+      - text: "吊装绳索、揽风绳、拖拉绳等不应与带电线路接触，并保持安全距离"
+        conditions: [near_power_line]
+      - text: "不应利用管道、管架、电杆、机电设备等作吊装锚点"
+        conditions: [pipe_as_anchor]
+      - text: "地下通信电（光）缆、局域网络电（光）缆、排水沟的盖板，承重吊装机械的负重量已确认，保护措施已落实"
+        conditions: [underground_facilities]
+      - text: "在吊装高度的管线、电缆桥架已做好防护措施"
+        conditions: [overhead_facilities]
+      - text: "作业高度和转臂范围内无架空线路"
+        conditions: [near_power_line]
+      - text: "在爆炸危险场所内的作业，机动车排气管已装阻火器"
+        conditions: [explosion_hazard_area]
+      - text: "露天作业，环境风力满足作业安全要求"
+        conditions: [outdoor]
+      - text: "其他相关特殊作业已办理相应安全作业票"
+        conditions: [has_other_tickets]
+  LSYD:
+    scenario:
+      - explosion_hazard_area
+      - line_elevated
+      - cross_road
+      - line_along_surface
+      - underground_cable
+      - outdoor
+    measures:
+      - text: "在防爆场所使用的临时电源、元器件和线路达到相应的防爆等级要求"
+        conditions: [explosion_hazard_area]
+      - text: "临时用电线路如架高敷设，在作业现场敷设高度应不低于2.5m,跨越道路高度应不低于5m"
+        conditions: [line_elevated]
+      - text: "临时用电线路如沿墙面或地面敷设，已沿建筑物墙体根部敷设，穿越道路或其他易受机械损伤的区域，已采取防机械损伤的措施；在电缆敷设路径附近，已采取防止火花损伤电缆的措施"
+        conditions: [line_along_surface, cross_road]
+      - text: "临时用电线路架空进线不应采用裸线"
+        conditions: [line_elevated]
+      - text: "暗管埋设及地下电缆线路敷设时，已备好“走向标志”和“安全标志”等标志桩，电缆埋深要求大于0.7m"
+        conditions: [underground_cable]
+      - text: "现场临时用配电盘、箱配备有防雨措施，并可靠接地"
+        conditions: [outdoor]
+      - text: "其他相关特殊作业已办理相应安全作业票"
+        conditions: [has_other_tickets]
+      - text: "作业场所已进行气体检测且符合作业安全要求"
+        conditions: [explosion_hazard_area]
+  PTZY:
+    scenario:
+      - underground_cable
+      - underground_pipeline
+      - on_road
+      - hazardous_area
+    measures:
+      - text: "地下电力电缆、通信电（光）缆、局域网络电（光）缆已确认，保护措施已落实"
+        conditions: [underground_cable]
+      - text: "地下供排水、消防管线、工艺管线已确认，保护措施已落实"
+        conditions: [underground_pipeline]
+      - text: "已进行放坡处理和固壁支撑"
+        conditions: [deep_excavation]
+      - text: "道路施工作业已报：交通、消防、安全监督部门、应急中心"
+        conditions: [on_road]
+      - text: "现场夜间有充足照明：A. 36V、24V、12V防水型灯；B. 36V、24V、12V防爆型灯"
+        conditions: [night_work]
+      - text: "易燃易爆、有毒气体存在的场所动土深度超过1.2m,已按照受限空间作业要求采取了措施"
+        conditions: [deep_excavation, hazardous_area]
+      - text: "其他相关特殊作业已办理相应安全作业票"
+        conditions: [has_other_tickets]
+  DLZY:
+    scenario: []
+    measures:
+      - text: "夜间作业设置警示灯"
+        conditions: [night_work]

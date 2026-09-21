@@ -293,7 +293,8 @@ head -30 backend/app/regulations/data/work_ticket_conditions.yaml
 grep -c "^      - text:" backend/app/regulations/data/work_ticket_conditions.yaml
 ```
 
-预期：生成成功并打印 `66 条映射，40 个条件`；`grep -c` 输出 `66`（与规格统计一致）。
+预期：生成成功并打印 `66 条映射，45 个条件`；`grep -c` 输出 `66`（与规格的映射统计一致）。
+（执行记录：条件总数 45 个 = 38 个人工勾选 + 7 个自动推断，计划初稿此处写的 40/28 是估算，已按实测更正。）
 
 - [ ] **步骤 3：人工核对 YAML**
 
@@ -305,7 +306,7 @@ docker exec emergency-plan-db psql -U postgres -d emergency_plan -tA -c "SELECT 
 grep -c "auto: null" backend/app/regulations/data/work_ticket_conditions.yaml
 ```
 
-预期：措施总数 223（多级别共用）；`auto: null` 的行数 = 人工勾选条件数（28）。
+预期：措施总数 223（多级别共用）；`auto: null` 的行数 = 人工勾选条件数（**38**）。
 
 - [ ] **步骤 4：Commit**
 
