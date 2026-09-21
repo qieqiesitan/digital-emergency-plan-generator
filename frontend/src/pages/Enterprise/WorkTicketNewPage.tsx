@@ -672,7 +672,13 @@ export default function WorkTicketNewPage() {
         </Space>
       )}
 
-      {step === 1 && (
+      {/*
+        Form 必须**始终挂载**，只切换显隐。
+        原因：antd 的 Form 实例（store）随组件卸载而销毁，若按步骤条件渲染，
+        走到第 5 步时 form.getFieldsValue() 会返回空对象，
+        提交时就报「所有必填项尚未填写」（2026-09-21 用户实测反馈）。
+      */}
+      <div style={{ display: step === 1 ? "block" : "none" }}>
         <Form form={form} layout="vertical">
           {prefillNote && (
             <Alert
@@ -728,7 +734,7 @@ export default function WorkTicketNewPage() {
             </div>
           ))}
         </Form>
-      )}
+      </div>
 
       {step === 2 && (
         <Space orientation="vertical" size={12} style={{ width: "100%" }}>
