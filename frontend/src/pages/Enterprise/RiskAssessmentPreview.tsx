@@ -55,18 +55,18 @@ export default function RiskAssessmentPreview() {
   const reloadPreview = () => {
     if (!id) return;
     getRiskAssessmentPreview(id).then(setData).catch(() => {});
-    getRiskAssessment(id).then(r => setCurrentVersion(r.current_version ?? 0)).catch(() => {});
+    getRiskAssessment(id).then(r => setCurrentVersion(r?.current_version ?? 0)).catch(() => {});
   };
 
   useEffect(() => {
     if (!id) return;
     getRiskAssessmentPreview(id)
       .then(setData)
-      // 报告尚未生成时后端返回 404：属于预期路径，这里兜底为空态，避免未处理 rejection
+      // 预览需要正文：报告还没生成时后端返回 404（预期路径），这里兜底为空态
       .catch(() => setData(null))
       .finally(() => setLoading(false));
     getRiskAssessment(id)
-      .then(r => setCurrentVersion(r.current_version ?? 0))
+      .then(r => setCurrentVersion(r?.current_version ?? 0))
       .catch(() => {});
   }, [id]);
 
@@ -81,6 +81,10 @@ export default function RiskAssessmentPreview() {
     if (!id) return;
     try {
       const report = await getRiskAssessment(id, { skipGlobalError: true });
+      if (!report) {
+        message.warning("报告尚未生成，暂无可编辑正文");
+        return;
+      }
       setEditHtml(renderReportMarkdown(report.content || ""));
       setEditing(true);
     } catch (err) {

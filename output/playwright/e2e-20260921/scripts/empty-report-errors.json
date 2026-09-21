@@ -1,73 +1,117 @@
 {
-  "summary": {
-    "risk_load_request_count": 2,
-    "risk_toast_count": 1,
-    "risk_console_error_count": 4,
-    "resource_load_request_count": 2,
-    "resource_toast_count": 1,
-    "resource_console_error_count": 4
+  "checks": {
+    "empty-risk_single_request": true,
+    "empty-risk_http_200": true,
+    "empty-risk_no_error_toast": true,
+    "empty-risk_no_console_error": true,
+    "empty-risk_shows_empty_state": true,
+    "empty-resource_single_request": true,
+    "empty-resource_http_200": true,
+    "empty-resource_no_error_toast": true,
+    "empty-resource_no_console_error": true,
+    "empty-resource_shows_empty_state": true,
+    "data-risk_single_request": true,
+    "data-risk_http_200": true,
+    "data-risk_no_error_toast": true,
+    "data-risk_no_console_error": true,
+    "data-risk_renders_report": true,
+    "data-risk_shows_chapter_title": true,
+    "data-resource_single_request": true,
+    "data-resource_http_200": true,
+    "data-resource_no_error_toast": true,
+    "data-resource_no_console_error": true,
+    "data-resource_renders_report": true,
+    "data-resource_shows_chapter_title": true
   },
   "detail": {
-    "enterprise": "8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e",
-    "risk": {
-      "url": "http://localhost:15173/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/modules/assessment",
-      "load_requests": [
-        {
-          "status": 404,
-          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/risk-assessment"
-        },
-        {
-          "status": 404,
-          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/risk-assessment"
-        }
-      ],
-      "toasts": 1,
-      "toast_texts": [
-        "未找到已完成的风险评估报告"
-      ],
-      "live_notices": 0,
-      "load_request_count": 2,
-      "load_statuses": [
-        404,
-        404
-      ],
-      "console_errors": [
-        "error:Warning: [antd: Spin] `tip` is deprecated. Please use `description` instead.",
-        "error:Failed to load resource: the server responded with a status of 404 (Not Found)",
-        "error:Warning: [antd: message] Static function can not consume context like dynamic theme. Please use 'App' component instead.",
-        "error:Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "page_hint_shown": 1
+    "fixtures": {
+      "empty_enterprise": "c30a2de1-d6d4-4c78-b83b-971c44e7f66e",
+      "has_report_enterprise": "e9c3fe6b-ea13-48cb-a15e-d1a56108287b"
     },
-    "resource": {
-      "url": "http://localhost:15173/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/modules/investigation",
+    "empty-risk": {
+      "url": "http://localhost:15173/enterprises/c30a2de1-d6d4-4c78-b83b-971c44e7f66e/modules/assessment",
       "load_requests": [
         {
-          "status": 404,
-          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/resource-investigation"
-        },
-        {
-          "status": 404,
-          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/resource-investigation"
+          "status": 200,
+          "url": "http://localhost:15173/api/v1/enterprises/c30a2de1-d6d4-4c78-b83b-971c44e7f66e/risk-assessment"
         }
       ],
-      "toasts": 1,
-      "toast_texts": [
-        "未找到报告"
-      ],
+      "toasts": 0,
+      "toast_texts": [],
       "live_notices": 0,
-      "load_request_count": 2,
+      "load_request_count": 1,
       "load_statuses": [
-        404,
-        404
+        200
       ],
-      "console_errors": [
-        "error:Warning: [antd: Spin] `tip` is deprecated. Please use `description` instead.",
-        "error:Failed to load resource: the server responded with a status of 404 (Not Found)",
-        "error:Warning: [antd: message] Static function can not consume context like dynamic theme. Please use 'App' component instead.",
-        "error:Failed to load resource: the server responded with a status of 404 (Not Found)"
+      "console_errors": [],
+      "empty_hint_shown": true,
+      "report_rendered": false,
+      "chapter_title_shown": false,
+      "console_error_count": 0
+    },
+    "empty-resource": {
+      "url": "http://localhost:15173/enterprises/c30a2de1-d6d4-4c78-b83b-971c44e7f66e/modules/investigation",
+      "load_requests": [
+        {
+          "status": 200,
+          "url": "http://localhost:15173/api/v1/enterprises/c30a2de1-d6d4-4c78-b83b-971c44e7f66e/resource-investigation"
+        }
       ],
-      "page_hint_shown": 1
+      "toasts": 0,
+      "toast_texts": [],
+      "live_notices": 0,
+      "load_request_count": 1,
+      "load_statuses": [
+        200
+      ],
+      "console_errors": [],
+      "empty_hint_shown": true,
+      "report_rendered": false,
+      "chapter_title_shown": false,
+      "console_error_count": 0
+    },
+    "data-risk": {
+      "url": "http://localhost:15173/enterprises/e9c3fe6b-ea13-48cb-a15e-d1a56108287b/modules/assessment",
+      "load_requests": [
+        {
+          "status": 200,
+          "url": "http://localhost:15173/api/v1/enterprises/e9c3fe6b-ea13-48cb-a15e-d1a56108287b/risk-assessment"
+        }
+      ],
+      "toasts": 0,
+      "toast_texts": [],
+      "live_notices": 0,
+      "load_request_count": 1,
+      "load_statuses": [
+        200
+      ],
+      "console_errors": [],
+      "empty_hint_shown": false,
+      "report_rendered": true,
+      "chapter_title_shown": true,
+      "console_error_count": 0
+    },
+    "data-resource": {
+      "url": "http://localhost:15173/enterprises/e9c3fe6b-ea13-48cb-a15e-d1a56108287b/modules/investigation",
+      "load_requests": [
+        {
+          "status": 200,
+          "url": "http://localhost:15173/api/v1/enterprises/e9c3fe6b-ea13-48cb-a15e-d1a56108287b/resource-investigation"
+        }
+      ],
+      "toasts": 0,
+      "toast_texts": [],
+      "live_notices": 0,
+      "load_request_count": 1,
+      "load_statuses": [
+        200
+      ],
+      "console_errors": [],
+      "empty_hint_shown": false,
+      "report_rendered": true,
+      "chapter_title_shown": true,
+      "console_error_count": 0
     }
-  }
+  },
+  "all_passed": true
 }

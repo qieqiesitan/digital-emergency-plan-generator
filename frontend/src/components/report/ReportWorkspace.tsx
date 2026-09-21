@@ -230,16 +230,17 @@ export default function ReportWorkspace({
       setDoc(next);
       setContentByKey((prev) => {
         const merged = { ...prev };
-        (next.chapters || []).forEach((ch) => {
+        (next?.chapters || []).forEach((ch) => {
           // 保留用户在编辑器中的未保存改动；其余以服务端为准
           if (!dirtyRef.current.has(ch.key)) merged[ch.key] = ch.content || "";
         });
         return merged;
       });
       setSaveState({});
-      setSelectedKey((prev) => prev ?? next.chapters?.[0]?.key ?? null);
+      setSelectedKey((prev) => prev ?? next?.chapters?.[0]?.key ?? null);
     } catch {
-      // 无报告行 → 空态（在生成前 report 不存在，load 404 属预期，不打断首次生成引导）
+      // 取报告失败（网络异常/企业无权）→ 同样回落到空态，不打断首次生成引导。
+      // 注：「报告还没生成」已由 adapter.load 返回 null 表达（不是异常）。
       setDoc(null);
     } finally {
       setLoading(false);
@@ -667,7 +668,7 @@ export default function ReportWorkspace({
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", padding: 80 }}>
-        <Spin size="large" tip="正在加载报告..." />
+        <Spin size="large" description="正在加载报告..." />
       </div>
     );
   }

@@ -11,6 +11,6 @@ describe("riskAssessmentAdapter", () => {
       summary: { chapters: [{ key: "ch1", title: "一、辨识", content: "x" }] },
     } as never);
     const doc = await riskAssessmentAdapter.load("e1");
-    expect(doc.chapters).toEqual([{ key: "ch1", title: "一、辨识", content: "x" }]);
+    expect(doc?.chapters).toEqual([{ key: "ch1", title: "一、辨识", content: "x" }]);
   });
 });

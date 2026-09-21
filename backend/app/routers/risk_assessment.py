@@ -423,12 +423,18 @@ async def get_risk_assessment(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
+    # 报告还没生成是正常工作流（工作台首屏 / 移动端都会先读一次），用 200 + data=null
+    # 表达空态：既不让浏览器留下一行 404 红字，也不逼前端把预期空态当异常兜底。
+    # 企业不存在 / 无权访问仍然是 404（见 load_report_for_owner）。
     _, report = await load_report_for_owner(
         db, current_user, enterprise_id, RiskAssessmentReport,
         report_detail="未找到已完成的风险评估报告", enterprise_detail="企业不存在",
+        required=False,
     )
 
-    return ApiResponse(data=RiskAssessmentReportResponse.model_validate(report))
+    return ApiResponse(
+        data=RiskAssessmentReportResponse.model_validate(report) if report else None
+    )
 
 
 @router.get("/{enterprise_id}/risk-assessment/summary")

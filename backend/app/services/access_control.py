@@ -42,10 +42,14 @@ async def load_report_for_owner(
     *,
     report_detail: str,
     enterprise_detail: str = "企业不存在或无权访问",
-) -> tuple[Enterprise, object]:
-    """企业归属校验 + 取回该企业的可读报告，任一缺失都返回 404。
+    required: bool = True,
+) -> tuple[Enterprise, object | None]:
+    """企业归属校验 + 取回该企业的可读报告。
 
     返回 (企业, 报告)：调用方常用企业名生成导出文件名。
+    企业不存在/无权访问始终 404；报告缺失时默认也 404，传 required=False 则返回
+    (企业, None)——用于「报告还没生成」属于正常空态的读取端点（导出/预览等仍需
+    required=True，因为缺报告就真的做不了事）。
     """
     ent = await ensure_enterprise_owned(db, user, enterprise_id, detail=enterprise_detail)
     report = (await db.execute(
@@ -54,7 +58,7 @@ async def load_report_for_owner(
             model.status.in_(READABLE_REPORT_STATUSES),
         )
     )).scalar_one_or_none()
-    if report is None:
+    if report is None and required:
         raise HTTPException(404, report_detail)
     return ent, report
 

@@ -45,7 +45,8 @@ export interface ReportSSECallback {
 }
 
 export interface ReportAdapter {
-  load(enterpriseId: string): Promise<ReportDocument>;
+  /** 读取当前报告；企业还没生成报告时返回 null（空态） */
+  load(enterpriseId: string): Promise<ReportDocument | null>;
   saveChapter(enterpriseId: string, key: string, content: string): Promise<void>;
   generateChapter(enterpriseId: string, key: string, cb: ReportSSECallback): AbortController;
   regenerateChapter(enterpriseId: string, key: string, cb: ReportSSECallback): AbortController;

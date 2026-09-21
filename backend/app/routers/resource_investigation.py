@@ -133,12 +133,17 @@ async def get_resource_investigation(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
+    # 同 risk-assessment：报告还没生成时返回 200 + data=null（空态），
+    # 避免前端每次进页面都在控制台留下 404 红字、并把空态当错误弹提示。
     _, report = await load_report_for_owner(
         db, current_user, enterprise_id, ResourceInvestigationReport,
         report_detail="未找到报告", enterprise_detail="未找到报告",
+        required=False,
     )
 
-    return ApiResponse(data=ResourceInvestigationReportResponse.model_validate(report))
+    return ApiResponse(
+        data=ResourceInvestigationReportResponse.model_validate(report) if report else None
+    )
 
 
 @router.get("/{enterprise_id}/resource-investigation/summary")

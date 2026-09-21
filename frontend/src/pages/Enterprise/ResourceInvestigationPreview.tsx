@@ -34,18 +34,18 @@ export default function ResourceInvestigationPreview() {
   const reloadPreview = () => {
     if (!id) return;
     getResourceInvestigationPreview(id).then(setData).catch(() => {});
-    getResourceInvestigation(id).then(r => setCurrentVersion(r.current_version ?? 0)).catch(() => {});
+    getResourceInvestigation(id).then(r => setCurrentVersion(r?.current_version ?? 0)).catch(() => {});
   };
 
   useEffect(() => {
     if (!id) return;
     getResourceInvestigationPreview(id)
       .then(setData)
-      // 报告尚未生成时后端返回 404：属于预期路径，这里兜底为空态，避免未处理 rejection
+      // 预览需要正文：报告还没生成时后端返回 404（预期路径），这里兜底为空态
       .catch(() => setData(null))
       .finally(() => setLoading(false));
     getResourceInvestigation(id)
-      .then(r => setCurrentVersion(r.current_version ?? 0))
+      .then(r => setCurrentVersion(r?.current_version ?? 0))
       .catch(() => {});
   }, [id]);
 
@@ -62,7 +62,12 @@ export default function ResourceInvestigationPreview() {
   const startEdit = async () => {
     if (!id) return;
     try {
-      const report = await getResourceInvestigation(id);
+      // 本页自带失败提示（下方 message.error），跳过全局 toast 防双弹
+      const report = await getResourceInvestigation(id, { skipGlobalError: true });
+      if (!report) {
+        message.warning("报告尚未生成，暂无可编辑正文");
+        return;
+      }
       setEditHtml(renderReportMarkdown(report.content || ""));
       setEditing(true);
     } catch (err) {

@@ -2,12 +2,27 @@ import type { ApiResponse } from '@/types/common';
 import type { RiskAssessmentReport, RiskAssessmentPreview, ReportVersionItem, SSEEvent } from "@/types/riskAssessment";
 import type { ReportIssue } from "@/types/reportWorkspace";
 import api from "./api";
+import { dedupeInflight } from "./inflight";
 import type { AxiosRequestConfig } from "axios";
 import { filenameFromContentDisposition } from "@/utils/download";
 
-export async function getRiskAssessment(enterpriseId: string, config?: AxiosRequestConfig): Promise<RiskAssessmentReport> {
-  const res = await api.get(`/enterprises/${enterpriseId}/risk-assessment`, config);
-  return res.data.data;
+/**
+ * 读取企业当前的风险评估报告；**尚未生成时返回 null**（后端 200 + data=null 表达空态，
+ * 见 backend/app/routers/risk_assessment.py）。调用方按空态渲染，而不是当异常处理。
+ */
+export async function getRiskAssessment(
+  enterpriseId: string,
+  config?: AxiosRequestConfig,
+): Promise<RiskAssessmentReport | null> {
+  // 并发同名请求合并：开发期 StrictMode 双挂载会把首屏这个请求发两次（控制台两份重复报错）。
+  // 注意这里**不**默认 skipGlobalError：真正的故障（500/无权）仍要走全局提示；「报告还没生成」
+  // 已经不是错误了（后端返回 200 + null），需要自行提示失败态的调用方再显式传 skipGlobalError。
+  return dedupeInflight(`risk-assessment:${enterpriseId}`, async () => {
+    const res = await api.get(`/enterprises/${enterpriseId}/risk-assessment`, {
+      ...config,
+    });
+    return (res.data.data as RiskAssessmentReport | null) ?? null;
+  });
 }
 
 export async function getRiskAssessmentSummary(enterpriseId: string): Promise<RiskAssessmentReport["summary"]> {

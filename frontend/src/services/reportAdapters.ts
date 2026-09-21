@@ -14,6 +14,8 @@ function makeAdapter(
       const doc = kind === "risk"
         ? await ra.getRiskAssessment(enterpriseId)
         : await ri.getResourceInvestigation(enterpriseId);
+      // 报告还没生成 → 后端返回 data=null：空态（不是错误，首屏要照常显示「生成」引导）
+      if (!doc) return null;
       return {
         id: doc.id,
         title: doc.title,

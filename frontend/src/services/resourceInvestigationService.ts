@@ -4,11 +4,26 @@ import type { ReportVersionItem, SSEEvent } from "@/types/riskAssessment";
 import type { ReportIssue } from "@/types/reportWorkspace";
 import type { ChapterDef } from '@/services/riskAssessmentService';
 import api from "./api";
+import { dedupeInflight } from "./inflight";
+import type { AxiosRequestConfig } from "axios";
 import { filenameFromContentDisposition } from "@/utils/download";
 
-export async function getResourceInvestigation(enterpriseId: string): Promise<ResourceInvestigationReport> {
-  const res = await api.get(`/enterprises/${enterpriseId}/resource-investigation`);
-  return res.data.data;
+/**
+ * 读取企业当前的应急资源调查报告；**尚未生成时返回 null**（后端 200 + data=null 表达空态，
+ * 见 backend/app/routers/resource_investigation.py）。调用方按空态渲染，而不是当异常处理。
+ */
+export async function getResourceInvestigation(
+  enterpriseId: string,
+  config?: AxiosRequestConfig,
+): Promise<ResourceInvestigationReport | null> {
+  // 同 risk-assessment：并发同名请求合并（StrictMode 双挂载只发一次），
+  // 空态由后端 200 + null 表达，真正故障仍走全局错误提示
+  return dedupeInflight(`resource-investigation:${enterpriseId}`, async () => {
+    const res = await api.get(`/enterprises/${enterpriseId}/resource-investigation`, {
+      ...config,
+    });
+    return (res.data.data as ResourceInvestigationReport | null) ?? null;
+  });
 }
 
 export async function getResourceInvestigationSummary(enterpriseId: string): Promise<ResourceInvestigationReport["summary"]> {
