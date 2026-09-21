@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { App as AntApp, Button, Card, Form, Input, Select, Space, Spin, Tabs } from "antd";
+import { App as AntApp, Button, Card, Form, Input, Select, Space, Spin, Tabs, Tag } from "antd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
 import RiskObjectPicker from "@/components/enterprise/majorHazard/RiskObjectPicker";
 import UnitChemicalTable from "@/components/enterprise/majorHazard/UnitChemicalTable";
 import UnitPolygonEditor from "@/components/enterprise/majorHazard/UnitPolygonEditor";
+import {
+  buildUnitPrefill,
+  isPrefillMarkVisible,
+  PREFILL_FIELD_LABELS,
+} from "@/components/enterprise/majorHazard/riskObjectPrefill";
 import {
   listUnitChemicals,
   listUnits,
@@ -13,6 +18,7 @@ import {
   updateUnit,
 } from "@/services/majorHazardService";
 import type {
+  LinkableRiskObject,
   MajorHazardUnitChemicalPayload,
   MajorHazardUnitPayload,
 } from "@/types/majorHazard";
@@ -25,6 +31,8 @@ export default function MajorHazardUnitPage() {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<MajorHazardUnitPayload>();
   const [savingChem, setSavingChem] = useState(false);
+  /** 带出时记下"字段 → 当时的值"：值没被改过才继续显示来源标记。 */
+  const [prefilled, setPrefilled] = useState<Partial<Record<string, string>>>({});
 
   // 从台账点进来时路由参数就是 unitId；也支持 ?unitId= 形式
   const effectiveUnitId = unitId ?? sp.get("unitId") ?? "";
@@ -44,6 +52,43 @@ export default function MajorHazardUnitPage() {
 
   const invalidateUnits = () =>
     queryClient.invalidateQueries({ queryKey: ["major-hazard-units", id] });
+
+  // useWatch 与 useState 必须都在下面的提前 return 之前：放在 return 之后，
+  // 加载态与数据态之间切换时 hooks 数量会变，报 "Rendered fewer hooks than expected"。
+  const watched = {
+    address: Form.useWatch("address", form),
+    department: Form.useWatch("department", form),
+    responsible_person: Form.useWatch("responsible_person", form),
+    responsible_phone: Form.useWatch("responsible_phone", form),
+  };
+
+  /** 标记只在"值没被改过"时显示——改过的字段已经不是风险点带出来的值了。 */
+  const fieldLabel = (field: keyof typeof watched, text: string) =>
+    isPrefillMarkVisible(prefilled, field, watched[field]) ? (
+      <span>
+        {text}
+        <Tag color="blue" style={{ marginInlineStart: 6 }}>
+          来自风险点
+        </Tag>
+      </span>
+    ) : (
+      text
+    );
+
+  const handleRiskObjectLinked = (object: LinkableRiskObject | null) => {
+    if (!object) {
+      setPrefilled({});
+      return;
+    }
+    const { patch, fields } = buildUnitPrefill(object, form.getFieldsValue());
+    if (fields.length === 0) {
+      setPrefilled({});
+      return;
+    }
+    form.setFieldsValue(patch);
+    setPrefilled(patch);
+    message.info(`已从风险点带出 ${fields.length} 项，请检查后保存`);
+  };
 
   if (isLoading) return <Spin />;
   if (!effectiveUnitId) return <Card>未指定单元</Card>;
@@ -145,16 +190,28 @@ export default function MajorHazardUnitPage() {
                         ]}
                       />
                     </Form.Item>
-                    <Form.Item name="address" label="所在位置">
+                    <Form.Item
+                      name="address"
+                      label={fieldLabel("address", PREFILL_FIELD_LABELS.address)}
+                    >
                       <Input />
                     </Form.Item>
-                    <Form.Item name="department" label="责任部门">
+                    <Form.Item
+                      name="department"
+                      label={fieldLabel("department", PREFILL_FIELD_LABELS.department)}
+                    >
                       <Input />
                     </Form.Item>
-                    <Form.Item name="responsible_person" label="责任人">
+                    <Form.Item
+                      name="responsible_person"
+                      label={fieldLabel("responsible_person", PREFILL_FIELD_LABELS.responsible_person)}
+                    >
                       <Input />
                     </Form.Item>
-                    <Form.Item name="responsible_phone" label="联系电话">
+                    <Form.Item
+                      name="responsible_phone"
+                      label={fieldLabel("responsible_phone", PREFILL_FIELD_LABELS.responsible_phone)}
+                    >
                       <Input />
                     </Form.Item>
                     <Button type="primary" onClick={saveBasic}>
@@ -167,6 +224,7 @@ export default function MajorHazardUnitPage() {
                     enterpriseId={id!}
                     unitId={effectiveUnitId}
                     riskObjectId={unit.risk_object_id}
+                    onLinked={handleRiskObjectLinked}
                   />
                 </Card>
                 <UnitPolygonEditor
