@@ -133,3 +133,61 @@ def test_anchor_survives_reordering():
     shuffled = _by_order(context, conditions_map, order=[16, 4, 1, 13, 9, 7, 2])
     assert normal[4]["suggest"] == shuffled[4]["suggest"] == NOT_APPLICABLE
     assert shuffled[1]["suggest"] == UNKNOWN  # 第 1 条没有映射，与顺序无关
+
+
+# ── 自动推断规则（conditions_from_scenario） ──────────────────────────────
+
+
+def test_auto_night_work_from_period():
+    from app.services.work_ticket_measure_rules import conditions_from_scenario
+
+    night = conditions_from_scenario(
+        ticket_type="DLZY",
+        work_period=["2026-09-21T21:00:00+08:00", "2026-09-21T23:00:00+08:00"],
+    )
+    assert night["night_work"] is True
+    day = conditions_from_scenario(
+        ticket_type="DLZY",
+        work_period=["2026-09-21T08:00:00+08:00", "2026-09-21T16:00:00+08:00"],
+    )
+    assert day["night_work"] is False
+    # 无时段时不判定夜间（has_other_tickets 对所有票种都会推断，故不断言整体为空）
+    assert "night_work" not in conditions_from_scenario(ticket_type="DLZY")
+
+
+def test_auto_above_30m_from_height_field():
+    from app.services.work_ticket_measure_rules import conditions_from_scenario
+
+    assert conditions_from_scenario(
+        ticket_type="GCZY", field_values={"work_height": "32"}
+    )["above_30m"] is True
+    assert conditions_from_scenario(
+        ticket_type="GCZY", field_values={"work_height": 12}
+    )["above_30m"] is False
+    assert "above_30m" not in conditions_from_scenario(ticket_type="GCZY")
+    assert "above_30m" not in conditions_from_scenario(
+        ticket_type="GCZY", field_values={"work_height": "未定"}
+    )
+
+
+def test_auto_deep_excavation_from_dig_depth():
+    from app.services.work_ticket_measure_rules import conditions_from_scenario
+
+    assert conditions_from_scenario(
+        ticket_type="PTZY", field_values={"dig_depth": 1.5}
+    )["deep_excavation"] is True
+    assert conditions_from_scenario(
+        ticket_type="PTZY", field_values={"dig_depth": "0.8"}
+    )["deep_excavation"] is False
+
+
+def test_auto_level_1_or_2_only_for_lifting():
+    from app.services.work_ticket_measure_rules import conditions_from_scenario
+
+    assert conditions_from_scenario(
+        ticket_type="QZDZ", level="一级"
+    )["level_1_or_2"] is True
+    assert conditions_from_scenario(
+        ticket_type="QZDZ", level="三级"
+    )["level_1_or_2"] is False
+    assert "level_1_or_2" not in conditions_from_scenario(ticket_type="DHZY", level="二级")

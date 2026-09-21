@@ -218,6 +218,9 @@ async def build_prefill(
         ticket_type=template.code,
         fire_method=fire_method or history_values.get("fire_method"),
         zone_name=zone_name,
+        work_period=values.get("work_period") or None,
+        field_values=values,
+        level=level,
         other_ticket_types=other_ticket_types,
         scenario=scenario,
     )

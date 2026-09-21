@@ -109,6 +109,9 @@ def conditions_from_scenario(
     ticket_type: str,
     fire_method: str | None = None,
     zone_name: str | None = None,
+    work_period: Sequence[str] | None = None,
+    field_values: Mapping[str, Any] | None = None,
+    level: str | None = None,
     other_ticket_types: Sequence[str] = (),
     scenario: Mapping[str, bool | None] | None = None,
 ) -> dict[str, bool | None]:
@@ -118,6 +121,10 @@ def conditions_from_scenario(
       - gas_welding / electric_welding：由动火方式文本推断
       - in_tank_area：由作业区域名称推断
       - has_other_tickets / height_work：由作业包内其他票种推断
+      - night_work：由作业时段推断（任一端落在 20:00~06:00）
+      - above_30m：由 `work_height` 字段推断
+      - deep_excavation：由 `dig_depth` 字段推断
+      - level_1_or_2：由吊装级别推断
     其余现场条件（是否进入设备内部、是否连接管线、周围有无窨井等）
     只能由用户在第 0 步的"作业情景"里勾选，勾了才有 True/False，否则为 None。
     """
@@ -128,7 +135,47 @@ def conditions_from_scenario(
         conditions["electric_welding"] = any(k in method for k in ("电焊", "电弧"))
     if zone_name:
         conditions["in_tank_area"] = any(k in zone_name for k in ("罐区", "储罐", "油罐"))
+    if work_period:
+        night = _period_hits_night(work_period)
+        if night is not None:
+            conditions["night_work"] = night
+    values = dict(field_values or {})
+    height = _as_float(values.get("work_height"))
+    if height is not None:
+        conditions["above_30m"] = height >= 30
+    depth = _as_float(values.get("dig_depth"))
+    if depth is not None:
+        conditions["deep_excavation"] = depth > 1.2
+    if ticket_type == "QZDZ" and level:
+        conditions["level_1_or_2"] = level in ("一级", "二级")
+    # 「是否还办了其他特殊作业票」对所有票种都成立（8 张票里 7 张有这条措施）
+    conditions["has_other_tickets"] = len(other_ticket_types) > 0
     if ticket_type == "DHZY":
-        conditions["has_other_tickets"] = len(other_ticket_types) > 0
         conditions["height_work"] = "GCZY" in other_ticket_types
     return conditions
+
+
+def _as_float(value: Any) -> float | None:
+    """把字段值转成数字；空值/非数字返回 None（宁可不判定，也不猜）。"""
+    if value is None or value == "":
+        return None
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _period_hits_night(period: Sequence[str]) -> bool | None:
+    """作业时段是否涉及夜间（20:00~06:00）；时段不可解析时返回 None。"""
+    from datetime import datetime
+
+    if not period or len(period) != 2:
+        return None
+    for endpoint in period:
+        try:
+            hour = datetime.fromisoformat(str(endpoint).replace("Z", "+00:00")).hour
+        except (TypeError, ValueError):
+            return None
+        if hour >= 20 or hour < 6:
+            return True
+    return False

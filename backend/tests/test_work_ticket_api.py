@@ -193,3 +193,73 @@ def test_templates_expose_allow_ai_prefill():
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert data[0]["fields"][0]["allow_ai_prefill"] is True
+
+
+def _scenario_row(ticket_type: str, key: str, label: str, order: int):
+    row = MagicMock()
+    row.ticket_type = ticket_type
+    row.condition_key = key
+    row.label = label
+    row.sort_order = order
+    row.auto_rule = None
+    return row
+
+
+def test_templates_expose_scenario_fields():
+    """每个模板要带出该票种的人工勾选情景项，前端才能按票种渲染情景区。"""
+    field = MagicMock()
+    field.field_key = "space_location"
+    field.label = "受限空间名称及位置"
+    field.field_type = "text"
+    field.group_name = "作业内容"
+    field.is_required = True
+    field.options = {}
+    field.allow_ai_prefill = False
+    field.sort_order = 1
+    template = MagicMock()
+    template.id = "tpl-yxkj"
+    template.code = "YXKJ"
+    template.name = "受限空间安全作业票"
+    template.level = None
+    template.is_graded = False
+    template.fields = [field]
+    template.measures = []
+
+    async def handler(stmt, *a, **k):
+        # 按查询目标表判断，而不是按调用次数——查询次数会随模板/流程是否存在而变化
+        sql_text = str(stmt)
+        if "work_ticket_scenarios" in sql_text:
+            return _Result(
+                [
+                    _scenario_row("YXKJ", "hazardous_residue", "受限空间盛装过有毒/可燃物料", 1),
+                    _scenario_row("YXKJ", "rotating_equipment", "内部有转动设备", 2),
+                ]
+            )
+        if "work_ticket_templates" in sql_text:
+            return _Result([template])
+        return _Result([])
+
+    client = _client(handler)
+    resp = client.get("/api/v1/work-ticket/templates")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data[0]["scenario_fields"] == [
+        {"key": "hazardous_residue", "label": "受限空间盛装过有毒/可燃物料"},
+        {"key": "rotating_equipment", "label": "内部有转动设备"},
+    ]
+
+
+def test_scenarios_endpoint_returns_only_manual_items():
+    """兜底端点只返回人工勾选项（auto_rule 为空），自动项不出现在情景区。"""
+
+    async def handler(stmt, *a, **k):
+        return _Result(
+            [_scenario_row("YXKJ", "hazardous_residue", "受限空间盛装过有毒/可燃物料", 1)]
+        )
+
+    client = _client(handler)
+    resp = client.get("/api/v1/work-ticket/scenarios", params={"ticket_type": "YXKJ"})
+    assert resp.status_code == 200
+    assert resp.json()["data"] == [
+        {"key": "hazardous_residue", "label": "受限空间盛装过有毒/可燃物料"}
+    ]

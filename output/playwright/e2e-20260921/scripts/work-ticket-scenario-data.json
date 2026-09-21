@@ -1,0 +1,117 @@
+{
+  "detail": {
+    "scenario_field_counts": {
+      "DHZY": 7,
+      "YXKJ": 6,
+      "MBCD": 6,
+      "LSYD": 6,
+      "PTZY": 4,
+      "DLZY": 0,
+      "GCZY": 8,
+      "QZDZ": 8
+    },
+    "DHZY": {
+      "plain": {
+        "unknown": 13,
+        "applicable": 0,
+        "not_applicable": 3
+      },
+      "with_scenario": {
+        "unknown": 6,
+        "applicable": 0,
+        "not_applicable": 10
+      }
+    },
+    "YXKJ": {
+      "plain": {
+        "unknown": 14,
+        "applicable": 0,
+        "not_applicable": 1
+      },
+      "with_scenario": {
+        "unknown": 7,
+        "applicable": 0,
+        "not_applicable": 8
+      }
+    },
+    "MBCD": {
+      "plain": {
+        "unknown": 10,
+        "applicable": 0,
+        "not_applicable": 1
+      },
+      "with_scenario": {
+        "unknown": 3,
+        "applicable": 0,
+        "not_applicable": 8
+      }
+    },
+    "LSYD": {
+      "plain": {
+        "unknown": 13,
+        "applicable": 0,
+        "not_applicable": 1
+      },
+      "with_scenario": {
+        "unknown": 6,
+        "applicable": 0,
+        "not_applicable": 8
+      }
+    },
+    "PTZY": {
+      "plain": {
+        "unknown": 9,
+        "applicable": 1,
+        "not_applicable": 1
+      },
+      "with_scenario": {
+        "unknown": 6,
+        "applicable": 1,
+        "not_applicable": 4
+      }
+    },
+    "DLZY": {
+      "plain": {
+        "unknown": 3,
+        "applicable": 1,
+        "not_applicable": 0
+      },
+      "with_scenario": {
+        "unknown": 3,
+        "applicable": 1,
+        "not_applicable": 0
+      }
+    },
+    "GCZY": {
+      "plain": {
+        "unknown": 14,
+        "applicable": 0,
+        "not_applicable": 1
+      },
+      "with_scenario": {
+        "unknown": 6,
+        "applicable": 0,
+        "not_applicable": 9
+      }
+    },
+    "QZDZ": {
+      "plain": {
+        "unknown": 18,
+        "applicable": 1,
+        "not_applicable": 1
+      },
+      "with_scenario": {
+        "unknown": 9,
+        "applicable": 1,
+        "not_applicable": 10
+      }
+    }
+  },
+  "checks": {
+    "scenario_fields_match_declaration": true,
+    "scenario_enables_judgement": true,
+    "conservative_without_scenario": true,
+    "dlzy_has_judgement": true
+  },
+  "all_passed": true
+}

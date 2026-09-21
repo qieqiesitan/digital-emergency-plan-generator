@@ -67,6 +67,10 @@ from app.services.work_ticket_batch import (
     tickets_of_batch,
     update_batch_shared,
 )
+from app.services.work_ticket_condition_loader import (
+    load_scenarios,
+    load_scenarios_by_type,
+)
 from app.services.work_ticket_prefill import _last_ticket, build_prefill
 
 router = APIRouter(prefix="/work-ticket", tags=["WorkTicket"], dependencies=[Depends(get_current_user)])
@@ -147,6 +151,8 @@ async def list_templates(db: AsyncSession = Depends(get_db)):
             )
             for node in node_res.scalars().all():
                 nodes_by_flow.setdefault(node.flow_template_id, []).append(node)
+    # 情景区按票种一次取完（避免每个模板一次查询）
+    scenarios_by_type = await load_scenarios_by_type(db)
     return _ok(
         [
             {
@@ -188,6 +194,8 @@ async def list_templates(db: AsyncSession = Depends(get_db)):
                         [],
                     )
                 ],
+                # 该票种的情景区（人工勾选项）——前端据此渲染，避免写死一组通用情景
+                "scenario_fields": scenarios_by_type.get(t.code, []),
             }
             for t in templates
         ]
@@ -511,6 +519,16 @@ async def api_prefill(
         scenario=scenario_dict,
     )
     return _ok(payload)
+
+
+@router.get("/scenarios")
+async def api_scenarios(
+    ticket_type: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """某票种的情景区（只含人工勾选项）。/templates 已带出，此处供作业包等场景单取。"""
+    return _ok(await load_scenarios(db, ticket_type))
 
 
 @router.get("/last-ticket")
