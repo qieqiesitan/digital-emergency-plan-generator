@@ -101,7 +101,7 @@ INSERT INTO work_ticket_measure_conditions (id, ticket_type, measure_ref, sort_o
 DELETE FROM work_ticket_measure_conditions WHERE ticket_type = 'DLZY';
 INSERT INTO work_ticket_measure_conditions (id, ticket_type, measure_ref, sort_order, condition_key) VALUES ('b7a09461-d6ab-5f5e-bcfd-b5bd1fd2b366', 'DLZY', '151379bfa1dbf376492052054e9fba32', 3, 'night_work') ON CONFLICT (id) DO NOTHING;
 
--- 情景项（仅人工勾选项；自动推断项不入情景区）
+-- 情景项：auto_rule 为空=人工勾选；非空=该票种用到的自动推断项（只读回显）
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'DHZY';
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('225dd995-0851-5eb6-8394-be02c6b64d11', 'DHZY', 'internal_work', '本次动火在设备内部', NULL, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('f193439c-cb95-53fc-9f11-9e36c2712da2', 'DHZY', 'connected_pipeline', '作业设备连接有管线/阀门', NULL, 2) ON CONFLICT (id) DO NOTHING;
@@ -110,6 +110,9 @@ INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_r
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('438a340f-8ef9-5f59-965e-7136dbc0c4e0', 'DHZY', 'height_work', '本次作业涉及高处作业', NULL, 5) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('404d20bd-df5f-5353-9887-fbc8d3087385', 'DHZY', 'has_flammable_lining', '设备内有可燃物构件或防腐内衬', NULL, 6) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('91215b41-cf98-5ec3-a819-1623afb0ad4a', 'DHZY', 'surrounding_hazardous_ops', '作业点周围有装卸/排放/喷漆等危险作业', NULL, 7) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('b433bb27-2f24-5198-9342-075492e847a9', 'DHZY', 'electric_welding', '本次动火使用电焊', 'fire_method_electric', 101) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('77068bef-80ac-53b3-a63a-152a1dcbb507', 'DHZY', 'gas_welding', '本次动火使用气焊/气割', 'fire_method_gas', 102) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('80ee63b3-e0a1-5f7f-adcb-2246ebf8283d', 'DHZY', 'has_other_tickets', '本次作业还办理了其他特殊作业票', 'tickets_in_batch', 103) ON CONFLICT (id) DO NOTHING;
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'YXKJ';
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('55f2371d-d58a-5365-bcad-8b37face39d0', 'YXKJ', 'hazardous_residue', '受限空间盛装过有毒/可燃物料', NULL, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('4dae7c4d-8449-589c-87b3-bbb0078b711d', 'YXKJ', 'connected_pipeline', '作业设备连接有管线/阀门', NULL, 2) ON CONFLICT (id) DO NOTHING;
@@ -117,6 +120,7 @@ INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_r
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('e6b214a9-efd4-590a-baec-d8fb9201aadb', 'YXKJ', 'flammable_atmosphere', '内部存在易燃易爆物料', NULL, 4) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('32d47f2b-dd4e-5d7c-9b4e-dc23977bed64', 'YXKJ', 'dust_inside', '内部存在大量扬尘', NULL, 5) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('910f549c-5fef-5d16-b2ce-2ff96d2c43d6', 'YXKJ', 'corrosive_medium', '存在强腐蚀性介质', NULL, 6) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('b34653c3-ce19-5e8d-8c30-d143b413b98d', 'YXKJ', 'has_other_tickets', '本次作业还办理了其他特殊作业票', 'tickets_in_batch', 101) ON CONFLICT (id) DO NOTHING;
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'MBCD';
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('2eed872c-1c59-5257-a91f-dac0a25b4c52', 'MBCD', 'toxic_medium', '存在有毒介质', NULL, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('8518b66c-7d72-5a06-a258-6ab57b0e3a7e', 'MBCD', 'explosion_hazard_area', '作业点在火灾爆炸危险场所', NULL, 2) ON CONFLICT (id) DO NOTHING;
@@ -124,6 +128,7 @@ INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_r
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('3070f7b5-3b37-5e6c-95e7-7cdfeb9340b0', 'MBCD', 'high_temp_medium', '介质温度较高（可能烫伤）', NULL, 4) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('34d5bbe3-6480-56f5-ab94-2c854d297462', 'MBCD', 'low_temp_medium', '介质温度较低（可能冻伤）', NULL, 5) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('c29d46c6-e242-5b6b-a8b8-7d757ecb56e9', 'MBCD', 'multi_point_same_pipe', '同一管道多处同时抽堵', NULL, 6) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('d9b968ad-980d-59ec-bd4e-5a18dfe1b650', 'MBCD', 'has_other_tickets', '本次作业还办理了其他特殊作业票', 'tickets_in_batch', 101) ON CONFLICT (id) DO NOTHING;
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'GCZY';
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('f9e88a07-86af-5073-8688-db28907014e6', 'GCZY', 'toxic_gas_area', '作业点可能散发有毒气体', NULL, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('4fcbd78b-c253-5218-95d5-7ed60ad079ed', 'GCZY', 'scaffold_used', '现场搭设脚手架/防护网', NULL, 2) ON CONFLICT (id) DO NOTHING;
@@ -133,6 +138,8 @@ INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_r
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('5393e1c2-6719-5419-af98-45d850740eca', 'GCZY', 'load_bearing_plate', '在不承重物处作业并搭设承重板', NULL, 6) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('0db9a23d-0050-59f4-bf91-38dcc9a8ff4f', 'GCZY', 'night_or_poor_light', '夜间作业或采光不足', NULL, 7) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('c6faa06b-66d9-5d8b-8040-7a821fa067a9', 'GCZY', 'outdoor', '露天作业', NULL, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('567777b4-6e39-5db8-a480-95cb8d3bab14', 'GCZY', 'above_30m', '作业高度 30m 以上', 'work_height_ge_30', 101) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('5807da9a-ebb3-5695-a4e4-5cbaffca7186', 'GCZY', 'has_other_tickets', '本次作业还办理了其他特殊作业票', 'tickets_in_batch', 102) ON CONFLICT (id) DO NOTHING;
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'QZDZ';
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('f2608605-d360-53e7-9fca-9d9fd61e1b50', 'QZDZ', 'hazardous_equipment_nearby', '吊装场所含危险物料的设备/管道', NULL, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('3fb37823-e035-54b5-b242-f396af8d2ed2', 'QZDZ', 'building_as_anchor', '以建筑物/构筑物作锚点', NULL, 2) ON CONFLICT (id) DO NOTHING;
@@ -142,6 +149,8 @@ INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_r
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('f1ec4bb9-df7e-59c3-8cc4-69d47d219eed', 'QZDZ', 'overhead_facilities', '吊装高度有管线/电缆桥架', NULL, 6) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('959618ae-c42f-5504-8d51-6fca77722c04', 'QZDZ', 'explosion_hazard_area', '作业点在火灾爆炸危险场所', NULL, 7) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('2a8a95d0-db20-51a6-b653-527c188b274d', 'QZDZ', 'outdoor', '露天作业', NULL, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('1cc401eb-c232-5628-9591-ecd32651419e', 'QZDZ', 'has_other_tickets', '本次作业还办理了其他特殊作业票', 'tickets_in_batch', 101) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('cdf775f3-fbc5-5605-a223-bbcbadbc9fa7', 'QZDZ', 'level_1_or_2', '一、二级吊装作业', 'lift_level_1_or_2', 102) ON CONFLICT (id) DO NOTHING;
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'LSYD';
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('388c17aa-a9e3-53f9-8e20-0c17af410c7e', 'LSYD', 'explosion_hazard_area', '作业点在火灾爆炸危险场所', NULL, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('1a873c64-bf65-5187-846a-328e5c6e10eb', 'LSYD', 'line_elevated', '临时用电线路架高敷设', NULL, 2) ON CONFLICT (id) DO NOTHING;
@@ -149,11 +158,16 @@ INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_r
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('443b8ffc-e342-5491-8921-5dbc17d5712e', 'LSYD', 'line_along_surface', '线路沿墙面或地面敷设', NULL, 4) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('3f8ac22a-b546-5ca3-824b-ac5160968394', 'LSYD', 'underground_cable', '有暗管埋设/地下电缆', NULL, 5) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('7fa8a781-d73e-5a82-a9e2-8e4f5cc89d66', 'LSYD', 'outdoor', '露天作业', NULL, 6) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('ba5d9105-192b-511f-b84d-a123b34697b7', 'LSYD', 'has_other_tickets', '本次作业还办理了其他特殊作业票', 'tickets_in_batch', 101) ON CONFLICT (id) DO NOTHING;
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'PTZY';
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('ffe6b273-b2c4-5c5c-9c0a-4bbba0d202e7', 'PTZY', 'underground_cable', '有暗管埋设/地下电缆', NULL, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('78bf7ee4-7a34-541d-abdb-95a8727b03b1', 'PTZY', 'underground_pipeline', '地下有供排水/消防/工艺管线', NULL, 2) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('fed6b5cb-540d-560a-bb24-7265ae847175', 'PTZY', 'on_road', '在道路范围施工', NULL, 3) ON CONFLICT (id) DO NOTHING;
 INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('bcbe5bbf-5724-5255-876b-6aa64e3d40a7', 'PTZY', 'hazardous_area', '作业点存在易燃易爆/有毒气体', NULL, 4) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('b32e99e5-dbd1-5647-88a4-a826499d0167', 'PTZY', 'deep_excavation', '动土深度超过 1.2m', 'dig_depth_gt_1_2', 101) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('5c06a1c4-da02-548b-8a14-f9fad6fd373c', 'PTZY', 'has_other_tickets', '本次作业还办理了其他特殊作业票', 'tickets_in_batch', 102) ON CONFLICT (id) DO NOTHING;
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('8da32162-d17d-5f46-b060-91a6e3c88dba', 'PTZY', 'night_work', '作业时段涉及夜间（20:00~06:00）', 'period_at_night', 103) ON CONFLICT (id) DO NOTHING;
 DELETE FROM work_ticket_scenarios WHERE ticket_type = 'DLZY';
+INSERT INTO work_ticket_scenarios (id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES ('18f637cf-aabc-5819-8dcd-10cd9878ed85', 'DLZY', 'night_work', '作业时段涉及夜间（20:00~06:00）', 'period_at_night', 101) ON CONFLICT (id) DO NOTHING;
 
 COMMIT;

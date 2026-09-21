@@ -153,20 +153,38 @@ def build_sql(measures_override: dict | None = None) -> tuple[str, dict]:
             + json.dumps(missing, ensure_ascii=False)
         )
 
-    # 情景项：只写人工勾选项（auto_rule 为空）；自动项由前端按规则回显，不入情景区
+    # 情景项表同时承载"人工勾选项"与"该票种用到的自动项"：
+    #   - auto_rule 为空 → 前端情景区展示为勾选框
+    #   - auto_rule 非空 → 前端只读回显（"系统自动判定：…"），且提供判定原因用的中文名
     lines.append("")
-    lines.append("-- 情景项（仅人工勾选项；自动推断项不入情景区）")
+    lines.append("-- 情景项：auto_rule 为空=人工勾选；非空=该票种用到的自动推断项（只读回显）")
     for code, block in tickets.items():
         scenario_lines.append(f"DELETE FROM work_ticket_scenarios WHERE ticket_type = {_q(code)};")
-        for order, key in enumerate(block.get("scenario") or [], start=1):
-            meta = conditions.get(key)
-            if not isinstance(meta, dict) or meta.get("auto"):
-                continue
+        manual_keys = [
+            key
+            for key in (block.get("scenario") or [])
+            if not (conditions.get(key) or {}).get("auto")
+        ]
+        used_auto: set[str] = set()
+        for item in block.get("measures") or []:
+            for cond in item.get("conditions") or []:
+                if (conditions.get(cond) or {}).get("auto"):
+                    used_auto.add(cond)
+        entries: list[tuple[str, str | None, int]] = [
+            (key, None, order) for order, key in enumerate(manual_keys, start=1)
+        ]
+        entries += [
+            (key, str((conditions.get(key) or {}).get("auto")), 100 + order)
+            for order, key in enumerate(sorted(used_auto), start=1)
+        ]
+        for key, auto_rule, order in entries:
+            meta = conditions.get(key) or {}
             scenario_lines.append(
                 "INSERT INTO work_ticket_scenarios "
                 "(id, ticket_type, condition_key, label, auto_rule, sort_order) VALUES "
                 f"({_q(_uid('scenario', f'{code}/{key}'))}, {_q(code)}, {_q(key)}, "
-                f"{_q(str(meta.get('label') or key))}, NULL, {order}) "
+                f"{_q(str(meta.get('label') or key))}, "
+                f"{_q(auto_rule) if auto_rule else 'NULL'}, {order}) "
                 "ON CONFLICT (id) DO NOTHING;"
             )
     lines.extend(scenario_lines)

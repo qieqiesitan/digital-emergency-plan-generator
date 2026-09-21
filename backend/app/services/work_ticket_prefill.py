@@ -24,6 +24,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enterprise import Enterprise
 from app.models.enterprise_org import EnterpriseMember
 from app.models.work_ticket import WorkTicketInstance
+from app.services.work_ticket_condition_loader import (
+    load_condition_labels,
+    load_conditions,
+)
 from app.services.work_ticket_measure_rules import (
     MeasureContext,
     conditions_from_scenario,
@@ -217,9 +221,15 @@ async def build_prefill(
         other_ticket_types=other_ticket_types,
         scenario=scenario,
     )
+    # 映射与标签都从表里取（表由 YAML + 生成器产出）：这样标准文本更新后
+    # 只需重跑生成器，不需要改代码。
+    conditions_map = await load_conditions(db)
+    condition_labels = await load_condition_labels(db)
     measures_suggestions = suggest_measures(
         list(getattr(template, "measures", []) or []),
         MeasureContext(ticket_type=template.code, conditions=conditions),
+        conditions_map=conditions_map,
+        labels=condition_labels,
     )
     return {
         "values": values,

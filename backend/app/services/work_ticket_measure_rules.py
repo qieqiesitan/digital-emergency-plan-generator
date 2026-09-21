@@ -1,10 +1,12 @@
 """措施"是否涉及"建议引擎（确定性、纯函数）。
 
 设计要点：
-- 只对**已建立条件映射**的措施给建议（首批为动火票 16 条，依据 GB 30871-2022
-  附录A 表A.1 第 1~16 条），其余一律 unknown —— 宁可少建议，也不猜。
-- 条件值三态：True / False / None。只要有任一条件为 None，就不得给出
-  not_applicable，否则就是把"不知道"当成"不涉及"（安全底线）。
+- 映射不写在本模块里：由 `work_ticket_condition_loader` 从
+  `work_ticket_measure_conditions` 表加载后注入（表由 YAML + 生成器产出，见规格）。
+  本模块只保留判定逻辑——纯函数、可单测。
+- **锚定键是措施正文**（`measure_ref(measure_text)`），不是序号：标准修订插入条文时不会错判。
+- 条件值三态：True / False / None。任一条件未确定时不得给出 not_applicable，
+  否则就是把"不知道"当成"不涉及"（安全底线）。
 - 建议只影响排序与分组，**绝不自动写入 measures_meta**；落地必须人工点击。
 """
 
@@ -13,43 +15,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
+from app.services.work_ticket_condition_loader import measure_ref
+
 UNKNOWN = "unknown"
 APPLICABLE = "applicable"
 NOT_APPLICABLE = "not_applicable"
 
-# 条件键 → 中文说明（用于向用户解释判定依据）
-CONDITION_LABELS: dict[str, str] = {
-    "internal_work": "本次动火在设备内部",
-    "connected_pipeline": "动火设备连接有管线",
-    "surroundings_ignition": "动火点周围有孔洞/窨井/地沟/污水井",
-    "in_tank_area": "作业点在油气罐区防火堤内",
-    "height_work": "本次作业涉及高处作业",
-    "has_flammable_lining": "设备内有可燃物构件或防腐内衬",
-    "gas_welding": "本次动火使用气焊/气割",
-    "electric_welding": "本次动火使用电焊",
-    "surrounding_hazardous_ops": "动火点周围有装卸/排放/喷漆等危险作业",
-    "has_other_tickets": "本次作业还办理了其他特殊作业票",
-}
-
-# (票种, 措施序号) → 该措施成立所依赖的条件键。
-# 语义：**任一条件为真 → 涉及**；全部为假 → 不涉及；任一为 None → 无法判定。
-# 依据：GB 30871-2022 附录A 表A.1（动火安全作业票）第 1~16 条。
-MEASURE_CONDITIONS: dict[tuple[str, int], tuple[str, ...]] = {
-    ("DHZY", 1): ("internal_work",),
-    ("DHZY", 2): ("connected_pipeline",),
-    ("DHZY", 3): ("surroundings_ignition",),
-    ("DHZY", 4): ("in_tank_area",),
-    ("DHZY", 5): ("height_work",),
-    ("DHZY", 6): ("has_flammable_lining",),
-    ("DHZY", 7): ("gas_welding",),
-    ("DHZY", 9): ("electric_welding",),
-    ("DHZY", 10): ("surrounding_hazardous_ops",),
-    ("DHZY", 11): ("surrounding_hazardous_ops",),
-    ("DHZY", 12): ("has_other_tickets",),
-    # 连续检测仪：电焊或气焊任一方式都要求配备
-    ("DHZY", 13): ("gas_welding", "electric_welding"),
-    ("DHZY", 15): ("has_other_tickets",),
-}
+# 判定语义：**任一条件为真 → 涉及**；全部为假 → 不涉及；任一为 None → 无法判定。
+ConditionsMap = Mapping[tuple[str, str], Sequence[str]]
+ConditionLabels = Mapping[str, str]
 
 
 @dataclass(frozen=True)
@@ -66,21 +40,45 @@ def _order_of(measure: Any) -> int:
     return int(measure.sort_order)
 
 
+def _text_of(measure: Any) -> str:
+    if isinstance(measure, Mapping):
+        return str(measure.get("measure_text") or "")
+    return str(getattr(measure, "measure_text", "") or "")
+
+
+def _keys_for(
+    measure: Any, context: MeasureContext, conditions_map: ConditionsMap | None
+) -> tuple[str, ...]:
+    """按措施正文锚点查该票种的条件键；无映射（含未传表）时返回空 → 落 unknown。"""
+    if not conditions_map:
+        return ()
+    return tuple(conditions_map.get((context.ticket_type, measure_ref(_text_of(measure))), ()))
+
+
 def suggest_measures(
-    measures: Sequence[Any], context: MeasureContext
+    measures: Sequence[Any],
+    context: MeasureContext,
+    *,
+    conditions_map: ConditionsMap | None = None,
+    labels: ConditionLabels | None = None,
 ) -> list[dict[str, Any]]:
-    """返回每条措施的建议：{sort_order, suggest, reason}。"""
+    """返回每条措施的建议：{sort_order, suggest, reason}。
+
+    `conditions_map` 缺省（或为空）时，所有措施落 `unknown`——这是安全默认：
+    宁可让人逐条确认，也不在缺少映射时给出"不涉及"。
+    """
+    label_of = dict(labels or {})
     out: list[dict[str, Any]] = []
     for measure in measures:
         order = _order_of(measure)
-        keys = MEASURE_CONDITIONS.get((context.ticket_type, order), ())
+        keys = _keys_for(measure, context, conditions_map)
         if not keys:
             out.append({"sort_order": order, "suggest": UNKNOWN, "reason": None})
             continue
         values = [context.conditions.get(key) for key in keys]
         if any(value is True for value in values):
             hit = [
-                CONDITION_LABELS[key]
+                label_of.get(key, key)
                 for key, value in zip(keys, values, strict=True)
                 if value is True
             ]
@@ -100,7 +98,7 @@ def suggest_measures(
                 {
                     "sort_order": order,
                     "suggest": NOT_APPLICABLE,
-                    "reason": "本票不涉及：" + "；".join(CONDITION_LABELS[k] for k in keys),
+                    "reason": "本票不涉及：" + "；".join(label_of.get(k, k) for k in keys),
                 }
             )
     return out

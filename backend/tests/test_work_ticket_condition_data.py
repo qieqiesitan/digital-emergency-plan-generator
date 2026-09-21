@@ -109,13 +109,17 @@ def test_generator_anchor_survives_reordering():
     assert all(len(ref) == 32 for ref in refs_a)
 
 
-def test_generator_emits_scenario_rows_only_manual():
-    """情景区只写入人工勾选项（auto_rule 为空的项）。"""
+def test_generator_marks_manual_and_auto_scenario_rows():
+    """情景表同时存人工项与自动项：人工项 auto_rule 为 NULL，自动项非空。"""
     mod = _generator()
     sql, _ = mod.build_sql()
     scenario_lines = [
         line for line in sql.splitlines() if "INTO work_ticket_scenarios " in line
     ]
     assert scenario_lines, "未生成情景项"
-    for auto_key in ("night_work", "has_other_tickets", "gas_welding"):
-        assert not any(f"'{auto_key}'" in line for line in scenario_lines), auto_key
+    # 动火票的自动项（气焊/电焊）必须写入且带 auto_rule，否则判定原因里只剩键名
+    gas_line = next(line for line in scenario_lines if "'gas_welding'" in line)
+    assert "'fire_method_gas'" in gas_line, gas_line
+    # 人工项（如 in_tank_area）必须是 NULL
+    manual_line = next(line for line in scenario_lines if "'in_tank_area'" in line)
+    assert ", NULL," in manual_line, manual_line
