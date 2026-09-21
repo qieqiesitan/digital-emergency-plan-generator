@@ -1,0 +1,17 @@
+{
+  "checks": {
+    "loading_hint_visible": true,
+    "button_shows_progress": true,
+    "ai_call_reached_outcome": true,
+    "button_recovered": true,
+    "no_console_error": true
+  },
+  "detail": {
+    "step4_text_has_jsa": true,
+    "instant_snapshot": "数字化预案系统\n工作台\n企业管理\n预案列表\n设置\nE2E测试用户\n← 返回企业驾驶舱\n特殊作业\nSPECIAL WORK TICKET\n特殊作业\n作业票\n基础设置\n审批工作台\n← 返回\n开票\n按 GB 30871-2022 附录A 票面填报；带来源徽标的字段为系统自动带出，请核对\n类型与级别\n票面内容\n气体检测\n安全措施\n5\nJSA\n6\n人员与提交\nAI 生成中…\nAI 正在生成风险辨识结果与 JSA 草稿，通常需要 10~60 秒，请勿关闭页面…\nJSA（作业危害分析）可由 AI 生成草稿，是否采用由你决定。\n生成中，请稍候\n上一步\n下一步\nAI 助手\nAI 正在生成风险辨识结果与 JSA ",
+    "outcome": "completed",
+    "final_snapshot": "数字化预案系统\n工作台\n企业管理\n预案列表\n设置\nE2E测试用户\n← 返回企业驾驶舱\n特殊作业\nSPECIAL WORK TICKET\n特殊作业\n作业票\n基础设置\n审批工作台\n← 返回\n开票\n按 GB 30871-2022 附录A 票面填报；带来源徽标的字段为系统自动带出，请核对\n类型与级别\n票面内容\n气体检测\n安全措施\n5\nJSA\n6\n人员与提交\nAI 生成完成\n已生成风险辨识结果与JSA：请核对内容后点「采用」确认。\nJSA（作业危害分析）可由 AI 生成草稿，是否采用由你决定。\nAI 生成\nAI 生成\n采 用\n上一步\n下一步\nAI 助手\nAI 正在生成风险辨识结果与 JSA 草稿，通常需要 10~60 秒…\n已生成风险辨识结果与JSA，请核对后点「采用」",
+    "errors": []
+  },
+  "all_passed": true
+}

@@ -112,6 +112,10 @@ export default function WorkTicketNewPage() {
   const [problems, setProblems] = useState<string[]>([]);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [prefillNote, setPrefillNote] = useState<string | null>(null);
+  // AI 生成是慢操作（LLM 通常 10~60 秒）：必须有 loading 与显式提示，
+  // 否则用户点完不知道点上没有，结果又是"突然冒出来"的。
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiHint, setAiHint] = useState<string | null>(null);
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", id],
@@ -395,33 +399,58 @@ export default function WorkTicketNewPage() {
     }
   };
 
-  /** AI 生成风险辨识结果：用户显式点击才调用，失败静默降级。 */
+  /**
+   * AI 生成风险辨识结果与 JSA 草稿（一次调用同时产出两者）。
+   *
+   * 交互要求：点击后必须立刻有反馈。LLM 通常要 10~60 秒，期间按钮进入 loading、
+   * 页面持续显示等待提示；返回后提示这次改了哪些字段（因为它可能同时更新第 1 步的
+   * 风险辨识结果和第 4 步的 JSA）。任何异常都要有出口，不能让按钮一直转或毫无反应。
+   */
   const handleAiRisk = async () => {
-    if (!id || !activeTicketType) return;
-    const result = await aiPrefill({
-      enterprise_id: id,
-      ticket_type: activeTicketType,
-      level: activeLevel || null,
-      work_content: (form.getFieldValue("work_content") as string) ?? null,
-    });
-    if (!result.available || !result.risk_identification) {
-      message.info(result.note || "AI 暂不可用，请手动填写");
-      return;
+    if (!id || !activeTicketType || aiLoading) return;
+    setAiLoading(true);
+    setAiHint("AI 正在生成风险辨识结果与 JSA 草稿，通常需要 10~60 秒，请勿关闭页面…");
+    const hideLoading = message.loading(
+      "AI 正在生成风险辨识结果与 JSA 草稿，通常需要 10~60 秒…",
+      0,
+    );
+    try {
+      const result = await aiPrefill({
+        enterprise_id: id,
+        ticket_type: activeTicketType,
+        level: activeLevel || null,
+        work_content: (form.getFieldValue("work_content") as string) ?? null,
+      });
+      if (!result.available || !result.risk_identification) {
+        message.info(result.note || "AI 暂不可用，请手动填写");
+        setAiHint(null);
+        return;
+      }
+      form.setFieldValue("risk_identification", result.risk_identification.text);
+      setValuesMeta((prev) => ({
+        ...prev,
+        risk_identification: {
+          source: "ai",
+          source_ref: { basis: result.risk_identification?.basis ?? [] },
+          edited: false,
+        },
+      }));
+      const filled = ["风险辨识结果"];
+      if (result.jsa?.text) {
+        setJsa(result.jsa.text);
+        setJsaMeta({ source: "ai", edited: false });
+        filled.push("JSA");
+      }
+      message.success(`已生成${filled.join("与")}，请核对后点「采用」`);
+      setAiHint(`已生成${filled.join("与")}：请核对内容后点「采用」确认。`);
+    } catch (err) {
+      // 网络层/超时等异常必须给出出口，否则按钮会一直停在 loading
+      message.error(errorDetail(err, "AI 生成失败，请稍后重试或手动填写"));
+      setAiHint(null);
+    } finally {
+      hideLoading();
+      setAiLoading(false);
     }
-    form.setFieldValue("risk_identification", result.risk_identification.text);
-    setValuesMeta((prev) => ({
-      ...prev,
-      risk_identification: {
-        source: "ai",
-        source_ref: { basis: result.risk_identification?.basis ?? [] },
-        edited: false,
-      },
-    }));
-    if (result.jsa?.text) {
-      setJsa(result.jsa.text);
-      setJsaMeta({ source: "ai", edited: false });
-    }
-    message.success("已生成，请核对后确认采用");
   };
 
   const renderField = (field: WorkTicketFieldDef) => {
@@ -506,6 +535,17 @@ export default function WorkTicketNewPage() {
       />
 
       <Steps current={step} size="small" items={STEPS} style={{ marginBottom: 24 }} />
+
+      {/* AI 生成是慢操作：无论用户当前停在哪一步，都能看到它是否还在跑 */}
+      {aiHint && (
+        <Alert
+          type={aiLoading ? "info" : "success"}
+          showIcon
+          style={{ marginBottom: 16 }}
+          title={aiLoading ? "AI 生成中…" : "AI 生成完成"}
+          description={aiHint}
+        />
+      )}
 
       {step === 0 && (
         <Space orientation="vertical" size={16} style={{ width: "100%" }}>
@@ -658,8 +698,14 @@ export default function WorkTicketNewPage() {
                         detail={SOURCE_LABEL[fieldSource(field.field_key) ?? "manual"]}
                       />
                       {field.allow_ai_prefill && (
-                        <Button size="small" type="link" onClick={handleAiRisk}>
-                          AI 生成
+                        <Button
+                          size="small"
+                          type="link"
+                          loading={aiLoading}
+                          disabled={aiLoading}
+                          onClick={handleAiRisk}
+                        >
+                          {aiLoading ? "生成中" : "AI 生成"}
                         </Button>
                       )}
                       {valuesMeta[field.field_key]?.source === "ai" &&
@@ -715,8 +761,13 @@ export default function WorkTicketNewPage() {
             <Text type="secondary">
               JSA（作业危害分析）可由 AI 生成草稿，是否采用由你决定。
             </Text>
-            <Button size="small" onClick={handleAiRisk}>
-              AI 生成
+            <Button
+              size="small"
+              loading={aiLoading}
+              disabled={aiLoading}
+              onClick={handleAiRisk}
+            >
+              {aiLoading ? "生成中，请稍候" : "AI 生成"}
             </Button>
           </Space>
           <Input.TextArea
