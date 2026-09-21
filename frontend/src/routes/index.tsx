@@ -179,6 +179,7 @@ const contentRoutes = [
       { path: "batches/new", element: <WorkTicketBatchNewPage /> },
       { path: "batches/:batchId", element: <WorkTicketBatchWorkspacePage /> },
       { path: "approval", element: <WorkTicketApprovalPage /> },
+      { path: ":ticketId/edit", element: <WorkTicketNewPage /> },
       { path: ":ticketId", element: <WorkTicketDetailPage /> },
     ],
   },

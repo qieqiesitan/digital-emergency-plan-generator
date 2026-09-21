@@ -14,7 +14,7 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { PrinterOutlined, SendOutlined } from "@ant-design/icons";
+import { EditOutlined, PrinterOutlined, SendOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -180,6 +180,14 @@ export default function WorkTicketDetailPage() {
         onBack={() => navigate(`/enterprises/${id}/work-ticket`)}
         extra={
           <Space>
+            {ticket?.status === "draft" && (
+              <Button
+                icon={<EditOutlined />}
+                onClick={() => navigate(`/enterprises/${id}/work-ticket/${ticket.id}/edit`)}
+              >
+                继续填写
+              </Button>
+            )}
             {ticket?.status === "draft" && (
               <Button
                 type="primary"

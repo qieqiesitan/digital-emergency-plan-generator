@@ -17,12 +17,12 @@ import {
   Typography,
 } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
 import GasTestTable from "@/components/enterprise/workTicket/GasTestTable";
 import MeasureChecklist from "@/components/enterprise/workTicket/MeasureChecklist";
 import { SOURCE_LABEL } from "@/components/enterprise/workTicket/fieldSources";
 import { normalizeValues, toFormValues } from "@/components/enterprise/workTicket/formValues";
 import { pruneScenario, scenarioFieldsFor } from "@/components/enterprise/workTicket/scenarioScope";
+import { computeStepStates } from "@/components/enterprise/workTicket/stepStatus";
 import PrefillBadge from "@/components/enterprise/workTicket/PrefillBadge";
 import { PageHeader } from "@/components/common/PageHeader";
 import { getEnterprise } from "@/services/enterpriseService";
@@ -31,6 +31,7 @@ import {
   aiPrefill,
   errorDetail,
   getPrefill,
+  getTicketDetail,
   listLocations,
   listTemplates,
   openTicket,
@@ -90,7 +91,8 @@ function flowPreview(nodes: WorkTicketFlowNodeDef[]) {
  * - 第 5 步给出「填写来源摘要」，AI 生成但未确认的字段会阻断提交
  */
 export default function WorkTicketNewPage() {
-  const { id } = useParams<{ id: string }>();
+  // 同一个页面承担两种角色：新开票（无 ticketId）与继续编辑草稿（有 ticketId）
+  const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
   const { message } = AntApp.useApp();
 
@@ -111,11 +113,21 @@ export default function WorkTicketNewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   const [draftId, setDraftId] = useState<string | null>(null);
+  // 草稿一旦加载完成，就**不再跑预填**——否则预填会覆盖用户上次保存的内容
+  const [loadedDraft, setLoadedDraft] = useState(false);
   const [prefillNote, setPrefillNote] = useState<string | null>(null);
   // AI 生成是慢操作（LLM 通常 10~60 秒）：必须有 loading 与显式提示，
   // 否则用户点完不知道点上没有，结果又是"突然冒出来"的。
   const [aiLoading, setAiLoading] = useState(false);
   const [aiHint, setAiHint] = useState<string | null>(null);
+  // 响应式读取表单值：步骤条的「待补 N 项」要随填写实时更新。
+  // 用 useWatch 而不是自己维护 state —— 它同时能捕获 setFieldsValue（预填/联动/草稿回填），
+  // 那些写入不会触发 onValuesChange。
+  const watched = Form.useWatch([], form);
+  const watchedValues = useMemo(
+    () => (watched ?? {}) as Record<string, unknown>,
+    [watched],
+  );
 
   const { data: enterprise } = useQuery({
     queryKey: ["enterprise", id],
@@ -133,6 +145,7 @@ export default function WorkTicketNewPage() {
     queryFn: () => listLocations(id as string),
     enabled: Boolean(id),
   });
+
 
   const enabledTypes = useMemo(() => {
     const codes = new Set((templates ?? []).map((t) => t.code));
@@ -174,10 +187,31 @@ export default function WorkTicketNewPage() {
     : false;
 
   const requiredFields = (template?.fields ?? []).filter((f) => f.is_required);
-  const mandatoryMeasures = template?.measures ?? [];
+  const mandatoryMeasures = useMemo(() => template?.measures ?? [], [template]);
   const levelFieldKey = activeTicketType ? LEVEL_FIELD_BY_TYPE[activeTicketType] : undefined;
   // 情景区随票种变化：项来自后端（YAML 条件表），不再写死一组通用的动火情景
   const scenarioFields = useMemo(() => scenarioFieldsFor(template), [template]);
+
+  /**
+   * 每步的完成状态与全量问题清单（提交失败要跳到第一个出问题的步骤）。
+   * 只做提示与定位，**不拦人**：允许先继续填后面的步骤，提交前必须补齐。
+   */
+  const { states: stepStates, problems: stepProblems } = useMemo(
+    () =>
+      computeStepStates({
+        requiredFields: requiredFields.map((f) => ({ key: f.field_key, label: f.label })),
+        values: watchedValues,
+        valuesMeta,
+        measures: mandatoryMeasures.map((m) => ({ sort_order: m.sort_order })),
+        measuresMeta,
+        requiresGasTest,
+        gasTests,
+      }),
+    [requiredFields, watchedValues, valuesMeta, mandatoryMeasures, measuresMeta, requiresGasTest, gasTests],
+  );
+
+  /** 当前步骤自己的缺项（显示在本步顶部，不让用户翻回去找） */
+  const currentStepProblems = stepProblems.filter((p) => p.step === step);
 
   /** 传给后端的作业情景：勾选=true；开了「已核实」开关时未勾选的项=false。 */
   const scenarioParam = useMemo(() => {
@@ -189,9 +223,64 @@ export default function WorkTicketNewPage() {
     return out;
   }, [scenario, scenarioDeclared, scenarioFields]);
 
+  /**
+   * 继续编辑草稿：拉取草稿内容并回填。
+   *
+   * 两个先后依赖要处理：① 草稿的票种/级别决定用哪个模板，模板未就位时先对齐；
+   * ② 回填必须发生在模板就位之后（`templates` 是依赖之一，模板加载完 effect 会重跑）。
+   * 回填完成后置 `loadedDraft`，预填 effect 随即停手——草稿内容优先于任何预填。
+   */
+  useEffect(() => {
+    if (!ticketId || loadedDraft || !templates?.length) return;
+    let cancelled = false;
+    getTicketDetail(ticketId)
+      .then((detail) => {
+        if (cancelled) return;
+        // 票详情接口不返回 template_id，按「票种 + 级别」定位模板（与向导自身的选择逻辑一致）
+        const tpl = templates.find(
+          (item) =>
+            item.code === detail.ticket.ticket_type &&
+            (item.level ?? null) === (detail.ticket.level ?? null),
+        );
+        if (!tpl) {
+          message.error("该草稿对应的模板已停用，无法继续编辑");
+          return;
+        }
+        const values = (detail.ticket.values ?? {}) as Record<string, unknown>;
+        setTicketType(detail.ticket.ticket_type as WorkTicketTypeCode);
+        if (detail.ticket.level) setLevel(detail.ticket.level);
+        form.setFieldsValue(toFormValues(tpl.fields ?? [], values));
+        setValuesMeta(detail.ticket.values_meta ?? {});
+        setMeasuresMeta(detail.ticket.measures_meta ?? {});
+        setGasTests(
+          (detail.gas_tests ?? []).map((gas) => ({
+            sampled_at: gas.sampled_at,
+            location: gas.location ?? null,
+            gas_type: gas.gas_type ?? null,
+            result: gas.result ?? null,
+            tester: gas.tester ?? null,
+            conclusion: gas.conclusion ?? null,
+          })),
+        );
+        setJsa(typeof values.jsa === "string" ? values.jsa : "");
+        setDraftId(detail.ticket.id);
+        setLoadedDraft(true);
+        setPrefillNote("已加载草稿内容，可直接修改后重新提交");
+      })
+      .catch(() => {
+        if (!cancelled) message.error("草稿加载失败，将按新票处理");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ticketId, templates, loadedDraft, form, message]);
+
   /** 确定性预填：模板或级别变化时重新取数（不触发 AI，无 token 成本）。 */
   useEffect(() => {
-    if (!id || !template) return;
+    // 草稿内容优先：编辑草稿时**完全不预填**。
+    // 只靠 loadedDraft 判断不够——预填请求可能先发出、响应后到，
+    // 那样仍会覆盖草稿值（2026-09-21 实测踩到）。
+    if (!id || !template || loadedDraft || ticketId) return;
     let cancelled = false;
     getPrefill({
       enterprise_id: id,
@@ -268,49 +357,6 @@ export default function WorkTicketNewPage() {
   const fieldSource = (key: string): FieldSource | undefined =>
     levelFieldKey === key && activeLevel ? "template_link" : valuesMeta[key]?.source;
 
-  /** 与后端 validate_before_submit 同一条规则，提前把问题说清楚。 */
-  const localPrecheck = (): string[] => {
-    const errs: string[] = [];
-    const raw = (form.getFieldsValue() ?? {}) as Record<string, unknown>;
-    for (const f of requiredFields) {
-      const value = raw[f.field_key];
-      if (value === undefined || value === null || value === "") {
-        errs.push(`必填项「${f.label}」尚未填写`);
-      }
-      const meta = valuesMeta[f.field_key];
-      if (meta?.source === "ai" && !meta.confirmed_at) {
-        errs.push(`「${f.label}」为 AI 生成内容，尚未经人工确认`);
-      }
-    }
-    const missing = mandatoryMeasures.filter((m) => {
-      const state = measuresMeta[String(m.sort_order)]?.state;
-      return state !== "confirmed" && state !== "not_applicable";
-    });
-    if (missing.length > 0) {
-      errs.push(
-        `还有 ${missing.length} 条安全措施未表态（如「${missing[0].measure_text.slice(0, 20)}…」）`,
-      );
-    }
-    for (const [key, meta] of Object.entries(measuresMeta)) {
-      if (meta.state === "not_applicable" && !meta.reason_text?.trim()) {
-        errs.push(`第 ${key} 条措施标记为「本票不涉及」，但未填写理由`);
-      }
-    }
-    if (requiresGasTest) {
-      if (gasTests.length === 0) {
-        errs.push("动火/受限空间作业必须至少录入一次气体检测记录");
-      } else {
-        const latest = gasTests
-          .map((g) => dayjs(g.sampled_at))
-          .sort((a, b) => b.valueOf() - a.valueOf())[0];
-        if (dayjs().diff(latest, "minute") > 30) {
-          errs.push("气体检测取样时间已超过 30 分钟，请重新检测后再提交");
-        }
-      }
-    }
-    return errs;
-  };
-
   const collectPayload = () => ({
     values: {
       ...normalizeValues(template?.fields ?? [], form.getFieldsValue()),
@@ -359,10 +405,14 @@ export default function WorkTicketNewPage() {
       message.error("未找到对应的作业票模板，请检查模板种子数据");
       return;
     }
-    const errs = localPrecheck();
-    setProblems(errs);
-    if (errs.length > 0) {
-      message.warning("提交前校验未通过，请按清单逐条处理");
+    if (stepProblems.length > 0) {
+      // 不再只甩一份文字清单：直接跳到第一个出问题的步骤，并在该步顶部列出缺项
+      const first = stepProblems[0];
+      setProblems(stepProblems.map((problem) => problem.message));
+      setStep(first.step);
+      message.warning(
+        `提交前校验未通过，已跳到「${STEPS[first.step].title}」：${first.message}`,
+      );
       return;
     }
     setSubmitting(true);
@@ -534,7 +584,36 @@ export default function WorkTicketNewPage() {
         onBack={() => navigate(`/enterprises/${id}/work-ticket`)}
       />
 
-      <Steps current={step} size="small" items={STEPS} style={{ marginBottom: 24 }} />
+      {/* 步骤条直接显示每步状态：不用点进去就知道哪步没弄完（放行策略，不拦人） */}
+      <Steps
+        current={step}
+        size="small"
+        style={{ marginBottom: 24 }}
+        items={STEPS.map((item, index) => ({
+          title: item.title,
+          description: stepStates[index]?.label || undefined,
+          status: stepStates[index]?.missing > 0 ? "error" : undefined,
+        }))}
+      />
+
+      {currentStepProblems.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          title={`本步还有 ${currentStepProblems.length} 项未完成（可先继续，提交前必须补齐）`}
+          description={
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {currentStepProblems.slice(0, 5).map((problem) => (
+                <li key={problem.message}>{problem.message}</li>
+              ))}
+              {currentStepProblems.length > 5 && (
+                <li>… 其余 {currentStepProblems.length - 5} 项</li>
+              )}
+            </ul>
+          }
+        />
+      )}
 
       {/* AI 生成是慢操作：无论用户当前停在哪一步，都能看到它是否还在跑 */}
       {aiHint && (
@@ -870,7 +949,17 @@ export default function WorkTicketNewPage() {
           上一步
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button type="primary" onClick={() => setStep((s) => s + 1)}>
+          <Button
+            type="primary"
+            onClick={() => {
+              const missing = stepStates[step]?.missing ?? 0;
+              if (missing > 0) {
+                // 只提示不拦：允许先看后面的步骤，提交前必须补齐
+                message.warning(`本步还有 ${missing} 项未完成，可先继续；提交前必须补齐`);
+              }
+              setStep((s) => s + 1);
+            }}
+          >
             下一步
           </Button>
         ) : (

@@ -94,13 +94,25 @@ export default function WorkTicketListPage() {
       width: 150,
       render: (_, record) => (
         <Space size={4}>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => navigate(`/enterprises/${id}/work-ticket/${record.id}`)}
-          >
-            查看
-          </Button>
+          {record.status === "draft" ? (
+            <Button
+              type="link"
+              size="small"
+              onClick={() =>
+                navigate(`/enterprises/${id}/work-ticket/${record.id}/edit`)
+              }
+            >
+              继续填写
+            </Button>
+          ) : (
+            <Button
+              type="link"
+              size="small"
+              onClick={() => navigate(`/enterprises/${id}/work-ticket/${record.id}`)}
+            >
+              查看
+            </Button>
+          )}
           <Button
             type="link"
             size="small"

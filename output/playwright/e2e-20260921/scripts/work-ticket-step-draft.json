@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "step_bar_shows_missing": true,
+    "advance_allowed_with_hint": true,
+    "draft_created": true,
+    "list_has_continue_entry": true,
+    "draft_values_refilled": true,
+    "draft_loaded_hint_visible": true,
+    "jumped_to_problem_step": true,
+    "jump_toast_shown": true,
+    "no_console_error": true
+  },
+  "detail": {
+    "advance_hint": true,
+    "draft_id": "46ce0196-c446-40d6-8893-6ecc11538815",
+    "refilled_applicant_unit": "探针草稿-步骤验证",
+    "draft_loaded_hint": true,
+    "after_submit_snippet": "数字化预案系统\n工作台\n企业管理\n预案列表\n设置\nE2E测试用户\n← 返回企业驾驶舱\n特殊作业\nSPECIAL WORK TICKET\n特殊作业\n作业票\n基础设置\n审批工作台\n← 返回\n开票\n按 GB 30871-2022 附录A 票面填报；带来源徽标的字段为系统自动带出，请核对\n类型与级别\n票面内容\n待补 6 项\n气体检测\n待补 1 项\n安全措施\n待补 1 项\n5\nJSA\n6\n人员与提交\n本步还有 6 项未完成（可先继续，提交前必须补齐）\n必填项「作业内容」尚未填写\n必填项「动火地点及动火部位」尚未填写\n必填项「动火方式」尚未填写\n必填项「动火人及证书编号」尚未填写\n必填项「作业负责人」尚未",
+    "errors": [],
+    "cleaned": true
+  },
+  "all_passed": true
+}
