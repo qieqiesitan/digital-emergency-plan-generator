@@ -203,3 +203,67 @@ def test_put_record_creates_when_missing():
     )
     assert resp.status_code == 200
     assert created and created[0].unit_id == "u1"
+
+
+# --- 保存基本信息不得清空关联与落点（规格 §0）---------------------------------
+
+
+def _unit_for_update():
+    """字段全部显式赋值：UnitOut 校验严格，MagicMock 的自动属性过不了 pydantic。"""
+    unit = MagicMock()
+    unit.id = "u1"
+    unit.enterprise_id = "e1"
+    unit.name = "罐区A"
+    unit.unit_type = "storage"
+    unit.address = None
+    unit.department = None
+    unit.responsible_person = None
+    unit.responsible_phone = None
+    unit.risk_object_id = "o1"
+    unit.floor_id = "f1"
+    unit.polygon = {"version": 1, "points": [{"x": 0, "y": 0}]}
+    unit.is_active = True
+    unit.created_at = None
+    return unit
+
+
+def _update_handler(unit):
+    async def handler(stmt, *a, **k):
+        text = str(stmt)
+        if "major_hazard_units" in text:
+            return _Result([unit])
+        if "enterprises" in text:
+            ent = MagicMock()
+            ent.id = "e1"
+            ent.user_id = "user1"
+            return _Result([ent])
+        return _Result([])
+
+    return handler
+
+
+def test_update_unit_keeps_untouched_fields():
+    """前端只提交 6 个文本框，未传的字段一律不许动。"""
+    unit = _unit_for_update()
+    client = _client(_update_handler(unit))
+    resp = client.put(
+        "/api/v1/major-hazard/units/u1",
+        json={"name": "罐区A2", "unit_type": "storage"},
+    )
+    assert resp.status_code == 200
+    assert unit.name == "罐区A2"
+    assert unit.risk_object_id == "o1"
+    assert unit.floor_id == "f1"
+    assert unit.polygon == {"version": 1, "points": [{"x": 0, "y": 0}]}
+
+
+def test_update_unit_still_allows_explicit_clearing():
+    """显式传 null 仍要能清空——不然用户没法解除关联。"""
+    unit = _unit_for_update()
+    client = _client(_update_handler(unit))
+    resp = client.put(
+        "/api/v1/major-hazard/units/u1",
+        json={"name": "罐区A", "unit_type": "storage", "risk_object_id": None},
+    )
+    assert resp.status_code == 200
+    assert unit.risk_object_id is None

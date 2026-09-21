@@ -126,7 +126,9 @@ async def update_unit(
     user=Depends(get_current_user),
 ):
     unit = await ensure_major_hazard_unit_owned(db, user, unit_id)
-    for key, value in payload.model_dump().items():
+    # exclude_unset：前端只提交表单里的 6 个字段，未传的（风险点关联、楼层、平面图落点）
+    # 一律不许动；显式传 null 仍可清空。与 enterprises.py 的编辑接口同一约定。
+    for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(unit, key, value)
     await db.commit()
     return _ok(UnitOut.model_validate(unit))
