@@ -44,6 +44,11 @@ export interface LinkableRiskObject {
   name: string;
   zone_id?: string | null;
   floor_id?: string | null;
+  /** 以下 4 项供单元表单带出默认值（规格 §2.1）。 */
+  location?: string | null;
+  responsible_unit?: string | null;
+  responsible_person?: string | null;
+  contact_phone?: string | null;
 }
 
 /** 危化品台账条目（`GET /major-hazard/ledger/chemicals`）。 */
