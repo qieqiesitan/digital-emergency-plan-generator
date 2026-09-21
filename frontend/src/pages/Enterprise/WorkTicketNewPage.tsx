@@ -22,6 +22,7 @@ import GasTestTable from "@/components/enterprise/workTicket/GasTestTable";
 import MeasureChecklist from "@/components/enterprise/workTicket/MeasureChecklist";
 import { SOURCE_LABEL } from "@/components/enterprise/workTicket/fieldSources";
 import { normalizeValues, toFormValues } from "@/components/enterprise/workTicket/formValues";
+import { pruneScenario, scenarioFieldsFor } from "@/components/enterprise/workTicket/scenarioScope";
 import PrefillBadge from "@/components/enterprise/workTicket/PrefillBadge";
 import { PageHeader } from "@/components/common/PageHeader";
 import { getEnterprise } from "@/services/enterpriseService";
@@ -67,17 +68,6 @@ const LEVEL_FIELD_BY_TYPE: Partial<Record<string, string>> = {
   GCZY: "high_level",
   QZDZ: "lift_level",
 };
-
-/** 作业情景：勾选=明确「涉及」；配合下方「已核实」开关可表达「明确不涉及」。 */
-const SCENARIO_FIELDS = [
-  { key: "internal_work", label: "本次动火在设备内部" },
-  { key: "connected_pipeline", label: "动火设备连接有管线" },
-  { key: "surroundings_ignition", label: "动火点周围有孔洞/窨井/地沟/污水井" },
-  { key: "has_flammable_lining", label: "设备内有可燃物构件或防腐内衬" },
-  { key: "surrounding_hazardous_ops", label: "动火点周围有装卸/排放/喷漆等危险作业" },
-  { key: "height_work", label: "本次作业涉及高处作业" },
-  { key: "in_tank_area", label: "作业点在油气罐区防火堤内" },
-];
 
 function flowPreview(nodes: WorkTicketFlowNodeDef[]) {
   const chain = nodes.map((n) => n.name).filter(Boolean).join(" → ");
@@ -182,16 +172,18 @@ export default function WorkTicketNewPage() {
   const requiredFields = (template?.fields ?? []).filter((f) => f.is_required);
   const mandatoryMeasures = template?.measures ?? [];
   const levelFieldKey = activeTicketType ? LEVEL_FIELD_BY_TYPE[activeTicketType] : undefined;
+  // 情景区随票种变化：项来自后端（YAML 条件表），不再写死一组通用的动火情景
+  const scenarioFields = useMemo(() => scenarioFieldsFor(template), [template]);
 
   /** 传给后端的作业情景：勾选=true；开了「已核实」开关时未勾选的项=false。 */
   const scenarioParam = useMemo(() => {
     const out: Record<string, boolean> = {};
-    for (const field of SCENARIO_FIELDS) {
+    for (const field of scenarioFields) {
       if (scenario[field.key]) out[field.key] = true;
       else if (scenarioDeclared) out[field.key] = false;
     }
     return out;
-  }, [scenario, scenarioDeclared]);
+  }, [scenario, scenarioDeclared, scenarioFields]);
 
   /** 确定性预填：模板或级别变化时重新取数（不触发 AI，无 token 成本）。 */
   useEffect(() => {
@@ -229,6 +221,33 @@ export default function WorkTicketNewPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, template?.id, activeLevel, locationId, scenarioParam]);
+
+  /**
+   * 进入「安全措施」步骤时重取一次建议：此时票面已填，自动项（作业高度、动土深度、
+   * 吊装级别）才有值可推断；只更新 measures_suggestions，不动表单值。
+   */
+  useEffect(() => {
+    if (step !== 3 || !id || !template) return;
+    let cancelled = false;
+    getPrefill({
+      enterprise_id: id,
+      template_id: template.id,
+      level: activeLevel || null,
+      risk_object_id: locationId,
+      fire_method: (form.getFieldValue("fire_method") as string) ?? null,
+      scenario: JSON.stringify(scenarioParam),
+    })
+      .then((payload) => {
+        if (!cancelled) setSuggestions(payload.measures_suggestions ?? []);
+      })
+      .catch(() => {
+        // 建议取不到不阻断：保持上一次的建议（或全部留在主列表由人工逐条处理）
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   /**
    * 级别联动：第 0 步定完级别，票面对应字段自动跟随。
@@ -508,6 +527,13 @@ export default function WorkTicketNewPage() {
                     ),
                   );
                   setLevel(nextLevels[0] ?? "");
+                  // 切票种时清掉不属于新票种的情景勾选（避免动火情景被带到受限空间/吊装等票）
+                  const nextTemplate =
+                    (templates ?? []).find(
+                      (t) => t.code === next && (t.level ?? null) === (nextLevels[0] ?? null),
+                    ) ?? (templates ?? []).find((t) => t.code === next);
+                  setScenario((prev) => pruneScenario(prev, scenarioFieldsFor(nextTemplate)));
+                  setScenarioDeclared(false);
                 }}
                 options={enabledTypes.map((t) => ({ value: t.code, label: t.label }))}
                 optionType="button"
@@ -557,27 +583,33 @@ export default function WorkTicketNewPage() {
             </div>
           </div>
           <div>
-            <Text strong>作业情景</Text>
+            <Text strong>作业情景（{ALL_TICKET_TYPES.find((t) => t.code === activeTicketType)?.label}）</Text>
             <div style={{ marginTop: 8 }}>
-              <Space orientation="vertical" size={4}>
-                {SCENARIO_FIELDS.map((field) => (
+              {scenarioFields.length > 0 ? (
+                <Space orientation="vertical" size={4}>
+                  {scenarioFields.map((field) => (
+                    <Checkbox
+                      key={field.key}
+                      checked={Boolean(scenario[field.key])}
+                      onChange={(e) =>
+                        setScenario((prev) => ({ ...prev, [field.key]: e.target.checked }))
+                      }
+                    >
+                      {field.label}
+                    </Checkbox>
+                  ))}
                   <Checkbox
-                    key={field.key}
-                    checked={Boolean(scenario[field.key])}
-                    onChange={(e) =>
-                      setScenario((prev) => ({ ...prev, [field.key]: e.target.checked }))
-                    }
+                    checked={scenarioDeclared}
+                    onChange={(e) => setScenarioDeclared(e.target.checked)}
                   >
-                    {field.label}
+                    以上未勾选的情景均已现场核实「不涉及」
                   </Checkbox>
-                ))}
-                <Checkbox
-                  checked={scenarioDeclared}
-                  onChange={(e) => setScenarioDeclared(e.target.checked)}
-                >
-                  以上未勾选的情景均已现场核实「不涉及」
-                </Checkbox>
-              </Space>
+                </Space>
+              ) : (
+                <Text type="secondary">
+                  本票种无需额外情景（如夜间照明要求由作业时段自动判定）。
+                </Text>
+              )}
             </div>
             <Text type="secondary">
               勾选会用于生成措施建议；未勾选且未声明核实时，系统不会替你判定「不涉及」。

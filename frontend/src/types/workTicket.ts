@@ -145,6 +145,11 @@ export interface WorkTicketTemplate {
   fields: WorkTicketFieldDef[];
   measures: WorkTicketMeasureDef[];
   flow_nodes?: WorkTicketFlowNodeDef[];
+  /**
+   * 该票种要展示的作业情景项（人工勾选）。由后端从 YAML 条件表带出，
+   * 因此切换票种时情景区会跟着变；空数组表示该票种无需额外情景。
+   */
+  scenario_fields?: { key: string; label: string }[];
 }
 
 export interface WorkTicketInstance {

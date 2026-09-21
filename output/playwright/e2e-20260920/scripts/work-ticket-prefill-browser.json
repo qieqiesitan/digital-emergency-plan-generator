@@ -2,6 +2,7 @@
   "per_type": [
     {
       "type": "动火作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 12,
       "badges": [
@@ -12,6 +13,7 @@
     },
     {
       "type": "受限空间作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 10,
       "badges": [
@@ -21,6 +23,7 @@
     },
     {
       "type": "盲板抽堵作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 11,
       "badges": [
@@ -30,6 +33,7 @@
     },
     {
       "type": "高处作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 11,
       "badges": [
@@ -40,6 +44,7 @@
     },
     {
       "type": "吊装作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 12,
       "badges": [
@@ -50,6 +55,7 @@
     },
     {
       "type": "临时用电作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 12,
       "badges": [
@@ -59,6 +65,7 @@
     },
     {
       "type": "动土作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 11,
       "badges": [
@@ -68,6 +75,7 @@
     },
     {
       "type": "断路作业",
+      "scenario_hint_ok": true,
       "reachable": true,
       "field_labels": 11,
       "badges": [
@@ -86,6 +94,7 @@
     "eight_types_reachable": true,
     "fields_rendered": true,
     "prefill_badges_visible": true,
+    "scenario_follows_ticket_type": true,
     "fire_measures_is_16": true,
     "no_console_error": true
   },

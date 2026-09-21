@@ -39,6 +39,19 @@ TYPES = [
 
 BADGE_TEXTS = ["企业档案", "上次同类票", "系统默认", "向导联动", "成员台账", "AI 生成"]
 
+# 每个票种第 0 步「作业情景」应出现的关键词（来自 work_ticket_conditions.yaml 的 label）。
+# 这条断言直接验证用户反馈的问题：情景区必须随票种变化，而不是永远显示动火情景。
+SCENARIO_HINTS = {
+    "动火作业": "本次动火在设备内部",
+    "受限空间作业": "受限空间盛装过有毒/可燃物料",
+    "盲板抽堵作业": "存在有毒介质",
+    "高处作业": "现场搭设脚手架/防护网",
+    "吊装作业": "以建筑物/构筑物作锚点",
+    "临时用电作业": "临时用电线路架高敷设",
+    "动土作业": "地下有供排水/消防/工艺管线",
+    "断路作业": "本票种无需额外情景",
+}
+
 
 def click_button(page, text: str) -> None:
     """点按钮：antd 会给两字按钮自动插入空格（"登 录"），故用允许空白的正则。"""
@@ -95,6 +108,9 @@ def main() -> int:
                 continue
             target.click()
             page.wait_for_timeout(600)
+            # 在第 0 步采集情景区文本（点「下一步」之前）
+            step0_text = page.inner_text("body")
+            entry["scenario_hint_ok"] = SCENARIO_HINTS.get(label, "") in step0_text
             click_button(page, "下一步")
             page.wait_for_timeout(2000)
             body = page.inner_text("body")
@@ -131,6 +147,9 @@ def main() -> int:
     )
     checks["fields_rendered"] = all((item.get("field_labels") or 0) >= 5 for item in per_type)
     checks["prefill_badges_visible"] = any(item.get("badges") for item in per_type)
+    checks["scenario_follows_ticket_type"] = all(
+        item.get("scenario_hint_ok") for item in per_type
+    )
     checks["fire_measures_is_16"] = measure_count == 16
     checks["no_console_error"] = len(errors) == 0
 
