@@ -119,6 +119,41 @@ async def test_list_linkable_objects_returns_zone_and_floor():
     assert out[0]["floor_id"] == "f1"
 
 
+@pytest.mark.asyncio
+async def test_list_linkable_objects_returns_prefill_fields():
+    """带出用得到这 4 个字段；缺了它们前端只能填空气。"""
+    o = _obj()
+    o.location = "厂区北侧罐区东侧"
+    o.responsible_unit = "生产运行部"
+    o.responsible_person = "张峰"
+    o.contact_phone = "13800000000"
+    db = _db(objects=[o])
+    out = await list_linkable_risk_objects(db, enterprise_id="e1")
+    assert out[0]["location"] == "厂区北侧罐区东侧"
+    assert out[0]["responsible_unit"] == "生产运行部"
+    assert out[0]["responsible_person"] == "张峰"
+    assert out[0]["contact_phone"] == "13800000000"
+
+
+@pytest.mark.asyncio
+async def test_ensure_risk_object_in_enterprise_rejects_cross_enterprise():
+    from app.services.major_hazard_linkage import ensure_risk_object_in_enterprise
+
+    db = _db(objects=[_obj(oid="o2", ent="e2")])
+    with pytest.raises(LinkageError) as ei:
+        await ensure_risk_object_in_enterprise(db, enterprise_id="e1", risk_object_id="o2")
+    assert "企业" in str(ei.value)
+
+
+@pytest.mark.asyncio
+async def test_ensure_risk_object_in_enterprise_rejects_missing_object():
+    from app.services.major_hazard_linkage import ensure_risk_object_in_enterprise
+
+    db = _db(objects=[])
+    with pytest.raises(LinkageError):
+        await ensure_risk_object_in_enterprise(db, enterprise_id="e1", risk_object_id="nope")
+
+
 # --- 任务 2：单元品种 ↔ 危化品台账 -----------------------------------------
 
 

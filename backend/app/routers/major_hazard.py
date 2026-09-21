@@ -37,6 +37,7 @@ from app.services.evidence_service import EvidenceInput, attach_evidence, list_e
 from app.services.major_hazard_lookup import lookup_chemical_definition
 from app.services.major_hazard_linkage import (
     LinkageError,
+    ensure_risk_object_in_enterprise,
     link_risk_object,
     link_unit_chemical_to_ledger,
     list_linkable_risk_objects,
@@ -61,6 +62,24 @@ STANDARD = "GB18218-2018"
 
 def _ok(data):
     return {"success": True, "code": 200, "message": "success", "data": data}
+
+
+async def _guard_risk_object(
+    db: AsyncSession, enterprise_id: str, risk_object_id: Optional[str]
+) -> None:
+    """单元写入前的同企业校验。
+
+    跨企业引用是数据越界，不是边界情况——多企业部署下 A 企业用户能通过单元
+    看到 B 企业的风险点。传 None（未传或不关联）直接放行。
+    """
+    if risk_object_id is None:
+        return
+    try:
+        await ensure_risk_object_in_enterprise(
+            db, enterprise_id=enterprise_id, risk_object_id=risk_object_id
+        )
+    except LinkageError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/definitions/critical-quantities")
@@ -111,6 +130,7 @@ async def create_unit(
     if payload is None:
         raise HTTPException(422, "请求体不能为空")
     await ensure_enterprise_owned(db, user, enterprise_id)
+    await _guard_risk_object(db, enterprise_id, payload.risk_object_id)
     unit = MajorHazardUnit(enterprise_id=enterprise_id, **payload.model_dump())
     db.add(unit)
     await db.commit()
@@ -126,6 +146,7 @@ async def update_unit(
     user=Depends(get_current_user),
 ):
     unit = await ensure_major_hazard_unit_owned(db, user, unit_id)
+    await _guard_risk_object(db, unit.enterprise_id, payload.risk_object_id)
     # exclude_unset：前端只提交表单里的 6 个字段，未传的（风险点关联、楼层、平面图落点）
     # 一律不许动；显式传 null 仍可清空。与 enterprises.py 的编辑接口同一约定。
     for key, value in payload.model_dump(exclude_unset=True).items():

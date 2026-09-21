@@ -267,3 +267,50 @@ def test_update_unit_still_allows_explicit_clearing():
     )
     assert resp.status_code == 200
     assert unit.risk_object_id is None
+
+
+# --- 单元写入的同企业校验（规格 §3 加固项）------------------------------------
+# 夹具口径：企业 e1 归当前用户，风险点 o2 属于企业 e9。
+# 任何把 o2 写进 e1 单元的动作都必须被拒——跨企业引用是数据越界，不是边界情况。
+
+
+def _cross_enterprise_handler(unit=None):
+    async def handler(stmt, *a, **k):
+        text = str(stmt)
+        if "major_hazard_units" in text:
+            return _Result([unit] if unit else [])
+        if "enterprises" in text:
+            ent = MagicMock()
+            ent.id = "e1"
+            ent.user_id = "user1"
+            return _Result([ent])
+        if "risk_objects" in text:
+            obj = MagicMock()
+            obj.id = "o2"
+            obj.enterprise_id = "e9"
+            return _Result([obj])
+        return _Result([])
+
+    return handler
+
+
+def test_create_unit_rejects_cross_enterprise_risk_object():
+    client = _client(_cross_enterprise_handler())
+    resp = client.post(
+        "/api/v1/major-hazard/units",
+        params={"enterprise_id": "e1"},
+        json={"name": "罐区A", "unit_type": "storage", "risk_object_id": "o2"},
+    )
+    assert resp.status_code == 422
+    assert "企业" in resp.json()["detail"]
+
+
+def test_update_unit_rejects_cross_enterprise_risk_object():
+    # 必须给 unit：update_unit 先走 ensure_major_hazard_unit_owned，否则会先 404
+    client = _client(_cross_enterprise_handler(unit=_unit_for_update()))
+    resp = client.put(
+        "/api/v1/major-hazard/units/u1",
+        json={"name": "罐区A", "unit_type": "storage", "risk_object_id": "o2"},
+    )
+    assert resp.status_code == 422
+    assert "企业" in resp.json()["detail"]

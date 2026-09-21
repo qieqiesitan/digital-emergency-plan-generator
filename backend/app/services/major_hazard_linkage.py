@@ -47,16 +47,31 @@ async def link_risk_object(
         await db.commit()
         return {"unit_id": unit_id, "risk_object_id": None}
 
+    await ensure_risk_object_in_enterprise(
+        db, enterprise_id=unit.enterprise_id, risk_object_id=risk_object_id
+    )
+    unit.risk_object_id = risk_object_id
+    await db.commit()
+    return {"unit_id": unit_id, "risk_object_id": risk_object_id}
+
+
+async def ensure_risk_object_in_enterprise(
+    db: AsyncSession,
+    *,
+    enterprise_id: str,
+    risk_object_id: str,
+) -> None:
+    """校验风险点存在且属于该企业；非法时抛 LinkageError。
+
+    抽成独立函数的原因：不只 `link_risk_object` 需要它，单元的新建/编辑接口
+    也必须过同一道门——否则构造请求就能把别家企业的风险点 id 写进来。
+    """
     obj_res = await db.execute(select(RiskObject).where(RiskObject.id == risk_object_id))
     obj = obj_res.scalar_one_or_none()
     if obj is None:
         raise LinkageError("风险点不存在")
-    if getattr(obj, "enterprise_id", None) != unit.enterprise_id:
+    if getattr(obj, "enterprise_id", None) != enterprise_id:
         raise LinkageError("风险点与单元不属于同一企业，禁止关联")
-
-    unit.risk_object_id = risk_object_id
-    await db.commit()
-    return {"unit_id": unit_id, "risk_object_id": risk_object_id}
 
 
 async def list_linkable_risk_objects(db: AsyncSession, *, enterprise_id: str) -> list[dict]:
@@ -73,6 +88,11 @@ async def list_linkable_risk_objects(db: AsyncSession, *, enterprise_id: str) ->
             "name": o.name,
             "zone_id": getattr(o, "zone_id", None),
             "floor_id": getattr(o, "floor_id", None),
+            # 供单元表单带出默认值；不含坐标与分区多边形——见规格 §2.4
+            "location": getattr(o, "location", None),
+            "responsible_unit": getattr(o, "responsible_unit", None),
+            "responsible_person": getattr(o, "responsible_person", None),
+            "contact_phone": getattr(o, "contact_phone", None),
         }
         for o in res.scalars().all()
     ]
