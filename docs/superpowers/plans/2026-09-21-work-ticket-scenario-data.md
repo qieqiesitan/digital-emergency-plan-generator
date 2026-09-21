@@ -1,8 +1,22 @@
 # 作业票措施条件数据化 实现计划
 
-> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
+> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [x]`）语法来跟踪进度。
 
 **目标：** 把 8 个票种的措施条件映射搬到数据文件，改标准文本后重跑一次即同步；锚定改用措施正文（标准修订插入条文时不会错判）；前端作业情景按票种渲染（修掉用户反馈的"情景不跟着票种变"）。
+
+> **状态：✅ 已完成（2026-09-21，内联执行，6 个任务）**
+> 交付：条件数据文件（8 票种 66 条措施映射 / 45 个条件）+ 生成器（正文锚定、失配报错、未映射报告）
+> + 两张表与运行时加载（TTL 缓存）+ `/templates` 带出 `scenario_fields` + 前端情景区按票种渲染。
+> 验证：后端 **2176 passed, 1 skipped**；前端 `tsc -b` 0 / `vitest 326 passed` / `eslint 0` / `build OK`；
+> 端到端探针 **4/4**（8 票种情景项与声明一致、传情景后判定增多、不传情景保持保守、断路票也有判定）；
+> 浏览器实测 **8/8**（新增 `scenario_follows_ticket_type`：每个票种显示自己的情景项）；
+> 29 路由冒烟 0 失败。判定效果对比（同一票种）：受限空间 0→7 条"不涉及"、高处 0→8 条、
+> 动火 3→10 条、吊装 0→9 条。
+>
+> 执行中的三处修正：① 报告里要区分「66 条措施建立映射」与「70 个条件键」（4 条措施各依赖两个条件）；
+> ② 情景表需同时存自动项（否则判定原因只剩 `gas_welding` 这种键名）；
+> ③ 计划漏了自动推断规则的实现（夜间时段 / 作业高度≥30m / 动土深度>1.2m / 吊装级别），已补并加 4 例单测；
+> 顺带修掉 `has_other_tickets` 只对动火票推断的缺口（其余 7 个票种也有这条措施）。
 
 **架构：** `work_ticket_conditions.yaml`（唯一事实源，与标准文本并列）→ 生成器按正文锚定产出两张表的种子 SQL → 运行时从表加载映射与情景定义（进程内缓存）→ `/templates` 响应带出该票种的 `scenario_fields` → 前端按票种渲染。两条硬规则：映射失配即报错中止；未映射措施落 `unknown`。
 
@@ -37,7 +51,7 @@
 - 创建：`backend/tools/gen_work_ticket_conditions.py`
 - 生成：`backend/app/regulations/data/work_ticket_conditions.yaml`
 
-- [ ] **步骤 1：编写辅助脚本（内置紧凑映射表）**
+- [x] **步骤 1：编写辅助脚本（内置紧凑映射表）**
 
 创建 `backend/tools/gen_work_ticket_conditions.py`。映射表来自规格 §5.10 逐条清单（下表 66 条），
 措施正文由脚本从真库读取——**避免在代码里重复抄写 106 条条文**：
@@ -285,7 +299,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **步骤 2：运行脚本产出 YAML**
+- [x] **步骤 2：运行脚本产出 YAML**
 
 ```bash
 python backend/tools/gen_work_ticket_conditions.py
@@ -296,7 +310,7 @@ grep -c "^      - text:" backend/app/regulations/data/work_ticket_conditions.yam
 预期：生成成功并打印 `66 条映射，45 个条件`；`grep -c` 输出 `66`（与规格的映射统计一致）。
 （执行记录：条件总数 45 个 = 38 个人工勾选 + 7 个自动推断，计划初稿此处写的 40/28 是估算，已按实测更正。）
 
-- [ ] **步骤 3：人工核对 YAML**
+- [x] **步骤 3：人工核对 YAML**
 
 逐个票种核对：措施正文与标准文本一致（`grep` 对照库里同序号的文本）、条件键都在 `conditions:` 里定义过、
 `scenario:` 只含人工勾选项（不含 `has_other_tickets` / `night_work` / `gas_welding` 等自动项）。
@@ -308,7 +322,7 @@ grep -c "auto: null" backend/app/regulations/data/work_ticket_conditions.yaml
 
 预期：措施总数 223（多级别共用）；`auto: null` 的行数 = 人工勾选条件数（**38**）。
 
-- [ ] **步骤 4：Commit**
+- [x] **步骤 4：Commit**
 
 ```bash
 git add backend/tools/gen_work_ticket_conditions.py backend/app/regulations/data/work_ticket_conditions.yaml
@@ -324,7 +338,7 @@ git commit -m "feat(work-ticket): 措施条件数据文件 + 初版生成辅助�
 - 创建：`backend/seed_work_ticket_conditions.py`
 - 测试：`backend/tests/test_work_ticket_condition_data.py`
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 创建 `backend/tests/test_work_ticket_condition_data.py`：
 
@@ -418,13 +432,13 @@ def test_generator_anchor_survives_reordering():
     assert refs_a == refs_b
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`backend\.venv\Scripts\python.exe -m pytest backend/tests/test_work_ticket_condition_data.py -q`
 
 预期：collection error（`work_ticket_condition_loader` / `seed_work_ticket_conditions` 不存在）。
 
-- [ ] **步骤 3：实现条件键工具**
+- [x] **步骤 3：实现条件键工具**
 
 创建 `backend/app/services/work_ticket_condition_loader.py` 的工具部分：
 
@@ -457,7 +471,7 @@ def measure_ref(text: str) -> str:
     return digest[:32]
 ```
 
-- [ ] **步骤 4：实现生成器**
+- [x] **步骤 4：实现生成器**
 
 创建 `backend/seed_work_ticket_conditions.py`（要点）：
 
@@ -613,13 +627,13 @@ if __name__ == "__main__":
 说明：实现时把 `work_ticket_scenarios` 的 INSERT 一并补齐（每票种按 `scenario` 列表写入
 `condition_key` + 从 `conditions` 取 `label`/`auto`），并让 SQL 以 `BEGIN;`/`COMMIT;` 包裹。
 
-- [ ] **步骤 5：运行测试验证通过**
+- [x] **步骤 5：运行测试验证通过**
 
 运行：`backend\.venv\Scripts\python.exe -m pytest backend/tests/test_work_ticket_condition_data.py -q`
 
 预期：7 个用例全 PASSED（含失配报错、锚定乱序稳定、未映射清单）。
 
-- [ ] **步骤 6：生成 SQL 并核验报告**
+- [x] **步骤 6：生成 SQL 并核验报告**
 
 ```bash
 python backend/seed_work_ticket_conditions.py
@@ -629,7 +643,7 @@ grep -c "INSERT INTO work_ticket_measure_conditions" backend/db_migration_202609
 
 预期：`mapped_total = 66`、`unmapped_total = 40`；`grep -c` 输出 `66`。
 
-- [ ] **步骤 7：Commit**
+- [x] **步骤 7：Commit**
 
 ```bash
 git add backend/app/services/work_ticket_condition_loader.py backend/seed_work_ticket_conditions.py backend/db_migration_20260921_work_ticket_conditions.sql backend/work_ticket_conditions_report.json backend/tests/test_work_ticket_condition_data.py
@@ -646,7 +660,7 @@ git commit -m "feat(work-ticket): 条件生成器（正文锚定 + 失配报错 
 - 修改：`backend/app/services/work_ticket_measure_rules.py`（删硬编码，改注入）
 - 测试：`backend/tests/test_work_ticket_measure_rules.py`（改注入式）
 
-- [ ] **步骤 1：写建表语句并应用**
+- [x] **步骤 1：写建表语句并应用**
 
 在生成 SQL 顶部（`BEGIN;` 之后）加入建表：
 
@@ -682,7 +696,7 @@ docker exec emergency-plan-db psql -U postgres -d emergency_plan -c "SELECT tick
 
 预期：表创建成功；8 个票种各有映射（合计 66）；情景表行数 = 各票种人工勾选项数（动火 7 / 受限空间 6 / 盲板 6 / 高处 8 / 吊装 8 / 临电 6 / 动土 4 / 断路 0）。
 
-- [ ] **步骤 2：追加运行时加载（含 TTL 缓存）**
+- [x] **步骤 2：追加运行时加载（含 TTL 缓存）**
 
 在 `work_ticket_condition_loader.py` 追加：
 
@@ -739,7 +753,7 @@ def invalidate_condition_cache() -> None:
 
 并新增模型文件 `backend/app/models/work_ticket_condition.py`（两张表的 ORM，字段与迁移一致）。
 
-- [ ] **步骤 3：改造 `work_ticket_measure_rules`**
+- [x] **步骤 3：改造 `work_ticket_measure_rules`**
 
 删掉硬编码的 `MEASURE_CONDITIONS`，改为注入：
 
@@ -756,12 +770,12 @@ def suggest_measures(
 
 映射查询键改为 `(context.ticket_type, measure_ref(measure_text))`——**与生成器同一套锚定**。
 
-- [ ] **步骤 4：改测试为注入式**
+- [x] **步骤 4：改测试为注入式**
 
 `test_work_ticket_measure_rules.py` 的既有用例改为显式传 `conditions_map`/`labels`（不再依赖模块常量），
 并新增一例：**同一批措施换个顺序，判定结果不变**（锚定稳定性的服务层回归锁）。
 
-- [ ] **步骤 5：跑测试**
+- [x] **步骤 5：跑测试**
 
 ```powershell
 backend\.venv\Scripts\python.exe -m pytest backend/tests -k "work_ticket" -q
@@ -770,7 +784,7 @@ backend\.venv\Scripts\python.exe -m ruff check backend/app backend/tests --outpu
 
 预期：work_ticket 相关全绿；ruff 全绿。
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add backend/app/models/work_ticket_condition.py backend/app/services/work_ticket_condition_loader.py backend/app/services/work_ticket_measure_rules.py backend/db_migration_20260921_work_ticket_conditions.sql backend/tests/test_work_ticket_measure_rules.py
@@ -785,7 +799,7 @@ git commit -m "feat(work-ticket): 条件映射入库 + 运行时按正文锚点�
 - 修改：`backend/app/routers/work_ticket.py`
 - 测试：`backend/tests/test_work_ticket_api.py`（追加）
 
-- [ ] **步骤 1：编写失败的测试**
+- [x] **步骤 1：编写失败的测试**
 
 ```python
 def test_templates_expose_scenario_fields():
@@ -862,13 +876,13 @@ def test_scenarios_endpoint_returns_only_manual_items():
     ]
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`backend\.venv\Scripts\python.exe -m pytest backend/tests/test_work_ticket_api.py -q`
 
 预期：新增两例 FAILED（`KeyError: scenario_fields` / 404）。
 
-- [ ] **步骤 3：实现**
+- [x] **步骤 3：实现**
 
 `list_templates` 中对每个模板补一个查询（或一次批量查询后按票种分组，避免 N+1）：
 
@@ -903,7 +917,7 @@ async def api_scenarios(
     return _ok(await load_scenarios(db, ticket_type))
 ```
 
-- [ ] **步骤 4：跑测试**
+- [x] **步骤 4：跑测试**
 
 ```powershell
 backend\.venv\Scripts\python.exe -m pytest backend/tests/test_work_ticket_api.py -q
@@ -913,7 +927,7 @@ python output/playwright/e2e-20260920/scripts/_work_ticket_prefill_probe.py   # 
 
 预期：API 测试全绿；既有预填探针 11/11 仍通过。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/routers/work_ticket.py backend/tests/test_work_ticket_api.py
@@ -929,7 +943,7 @@ git commit -m "feat(work-ticket): templates 带出票种情景项 + /scenarios �
 - 修改：`frontend/src/pages/Enterprise/WorkTicketNewPage.tsx`
 - 测试：`frontend/src/components/enterprise/workTicket/scenarioScope.test.ts`（创建）
 
-- [ ] **步骤 1：补类型与纯函数（含单测）**
+- [x] **步骤 1：补类型与纯函数（含单测）**
 
 `WorkTicketTemplate` 增加 `scenario_fields?: { key: string; label: string }[];`
 
@@ -1000,13 +1014,13 @@ describe("pruneScenario", () => {
 });
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`docker exec emergency-plan-frontend npx vitest run src/components/enterprise/workTicket/scenarioScope.test.ts`
 
 预期：模块不存在（FAILED）。
 
-- [ ] **步骤 3：改造页面**
+- [x] **步骤 3：改造页面**
 
 `WorkTicketNewPage.tsx`：
 
@@ -1017,7 +1031,7 @@ describe("pruneScenario", () => {
    `auto_scenarios`（实现时在 `/templates` 一并带出 `auto_rule` 非空的项及其当前推断结果）
 5. `scenarioParam` 的计算沿用现有逻辑（勾选=true；声明核实=false）
 
-- [ ] **步骤 4：跑前端门禁**
+- [x] **步骤 4：跑前端门禁**
 
 ```powershell
 docker exec emergency-plan-frontend npx tsc -b --pretty false
@@ -1028,7 +1042,7 @@ docker exec emergency-plan-frontend npm run build
 
 预期：tsc 0 / vitest 全绿（既有 321 + 新增 5）/ eslint 0 / build 成功。
 
-- [ ] **步骤 5：同步到 8082**
+- [x] **步骤 5：同步到 8082**
 
 ```powershell
 docker cp emergency-plan-frontend:/app/dist "output/_dist_sync"
@@ -1037,7 +1051,7 @@ docker cp "output/_dist_sync/." shuzihuayuan:/app/dist
 docker restart shuzihuayuan
 ```
 
-- [ ] **步骤 6：Commit**
+- [x] **步骤 6：Commit**
 
 ```bash
 git add frontend/src/types/workTicket.ts frontend/src/pages/Enterprise/WorkTicketNewPage.tsx frontend/src/components/enterprise/workTicket/scenarioScope.ts frontend/src/components/enterprise/workTicket/scenarioScope.test.ts
@@ -1051,7 +1065,7 @@ git commit -m "fix(work-ticket): 作业情景按票种渲染（不再固定 7 �
 **文件：**
 - 创建：`output/playwright/e2e-20260921/scripts/_work_ticket_scenario_probe.py`
 
-- [ ] **步骤 1：写接口层探针**
+- [x] **步骤 1：写接口层探针**
 
 对 8 个票种各传一组"明确不涉及"的情景，断言 `not_applicable` 数量 > 0：
 
@@ -1085,7 +1099,7 @@ SCENARIOS = {
 2. **反向断言**：不传任何情景时每个票种 `not_applicable == 0`（保守策略未被破坏）
 3. 情景项接口：`GET /scenarios?ticket_type=` 返回的项数与该票种 `scenario:` 声明一致（断路为 0）
 
-- [ ] **步骤 2：跑探针并留证据**
+- [x] **步骤 2：跑探针并留证据**
 
 ```powershell
 python output/playwright/e2e-20260921/scripts/_work_ticket_scenario_probe.py
@@ -1093,7 +1107,7 @@ python output/playwright/e2e-20260921/scripts/_work_ticket_scenario_probe.py
 
 预期：全绿，产出 `work-ticket-scenario-data.json`。
 
-- [ ] **步骤 3：浏览器实测**
+- [x] **步骤 3：浏览器实测**
 
 复用并扩展 `_work_ticket_prefill_browser_probe.py`：切票种后断言情景区文本变化（动火含"本次动火在设备内部"、
 受限空间含"受限空间盛装过有毒/可燃物料"、断路显示"本票种无需额外情景"），并截图留档。
@@ -1104,7 +1118,7 @@ python output/playwright/e2e-20260920/scripts/_work_ticket_prefill_browser_probe
 
 预期：7/7 通过且新增的情景断言通过。
 
-- [ ] **步骤 4：全量门禁**
+- [x] **步骤 4：全量门禁**
 
 ```powershell
 backend\.venv\Scripts\python.exe -m pytest backend/tests -q
@@ -1115,7 +1129,7 @@ python output/playwright/e2e-20260920/scripts/_work_ticket_regression_smoke.py
 
 预期：后端全绿（2148 + 新增）；ruff 全绿；前端全绿；29 路由冒烟 0 pageerror / 0 5xx。
 
-- [ ] **步骤 5：Commit + 推送**
+- [x] **步骤 5：Commit + 推送**
 
 ```bash
 git add output/playwright/e2e-20260921/scripts
@@ -1128,17 +1142,17 @@ git push gitee master
 
 ## 验收清单
 
-- [ ] `work_ticket_conditions.yaml` 覆盖 8 个票种、66 条映射、40 条固定措施，且每条映射带完整措施正文
-- [ ] 生成器：失配时报错中止（构造用例验证）；未映射清单写入 `work_ticket_conditions_report.json`
-- [ ] 锚定稳定性：措施顺序打乱后映射指向同一正文（单测）
-- [ ] 两张表已建、种子已入库：映射 66 条、情景项按票种分布（动火 7 / 受限空间 6 / 盲板 6 / 高处 8 / 吊装 8 / 临电 6 / 动土 4 / 断路 0）
-- [ ] `/templates` 每个模板带 `scenario_fields`；`/scenarios` 兜底端点可用
-- [ ] 代码里不再存在硬编码的 `MEASURE_CONDITIONS`（`rg "MEASURE_CONDITIONS" backend/app` 无命中）
-- [ ] 前端：切票种时情景区随之变化；断路票显示"无需额外情景"；切票种清空上一票种勾选
-- [ ] 8 票种各传情景后 `not_applicable > 0`；不传情景时 `not_applicable == 0`（保守策略保持）
-- [ ] 后端 `pytest` + `ruff` 全绿；前端 `tsc -b` / `vitest` / `eslint` / `build` 全绿
-- [ ] 浏览器实测：情景区随票种变化 + 既有 7 项断言仍通过
-- [ ] 29 路由冒烟 0 pageerror / 0 5xx
+- [x] `work_ticket_conditions.yaml` 覆盖 8 个票种、66 条映射、40 条固定措施，且每条映射带完整措施正文
+- [x] 生成器：失配时报错中止（构造用例验证）；未映射清单写入 `work_ticket_conditions_report.json`
+- [x] 锚定稳定性：措施顺序打乱后映射指向同一正文（单测）
+- [x] 两张表已建、种子已入库：映射 66 条、情景项按票种分布（动火 7 / 受限空间 6 / 盲板 6 / 高处 8 / 吊装 8 / 临电 6 / 动土 4 / 断路 0）
+- [x] `/templates` 每个模板带 `scenario_fields`；`/scenarios` 兜底端点可用
+- [x] 代码里不再存在硬编码的 `MEASURE_CONDITIONS`（`rg "MEASURE_CONDITIONS" backend/app` 无命中）
+- [x] 前端：切票种时情景区随之变化；断路票显示"无需额外情景"；切票种清空上一票种勾选
+- [x] 8 票种各传情景后 `not_applicable > 0`；不传情景时 `not_applicable == 0`（保守策略保持）
+- [x] 后端 `pytest` + `ruff` 全绿；前端 `tsc -b` / `vitest` / `eslint` / `build` 全绿
+- [x] 浏览器实测：情景区随票种变化 + 既有 7 项断言仍通过
+- [x] 29 路由冒烟 0 pageerror / 0 5xx
 
 ## 不做（本计划范围外）
 
