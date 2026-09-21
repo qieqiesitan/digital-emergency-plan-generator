@@ -1,0 +1,119 @@
+[
+ {
+  "case": 1,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 145,
+  "simpleH": 145,
+  "items": 2
+ },
+ {
+  "case": 2,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 145,
+  "simpleH": 145,
+  "items": 2
+ },
+ {
+  "case": 3,
+  "status": "fail",
+  "diffs": [
+   "item[0] 子树元素数不同: antd=19 simple=17",
+   "item[0].inner[0](DIV).box.w: antd=330 simple=346",
+   "item[0].inner[1](DIV).box.w: antd=330 simple=346",
+   "item[0].inner[2](H4).box.w: antd=330 simple=346",
+   "item[0].inner[8](DIV).box.w: antd=330 simple=346",
+   "item[0].inner[9](UL).box.x: antd=378 simple=394",
+   "item[0].inner[9](UL).box.w: antd=142 simple=126",
+   "item[0].inner[10](LI).box.x: antd=378 simple=394",
+   "item[0].inner[10](LI).box.y: antd=41.5 simple=24",
+   "item[0].inner[10](LI).box.w: antd=8 simple=66",
+   "item[0].inner[10](LI).box.h: antd=0 simple=24",
+   "item[0].inner[11] 标签不同: EM vs BUTTON"
+  ],
+  "antdH": 145,
+  "simpleH": 145,
+  "items": 2
+ },
+ {
+  "case": 4,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 168,
+  "simpleH": 168,
+  "items": 2
+ },
+ {
+  "case": 5,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 309,
+  "simpleH": 309,
+  "items": 2
+ },
+ {
+  "case": 6,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 121,
+  "simpleH": 121,
+  "items": 2
+ },
+ {
+  "case": 7,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 94,
+  "simpleH": 94,
+  "items": 2
+ },
+ {
+  "case": 8,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 77,
+  "simpleH": 77,
+  "items": 2
+ },
+ {
+  "case": 9,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 133,
+  "simpleH": 133,
+  "items": 2
+ },
+ {
+  "case": 10,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 97,
+  "simpleH": 97,
+  "items": 2
+ },
+ {
+  "case": 11,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 65,
+  "simpleH": 65,
+  "items": 2
+ },
+ {
+  "case": 12,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 54,
+  "simpleH": 54,
+  "items": 0
+ },
+ {
+  "case": 13,
+  "status": "pass",
+  "diffs": [],
+  "antdH": 53,
+  "simpleH": 53,
+  "items": 0
+ }
+]

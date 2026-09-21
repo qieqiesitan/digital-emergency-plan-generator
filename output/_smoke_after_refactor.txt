@@ -1,0 +1,43 @@
+OK desktop-dashboard                          len=7630 consoleErr=0 pageErr=0 5xx=0
+OK desktop-enterprises                        len=1279 consoleErr=0 pageErr=0 5xx=0
+OK desktop-enterprise-cockpit                 len=641 consoleErr=0 pageErr=0 5xx=0
+OK desktop-enterprise-edit                    len=260 consoleErr=0 pageErr=0 5xx=0
+OK desktop-enterprise-org                     len=227 consoleErr=0 pageErr=0 5xx=0
+OK desktop-plans                              len=6973 consoleErr=0 pageErr=0 5xx=0
+OK desktop-plan-editor                        len=483 consoleErr=0 pageErr=0 5xx=0
+OK desktop-chat                               len=1165 consoleErr=0 pageErr=0 5xx=0
+OK desktop-profile                            len=150 consoleErr=0 pageErr=0 5xx=0
+OK desktop-hazard                             len=207 consoleErr=0 pageErr=0 5xx=0
+OK desktop-risk-overview                      len=177 consoleErr=0 pageErr=0 5xx=0
+OK desktop-risk-workbench                     len=282 consoleErr=0 pageErr=0 5xx=0
+OK desktop-risk-control-list                  len=359 consoleErr=0 pageErr=0 5xx=0
+OK desktop-risk-methods                       len=383 consoleErr=0 pageErr=0 5xx=0
+OK desktop-risk-notice-cards                  len=279 consoleErr=0 pageErr=0 5xx=0
+OK desktop-risk-data-dicts                    len=1380 consoleErr=0 pageErr=0 5xx=0
+OK desktop-major-hazard                       len=176 consoleErr=0 pageErr=0 5xx=0
+OK desktop-work-ticket                        len=215 consoleErr=0 pageErr=0 5xx=0
+OK desktop-risk-assessment-preview            len=72 consoleErr=2 pageErr=0 5xx=0
+OK desktop-resource-investigation-preview     len=56 consoleErr=2 pageErr=0 5xx=0
+OK mobile-m-dashboard                         len=487 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-enterprises                       len=2911 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-enterprise-detail                 len=149 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-enterprise-edit                   len=161 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-enterprise-risk                   len=55 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-enterprise-resources              len=78 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-enterprise-risk-assessment        len=80 consoleErr=2 pageErr=0 5xx=0
+OK mobile-m-enterprise-resource-investigation len=70 consoleErr=2 pageErr=0 5xx=0
+OK mobile-m-enterprise-plans                  len=103 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-plans                             len=3552 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-plan-new                          len=161 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-plan-editor                       len=207 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-plan-versions                     len=100 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-plan-preview                      len=53 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-settings                          len=108 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-settings-profile                  len=81 consoleErr=0 pageErr=0 5xx=0
+OK mobile-m-chat                              len=21 consoleErr=0 pageErr=0 5xx=0
+
+==== 冒烟汇总：37 页；页面异常 0；有 console error 的页 4；5xx 0
+  CONSOLE desktop-risk-assessment-preview: ['Failed to load resource: the server responded with a status of 404 (Not Found)']
+  CONSOLE desktop-resource-investigation-preview: ['Failed to load resource: the server responded with a status of 404 (Not Found)']
+  CONSOLE mobile-m-enterprise-risk-assessment: ['Failed to load resource: the server responded with a status of 404 (Not Found)']
+  CONSOLE mobile-m-enterprise-resource-investigation: ['Failed to load resource: the server responded with a status of 404 (Not Found)']

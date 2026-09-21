@@ -8,6 +8,7 @@ model-cache/
 .workbuddy/
 backups/
 output/
+tmp/
 graphify-out/
 .playwright-cli/
 .codex-custom-subagents/

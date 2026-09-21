@@ -1,0 +1,101 @@
+{
+ "checks": [
+  {
+   "name": "桌面登录成功",
+   "ok": true,
+   "detail": "http://host.docker.internal:8082/dashboard"
+  },
+  {
+   "name": "API-取得可用预案",
+   "ok": true,
+   "detail": "count=4"
+  },
+  {
+   "name": "桌面-打开预案编辑页",
+   "ok": true,
+   "detail": "http://host.docker.internal:8082/plans/6792266d-cd5f-41fc-b591-648fcb64b435/edit"
+  },
+  {
+   "name": "桌面-点击「正式」后本地选中态更新",
+   "ok": true,
+   "detail": "selected=['正式', '适中', '按需', '生成']"
+  },
+  {
+   "name": "桌面-「创作风格」保存后可读回（PUT 落库 + 页面回填）",
+   "ok": true,
+   "detail": "selected=['正式', '适中', '按需', '生成']"
+  },
+  {
+   "name": "桌面-法规关系图谱渲染节点",
+   "ok": true,
+   "detail": "circles=300 lines=1028"
+  },
+  {
+   "name": "API-取得可用企业",
+   "ok": true,
+   "detail": "count=5"
+  },
+  {
+   "name": "桌面-四色图工作台可加载",
+   "ok": true,
+   "detail": "canvas=1 len=289 url=http://host.docker.internal:8082/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/workbench"
+  },
+  {
+   "name": "移动端登录成功",
+   "ok": true,
+   "detail": "http://host.docker.internal:8082/m/dashboard"
+  },
+  {
+   "name": "移动端-密码输入框可输入（Input onChange 修复）",
+   "ok": true,
+   "detail": "old='test123456' new='Abcd1234'"
+  },
+  {
+   "name": "移动端-行业分类选择器可打开并选中",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "移动端-创建企业 toast 文案可见（toast 签名修复）",
+   "ok": true,
+   "detail": "url=http://host.docker.internal:8082/m/enterprises/a4b5ff06-7866-451e-b406-8ee0757c1d44 contains=True"
+  },
+  {
+   "name": "移动端-新建企业可提交（行业必填不再卡死）",
+   "ok": true,
+   "detail": "url=http://host.docker.internal:8082/m/enterprises/a4b5ff06-7866-451e-b406-8ee0757c1d44"
+  },
+  {
+   "name": "移动端-回归数据清理（删除测试企业）",
+   "ok": true,
+   "detail": "status=200 id=a4b5ff06-7866-451e-b406-8ee0757c1d44"
+  },
+  {
+   "name": "移动端-dashboard 页面加载",
+   "ok": true,
+   "detail": "len=489 url=http://host.docker.internal:8082/m/dashboard"
+  },
+  {
+   "name": "移动端-enterprises 页面加载",
+   "ok": true,
+   "detail": "len=2911 url=http://host.docker.internal:8082/m/enterprises"
+  },
+  {
+   "name": "移动端-plans 页面加载",
+   "ok": true,
+   "detail": "len=3552 url=http://host.docker.internal:8082/m/plans"
+  },
+  {
+   "name": "移动端-settings 页面加载",
+   "ok": true,
+   "detail": "len=108 url=http://host.docker.internal:8082/m/settings"
+  },
+  {
+   "name": "移动端-chat 页面加载",
+   "ok": true,
+   "detail": "len=34 url=http://host.docker.internal:8082/m/chat"
+  }
+ ],
+ "console": [],
+ "errors": []
+}

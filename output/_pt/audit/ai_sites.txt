@@ -1,0 +1,240 @@
+--- backend/app/routers/hazardous_chemicals.py:230  fences=lines[1:]
+  228|     try:
+  229|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  230|         raw = await llm_text_completion(
+  231|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  232|             ai_config,
+  233|         )
+  234|         raw = raw.strip()
+  235|         if raw.startswith("```"):
+  236|             lines = raw.split("\n")
+  237|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  238|             if raw.endswith("```"):
+  239|                 raw = raw[:-3].strip()
+  240|         data = json.loads(raw)
+  241|         questions = [AIQuestionItem(**q) for q in data.get("questions", [])]
+  242|         return ApiResponse(data=AIQuestionsResponse(questions=questions))
+  243|     except HTTPException:
+  244|         raise
+  245|     except json.JSONDecodeError:
+  246|         raise HTTPException(500, "AI ���ظ�ʽ�쳣�����Ժ�����")
+  247|     except Exception:
+  248|         raise HTTPException(500, "AI ����ʧ�ܣ����Ժ�����")
+  249| 
+  250| 
+  251| # --- AI generate chemicals ---
+  252| class AIAnswerInput(BaseModel):
+  253|     question_id: str
+  254|     question: str
+  255|     answer: str
+
+--- backend/app/routers/hazardous_chemicals.py:331  fences=lines[1:]
+  329|     try:
+  330|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  331|         raw = await llm_text_completion(
+  332|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  333|             ai_config,
+  334|         )
+  335|         raw = raw.strip()
+  336|         if raw.startswith("```"):
+  337|             lines = raw.split("\n")
+  338|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  339|             if raw.endswith("```"):
+  340|                 raw = raw[:-3].strip()
+  341|         data = json.loads(raw)
+  342|         items = [HazardousChemicalCreate(**item) for item in data.get("items", [])]
+  343|         return ApiResponse(data=AIGenerateResponse(items=items))
+  344|     except HTTPException:
+  345|         raise
+  346|     except json.JSONDecodeError:
+  347|         raise HTTPException(500, "AI ���ظ�ʽ�쳣�����Ժ�����")
+  348|     except Exception:
+  349|         raise HTTPException(500, "AI ����ʧ�ܣ����Ժ�����")
+  350| 
+  351| 
+  352| # --- Batch create ---
+  353| class BatchCreateRequest(BaseModel):
+  354|     items: list[HazardousChemicalCreate]
+  355| 
+  356| 
+
+--- backend/app/routers/surrounding_ai.py:234  fences=lines[1:]
+  232|     try:
+  233|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  234|         raw = await llm_text_completion(
+  235|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  236|             ai_config,
+  237|         )
+  238|         raw = raw.strip()
+  239|         if raw.startswith("```"):
+  240|             lines = raw.split("\n")
+  241|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  242|             if raw.endswith("```"):
+  243|                 raw = raw[:-3].strip()
+  244|         data = json.loads(raw)
+  245|         questions = [AIQuestionItem(**q) for q in data.get("questions", [])]
+  246|         return ApiResponse(data=AIQuestionsResponse(questions=questions))
+  247|     except HTTPException:
+  248|         raise
+  249|     except json.JSONDecodeError:
+  250|         raise HTTPException(500, "AI ���ظ�ʽ�쳣�����Ժ�����")
+  251|     except Exception:
+  252|         raise HTTPException(500, "AI ����ʧ�ܣ����Ժ�����")
+  253| 
+  254| 
+  255| # ---------- AI generate surrounding info ----------
+  256| 
+  257| class AIAnswerInput(BaseModel):
+  258|     question_id: str
+  259|     question: str
+
+--- backend/app/routers/surrounding_ai.py:334  fences=lines[1:]
+  332|     try:
+  333|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  334|         raw = await llm_text_completion(
+  335|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  336|             ai_config,
+  337|         )
+  338|         raw = raw.strip()
+  339|         if raw.startswith("```"):
+  340|             lines = raw.split("\n")
+  341|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  342|             if raw.endswith("```"):
+  343|                 raw = raw[:-3].strip()
+  344|         data = json.loads(raw)
+  345| 
+  346|         nearby_units = [NearbyUnit(**u) for u in data.get("nearby_units", [])]
+  347|         sensitive_targets = [SensitiveTarget(**t) for t in data.get("sensitive_targets", [])]
+  348|         traffic_info = data.get("traffic_info", "")
+  349| 
+  350|         surrounding = SurroundingInfo(
+  351|             nearby_units=nearby_units,
+  352|             sensitive_targets=sensitive_targets,
+  353|             traffic_info=traffic_info,
+  354|         )
+  355|         return ApiResponse(data=AIGenerateSurroundingResponse(surrounding=surrounding))
+  356|     except HTTPException:
+  357|         raise
+  358|     except json.JSONDecodeError:
+  359|         raise HTTPException(500, "AI ���ظ�ʽ�쳣�����Ժ�����")
+
+--- backend/app/routers/resources_ext.py:520  fences=lines[1:]
+  518| 
+  519|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  520|         raw = await llm_text_completion(
+  521| 
+  522|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  523| 
+  524|             ai_config,
+  525| 
+  526|         )
+  527| 
+  528|         raw = raw.strip()
+  529| 
+  530|         if raw.startswith("```"):
+  531| 
+  532|             lines = raw.split("\n")
+  533| 
+  534|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  535| 
+  536|             if raw.endswith("```"):
+  537| 
+  538|                 raw = raw[:-3].strip()
+  539| 
+  540|         data = json.loads(raw)
+  541| 
+  542|         questions = [AIQuestionItem(**q) for q in data.get("questions", [])]
+  543| 
+  544|         return ApiResponse(data=AIQuestionsResponse(questions=questions))
+  545| 
+
+--- backend/app/routers/resources_ext.py:733  fences=lines[1:]
+  731| 
+  732|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  733|         raw = await llm_text_completion(
+  734| 
+  735|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  736| 
+  737|             ai_config,
+  738| 
+  739|         )
+  740| 
+  741|         raw = raw.strip()
+  742| 
+  743|         if raw.startswith("```"):
+  744| 
+  745|             lines = raw.split("\n")
+  746| 
+  747|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  748| 
+  749|             if raw.endswith("```"):
+  750| 
+  751|                 raw = raw[:-3].strip()
+  752| 
+  753|         data = json.loads(raw)
+  754| 
+  755|         items = [EmergencyResourceCreate(**item) for item in data.get("items", [])]
+  756| 
+  757|         return ApiResponse(data=AIGenerateResourceResponse(items=items))
+  758| 
+
+--- backend/app/routers/risk_sources_ext.py:557  fences=lines[1:]
+  555| 
+  556|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  557|         raw = await llm_text_completion(
+  558| 
+  559|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  560| 
+  561|             ai_config,
+  562| 
+  563|         )
+  564| 
+  565|         # Strip markdown fences if present
+  566| 
+  567|         raw = raw.strip()
+  568| 
+  569|         if raw.startswith("```"):
+  570| 
+  571|             lines = raw.split("\n")
+  572| 
+  573|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  574| 
+  575|             if raw.endswith("```"):
+  576| 
+  577|                 raw = raw[:-3].strip()
+  578| 
+  579|         data = json.loads(raw)
+  580| 
+  581|         questions = [AIQuestionItem(**q) for q in data.get("questions", [])]
+  582| 
+
+--- backend/app/routers/risk_sources_ext.py:732  fences=lines[1:]
+  730| 
+  731|         await release_request_connection(db)  # ����ʱ AI ����ǰ�����ӻ��أ����� idle in transaction ռ���أ�ѹ�� N-32��
+  732|         raw = await llm_text_completion(
+  733| 
+  734|             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+  735| 
+  736|             ai_config,
+  737| 
+  738|         )
+  739| 
+  740|         raw = raw.strip()
+  741| 
+  742|         if raw.startswith("```"):
+  743| 
+  744|             lines = raw.split("\n")
+  745| 
+  746|             raw = "\n".join(lines[1:]) if lines[0].startswith("```") else raw
+  747| 
+  748|             if raw.endswith("```"):
+  749| 
+  750|                 raw = raw[:-3].strip()
+  751| 
+  752|         data = json.loads(raw)
+  753| 
+  754|         items = [RiskSourceCreate(**item) for item in data.get("items", [])]
+  755| 
+  756|         return ApiResponse(data=AIGenerateResponse(items=items))
+  757| 
+

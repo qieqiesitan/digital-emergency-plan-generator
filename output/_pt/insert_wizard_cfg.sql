@@ -1,0 +1,1 @@
+INSERT INTO ai_configs (id, user_id, is_system, provider, api_key_encrypted, model_name, base_url, temperature, max_tokens, top_p, capability_overrides, is_active) VALUES ('22222222-2222-2222-2222-222222222222', NULL, true, 'openai', 'gcm$U0HZDtPlcqWel9iIP9l2hpXrIBQ28WFN8s1FKw0o8tGNlYnr', 'mock-wizard', 'http://127.0.0.1:18098/v1', 0.7, 4096, 1.0, '{}'::jsonb, true);

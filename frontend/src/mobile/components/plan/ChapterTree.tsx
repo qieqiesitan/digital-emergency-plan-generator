@@ -48,7 +48,7 @@ function ChapterRow({
 
   let StatusIcon = Circle as React.FC<{ size?: number; className?: string }>;
   let statusClass = "text-neutral-300";
-  let statusSize = 18;
+  const statusSize = 18;
 
   if (state?.hasContent) {
     StatusIcon = CheckCircle;

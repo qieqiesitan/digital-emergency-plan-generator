@@ -1,0 +1,136 @@
+{
+ "dashboard": {
+  "heading_title_count": 3,
+  "heading_rects": [
+   {
+    "x": 170,
+    "y": -299,
+    "w": 51,
+    "h": 22,
+    "bottom": -277,
+    "right": 221
+   },
+   {
+    "x": 16,
+    "y": -266,
+    "w": 358,
+    "h": 41,
+    "bottom": -225,
+    "right": 374
+   },
+   {
+    "x": 34,
+    "y": 825,
+    "w": 30,
+    "h": 10,
+    "bottom": 835,
+    "right": 64
+   }
+  ],
+  "fab": {
+   "x": 318,
+   "y": 716,
+   "w": 56,
+   "h": 56,
+   "bottom": 772,
+   "right": 374
+  },
+  "tabbar": {
+   "x": 0,
+   "y": 788,
+   "w": 390,
+   "h": 56,
+   "bottom": 844,
+   "right": 390
+  },
+  "last_card": {
+   "x": 16,
+   "y": 702,
+   "w": 358,
+   "h": 86,
+   "bottom": 788,
+   "right": 374
+  },
+  "fab_overlap_last_card": 3136,
+  "tabbar_overlap_last_card": 0,
+  "viewport": {
+   "w": 390,
+   "h": 844
+  },
+  "doc_scroll_h": 844
+ },
+ "plans": {
+  "heading_title_count": 1,
+  "heading_rects": [
+   {
+    "x": 34,
+    "y": 825,
+    "w": 30,
+    "h": 10,
+    "bottom": 835,
+    "right": 64
+   }
+  ],
+  "fab": null,
+  "tabbar": {
+   "x": 0,
+   "y": 788,
+   "w": 390,
+   "h": 56,
+   "bottom": 844,
+   "right": 390
+  },
+  "last_card": {
+   "x": 16,
+   "y": 698,
+   "w": 378,
+   "h": 74,
+   "bottom": 772,
+   "right": 394
+  },
+  "fab_overlap_last_card": 0,
+  "tabbar_overlap_last_card": 0,
+  "viewport": {
+   "w": 390,
+   "h": 844
+  },
+  "doc_scroll_h": 844
+ },
+ "enterprises": {
+  "heading_title_count": 1,
+  "heading_rects": [
+   {
+    "x": 34,
+    "y": 825,
+    "w": 30,
+    "h": 10,
+    "bottom": 835,
+    "right": 64
+   }
+  ],
+  "fab": null,
+  "tabbar": {
+   "x": 0,
+   "y": 788,
+   "w": 390,
+   "h": 56,
+   "bottom": 844,
+   "right": 390
+  },
+  "last_card": {
+   "x": 16,
+   "y": 744,
+   "w": 358,
+   "h": 44,
+   "bottom": 788,
+   "right": 374
+  },
+  "fab_overlap_last_card": 0,
+  "tabbar_overlap_last_card": 0,
+  "viewport": {
+   "w": 390,
+   "h": 844
+  },
+  "doc_scroll_h": 844
+ }
+}

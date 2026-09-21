@@ -1,0 +1,158 @@
+
+> frontend@0.0.0 build
+> tsc -b && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 8831 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/registerSW.js                                        0.13 kB
+dist/manifest.webmanifest                                 0.36 kB
+dist/index.html                                           0.83 kB │ gzip:   0.44 kB
+dist/m.html                                               1.16 kB │ gzip:   0.54 kB
+dist/assets/App-BNvo-Alf.css                             32.60 kB │ gzip:  10.49 kB
+dist/assets/MobileApp-BXdram4t.css                       33.06 kB │ gzip:   7.59 kB
+dist/assets/channel-BcKTKSP0.js                           0.10 kB │ gzip:   0.12 kB
+dist/assets/init-Gi6I4Gst.js                              0.15 kB │ gzip:   0.13 kB
+dist/assets/chunk-QZHKN3VN-D-n1HDAJ.js                    0.18 kB │ gzip:   0.16 kB
+dist/assets/chunk-55IACEB6-BSjgrWGo.js                    0.23 kB │ gzip:   0.21 kB
+dist/assets/download-DOdK7nGt.js                          0.26 kB │ gzip:   0.21 kB
+dist/assets/chunk-4BX2VUAB-D0GdhU0E.js                    0.29 kB │ gzip:   0.20 kB
+dist/assets/check-Dtup1_l6.js                             0.30 kB │ gzip:   0.25 kB
+dist/assets/chevron-down-CS2F2er0.js                      0.30 kB │ gzip:   0.25 kB
+dist/assets/chevron-right-DQ2xMRP5.js                     0.31 kB │ gzip:   0.25 kB
+dist/assets/plus-CzObqt3S.js                              0.33 kB │ gzip:   0.26 kB
+dist/assets/mobile-LWLqhgtD.js                            0.34 kB │ gzip:   0.24 kB
+dist/assets/search-ChjOf2ZW.js                            0.35 kB │ gzip:   0.28 kB
+dist/assets/chunk-FMBD7UC4-BcIUVlKC.js                    0.36 kB │ gzip:   0.27 kB
+dist/assets/user-p9BFO1lA.js                              0.37 kB │ gzip:   0.29 kB
+dist/assets/SafeArea-Vf0uPg8i.js                          0.37 kB │ gzip:   0.27 kB
+dist/assets/lock-DLSKKZeY.js                              0.38 kB │ gzip:   0.30 kB
+dist/assets/riskHierarchyEvents-DdIS0_1h.js               0.39 kB │ gzip:   0.21 kB
+dist/assets/mail-Bbvo-fEo.js                              0.39 kB │ gzip:   0.31 kB
+dist/assets/errorMessage-Do3FbgCW.js                      0.40 kB │ gzip:   0.27 kB
+dist/assets/download-3xpjYFoG.js                          0.41 kB │ gzip:   0.30 kB
+dist/assets/eye-COxfp-bg.js                               0.43 kB │ gzip:   0.31 kB
+dist/assets/pen-line-K3H-6gza.js                          0.45 kB │ gzip:   0.33 kB
+dist/assets/Card-N3Bv_iFb.js                              0.48 kB │ gzip:   0.35 kB
+dist/assets/list-DGcJMGyN.js                              0.48 kB │ gzip:   0.30 kB
+dist/assets/constants-qSKmIBTR.js                         0.49 kB │ gzip:   0.61 kB
+dist/assets/trash-2-uBL62xu1.js                           0.50 kB │ gzip:   0.32 kB
+dist/assets/bot-Ck8TDgGd.js                               0.50 kB │ gzip:   0.33 kB
+dist/assets/onboardingService-DJwKaUGR.js                 0.51 kB │ gzip:   0.30 kB
+dist/assets/chunk-2J33WTMH-zjz9CPju.js                    0.52 kB │ gzip:   0.37 kB
+dist/assets/accidentTypes-DyctmAgg.js                     0.53 kB │ gzip:   0.53 kB
+dist/assets/package-BVQiueXH.js                           0.55 kB │ gzip:   0.36 kB
+dist/assets/EmptyState-CTm3e4rY.js                        0.62 kB │ gzip:   0.38 kB
+dist/assets/sparkles-BWqa11vx.js                          0.67 kB │ gzip:   0.39 kB
+dist/assets/ProgressBar-2ALfo7pV.js                       0.71 kB │ gzip:   0.39 kB
+dist/assets/SegmentedControl-Ckm0o3O7.js                  0.77 kB │ gzip:   0.50 kB
+dist/assets/target-wrxHuWkY.js                            0.93 kB │ gzip:   0.43 kB
+dist/assets/Avatar-YG-n_bGS.js                            0.94 kB │ gzip:   0.54 kB
+dist/assets/Chip-B9tLLQMC.js                              0.94 kB │ gzip:   0.54 kB
+dist/assets/Skeleton-CzB8pk9Y.js                          0.94 kB │ gzip:   0.44 kB
+dist/assets/BottomSheet-BVnfdDDd.js                       1.11 kB │ gzip:   0.60 kB
+dist/assets/stateDiagram-v2-BHNVJYJU-DTL828a7.js          1.15 kB │ gzip:   0.61 kB
+dist/assets/ordinal-Cboi1Yqb.js                           1.19 kB │ gzip:   0.57 kB
+dist/assets/classDiagram-4FO5ZUOK-BOFCaBaM.js             1.22 kB │ gzip:   0.64 kB
+dist/assets/classDiagram-v2-Q7XG4LA2-BOFCaBaM.js          1.22 kB │ gzip:   0.64 kB
+dist/assets/chatService-ShyrNMfa.js                       1.27 kB │ gzip:   0.65 kB
+dist/assets/emergencyResourceService-B0rigfg8.js          1.29 kB │ gzip:   0.53 kB
+dist/assets/generationService-D9snADcg.js                 1.32 kB │ gzip:   0.58 kB
+dist/assets/infoDiagram-5YYISTIA-DVRtnmG2.js              1.34 kB │ gzip:   0.74 kB
+dist/assets/EnterpriseCreateScreen-DlzED9G2.js            1.37 kB │ gzip:   0.86 kB
+dist/assets/planService-Bk7fXVWM.js                       1.48 kB │ gzip:   0.45 kB
+dist/assets/FAB-CFtMLqps.js                               1.66 kB │ gzip:   0.85 kB
+dist/assets/chunk-ND2GUHAM-BoPfBmLR.js                    1.85 kB │ gzip:   0.82 kB
+dist/assets/NavBar-CY8U6y-Q.js                            1.91 kB │ gzip:   0.78 kB
+dist/assets/main-B9tuLIkP.js                              1.92 kB │ gzip:   0.90 kB
+dist/assets/RiskManagementListScreen-DFQW1wBL.js          1.94 kB │ gzip:   1.17 kB
+dist/assets/SplashScreen-cFjlHkUN.js                      1.97 kB │ gzip:   1.02 kB
+dist/assets/ChangePasswordScreen-XspGbEzu.js              2.10 kB │ gzip:   1.09 kB
+dist/assets/platform-DM0BCedK.js                          2.11 kB │ gzip:   1.10 kB
+dist/assets/LoginScreen-pe6ErXtR.js                       2.15 kB │ gzip:   1.17 kB
+dist/assets/emergencyCardCss-DOEi-dhI.js                  2.23 kB │ gzip:   0.94 kB
+dist/assets/EnterpriseEditScreen-DkU6j8Z4.js              2.49 kB │ gzip:   1.26 kB
+dist/assets/formatters-DeM6d6qR.js                        2.54 kB │ gzip:   1.44 kB
+dist/assets/Input-DRJ99Uds.js                             2.58 kB │ gzip:   1.19 kB
+dist/assets/RegisterScreen-BKL5y58x.js                    2.85 kB │ gzip:   1.38 kB
+dist/assets/sseFetch-BwBpg-PH.js                          2.99 kB │ gzip:   1.20 kB
+dist/assets/riskManagementService-CCHFI0BG.js             3.13 kB │ gzip:   0.94 kB
+dist/assets/useMutation-DXaaLRgC.js                       3.14 kB │ gzip:   1.29 kB
+dist/assets/ProfileScreen-BCBMA90G.js                     3.18 kB │ gzip:   1.30 kB
+dist/assets/riskAssessmentService-nCSDou9X.js             3.22 kB │ gzip:   1.30 kB
+dist/assets/resourceInvestigationService-CzHf0n9O.js      3.30 kB │ gzip:   1.29 kB
+dist/assets/arc-sWT2U35D.js                               3.42 kB │ gzip:   1.46 kB
+dist/assets/VersionListScreen-BZIKVyxI.js                 3.45 kB │ gzip:   1.70 kB
+dist/assets/EnterpriseListScreen-DxWNSaoK.js              3.49 kB │ gzip:   1.88 kB
+dist/assets/diagram-5GNKFQAL-Dd_d49GE.js                  3.51 kB │ gzip:   1.71 kB
+dist/assets/SettingsScreen-C0phZCd8.js                    3.55 kB │ gzip:   1.58 kB
+dist/assets/ResourceListScreen-UsgYyLQ4.js                4.59 kB │ gzip:   2.25 kB
+dist/assets/EnterpriseForm-BUjVWTVQ.js                    4.62 kB │ gzip:   2.03 kB
+dist/assets/defaultLocale-DX6XiGOO.js                     4.69 kB │ gzip:   2.18 kB
+dist/assets/diagram-LMA3HP47-NgF3hXrC.js                  5.00 kB │ gzip:   2.20 kB
+dist/assets/ChatScreen-D-gMSHi8.js                        5.02 kB │ gzip:   2.52 kB
+dist/assets/RiskAssessmentScreen-LqqePILz.js              5.33 kB │ gzip:   2.35 kB
+dist/assets/ResourceInvestigationScreen-B_6DlIPs.js       5.43 kB │ gzip:   2.37 kB
+dist/assets/linear-EIFx3HF5.js                            5.65 kB │ gzip:   2.31 kB
+dist/assets/EnterprisePlanListScreen-BE-MrIa1.js          5.92 kB │ gzip:   2.55 kB
+dist/assets/pieDiagram-4H26LBE5-BjOjLlOH.js               6.07 kB │ gzip:   2.71 kB
+dist/assets/diagram-2AECGRRQ-xahmZIH6.js                  6.72 kB │ gzip:   2.87 kB
+dist/assets/PlanCardsScreen-Di_HdTyv.js                   7.73 kB │ gzip:   2.46 kB
+dist/assets/ExportPreviewScreen-CGRRTKHW.js               8.53 kB │ gzip:   3.29 kB
+dist/assets/PlanCreateScreen-FgSll3vb.js                  8.66 kB │ gzip:   3.15 kB
+dist/assets/DashboardScreen-D-tk9JXq.js                   9.70 kB │ gzip:   3.39 kB
+dist/assets/EnterpriseDetailScreen-qMJcPM0n.js            9.88 kB │ gzip:   3.00 kB
+dist/assets/stateDiagram-AJRCARHV-DRl76NaW.js            11.12 kB │ gzip:   3.97 kB
+dist/assets/diagram-KO2AKTUF-B57gwQ2_.js                 11.57 kB │ gzip:   4.52 kB
+dist/assets/dagre-BM42HDAG-Bb5bY4yB.js                   12.16 kB │ gzip:   4.56 kB
+dist/assets/diagram-OG6HWLK6-CR55Nb_u.js                 16.68 kB │ gzip:   6.05 kB
+dist/assets/ishikawaDiagram-YF4QCWOH-yWtJPtxG.js         18.32 kB │ gzip:   7.03 kB
+dist/assets/kanban-definition-UN3LZRKU-D6JC-i-a.js       21.45 kB │ gzip:   7.65 kB
+dist/assets/graph-BlwPajkw.js                            23.94 kB │ gzip:   8.32 kB
+dist/assets/mindmap-definition-RKZ34NQL-8gw-rq-s.js      24.12 kB │ gzip:   8.25 kB
+dist/assets/sankeyDiagram-5OEKKPKP-D6otoNB2.js           24.14 kB │ gzip:   8.93 kB
+dist/assets/journeyDiagram-JHISSGLW-DVJfqjQ9.js          24.34 kB │ gzip:   8.72 kB
+dist/assets/MobileApp-B2p06ESL.js                        25.41 kB │ gzip:   8.65 kB
+dist/assets/PlanEditorScreen-_7ACCjFZ.js                 26.29 kB │ gzip:   8.96 kB
+dist/assets/wardleyDiagram-YWT4CUSO-XClvoHTs.js          26.86 kB │ gzip:   7.29 kB
+dist/assets/sanitize-BuRN8xWb.js                         27.09 kB │ gzip:  10.23 kB
+dist/assets/erDiagram-TEJ5UH35-CuCNntZV.js               27.72 kB │ gzip:   9.74 kB
+dist/assets/gitGraphDiagram-PVQCEYII-o7f2l1ZF.js         30.69 kB │ gzip:   9.23 kB
+dist/assets/requirementDiagram-4Y6WPE33-5-Lc2B3o.js      31.96 kB │ gzip:  10.18 kB
+dist/assets/timeline-definition-PNZ67QCA-nGTq1VnQ.js     32.12 kB │ gzip:  10.80 kB
+dist/assets/quadrantDiagram-W4KKPZXB-BennJtP9.js         35.25 kB │ gzip:  10.49 kB
+dist/assets/layout-Boy8vhSP.js                           35.84 kB │ gzip:  12.87 kB
+dist/assets/chunk-AQP2D5EJ-BXq1LcxP.js                   37.54 kB │ gzip:  12.23 kB
+dist/assets/xychartDiagram-2RQKCTM6-Bob9TTRd.js          41.15 kB │ gzip:  11.92 kB
+dist/assets/vennDiagram-CIIHVFJN-Xv3EaSII.js             42.59 kB │ gzip:  15.95 kB
+dist/assets/chunk-727SXJPM-jOZ83Cb0.js                   49.09 kB │ gzip:  15.75 kB
+dist/assets/flowDiagram-I6XJVG4X-CCu9tTRm.js             61.93 kB │ gzip:  19.88 kB
+dist/assets/ganttDiagram-6RSMTGT7-CSYOr0jC.js            65.37 kB │ gzip:  21.78 kB
+dist/assets/c4Diagram-AAUBKEIU-Gu4xfCHT.js               70.71 kB │ gzip:  19.99 kB
+dist/assets/blockDiagram-GPEHLZMM-7cLTnHFy.js            75.86 kB │ gzip:  21.99 kB
+dist/assets/cose-bilkent-S5V4N54A-C0OMB21Z.js            82.30 kB │ gzip:  22.80 kB
+dist/assets/react-BfvYI6Yh.js                            90.64 kB │ gzip:  30.96 kB
+dist/assets/mobile-vendor-BW7Wdt1C.js                   103.84 kB │ gzip:  34.86 kB
+dist/assets/sequenceDiagram-3UESZ5HK-DigRBi6C.js        118.05 kB │ gzip:  31.54 kB
+dist/assets/mobile-ui-CxIfqYIF.js                       129.33 kB │ gzip:  42.65 kB
+dist/assets/architectureDiagram-3BPJPVTR-CAvJuxFY.js    150.30 kB │ gzip:  42.63 kB
+dist/assets/katex-C5jXJg4s.js                           258.49 kB │ gzip:  77.57 kB
+dist/assets/cytoscape.esm-CUqq0XTU.js                   443.69 kB │ gzip: 142.35 kB
+dist/assets/wardley-L42UT6IY-CimjpBSu.js                615.19 kB │ gzip: 148.56 kB
+dist/assets/desktop-DMup1oH1.js                       1,563.10 kB │ gzip: 477.53 kB
+dist/assets/App-BPGiFKT1.js                           2,389.32 kB │ gzip: 724.96 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 20.76s
+
+PWA v1.3.0
+mode      generateSW
+precache  138 entries (7074.31 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-250e2fb9.js

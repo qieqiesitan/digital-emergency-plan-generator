@@ -1,0 +1,13 @@
+含 ⚠ 的 span 数: 4
+  [0] text='✓事故风险描述🤖⚠' cls=ant-tree-node-content-wrapper ant-tree-node-content-wrapper-normal
+  [1] text='✓事故风险描述🤖⚠' cls=ant-tree-title
+  [2] text='✓事故风险描述🤖⚠' cls=None
+  [3] text='⚠' cls=None
+树内 ⚠ 数: 4
+hover 后 tooltip 相关元素:
+  .ant-tooltip: 0 
+  .ant-tooltip-inner: 0 
+  [role='tooltip']: 0 
+  .ant-tooltip-content: 0 
+tooltip DOM: NO_TOOLTIP
+已清理探针数据

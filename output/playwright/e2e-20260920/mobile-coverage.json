@@ -1,0 +1,378 @@
+{
+ "mobile": [
+  {
+   "path": "/m/dashboard",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": false,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises",
+   "final_url": "http://localhost:8082/m/enterprises",
+   "redirected": false,
+   "text_len": 2911,
+   "text_head": "企业列表 | 删除 | Q |  | QA2_企业_9p90xrhl_改 |  | 化工 · 新地址2号 |  | 1个预案 | 删除 | E |  | E2E_Res_1788855908098 |  | 删除 | E |  | E2E_Risk_1788855904113 |  | 删除 | E |  | E2E_",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/new",
+   "final_url": "http://localhost:8082/m/enterprises/new",
+   "redirected": false,
+   "text_len": 158,
+   "text_head": "新建企业 |  | 基本信息 |  | 企业名称 | 行业分类 * | 选择行业分类 | 经济类型 | 国有 | 集体 | 民营 | 外资 | 合资 | 股份制 | 个体 | 有限责任公司 | 股份有限公司 | 股份合作制 | 联营 | 外商投资企业 | 港澳台商投资企业 | 农民专业合作社 | 个人独资企业 | 合伙",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/10e11995-e682-405a-9035-fbde13cca213",
+   "final_url": "http://localhost:8082/m/enterprises/10e11995-e682-405a-9035-fbde13cca213",
+   "redirected": false,
+   "text_len": 149,
+   "text_head": "企业详情 | QA2_企业_9p90xrhl_改 | 化工 | 基本信息 | 风险管控 | 应急资源 | 调查报告 | 企业名称 | QA2_企业_9p90xrhl_改 | 行业分类 | 化工 | 经营范围 | - | 经济类型 | - | 员工人数 | - | 地址 | 新地址2号 |  | 统计 |  | 0 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/edit",
+   "final_url": "http://localhost:8082/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/edit",
+   "redirected": false,
+   "text_len": 161,
+   "text_head": "编辑企业 |  | 基本信息 |  | 企业名称 | 行业分类 * | 选择行业分类 | 经济类型 | 国有 | 集体 | 民营 | 外资 | 合资 | 股份制 | 个体 | 有限责任公司 | 股份有限公司 | 股份合作制 | 联营 | 外商投资企业 | 港澳台商投资企业 | 农民专业合作社 | 个人独资企业 | 合伙",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management",
+   "final_url": "http://localhost:8082/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management",
+   "redirected": false,
+   "text_len": 55,
+   "text_head": "风险分级管控 | 暂无风险事件 |  | 请先在 Web 端维护风险分级管控数据 |  | 返回企业详情 | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/resources",
+   "final_url": "http://localhost:8082/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/resources",
+   "redirected": false,
+   "text_len": 78,
+   "text_head": "应急资源管理 | 全部 | 消防 | 急救 | 防护 | 通讯 | 照明 | 破拆 | 其他 |  | 干粉灭火器 |  | 20个 |  | 办公楼一楼走廊 · 责任人: 张三 |  | 删除 | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment",
+   "final_url": "http://localhost:8082/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment",
+   "redirected": false,
+   "text_len": 66,
+   "text_head": "风险评估报告 | 加载失败 |  | 无法加载风险评估报告 |  | 重试 | AI 生成风险评估报告 | 工作台 | 企业 | 预案 | 设置 | 未找到已完成的风险评估报告",
+   "console_error": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "api_4xx": [
+    "404 GET http://localhost:8082/api/v1/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment",
+    "404 GET http://localhost:8082/api/v1/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment"
+   ],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation",
+   "final_url": "http://localhost:8082/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation",
+   "redirected": false,
+   "text_len": 64,
+   "text_head": "应急资源调查报告 | 加载失败 |  | 无法加载应急资源调查报告 |  | 重试 | AI 生成应急资源调查报告 | 工作台 | 企业 | 预案 | 设置 | 未找到报告",
+   "console_error": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "api_4xx": [
+    "404 GET http://localhost:8082/api/v1/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation",
+    "404 GET http://localhost:8082/api/v1/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation"
+   ],
+   "request_failed": []
+  },
+  {
+   "path": "/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/plans",
+   "final_url": "http://localhost:8082/m/enterprises/10e11995-e682-405a-9035-fbde13cca213/plans",
+   "redirected": false,
+   "text_len": 102,
+   "text_head": "QA2_企业_9p90xrhl_改 的预案 | 全部 | 综合 | 专项 | 现场处置 | 全部状态 | 草稿 | 已完成 |  | QA2综合应急预案_9p90xrhl_v2 |  | 综合 | 草稿 | 2 小时前 | 编辑 | 预览 | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/plans",
+   "final_url": "http://localhost:8082/m/plans",
+   "redirected": false,
+   "text_len": 3552,
+   "text_head": "预案管理 |  | 4 |  | 综合预案 |  | 0 |  | 专项预案 |  | 0 |  | 现场方案 |  | 企业预案 |  | 全部企业 → | Q |  | QA2_企业_9p90xrhl_改 |  | 化工 |  | 1 |  | 个预案 |  | 综合 1 | 查看预案 | 新建 | 5 |  | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/plans/new",
+   "final_url": "http://localhost:8082/m/plans/new",
+   "redirected": false,
+   "text_len": 161,
+   "text_head": "新建预案 | 1 | 选择类型 | 2 | 企业 & 事故 | 3 | 确认创建 |  | 选择预案类型 |  | 不同类型的预案结构和适用范围不同 |  | 综合应急预案 |  | 覆盖全企业的应急管理总纲，自动从企业信息生成框架 |  | 专项应急预案 |  | 针对火灾、触电等特定事故类型，关联企业风险源 |  ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/plans/6792266d-cd5f-41fc-b591-648fcb64b435/edit",
+   "final_url": "http://localhost:8082/m/plans/6792266d-cd5f-41fc-b591-648fcb64b435/edit",
+   "redirected": false,
+   "text_len": 207,
+   "text_head": "QA2综合应急预案_9p90xrhl_v2 | 总则 | 编制目的 | 编制依据 | 适用范围 | 应急预案体系 | 应急工作原则 | 事故风险描述 | 风险源识别与等级评估 | 事故发生的可能性及后果 | 应急组织机构及职责 | 应急组织机构设置 | 各机构职责分工 | 预警及信息报告 | 预警分级与发布 | 信息报",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/plans/6792266d-cd5f-41fc-b591-648fcb64b435/versions",
+   "final_url": "http://localhost:8082/m/plans/6792266d-cd5f-41fc-b591-648fcb64b435/versions",
+   "redirected": false,
+   "text_len": 100,
+   "text_head": "版本管理 | 当前版本：v3 | v3 | 回滚 | 2026/9/20 10:15:07 | · | 自动创建 |  | AI 一键生成完成 |  | v2 | 回滚 | 2026/9/8 17:05:30 | · | 手动创建 | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/plans/6792266d-cd5f-41fc-b591-648fcb64b435/preview",
+   "final_url": "http://localhost:8082/m/plans/6792266d-cd5f-41fc-b591-648fcb64b435/preview",
+   "redirected": false,
+   "text_len": 53,
+   "text_head": "文档预览 | QA2综合应急预案_9p90xrhl_v2 | 继续编辑 | 导出 .docx | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/settings",
+   "final_url": "http://localhost:8082/m/settings",
+   "redirected": false,
+   "text_len": 108,
+   "text_head": "设置 | 设置 | E |  | 账户信息 |  | qa_e2e_test@test.com |  | 个人资料 | 修改密码 | AI 助手 |  | 关于 |  | 版本 1.0.0 · GB/T 29639-2020 标准合规 |  | 退出登录 | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/settings/profile",
+   "final_url": "http://localhost:8082/m/settings/profile",
+   "redirected": false,
+   "text_len": 81,
+   "text_head": "个人资料 | E | 姓名 | E2E测试用户 | 编辑 | 邮箱 | qa_e2e_test@test.com | 注册时间 | 2026/6/6 | 修改密码 | 退出登录 | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/settings/password",
+   "final_url": "http://localhost:8082/m/settings/password",
+   "redirected": false,
+   "text_len": 40,
+   "text_head": "修改密码 | ≥8位 | 含字母和数字 | 两次密码一致 | 修改密码 | 工作台 | 企业 | 预案 | 设置",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/m/chat",
+   "final_url": "http://localhost:8082/m/chat",
+   "redirected": false,
+   "text_len": 21,
+   "text_head": "AI 助手 | 压测消息 29 | SLOW_OK",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  }
+ ],
+ "desktop_only": [
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard/dashboard",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/major-hazard",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/work-ticket",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/emergency-org",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/notice-cards",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/workbench",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/methods",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/settings/users",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/settings/regulations",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/settings/data-hub",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/settings/prompts",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/onboarding",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/platform/overview",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  },
+  {
+   "path": "/chat",
+   "final_url": "http://localhost:8082/m/dashboard",
+   "redirected": true,
+   "text_len": 486,
+   "text_head": "工作台 | 工作台 |  | 企业数据完成度 |  | 25% | 应急组织 | 风险与危化品 | 周边环境 | 报告 | 去补数据 | QA2_企业_9p90xrhl_改 |  | 2026年9月20日星期日 |  | 1 |  | 预案总数 |  | 0 |  | 已完成 |  | 118 |  | 管理企业 | ",
+   "console_error": [],
+   "api_4xx": [],
+   "request_failed": []
+  }
+ ],
+ "context": {
+  "after_login": "http://localhost:8082/m/dashboard",
+  "token_len": 228,
+  "ids": {
+   "eid": "10e11995-e682-405a-9035-fbde13cca213",
+   "pid": "6792266d-cd5f-41fc-b591-648fcb64b435",
+   "plan_from": "global",
+   "name": "QA2_企业_9p90xrhl_改"
+  }
+ }
+}

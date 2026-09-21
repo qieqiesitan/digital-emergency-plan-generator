@@ -1,0 +1,562 @@
+[
+ {
+  "path": "/admin/users",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/admin/users/x",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/api/external/plans/x/status",
+  "status": 404,
+  "body": "{\"detail\":\"接口不存在\"}"
+ },
+ {
+  "path": "/api/health",
+  "status": 404,
+  "body": "{\"detail\":\"接口不存在\"}"
+ },
+ {
+  "path": "/chat/conversations",
+  "status": 200,
+  "body": "[{\"id\":\"9aa514a3-b375-4dc3-b8ef-239fe642da63\",\"title\":\"请只回复这串字符：流式校验27832\",\"created_at\":\"2026-"
+ },
+ {
+  "path": "/chemical-library",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[{\"id\":\"b6993ef8-c45f-562c-a46e-4718bebe2a1c\",\"name\":\"10-氮杂蒽\",\"alias\":\"�"
+ },
+ {
+  "path": "/chemical-library/collect/enterprises",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/chemical-library/collect/enterprises/10e11995-e682-405a-9035-fbde13cca213/chemicals",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/configs",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/dashboard",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"stats\":{\"enterprise_count\":118,\"plan_count\":4,\"completed_plan_count\":0,\"risk_source_co"
+ },
+ {
+  "path": "/enterprises",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[{\"name\":\"QA2_企业_9p90xrhl_改\",\"address\":\"新地址2号\",\"industry\":\"化工"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"name\":\"QA2_企业_9p90xrhl_改\",\"address\":\"新地址2号\",\"industry\":\"化工\",\"busines"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/chemicals",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/cockpit-summary",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"risk_counts\":{\"major\":0,\"larger\":0,\"general\":0,\"low\":0,\"total\":0},\"zone_risks\":[],\"top"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/completion",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"percent\":10,\"modules\":[{\"key\":\"enterprise_info\",\"label\":\"企业信息\",\"weight\":10,\"do"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/data-dicts",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"id\":\"c067211d-7f14-4993-bee6-a31992325e02\",\"dict_type\":\"control_level_map\",\"code\":\"ma"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/dashboard",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"metrics\":{\"open_hazards\":0,\"open_risk_points\":0,\"rectification_rate\":null,\"on_time_clo"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/export/ledger.xlsx",
+  "status": 200,
+  "body": "PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000�^2]F�MH�\u0000\u0000\u0000�\u0000\u0000\u0000\u0010\u0000\u0000\u0000docProps/app.xmlM�M\u000b�0\f\u0006�Rv���\u001e�\u000eD=����.u��)m����\u0004?nyy�\u001b�.�\"&��E�.�m32�\r@�#�>�ʡ���{�1݁�"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/export/report.xlsx",
+  "status": 200,
+  "body": "PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000�^2]F�MH�\u0000\u0000\u0000�\u0000\u0000\u0000\u0010\u0000\u0000\u0000docProps/app.xmlM�M\u000b�0\f\u0006�Rv���\u001e�\u000eD=����.u��)m����\u0004?nyy�\u001b�.�\"&��E�.�m32�\r@�#�>�ʡ���{�1݁�"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/plans",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/plans/6792266d-cd5f-41fc-b591-648fcb64b435",
+  "status": 404,
+  "body": "{\"detail\":\"排查计划不存在\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/publicity",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/records",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[],\"stats\":{\"total\":0,\"open\":0,\"major\":0,\"overdue\":0}}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/tasks",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/tasks/x",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/hazard-inspection/templates",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"id\":\"6f85cfa1-a516-42c0-9535-e81246f5317b\",\"enterprise_id\":null,\"name\":\"综合检查�"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org-structure",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org/members",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org/members/available",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org/members/search",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org/members/template",
+  "status": 200,
+  "body": "PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000�^2]F�MH�\u0000\u0000\u0000�\u0000\u0000\u0000\u0010\u0000\u0000\u0000docProps/app.xmlM�M\u000b�0\f\u0006�Rv���\u001e�\u000eD=����.u��)m����\u0004?nyy�\u001b�.�\"&��E�.�m32�\r@�#�>�ʡ���{�1݁�"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/org/nodes",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation",
+  "status": 404,
+  "body": "{\"detail\":\"未找到报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation/chapters",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"key\":\"ch1_purpose\",\"title\":\"一、调查目的与依据\"},{\"key\":\"ch2_basic_info\",\"ti"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation/export",
+  "status": 404,
+  "body": "{\"detail\":\"未找到报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation/preview",
+  "status": 404,
+  "body": "{\"detail\":\"未找到报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation/style",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"style_preference\":{}}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation/summary",
+  "status": 404,
+  "body": "{\"detail\":\"未找到报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resource-investigation/versions",
+  "status": 404,
+  "body": "{\"detail\":\"报告不存在，请先生成报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resources",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/resources/template",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment",
+  "status": 404,
+  "body": "{\"detail\":\"未找到已完成的风险评估报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment/chapters",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"key\":\"ch1_hazard_id\",\"title\":\"一、危险有害因素辨识分析\"},{\"key\":\"ch2_summ"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment/export",
+  "status": 404,
+  "body": "{\"detail\":\"未找到已完成的风险评估报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment/preview",
+  "status": 404,
+  "body": "{\"detail\":\"未找到已完成的风险评估报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment/style",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"style_preference\":{}}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment/summary",
+  "status": 404,
+  "body": "{\"detail\":\"未找到已完成的风险评估报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-assessment/versions",
+  "status": 404,
+  "body": "{\"detail\":\"报告不存在，请先生成报告\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/control-list",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[],\"total\":0}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/control-list/export",
+  "status": 200,
+  "body": "PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000�^2]F�MH�\u0000\u0000\u0000�\u0000\u0000\u0000\u0010\u0000\u0000\u0000docProps/app.xmlM�M\u000b�0\f\u0006�Rv���\u001e�\u000eD=����.u��)m����\u0004?nyy�\u001b�.�\"&��E�.�m32�\r@�#�>�ʡ���{�1݁�"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/floors",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"id\":\"704841f9-fe85-4cfb-838f-63de6f211149\",\"enterprise_id\":\"10e11995-e682-405a-9035-f"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/hierarchy",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/methods",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"id\":\"a347b376-ade2-484b-aaae-91a2dc746b50\",\"enterprise_id\":null,\"method_type\":\"LS\",\"n"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/methods/x",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/migrate/preview",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[],\"total\":0,\"migrated_total\":0}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/objects",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/objects/x/units",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/overview",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"floor\":{\"id\":\"704841f9-fe85-4cfb-838f-63de6f211149\",\"enterprise_id\":\"10e11995-e682-405"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/risk-publicity",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"token\":\"e71c254a06824b27496b7e4b3feeb3318e696c2bd3b95798ad3a68868c029c13\",\"enterprise_"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/workbench",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"floors\":[{\"id\":\"704841f9-fe85-4cfb-838f-63de6f211149\",\"enterprise_id\":\"10e11995-e682-4"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-management/zones",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-notice-cards",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[]}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-notice-cards/x",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-sources",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20}}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/risk-sources/template",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/enterprises/10e11995-e682-405a-9035-fbde13cca213/surrounding",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"nearby_units\":[],\"sensitive_targets\":[],\"traffic_info\":\"\"}}"
+ },
+ {
+  "path": "/export/tasks/x",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":{\"task_id\":\"x\",\"status\":\"completed\",\"progress\":100,\"download_url\":null,\"error_message\":null}}"
+ },
+ {
+  "path": "/ingest/items",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/ingest/jobs",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/ingest/sources",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/major-hazard/definitions/critical-quantities",
+  "status": 200,
+  "body": "{\"success\":true,\"code\":200,\"message\":\"success\",\"data\":[{\"chemical_name\":\"1,2-环氧丙烷\",\"alias\":\"氧化丙烯;甲基�"
+ },
+ {
+  "path": "/major-hazard/definitions/lookup",
+  "status": 422,
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"name\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "path": "/major-hazard/ledger/chemicals",
+  "status": 422,
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"enterprise_id\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "path": "/major-hazard/linkable/risk-objects",
+  "status": 422,
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"enterprise_id\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "path": "/major-hazard/units",
+  "status": 422,
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"enterprise_id\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "path": "/plans",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[{\"id\":\"6792266d-cd5f-41fc-b591-648fcb64b435\",\"enterprise_id\":\"10e11995-e682-40"
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"id\":\"6792266d-cd5f-41fc-b591-648fcb64b435\",\"enterprise_id\":\"10e11995-e682-405a-9035-fb"
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/export/preview",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"plan_id\":\"6792266d-cd5f-41fc-b591-648fcb64b435\",\"title\":\"QA2综合应急预案_9p90xrh"
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/generate/status",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":{\"generating\":false,\"failed_sections\":[],\"phase\":\"idle\",\"section_key\":null,\"section_title\":null,\"index\""
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/review",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"plan_id\":\"6792266d-cd5f-41fc-b591-648fcb64b435\",\"title\":\"QA2综合应急预案_9p90xrh"
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/sections",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"id\":\"45159ae5-4a80-4bb8-9e50-aeef6f2c7ce7\",\"section_key\":\"sec_1\",\"title\":\"总则\",\"le"
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/sections/overview",
+  "status": 404,
+  "body": "{\"detail\":\"章节不存在\"}"
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/versions",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"id\":\"3384d288-458c-4774-bff6-6d39e213c4be\",\"version_number\":2,\"created_by\":\"manual\",\""
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/versions/compare",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/plans/6792266d-cd5f-41fc-b591-648fcb64b435/versions/x",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/plans/enterprise-summary",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"enterprise_id\":\"5d55fa4b-45ac-4e45-a581-872eee2821b4\",\"enterprise_name\":\"5d55fa4b-45a"
+ },
+ {
+  "path": "/platform/ai-usage",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/platform/capabilities",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/platform/overview",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/prompts",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/regulations",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":{\"items\":[{\"label\":\"AQ/T 9009-2015\",\"full_name\":\"生产安全事故应急演练评估规范\",\"node_type"
+ },
+ {
+  "path": "/regulations/graph-data",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":{\"nodes\":[{\"label\":\"GB\",\"full_name\":\"GB 30077-2023 危险化学品单位应急救援物资配备要求\""
+ },
+ {
+  "path": "/regulations/history/global",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":{\"items\":[{\"event_id\":\"b73acbcd318a\",\"timestamp\":\"2026-07-29T00:44:26Z\",\"regulation_id\":\"gb30871_2022\","
+ },
+ {
+  "path": "/regulations/stats/data",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":{\"total\":123,\"effective\":123,\"abolished\":0,\"indexed_articles\":7604}}"
+ },
+ {
+  "path": "/regulations/x",
+  "status": 404,
+  "body": "{\"detail\":\"法规不存在\"}"
+ },
+ {
+  "path": "/regulations/x/history",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":{\"items\":[],\"total\":0}}"
+ },
+ {
+  "path": "/regulations/x/impact",
+  "status": 404,
+  "body": "{\"detail\":\"法规不存在\"}"
+ },
+ {
+  "path": "/regulations/x/source",
+  "status": 404,
+  "body": "{\"detail\":\"无源文件\"}"
+ },
+ {
+  "path": "/regulations/x/source/versions",
+  "status": 200,
+  "body": "{\"code\":0,\"data\":[]}"
+ },
+ {
+  "path": "/roles",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/roles/my-menus",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":[\"menu:dashboard\",\"menu:enterprises\",\"menu:plans\",\"menu:profile\"]}"
+ },
+ {
+  "path": "/roles/permissions/list",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/settings/ai-config",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/settings/data-dicts",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/system/third-party-config",
+  "status": 403,
+  "body": "{\"detail\":\"需要管理员权限\"}"
+ },
+ {
+  "path": "/templates",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"items\":[{\"id\":\"ca729ec0-a856-4b05-b7ce-97b6fac30eab\",\"plan_type\":\"comprehensive\",\"name"
+ },
+ {
+  "path": "/users/me",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"id\":\"506a380e-a2fe-4fd8-9430-f7f4c61f3d4b\",\"email\":\"qa_e2e_test@test.com\",\"name\":\"E2E�"
+ },
+ {
+  "path": "/users/me/style-preference",
+  "status": 200,
+  "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"formality\":\"standard\",\"detail_level\":\"balanced\",\"table_preference\":\"moderate\",\"diagram"
+ },
+ {
+  "path": "/work-ticket/templates",
+  "status": 200,
+  "body": "{\"success\":true,\"code\":200,\"message\":\"success\",\"data\":[{\"id\":\"99f530de-2586-5f03-9751-b9db1bbb3777\",\"code\":\"DHZY\",\"name\""
+ },
+ {
+  "path": "/work-ticket/tickets",
+  "status": 422,
+  "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"enterprise_id\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "path": "/work-ticket/tickets/x",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ },
+ {
+  "path": "/work-ticket/tickets/x/print.docx",
+  "status": 422,
+  "body": "{\"detail\":\"请求参数无效（如 ID 格式错误或字段超长），请检查后重试\"}"
+ }
+]

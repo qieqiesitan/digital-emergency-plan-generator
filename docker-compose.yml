@@ -60,7 +60,9 @@ services:
       - ./frontend/src:/app/src
       - ./frontend/vite.config.ts:/app/vite.config.ts
     ports:
-      - "5173:5173"
+      # 宿主 5173 落在 Windows/Hyper-V 动态保留段（5141-5240）导致 Docker 无法绑定，
+      # 换到保留段外的 15173；容器内仍是 5173，如需改回见 TASKS.md 快照说明
+      - "15173:5173"
     depends_on:
       - backend
     restart: unless-stopped

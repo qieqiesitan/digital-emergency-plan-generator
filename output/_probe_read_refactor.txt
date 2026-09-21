@@ -1,0 +1,19 @@
+QA 用户: 506a380e-a2fe-4fd8-9430-f7f4c61f3d4b | 企业: 10e11995-e682-405a-9035-fbde13cca213 QA2_企业_9p90xrhl_改
+合成: {'ri': '1fe683f8-68d2-4592-b336-e4b1d949baba', 'ra': 'd451f528-1601-4255-bb7d-63e71c03d3c5', 'tmp_ent': 'af9bf74d-c15f-4f50-9d4a-6056d5156496', 'other_ent': 'a1866bd9-5a30-43de-9c28-1853fd6164fa'}
+PASS RI get 200 且返回刚插入的报告  | status=200
+PASS RI summary 200 且 summary 原样返回  | status=200
+PASS RI preview 200 且正文渲染进 html  | status=200
+PASS RI export 200 且 docx 文件名用了企业名  | status=200 size=38848
+PASS RA get 200 且返回刚插入的报告  | status=200
+PASS RA summary 200 且 summary 原样返回  | status=200
+PASS RA preview 200 且正文渲染进 html  | status=200
+PASS RA export 200 且 docx 文件名用了企业名  | status=200 size=38877
+PASS RI 未知企业 → 404「未找到报告」  | status=404 detail=未找到报告
+PASS RA 未知企业 → 404「企业不存在」  | status=404 detail=企业不存在
+PASS RI 无报告企业 → 404「未找到报告」  | status=404 detail=未找到报告
+PASS RA 无报告企业 → 404「未找到已完成的风险评估报告」  | status=404 detail=未找到已完成的风险评估报告
+PASS RI 他人企业(有报告) → 404 不泄漏  | status=404 detail=未找到报告
+PASS RA 他人企业(有报告) → 404 不泄漏  | status=404 detail=企业不存在
+清理后残留行: 0 | 残留导出文件: [] | 下载副本: ['backend/exports/e2e-20260918\\probe-read-refactor-resource.docx', 'backend/exports/e2e-20260918\\probe-read-refactor-risk.docx']
+
+=== 14/14 PASS ===

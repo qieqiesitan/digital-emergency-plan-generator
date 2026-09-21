@@ -1,0 +1,135 @@
+C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\site-packages\pytest_asyncio\plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 31%]
+........................................................................ [ 34%]
+........................................................................ [ 38%]
+........................................................................ [ 41%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+........................................................................ [ 55%]
+........................................................................ [ 58%]
+........................................................................ [ 62%]
+........................................................................ [ 65%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 76%]
+........................................................................ [ 79%]
+........................................................................ [ 83%]
+........................................................................ [ 86%]
+........................................................................ [ 90%]
+........................................................................ [ 93%]
+........................................................................ [ 97%]
+..............................................................           [100%]
+============================== warnings summary ===============================
+tests/test_chat_agent_loop_resilience.py: 2 warnings
+tests/test_enterprise_org.py: 2 warnings
+tests/test_hazard_ai_api.py: 8 warnings
+tests/test_hazard_grade_api.py: 4 warnings
+tests/test_hazard_record_api.py: 2 warnings
+tests/test_hazard_template_api.py: 2 warnings
+tests/test_onboarding_extract.py: 2 warnings
+tests/test_onboarding_org.py: 1 warning
+tests/test_preferences_inject.py: 2 warnings
+tests/test_risk_notice_card_api.py: 8 warnings
+  C:\Users\55061\Documents\���ֻ�Ԥ���Զ����� 2\backend\app\services\db_guard.py:26: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    if not db.in_transaction():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_chat_agent_loop_resilience.py::test_agent_loop_yields_error_done_and_saves_on_tool_parse_failure
+  C:\Users\55061\Documents\���ֻ�Ԥ���Զ����� 2\backend\app\routers\chat.py:274: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    db.add(ChatToolCall(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_chat_save_trace.py::test_save_messages_with_tool_trace
+tests/test_chat_save_trace.py::test_save_messages_without_trace_keeps_legacy_shape
+  C:\Users\55061\Documents\���ֻ�Ԥ���Զ����� 2\backend\app\routers\chat.py:257: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    db.add(ChatMessage(conversation_id=conv_id, role="user", content=user_msg))
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_chat_save_trace.py::test_save_messages_with_tool_trace
+tests/test_chat_save_trace.py::test_save_messages_without_trace_keeps_legacy_shape
+  C:\Users\55061\Documents\���ֻ�Ԥ���Զ����� 2\backend\app\routers\chat.py:258: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    db.add(ChatMessage(conversation_id=conv_id, role="assistant", content=assistant_msg))
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_chat_save_trace.py::test_save_messages_with_tool_trace
+  C:\Users\55061\Documents\���ֻ�Ԥ���Զ����� 2\backend\app\routers\chat.py:260: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    db.add(ChatMessage(conversation_id=conv_id, role="assistant", content=""))
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_chat_save_trace.py::test_save_messages_with_tool_trace
+  C:\Users\55061\Documents\���ֻ�Ԥ���Զ����� 2\backend\app\routers\chat.py:262: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    db.add(ChatMessage(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_emergency_org.py::test_put_org_structure_is_gone
+  C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\site-packages\starlette\_exception_handler.py:76: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    await response(scope, receive, sender)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_plan_quality.py::test_clean_plan_no_issues
+  C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py:2217: RuntimeWarning: coroutine '_run_background' was never awaited
+    def __init__(self, name, parent):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_report_skip.py::test_generate_risk_assessment_after_skip_creates_new_row
+tests/test_report_skip.py::test_generate_resource_investigation_after_skip_creates_new_row
+  sys:1: SAWarning: fully NULL primary key identity cannot load any object.  This condition may raise an error in a future release.
+
+tests/test_report_versions.py::test_create_version_snapshots_content_and_bumps_version
+  C:\Users\55061\Documents\���ֻ�Ԥ���Զ����� 2\backend\app\routers\report_versions.py:81: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    db.add(v)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_security_batch_c.py: 10 warnings
+tests/test_security_hardening_p0.py: 1 warning
+  C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\site-packages\jose\jwt.py:311: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = timegm(datetime.utcnow().utctimetuple())
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2078 passed, 56 warnings in 152.63s (0:02:32)
+Exception ignored in: <function _ProactorBasePipeTransport.__del__ at 0x00000283FDF42660>
+Traceback (most recent call last):
+  File "C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\asyncio\proactor_events.py", line 116, in __del__
+    _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+                               ^^^^^^^^
+  File "C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\asyncio\proactor_events.py", line 80, in __repr__
+    info.append(f'fd={self._sock.fileno()}')
+                      ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\asyncio\windows_utils.py", line 102, in fileno
+    raise ValueError("I/O operation on closed pipe")
+ValueError: I/O operation on closed pipe
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x00000283FDF40E00>
+Traceback (most recent call last):
+  File "C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_subprocess.py", line 125, in __del__
+    _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+                               ^^^^^^^^
+  File "C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_subprocess.py", line 70, in __repr__
+    info.append(f'stdin={stdin.pipe}')
+                        ^^^^^^^^^^^^
+  File "C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\asyncio\proactor_events.py", line 80, in __repr__
+    info.append(f'fd={self._sock.fileno()}')
+                      ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\55061\AppData\Local\Programs\Python\Python312\Lib\asyncio\windows_utils.py", line 102, in fileno
+    raise ValueError("I/O operation on closed pipe")
+ValueError: I/O operation on closed pipe

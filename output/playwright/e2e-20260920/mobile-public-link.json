@@ -1,0 +1,50 @@
+[
+ {
+  "ua": "iPhone",
+  "path": "/h/report/FAKE_TOKEN",
+  "final_url": "/m/login",
+  "text": "登录 |  | 欢迎回到应急预案管理 |  | 忘记密码？请联系管理员重置 | 登录 | 没有账号？立即注册"
+ },
+ {
+  "ua": "iPhone",
+  "path": "/h/FAKE_TOKEN",
+  "final_url": "/m/login",
+  "text": "登录 |  | 欢迎回到应急预案管理 |  | 忘记密码？请联系管理员重置 | 登录 | 没有账号？立即注册"
+ },
+ {
+  "ua": "iPhone",
+  "path": "/r/FAKE_TOKEN",
+  "final_url": "/m/login",
+  "text": "登录 |  | 欢迎回到应急预案管理 |  | 忘记密码？请联系管理员重置 | 登录 | 没有账号？立即注册"
+ },
+ {
+  "ua": "iPhone",
+  "path": "/p/risk/FAKE_TOKEN",
+  "final_url": "/m/login",
+  "text": "登录 |  | 欢迎回到应急预案管理 |  | 忘记密码？请联系管理员重置 | 登录 | 没有账号？立即注册"
+ },
+ {
+  "ua": "Desktop",
+  "path": "/h/report/FAKE_TOKEN",
+  "final_url": "/h/report/FAKE_TOKEN",
+  "text": "免登录公开上报 | 本页面仅用于隐患上报，不展示企业内部数据；提交后由企业管理员确认处理。 | 隐患上报 | 隐患描述 | 0 / 2000 | 位置 | （可选） | 企业通用二维码上报时位置必填；风险点二维码可留空。 | 照片（可选，最"
+ },
+ {
+  "ua": "Desktop",
+  "path": "/h/FAKE_TOKEN",
+  "final_url": "/h/FAKE_TOKEN",
+  "text": "链接已失效 | 该公示链接已失效，请联系企业管理员获取最新链接"
+ },
+ {
+  "ua": "Desktop",
+  "path": "/r/FAKE_TOKEN",
+  "final_url": "/r/FAKE_TOKEN",
+  "text": "卡片不存在或链接已失效"
+ },
+ {
+  "ua": "Desktop",
+  "path": "/p/risk/FAKE_TOKEN",
+  "final_url": "/p/risk/FAKE_TOKEN",
+  "text": "链接已失效 | 该公示链接已失效，请联系企业管理员获取最新链接"
+ }
+]
