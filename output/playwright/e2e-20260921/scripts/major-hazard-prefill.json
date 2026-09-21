@@ -1,0 +1,62 @@
+{
+  "checks": {
+    "fields_start_blank": true,
+    "prefilled_blank_fields": true,
+    "manual_value_not_overwritten": true,
+    "source_tag_shown_for_three": true,
+    "tag_cleared_after_edit": true,
+    "link_survived_save": true,
+    "prefilled_value_persisted": true,
+    "edited_value_persisted": true,
+    "manual_value_persisted": true,
+    "reload_shows_persisted": true,
+    "reload_has_no_tag": true,
+    "no_console_error": true
+  },
+  "detail": {
+    "fixture": {
+      "enterprise": "497fd0ba-708b-4485-9836-de013ff67942",
+      "zone": "0214f8d1-1be3-4f2a-9770-da4c3c48bfc0",
+      "object": "1709d5bc-a11f-4f6e-9d60-55ccd101ba4e",
+      "unit": "4a061718-9294-4e5d-ae5e-79ceef36bd5c"
+    },
+    "before": {
+      "address": "",
+      "department": "",
+      "responsible_person": "",
+      "responsible_phone": ""
+    },
+    "after_pick": {
+      "address": "厂区北侧罐区东侧",
+      "department": "人工填的部门",
+      "responsible_person": "张峰",
+      "responsible_phone": "13800000000"
+    },
+    "tag_count_after_pick": 3,
+    "tag_count_after_edit": 2,
+    "saved_unit": {
+      "id": "4a061718-9294-4e5d-ae5e-79ceef36bd5c",
+      "enterprise_id": "497fd0ba-708b-4485-9836-de013ff67942",
+      "name": "罐区A",
+      "unit_type": "storage",
+      "address": "厂区北侧罐区东侧（改过）",
+      "floor_id": null,
+      "polygon": null,
+      "department": "人工填的部门",
+      "responsible_person": "张峰",
+      "responsible_phone": "13800000000",
+      "risk_object_id": "1709d5bc-a11f-4f6e-9d60-55ccd101ba4e",
+      "is_active": true,
+      "created_at": "2026-09-21T03:33:17.954600Z"
+    },
+    "after_reload": {
+      "address": "厂区北侧罐区东侧（改过）",
+      "department": "人工填的部门",
+      "responsible_person": "张峰",
+      "responsible_phone": "13800000000"
+    },
+    "tag_count_after_reload": 0,
+    "errors": []
+  },
+  "all_passed": true
+}
