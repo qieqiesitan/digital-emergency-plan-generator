@@ -1,0 +1,73 @@
+{
+  "summary": {
+    "risk_load_request_count": 2,
+    "risk_toast_count": 1,
+    "risk_console_error_count": 4,
+    "resource_load_request_count": 2,
+    "resource_toast_count": 1,
+    "resource_console_error_count": 4
+  },
+  "detail": {
+    "enterprise": "8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e",
+    "risk": {
+      "url": "http://localhost:15173/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/modules/assessment",
+      "load_requests": [
+        {
+          "status": 404,
+          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/risk-assessment"
+        },
+        {
+          "status": 404,
+          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/risk-assessment"
+        }
+      ],
+      "toasts": 1,
+      "toast_texts": [
+        "未找到已完成的风险评估报告"
+      ],
+      "live_notices": 0,
+      "load_request_count": 2,
+      "load_statuses": [
+        404,
+        404
+      ],
+      "console_errors": [
+        "error:Warning: [antd: Spin] `tip` is deprecated. Please use `description` instead.",
+        "error:Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "error:Warning: [antd: message] Static function can not consume context like dynamic theme. Please use 'App' component instead.",
+        "error:Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "page_hint_shown": 1
+    },
+    "resource": {
+      "url": "http://localhost:15173/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/modules/investigation",
+      "load_requests": [
+        {
+          "status": 404,
+          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/resource-investigation"
+        },
+        {
+          "status": 404,
+          "url": "http://localhost:15173/api/v1/enterprises/8cd4e1cd-5355-49ae-af2f-ccd4e0573f9e/resource-investigation"
+        }
+      ],
+      "toasts": 1,
+      "toast_texts": [
+        "未找到报告"
+      ],
+      "live_notices": 0,
+      "load_request_count": 2,
+      "load_statuses": [
+        404,
+        404
+      ],
+      "console_errors": [
+        "error:Warning: [antd: Spin] `tip` is deprecated. Please use `description` instead.",
+        "error:Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "error:Warning: [antd: message] Static function can not consume context like dynamic theme. Please use 'App' component instead.",
+        "error:Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "page_hint_shown": 1
+    }
+  }
+}

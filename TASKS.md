@@ -1,3 +1,34 @@
+## 当前状态快照（压缩恢复用 · 「空报告重复报错」修复 · 2026-09-21）
+- 正在做什么（2026-09-21）：用户报「风险评估报告和资源调查报告若没有数据，报错会重复、控制台也有很多报错」，
+  附 `GET /enterprises/{id}/risk-assessment 404` 的重复堆栈。自动匹配 `$systematic-debugging`（主技能）
+  + `$verification-before-completion`（辅助技能）。
+- **已复现（探针 `output/playwright/e2e-20260921/scripts/_empty_report_error_probe.py`，
+  dev 服务器 15173，新建空企业）**，证据 `empty-report-errors.json`：
+  每个 tab 各发出 **2 次**相同的 `GET .../risk-assessment`（或 `/resource-investigation`）**均 404**；
+  控制台每次 4 条 error（2 条 `Failed to load resource: 404` + `[antd: Spin] tip is deprecated`
+  + `[antd: message] Static function can not consume context`）；页面弹 1 个错误 toast
+  「未找到已完成的风险评估报告」/「未找到报告」。
+- 根因三条（均已代码定位）：
+  1. **重复请求**：`main.tsx` 全局 `React.StrictMode` 开发期双挂载 → `ReportWorkspace.tsx:259`
+     的 `afterCommit(() => loadDocument())` 跑两次；`getRiskAssessment` 没有并发合并。
+  2. **重复报错**：报告未生成是**预期空态**（`ReportWorkspace.tsx:229` catch 里已写明「load 404 属预期」），
+     但 `services/api.ts` 的全局响应拦截器对所有非 401 的 4xx 一律 `message.error`，
+     于是空态被当成故障弹窗（移动端 `MobileApp.tsx:15 retry: 1` 还会再补一次请求 → 报错更"多"）。
+  3. **控制台 404 红字**：后端把「报告不存在」表达为 HTTP 404（`access_control.load_report_for_owner`
+     `raise HTTPException(404, report_detail)`），浏览器对 404 必然打印红字，前端再怎么兜底也消不掉。
+- 方案（本次实施）：
+  - 后端 `load_report_for_owner(..., required=True)` 新增开关；`GET /{id}/risk-assessment` 与
+    `GET /{id}/resource-investigation` 用 `required=False` → 无报告时 **200 + `data: null`**（企业不存在/无权仍是 404）。
+  - 前端 `getRiskAssessment`/`getResourceInvestigation` 返回可空值；默认 `skipGlobalError: true`（空态不弹错误）；
+    加 `dedupeInflight` 合并并发同名 GET（StrictMode 双挂载 → 只发 1 次）。
+  - `reportAdapters.load` 可返回 null；`ReportWorkspace` 收到 null 走空态；
+    `RiskAssessmentPreview`/`ResourceInvestigationPreview` 空值保护；
+    `ReportWorkspace.tsx:670` 的 `<Spin tip>` 改 `description`（antd 6 弃用告警）。
+- 下一步：先写失败测试（后端 200 空态 / 前端 null 与并发合并）→ 改代码 → 三端门禁 → 复跑探针（期望 0 toast、0 console error、1 次请求）。
+- 关键上下文：前端 dev 服务器 = 容器 `emergency-plan-frontend`（宿主 15173，StrictMode 生效）；
+  8082 = 生产构建（`shuzihuayuan`）。前端门禁在容器里跑 `docker exec emergency-plan-frontend npx ...`；
+  pytest 必须从仓库根目录跑。
+
 ## 当前状态快照（压缩恢复用 · 重大危险源↔风险管控「联动/自动带出」调研 · 2026-09-21）
 - 正在做什么（2026-09-21）：用户先问「重大危险源和风险管控的数据有没有可以联通的」，续问
   「**填表时能不能自动取数、不用重复填**」→ 自动匹配 `$brainstorming`（`.codex/skills/brainstorming/SKILL.md`）
@@ -70,8 +101,68 @@
      **hooks 必须放在提前 return 之前**；四项前端门禁
   5. 浏览器探针 `output/playwright/e2e-20260921/scripts/_major_hazard_prefill_probe.py`
      （自建隔离夹具：企业→分区→带 4 项的风险点→空单元；12 项 checks，含"保存后关联仍在"的 P0 回归）
-- 下一步（等用户拍板）：选执行方式——**子代理驱动**（每任务一个新子代理 + 两阶段审查）或
-  **内联执行**（`$executing-plans`，当前会话批量执行 + 检查点）。此前几轮计划用户都选内联。
+- **用户选内联执行** → 自动匹配 `$executing-plans`，正在按计划逐任务推进（本会话）。
+  保存点 `0a631e9`（git save）。快照按**任务边界**更新（每任务一次，非每条命令）。
+- 进度：**5/5 全部完成**（commit 链：`061c924` → `1ec547e` → `19769da` → `bd4f050` → `12f7900`）
+  - ✅ **任务 1/5 完成**（commit `061c924`）：`update_unit` 改 `model_dump(exclude_unset=True)`。
+    **红灯实测坐实了 P0**：修复前 `test_update_unit_keeps_untouched_fields` 报
+    `assert None == 'o1'`——保存确实把 `risk_object_id` 清成 None（此前只是代码推断，现已实证）。
+  - ✅ **任务 2/5 完成**（commit `1ec547e`）：服务层抽 `ensure_risk_object_in_enterprise`
+    （`link_risk_object` 复用）+ `list_linkable_risk_objects` 补 4 字段；
+    路由层 `_guard_risk_object` 挂到 `create_unit`/`update_unit`（跨企业 422）。
+    **全量后端门禁：2183 passed / 1 skipped**（基线 2176 + 新增 7 例，数字吻合）。
+  - ✅ **任务 3/5 完成**（commit `19769da`）：`riskObjectPrefill.ts`（`buildUnitPrefill` /
+    `isPrefillMarkVisible` / `PREFILL_FIELD_LABELS`）+ 8 例单测全绿。
+  - ✅ **任务 4/5 完成**（commit `bd4f050`）：`RiskObjectPicker` 加 `onLinked` 回调；
+    `MajorHazardUnitPage` 接线 + 蓝色 Tag「来自风险点」；`useWatch` 按要求放在提前 return 之前。
+    前端四项门禁：tsc 0 / **vitest 334 passed**（基线 326 + 新增 8）/ eslint 0 / build OK。
+  - ✅ **任务 5/5 完成**（commit `12f7900`）：浏览器探针
+    `output/playwright/e2e-20260921/scripts/_major_hazard_prefill_probe.py` **12/12 全通过**，
+    证据 `major-hazard-prefill.json` + 保存前/重载后两张截图。
+    探针踩到并修掉的两个 antd 细节：① Select 的 placeholder 不在 input 上（要按卡片范围定位）；
+    ② rc-select 额外渲染一份**不可见**的无障碍 option 列表，点它会超时，必须点 `.ant-select-item-option`。
+- **验收证据（规格 §8 六条）**：
+  1. 真库既有那条关联（罐区A（冒烟测试）→ 机柜及服务器）——该企业属**另一个账号**，无法代其保存，
+     改为只读确认关联仍在（`37451eb8 → 3e810cc9`）；保存不清空的行为由探针在新建单元上**等价验证**
+     （`link_survived_save: true`）
+  2. 4 项空白字段被填、已填字段不被覆盖 → 探针 `prefilled_blank_fields` + `manual_value_not_overwritten` 均 true
+  3. 来源标记显示、改动后消失 → 探针 `source_tag_shown_for_three`（3 个）+ `tag_cleared_after_edit`（降为 2 个）
+  4. 后端 `pytest` → **2183 passed / 1 skipped**
+  5. 前端 `tsc -b` / `vitest 334` / `eslint 0` / `build OK`
+  6. 浏览器探针 → **12/12**，`all_passed: true`，0 console error
+- 图谱已同步：`codegraph sync`（注意 `codegraph sync .` 在仓库根会 `Maximum call stack size exceeded`，
+  属既有工具问题、与本次改动无关；改用窄路径 `backend/app/services`、`backend/app/routers`、
+  `backend/tests`、`frontend/src` 均成功）；`graphify update .` 已重建（15822 节点 / 27646 边）。
+- **⚠ 待用户决策的风险点**：开工前按铁律二执行的 `git save` 生成了 savepoint `0a631e9`，
+  它**把工作区里他人未提交的改动一起提交了**（`TASKS.md`、`docker-compose.yml`、
+  `.graphifyignore`、`ChapterTree.tsx`、`docs/移动端完成度评估-2026-09-20.md`、一批 `output/_*.txt` 等）。
+  该 savepoint 是 5 个功能提交的**祖先**，所以任何推送都会带上它。
+  远端：`origin` = GitHub（此前网络不通）、`gitee` = Gitee。本地领先 `origin/master` **8 个提交**。
+  `TASKS.md` 也因此进了那个 savepoint（违反"TASKS.md 永不 commit"，需要用户决定怎么处理）。
+- 影响面已核（铁律二）：`majorHazardService.updateUnit` 只有两个调用方
+  （`MajorHazardListPage.tsx:104`、`MajorHazardUnitPage.tsx:54`），都提交整表单、不依赖清空语义；
+  `risk_management.py:836` 的同名 `update_unit` 是风险单元，另一回事，未受影响。
+- 关键命令备忘：pytest 必须**从仓库根**跑（在 `backend/` 目录下跑会因缺 `SECRET_KEY` 报收集错误）；
+  前端门禁在容器里跑 `docker exec emergency-plan-frontend npx ...`。
+- **追加（2026-09-21 · 用户问「为什么会有这些」→ 清理已完成，commit `cdf2673`）**：
+  137.7MB 的成因查清了——① 容器间不能直接 `docker cp`（`docs/deploy/README-DEPLOY.md:259`），
+  每次把新前端推上 8082 都要经宿主中转一份 dist，9-18 那晚连续迭代留下 6 套 `output/dist-b*`；
+  ② 「把门禁输出重定向到文件留证」的习惯留下 `eslint-report*.json`×15 与一批 `_*.txt`；
+  ③ `.gitignore` 只有 `dist/` 与 `/frontend/output/`，根级 `output/`、`tmp/` 从未被忽略
+  （`.graphifyignore` 里补的 `tmp/` 只管图谱语料、不管 git）。
+  用户说「先清理」→ **已删 2594 个文件 / 134.9 MB**（18 个构建产物目录 + 48 个一次性输出），
+  `output/` 从约 150MB 降到 **15.0MB**，`tmp/` 整个消失。
+- **清理时差点误删的三个（下次记住）**：`output/migrations/` 是应急组织拆分的**回滚依据**
+  （`backend/scripts/migrate_emergency_org_split.py:358` 写死了该目录）；`output/_pt/` 不是纯垃圾，
+  `docs/系统诊断报告-v6-2026-09-18.md:582,634` 把它当探针归档引用（只删了其中的 `dist-*` 产物）；
+  `output/evidence-env-20260918/` 是改 `.env` 前的证据备份。
+- 新增 `.gitignore` 五条规则（按**产物形态**收窄，不用 `/output/*` 一刀切）：`/tmp/`、
+  `/output/dist-*/`、`/output/_pt/dist-*/`、`/output/eslint-report*.json`、`/output/_*.txt`。
+  已验证产物命中、`output/playwright`+`output/migrations`+`output/evidence-*` 仍正常跟踪；
+  `.gitignore:10` 的全局 `*.log` 说明 `output/_pt/*.log` 一直是未跟踪状态、从未进过 savepoint。
+  容器未挂载 `output/`、`tmp/`，删除不影响运行中的服务；本次只删数据、未改任何源码。
+- ⚠ **仍需注意**：这 134.9MB 的 blob 仍在 savepoint `0a631e9` 里，任何包含该提交的推送仍会
+  把它们传出去（清理只让工作区和 tip 变干净）；且 `git undo` 回到该 savepoint 会全部还原。
 - 结论：**有 3 条已实现的外键桥**，但真实库基本没连上。
   1. `major_hazard_units.risk_object_id` → `risk_objects.id`
      （`backend/app/models/major_hazard.py`、`backend/app/services/major_hazard_linkage.py:link_risk_object`、
