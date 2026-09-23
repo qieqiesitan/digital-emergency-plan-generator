@@ -5,6 +5,7 @@ import { filenameFromContentDisposition } from "@/utils/download";
 import { errorMessage } from "@/utils/apiError";
 import type {
   AiPrefillResult,
+  ApprovalNodePreview,
   BatchDetail,
   BatchSubmitAllResult,
   BatchTicketSpec,
@@ -28,6 +29,17 @@ const BASE = "/work-ticket";
 export const listTemplates = () =>
   api
     .get<ApiResponse<WorkTicketTemplate[]>>(`${BASE}/templates`)
+    .then((r) => r.data.data);
+
+/**
+ * 开票前审批链预检：返回每个节点要求的岗位与当前企业匹配到的人数。
+ * eligible_count = 0 表示该节点无人可签（票提交后会卡在审批中）。
+ */
+export const getApprovalPreview = (enterpriseId: string, templateId: string) =>
+  api
+    .get<ApiResponse<ApprovalNodePreview[]>>(`${BASE}/approval-preview`, {
+      params: { enterprise_id: enterpriseId, template_id: templateId },
+    })
     .then((r) => r.data.data);
 
 /** 确定性预填：按来源优先级带出票面字段（进向导即调，不触发 AI）。 */

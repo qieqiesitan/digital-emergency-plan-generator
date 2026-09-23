@@ -50,6 +50,7 @@ from app.services.work_ticket_service import (
     WorkTicketError,
     WorkTicketPermissionError,
     act_on_node,
+    preview_approval_chain,
     open_ticket,
     submit_ticket,
     member_can_view_ticket,
@@ -519,6 +520,25 @@ async def api_prefill(
         scenario=scenario_dict,
     )
     return _ok(payload)
+
+
+@router.get("/approval-preview")
+async def api_approval_preview(
+    enterprise_id: str = Query(...),
+    template_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """开票前预检审批链：每个节点要求什么岗位、当前企业能匹配到几个人。
+
+    用于在提交前就提示「本节点无人可审批」，避免票提交后卡死却毫无提示。
+    """
+    await ensure_enterprise_visible(db, user, enterprise_id)
+    return _ok(
+        await preview_approval_chain(
+            db, enterprise_id=enterprise_id, template_id=template_id
+        )
+    )
 
 
 @router.get("/scenarios")

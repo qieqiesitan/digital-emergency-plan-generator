@@ -30,6 +30,7 @@ import {
   addGasTest,
   aiPrefill,
   errorDetail,
+  getApprovalPreview,
   getPrefill,
   getTicketDetail,
   listLocations,
@@ -94,7 +95,7 @@ export default function WorkTicketNewPage() {
   // 同一个页面承担两种角色：新开票（无 ticketId）与继续编辑草稿（有 ticketId）
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
 
   const [step, setStep] = useState(0);
   const [ticketType, setTicketType] = useState<WorkTicketTypeCode>("DHZY");
@@ -179,6 +180,15 @@ export default function WorkTicketNewPage() {
   }, [templates, activeTicketType, activeLevel, levelsForType]);
 
   const enterpriseCode = (enterprise?.credit_code || id || "").slice(0, 20);
+  /**
+   * 审批链预检：提前知道"这个节点有没有人能签"。
+   * 之前要等提交后票卡在审批中才发现没人可审（2026-09-23 用户实测）。
+   */
+  const { data: approvalPreview } = useQuery({
+    queryKey: ["work-ticket-approval-preview", id, template?.id],
+    queryFn: () => getApprovalPreview(id as string, template?.id as string),
+    enabled: Boolean(id && template?.id),
+  });
   const { chain: flowChain, countersign: countersignHint } = flowPreview(
     template?.flow_nodes ?? [],
   );
@@ -212,6 +222,9 @@ export default function WorkTicketNewPage() {
 
   /** 当前步骤自己的缺项（显示在本步顶部，不让用户翻回去找） */
   const currentStepProblems = stepProblems.filter((p) => p.step === step);
+
+  /** 当前企业里没有任何人能签的审批节点——票提交后会卡在审批中 */
+  const unstaffedNodes = (approvalPreview ?? []).filter((node) => node.eligible_count === 0);
 
   /** 传给后端的作业情景：勾选=true；开了「已核实」开关时未勾选的项=false。 */
   const scenarioParam = useMemo(() => {
@@ -399,22 +412,9 @@ export default function WorkTicketNewPage() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!id) return;
-    if (!activeTicketType || !template) {
-      message.error("未找到对应的作业票模板，请检查模板种子数据");
-      return;
-    }
-    if (stepProblems.length > 0) {
-      // 不再只甩一份文字清单：直接跳到第一个出问题的步骤，并在该步顶部列出缺项
-      const first = stepProblems[0];
-      setProblems(stepProblems.map((problem) => problem.message));
-      setStep(first.step);
-      message.warning(
-        `提交前校验未通过，已跳到「${STEPS[first.step].title}」：${first.message}`,
-      );
-      return;
-    }
+  /** 真正把票提交出去（前置检查通过后才调用）。 */
+  const doSubmit = async () => {
+    if (!id || !activeTicketType || !template) return;
     setSubmitting(true);
     try {
       const payload = collectPayload();
@@ -447,6 +447,59 @@ export default function WorkTicketNewPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!id) return;
+    if (!activeTicketType || !template) {
+      message.error("未找到对应的作业票模板，请检查模板种子数据");
+      return;
+    }
+    if (stepProblems.length > 0) {
+      // 不再只甩一份文字清单：直接跳到第一个出问题的步骤，并在该步顶部列出缺项
+      const first = stepProblems[0];
+      setProblems(stepProblems.map((problem) => problem.message));
+      setStep(first.step);
+      message.warning(
+        `提交前校验未通过，已跳到「${STEPS[first.step].title}」：${first.message}`,
+      );
+      return;
+    }
+    // 审批链里若有人没人能签，票会卡在审批中；这时让用户明确知情后再决定
+    if (unstaffedNodes.length > 0) {
+      modal.confirm({
+        title: "提交后可能无人可审批",
+        width: 560,
+        content: (
+          <div>
+            <p style={{ marginTop: 0 }}>
+              当前企业里找不到下列审批节点的办理人，提交后这张票会停在审批中，
+              不会出现在任何人的待办里：
+            </p>
+            <ul style={{ paddingLeft: 20, margin: "8px 0" }}>
+              {unstaffedNodes.map((node) => (
+                <li key={node.node_key}>
+                  「{node.name}」要求
+                  {node.role_code ? `岗位「${node.role_code}」` : "指定会签单位"}
+                  {node.countersign_units?.length
+                    ? `（${node.countersign_units.join("、")}）`
+                    : ""}
+                </li>
+              ))}
+            </ul>
+            <p style={{ marginBottom: 0 }}>
+              建议先到「企业 → 组织架构」建立同名节点并安排成员；也可以仍然提交，
+              配置好之后该票会自动出现在对应人的待办里。
+            </p>
+          </div>
+        ),
+        okText: "仍然提交",
+        cancelText: "先去配置",
+        onOk: () => doSubmit(),
+      });
+      return;
+    }
+    await doSubmit();
   };
 
   /**
@@ -748,6 +801,27 @@ export default function WorkTicketNewPage() {
                 : "审批人依据 GB 30871-2022 附录B 表B.1；法定环节不提供跳过入口。"
             }
           />
+          {unstaffedNodes.length > 0 && (
+            <Alert
+              type="error"
+              showIcon
+              title={`有 ${unstaffedNodes.length} 个审批节点当前无人可签——提交后这张票会卡在审批中`}
+              description={
+                <ul style={{ margin: 0, paddingLeft: 20 }}>
+                  {unstaffedNodes.map((node) => (
+                    <li key={node.node_key}>
+                      「{node.name}」要求：
+                      {node.role_code ? `岗位「${node.role_code}」` : "指定会签单位"}
+                      {node.countersign_units?.length
+                        ? `（会签单位：${node.countersign_units.join("、")}）`
+                        : ""}
+                      —— 请先到「企业 → 组织架构」建立同名节点并安排成员
+                    </li>
+                  ))}
+                </ul>
+              }
+            />
+          )}
         </Space>
       )}
 

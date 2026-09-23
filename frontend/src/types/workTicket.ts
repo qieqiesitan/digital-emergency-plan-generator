@@ -282,6 +282,19 @@ export interface BatchSubmitAllResult {
   succeeded: number;
 }
 
+/** 开票前审批链预检：每个节点要求什么岗位、当前企业能匹配到几个人。 */
+export interface ApprovalNodePreview {
+  node_key: string;
+  name: string;
+  role_code?: string | null;
+  countersign_units?: string[];
+  condition_expr?: string | null;
+  is_statutory?: boolean;
+  /** 0 表示当前企业没有任何人能签这个节点 → 票会卡在审批中 */
+  eligible_count: number;
+  eligible_names: string[];
+}
+
 export interface GasTestPayload {
   sampled_at: string;
   location?: string | null;

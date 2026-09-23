@@ -1,0 +1,38 @@
+{
+  "checks": {
+    "blank_enterprise_created": true,
+    "preview_lists_nodes": true,
+    "blank_enterprise_has_no_eligible_approver": true,
+    "configured_enterprise_preview_ok": true,
+    "temp_enterprise_cleaned": true
+  },
+  "detail": {
+    "blank_enterprise_preview": [
+      {
+        "node_key": "approve",
+        "name": "主管领导审批",
+        "role_code": "主管领导",
+        "countersign_units": [],
+        "condition_expr": null,
+        "is_statutory": true,
+        "eligible_count": 0,
+        "eligible_names": []
+      }
+    ],
+    "blank_required_role": "主管领导",
+    "configured_enterprise_preview": [
+      {
+        "node_key": "approve",
+        "name": "主管领导审批",
+        "role_code": "主管领导",
+        "countersign_units": [],
+        "condition_expr": null,
+        "is_statutory": true,
+        "eligible_count": 0,
+        "eligible_names": []
+      }
+    ],
+    "cleaned": true
+  },
+  "all_passed": true
+}

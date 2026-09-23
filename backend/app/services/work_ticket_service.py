@@ -534,6 +534,64 @@ async def eligible_users_for_node(
     return await _by_system_role()
 
 
+async def preview_approval_chain(
+    db: AsyncSession,
+    *,
+    enterprise_id: str,
+    template_id: str,
+) -> list[dict]:
+    """预检某模板的审批链：每个节点要求什么岗位、当前企业能匹配到几个人。
+
+    为什么要有它：审批人靠「节点 role_code ↔ 企业组织节点名」匹配，
+    匹配不上时票会在提交后卡死，而提交前毫无提示（2026-09-23 用户实测：
+    特级动火要求「主管领导」，企业组织架构里没有该节点 → 无人可审批、票卡在审批中）。
+
+    **复用 `eligible_users_for_node`**：与审批动作、待办列表用的是同一套判定，
+    不另写一份"看起来差不多"的逻辑——否则提示会与实际能否审批不一致。
+    """
+    flow = (
+        await db.execute(
+            select(WorkTicketFlowTemplate)
+            .where(
+                WorkTicketFlowTemplate.template_id == template_id,
+                WorkTicketFlowTemplate.is_active.is_(True),
+            )
+            .order_by(WorkTicketFlowTemplate.created_at)
+        )
+    ).scalars().first()
+    if flow is None:
+        return []
+    nodes = (
+        await db.execute(
+            select(WorkTicketFlowNode)
+            .where(WorkTicketFlowNode.flow_template_id == flow.id)
+            .order_by(WorkTicketFlowNode.sort_order)
+        )
+    ).scalars().all()
+
+    preview: list[dict] = []
+    for node in nodes:
+        user_ids = await eligible_users_for_node(db, node, enterprise_id=enterprise_id)
+        names: list[str] = []
+        if user_ids:
+            res = await db.execute(select(User.name).where(User.id.in_(user_ids)))
+            names = [row[0] for row in res.all() if row[0]]
+        preview.append(
+            {
+                "node_key": node.node_key,
+                "name": node.name,
+                "role_code": node.role_code,
+                "countersign_units": list(node.countersign_units or []),
+                # 有条件的节点未必会被激活，前端据此把提示语气调弱
+                "condition_expr": node.condition_expr,
+                "is_statutory": node.is_statutory,
+                "eligible_count": len(user_ids),
+                "eligible_names": names[:5],
+            }
+        )
+    return preview
+
+
 async def expire_overdue_tickets(db: AsyncSession, *, now: Optional[datetime] = None) -> int:
     """把批准后超过有效期仍未开工的票置为 expired。由调度器/运维端点周期调用。"""
     now = now or datetime.now(timezone.utc)
