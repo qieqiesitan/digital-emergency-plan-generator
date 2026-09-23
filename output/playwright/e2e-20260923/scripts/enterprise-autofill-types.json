@@ -1,0 +1,32 @@
+{
+  "companies": [
+    {
+      "company": "西安宝岳空间科技",
+      "status": 200,
+      "field_count": 0,
+      "industry_value": null,
+      "industry_type": "NoneType",
+      "keys": [],
+      "problems": []
+    },
+    {
+      "company": "西安宝岳空间科技有限公司",
+      "status": 200,
+      "field_count": 0,
+      "industry_value": null,
+      "industry_type": "NoneType",
+      "keys": [],
+      "problems": []
+    },
+    {
+      "company": "延长壳牌石油有限公司（西安明光路加油站）",
+      "status": 200,
+      "field_count": 0,
+      "industry_value": null,
+      "industry_type": "NoneType",
+      "keys": [],
+      "problems": []
+    }
+  ],
+  "all_clean": true
+}

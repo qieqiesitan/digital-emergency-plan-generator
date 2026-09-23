@@ -10,12 +10,29 @@
 interface ValidationItem {
   loc?: unknown[];
   msg?: string;
+  input?: unknown;
+}
+
+const MAX_VALUE_LENGTH = 60;
+
+function formatValue(value: unknown): string {
+  let text: string;
+  if (typeof value === "string") text = value;
+  else {
+    try {
+      text = JSON.stringify(value) ?? String(value);
+    } catch {
+      text = String(value);
+    }
+  }
+  text = text.replace(/\s+/g, " ").trim();
+  return text.length > MAX_VALUE_LENGTH ? `${text.slice(0, MAX_VALUE_LENGTH)}…` : text;
 }
 
 function formatItem(item: unknown): string {
   if (typeof item === "string") return item.trim();
   if (!item || typeof item !== "object") return "";
-  const { loc, msg } = item as ValidationItem;
+  const { loc, msg, input } = item as ValidationItem;
   const text = typeof msg === "string" ? msg.trim() : "";
   if (!text) return "";
   // loc 形如 ["body", "employee_count"]，去掉 body 前缀后作为字段名展示
@@ -23,7 +40,10 @@ function formatItem(item: unknown): string {
     ? loc.filter((part) => part !== "body" && typeof part === "string")
     : [];
   const field = fieldParts.join(".");
-  return field ? `${field}：${text}` : text;
+  // 带上实际值：像 industry 传了对象这种问题，只有看到值才能定位
+  const actual =
+    input === undefined || input === null ? "" : `（实际值：${formatValue(input)}）`;
+  return field ? `${field}：${text}${actual}` : `${text}${actual}`;
 }
 
 /** 把后端错误转成一句人话；实在没有就用 fallback。 */

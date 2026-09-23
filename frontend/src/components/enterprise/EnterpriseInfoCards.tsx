@@ -25,6 +25,20 @@ const CARD_FIELDS: Array<{ key: keyof Enterprise | string; label: string }> = [
 
 const DATE_FIELDS = ["established_date", "fire_approval_date", "last_plan_filing_date"];
 
+/**
+ * 后端 schema 里是字符串的字段（日期字段除外——它们在表单里是 dayjs 对象，另行处理）。
+ * 提交前统一转成字符串：表单里可能混入对象/数组（AI 填充、浏览器自动填充、粘贴等），
+ * 直接提交会被后端判为类型错误（2026-09-23 用户遇到 industry 报这个）。
+ */
+const STRING_FIELDS = [
+  "name", "address", "industry", "business_scope", "credit_code",
+  "legal_representative", "economic_type", "phone", "fax", "postal_code",
+  "safety_officer", "safety_officer_phone", "safety_standardization",
+  "fire_approval", "last_plan_filing_authority", "main_products",
+  "annual_capacity", "hazardous_chemicals", "special_equipment",
+  "building_overview", "floor_plan_url",
+];
+
 function displayValue(key: string, raw: unknown): string | undefined {
   if (raw === null || raw === undefined || raw === "") return undefined;
   if (key === "established_date") {
@@ -110,6 +124,12 @@ export default function EnterpriseInfoCards({
     // 文本字段留空也没有意义（2026-09-23 新建企业 422 的直接原因）
     for (const key of Object.keys(payload)) {
       if (payload[key] === "") delete payload[key];
+    }
+    for (const key of STRING_FIELDS) {
+      const value = payload[key];
+      if (value !== undefined && value !== null && typeof value !== "string") {
+        payload[key] = String(value);
+      }
     }
     for (const field of DATE_FIELDS) {
       if (payload[field]) {

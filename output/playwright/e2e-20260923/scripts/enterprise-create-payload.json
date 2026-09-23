@@ -1,0 +1,37 @@
+{
+  "checks": {
+    "request_captured": true,
+    "create_succeeded": true,
+    "no_type_problems": true,
+    "no_console_error": true
+  },
+  "payload": {
+    "name": "探针-提交载荷-可删",
+    "gis_lat": null,
+    "gis_lng": null,
+    "floor_plan_url": null
+  },
+  "industry_type": "NoneType",
+  "problems": [],
+  "responses": [
+    {
+      "status": 201,
+      "body": "{\"code\":0,\"message\":\"ok\",\"data\":{\"name\":\"探针-提交载荷-可删\",\"address\":null,\"industry\":null,\"business_scope\":null,\"employee_count\":null,\"credit_code\":null,\"legal_representative\":null,\"economic_type\":null,\"established_date\":null,\"registered_capital\":null,\"phone\":null,\"fax\":null,\"postal_code\":null,\"land_area\":null,\"building_area\":null,\"safety_officer\":null,\"safety_officer_phone\":null,\"safety_staff_count\":nu"
+    }
+  ],
+  "errors": [],
+  "cleanup": {
+    "code": 0,
+    "message": "已删除",
+    "data": {
+      "floors": 0,
+      "zones": 0,
+      "objects": 0,
+      "units": 0,
+      "events": 0,
+      "measures": 0,
+      "total": 0
+    }
+  },
+  "all_passed": true
+}
