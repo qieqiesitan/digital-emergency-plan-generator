@@ -1,5 +1,5 @@
 from app.schemas.common import DatetimeStr
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class OrgMember(BaseModel):
     role: str
@@ -67,9 +67,32 @@ class EnterpriseBase(BaseModel):
     gis_lng: float | None = None
 
 
+# 数字字段：前端表单未填时常传成空字符串，而 "" 不是合法数字 → 422
+_NUMERIC_FIELD_NAMES = (
+    "employee_count",
+    "registered_capital",
+    "land_area",
+    "building_area",
+    "safety_staff_count",
+    "gis_lat",
+    "gis_lng",
+)
+
+
 class EnterpriseCreate(EnterpriseBase):
     """创建企业。name 从 EnterpriseBase 继承为必填。"""
-    pass
+
+    @field_validator(*_NUMERIC_FIELD_NAMES, mode="before")
+    @classmethod
+    def _empty_string_means_unset(cls, value):
+        """空字符串视为「未填」。
+
+        2026-09-23 用户新建企业报 422：表单把未填的数字字段传成 ""，
+        pydantic 判为类型错误，整个请求被拒，而前端当时只显示「422」看不到字段。
+        **只加在 Create 上**：Response 的 created_at 等字段是字符串，
+        Update 的文本字段 "" 还有「清空」语义，都不能被归一化。
+        """
+        return None if isinstance(value, str) and value.strip() == "" else value
 
 
 class EnterpriseUpdate(EnterpriseBase):

@@ -106,6 +106,11 @@ export default function EnterpriseInfoCards({
     await form.validateFields();
     const values = form.getFieldsValue(true);
     const payload: Record<string, unknown> = { ...values };
+    // 空字符串一律不发：数字字段收到 "" 会被后端判为类型错误（422），
+    // 文本字段留空也没有意义（2026-09-23 新建企业 422 的直接原因）
+    for (const key of Object.keys(payload)) {
+      if (payload[key] === "") delete payload[key];
+    }
     for (const field of DATE_FIELDS) {
       if (payload[field]) {
         payload[field] = dayjs(payload[field] as dayjs.Dayjs | string).format("YYYY-MM-DD");

@@ -2,6 +2,7 @@ import api from "./api";
 import type { AxiosResponse } from "axios";
 import type { ApiResponse } from "@/types/common";
 import { filenameFromContentDisposition } from "@/utils/download";
+import { errorMessage } from "@/utils/apiError";
 import type {
   AiPrefillResult,
   BatchDetail,
@@ -245,12 +246,8 @@ export const transitionTicket = (
 
 /** 从 axios 错误里取后端可读文案（提交/审批失败时用）。 */
 export function errorDetail(err: unknown, fallback: string): string {
-  const data = (err as { response?: { data?: { detail?: unknown; message?: unknown } } })
-    ?.response?.data;
-  const detail = data?.detail ?? data?.message;
-  if (typeof detail === "string" && detail.trim()) return detail;
-  const message = (err as { message?: string })?.message;
-  return message || fallback;
+  // 委托给统一实现：它同时认字符串 detail 与 pydantic 校验数组（422 的常见形态）
+  return errorMessage(err, fallback);
 }
 
 /**

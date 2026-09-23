@@ -3,22 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Button, Card, message, Space } from "antd";
 import { DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import AppIcon from "@/components/common/AppIcon";
-import axios from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createEnterprise, uploadFile } from "@/services/enterpriseService";
 import type { EnterpriseCreate } from "@/types/enterprise";
 import { PageHeader } from "@/components/common/PageHeader";
 import EnterpriseInfoCards from "@/components/enterprise/EnterpriseInfoCards";
 import GisMapPicker from "@/components/enterprise/GisMapPicker";
-
-function extractDetail(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const detail = (err.response?.data as { detail?: unknown } | undefined)?.detail;
-    if (typeof detail === "string" && detail) return detail;
-    return err.message;
-  }
-  return err instanceof Error ? err.message : "";
-}
+import { errorMessage } from "@/utils/apiError";
 
 export default function EnterpriseCreatePage() {
   const navigate = useNavigate();
@@ -38,7 +29,7 @@ export default function EnterpriseCreatePage() {
       // replace：浏览器后退不再回到已提交的创建表单
       navigate(`/onboarding?enterprise_id=${data.id}`, { replace: true });
     },
-    onError: (err: unknown) => message.error(extractDetail(err) || "创建失败"),
+    onError: (err: unknown) => message.error(errorMessage(err, "创建失败")),
   });
 
   const handleUpload = async (file: File) => {
