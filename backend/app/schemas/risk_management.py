@@ -342,7 +342,7 @@ class SmartGuideZone(BaseModel):
     objects: list[SmartGuideObject] = []
     model_config = {"extra": "allow"}
 
-class SmartGuideRequest(BaseModel): description: str
+class SmartGuideRequest(BaseModel): description: str = ""
 class SmartGuideResponse(BaseModel): hierarchy: list[SmartGuideZone]; summary: dict = {}
 class MethodPreviewRequest(BaseModel): method_id: str; params: dict; scenario: str = "current"
 class MethodPreviewResponse(BaseModel): risk_level: str; risk_score: str; action: str; deadline: str; scenario: str = "current"

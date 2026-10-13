@@ -34,3 +34,15 @@ def test_router_uses_normalizer_and_guards_shape():
     )
     assert "normalize_smart_guide_summary(result.get" in src
     assert not re.search(r'SmartGuideResponse\(hierarchy=result\.get\("zones"', src)
+
+
+def test_smart_guide_route_wires_completion_inputs():
+    """源码守护：smart-guide 路由必须接线「完整树序列化 + 企业信息构造」。"""
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / "app" / "routers" / "risk_management.py").read_text(
+        encoding="utf-8"
+    )
+    assert "existing_tree = build_existing_tree_dict(" in src
+    assert "tree_text, tree_truncated = serialize_existing_tree(" in src
+    assert "build_smart_guide_enterprise_info(" in src

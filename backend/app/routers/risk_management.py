@@ -15,7 +15,7 @@ from app.models.hazardous_chemicals import HazardousChemical
 from app.schemas.risk_management import (MethodCreate, MethodUpdate, MethodResponse, FloorCreate, FloorUpdate, FloorResponse, RiskZoneCreate, RiskZoneUpdate, RiskZoneResponse, RiskObjectCreate, RiskObjectUpdate, RiskObjectResponse, RiskUnitCreate, RiskUnitUpdate, RiskUnitResponse, RiskEventCreate, RiskEventUpdate, RiskEventResponse, RiskMeasureCreate, RiskMeasureUpdate, RiskMeasureResponse, HierarchyZoneResponse, RiskZoneFloorPlanPolygon, WorkbenchResponse, WorkbenchZone, BatchSaveRequest, BatchSaveResponse, OverviewResponse, MigrationPreviewResponse, MigrationExecuteRequest, MigrationExecuteResponse, SmartGuideRequest, SmartGuideResponse, MethodPreviewRequest, MethodPreviewResponse, FourColorAnalyzeResponse, FourColorCommitRequest, FourColorCommitResponse)
 from app.schemas.common import ApiResponse
 from app.services.risk_method_engine import compute_risk, get_active_method_config, validate_dual_level, COAL_LS_DEFAULT_THRESHOLDS
-from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview
+from app.services.risk_ai_service import _get_ai_config, suggest_objects, suggest_events, suggest_measures, smart_guide, analyze_floor_plan, migrate_preview, build_smart_guide_enterprise_info, serialize_existing_tree, build_existing_tree_dict
 from app.services.risk_dual_ai_service import suggest_dual_level
 from app.services.risk_source_migration_service import (
     build_migration_preview,
@@ -1290,10 +1290,8 @@ async def ai_suggest_measures(body: dict, enterprise_id: str, current_user=Depen
 
 @router.post("/ai/smart-guide", response_model=ApiResponse[SmartGuideResponse])
 async def ai_smart_guide(body: SmartGuideRequest, enterprise_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
-    await _get_ent(enterprise_id, current_user.id, db)
-    ai_config = await _get_ai_config(current_user.id, db)
     ent = await _get_ent(enterprise_id, current_user.id, db)
-    info = {"name":ent.name,"industry":ent.industry,"business_scope":ent.business_scope,"building_overview":ent.building_overview,"hazardous_chemicals":ent.hazardous_chemicals,"special_equipment":ent.special_equipment}
+    ai_config = await _get_ai_config(current_user.id, db)
     # 危化品交叉校验（D-2）：档案文本是台账的派生摘要，但历史数据可能不同步，
     # 这里把台账品种一并喂给 AI，避免"风险 AI 只看文本、台账 AI 只看台账"。
     ledger_rows = (await db.execute(
@@ -1301,14 +1299,25 @@ async def ai_smart_guide(body: SmartGuideRequest, enterprise_id: str, current_us
         .where(HazardousChemical.enterprise_id == enterprise_id)
         .order_by(HazardousChemical.name)
     )).all()
-    info["chemicals_ledger"] = [
-        {"name": r[0], "cas_no": r[1], "location": r[2]} for r in ledger_rows
-    ]
-    zone_rows = (await db.execute(select(RiskZone.name).where(RiskZone.enterprise_id == enterprise_id))).scalars().all()
-    object_rows = (await db.execute(select(RiskObject.name).where(RiskObject.enterprise_id == enterprise_id))).scalars().all()
-    existing_names = {"zones": list(zone_rows), "objects": list(object_rows)}
+    info = build_smart_guide_enterprise_info(
+        ent,
+        [{"name": r[0], "cas_no": r[1], "location": r[2]} for r in ledger_rows],
+    )
+    # 现有树完整层级（与 get_hierarchy 相同加载链）：供 AI 查漏补缺。
+    # 超长时 serialize_existing_tree 逐级降级/截断，避免撑爆提示词。
+    zone_models = (await db.execute(
+        select(RiskZone).where(RiskZone.enterprise_id == enterprise_id)
+        .options(
+            selectinload(RiskZone.objects).selectinload(RiskObject.units).selectinload(RiskUnit.events).selectinload(RiskEvent.measures),
+            selectinload(RiskZone.objects).selectinload(RiskObject.events).selectinload(RiskEvent.measures),
+        )
+        .order_by(RiskZone.sort_order)
+    )).scalars().all()
+    existing_tree = build_existing_tree_dict(zone_models)
+    tree_text, tree_truncated = serialize_existing_tree(existing_tree)
     await release_request_connection(db)  # 长耗时 AI 调用前把连接还池，避免 idle in transaction 占满池（压测 N-32）
-    result = await smart_guide(body.description, info, ai_config, existing_names=existing_names)
+    result = await smart_guide(body.description, info, ai_config,
+                               existing_tree_text=tree_text, tree_truncated=tree_truncated)
     # 容错：模型把 summary 写成自然语言或数字都很常见，原样塞进 SmartGuideResponse 会抛
     # Pydantic 校验错 → 没有任何提示的 500（2026-09-19 mock 实测命中），交给归一函数处理。
     from app.services.risk_ai_service import normalize_smart_guide_summary

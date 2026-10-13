@@ -186,3 +186,33 @@ def test_build_smart_guide_enterprise_info_without_ledger_skips_key():
     )
     info = build_smart_guide_enterprise_info(ent, [])
     assert info == {"name": "乙"}
+
+
+def test_build_existing_tree_dict_compact_shape():
+    from types import SimpleNamespace as NS
+
+    zones = [NS(name="储罐区", objects=[NS(
+        name="1号储罐", category="储罐",
+        units=[NS(name="罐体", unit_type="设备", events=[NS(
+            accident_type="泄漏",
+            measures=[NS(measure_category="engineering", description="设置液位监控报警")],
+        )])],
+        events=[],
+    )])]
+    assert build_existing_tree_dict(zones) == [{
+        "name": "储罐区",
+        "objects": [{
+            "name": "1号储罐",
+            "category": "储罐",
+            "units": [{
+                "name": "罐体",
+                "unit_type": "设备",
+                "events": [{
+                    "accident_type": "泄漏",
+                    "measures": [{"measure_category": "engineering",
+                                  "description": "设置液位监控报警"}],
+                }],
+            }],
+            "events": [],
+        }],
+    }]
