@@ -135,6 +135,108 @@ def normalize_smart_guide_summary(value) -> dict:
     return {}
 
 
+SMART_GUIDE_TREE_MAX_CHARS = 20000
+
+
+def build_existing_tree_dict(zones) -> list[dict]:
+    """把现有风险分区（ORM 对象）转为紧凑树 dict，供 AI 提示词使用。
+
+    只保留名称/类型/事件/措施描述，不含画布坐标与长描述——现有树是提示词上下文，
+    体量必须可控（超大树的裁剪交给 serialize_existing_tree）。
+    """
+    def _event(ev) -> dict:
+        return {
+            "accident_type": ev.accident_type,
+            "measures": [
+                {"measure_category": m.measure_category, "description": m.description}
+                for m in (ev.measures or [])
+            ],
+        }
+
+    def _object(o) -> dict:
+        return {
+            "name": o.name,
+            "category": o.category,
+            "units": [
+                {
+                    "name": u.name,
+                    "unit_type": u.unit_type,
+                    "events": [_event(e) for e in (u.events or [])],
+                }
+                for u in (o.units or [])
+            ],
+            "events": [_event(e) for e in (o.events or [])],
+        }
+
+    return [{"name": z.name, "objects": [_object(o) for o in (z.objects or [])]}
+            for z in zones]
+
+
+def _compact_event(ev: dict, level: int) -> dict:
+    out: dict = {"accident_type": ev.get("accident_type") or ""}
+    measures = ev.get("measures") or []
+    if level == 1:
+        out["measures"] = [
+            {"measure_category": m.get("measure_category") or "",
+             "description": (m.get("description") or "")[:60]}
+            for m in measures
+        ]
+    elif level == 2:
+        out["measures"] = len(measures)
+    return out
+
+
+def _compact_unit(u: dict, level: int) -> dict:
+    out: dict = {"name": u.get("name") or ""}
+    if level <= 2 and u.get("unit_type"):
+        out["unit_type"] = u["unit_type"]
+    events = u.get("events") or []
+    if level <= 2 or events:
+        out["events"] = [_compact_event(e, level) for e in events]
+    return out
+
+
+def _compact_object(o: dict, level: int) -> dict:
+    out: dict = {"name": o.get("name") or ""}
+    if level <= 2 and o.get("category"):
+        out["category"] = o["category"]
+    out["units"] = [_compact_unit(u, level) for u in (o.get("units") or [])]
+    out["events"] = [_compact_event(e, level) for e in (o.get("events") or [])]
+    return out
+
+
+def _compact_zone(z: dict, level: int) -> dict:
+    return {
+        "name": z.get("name") or "",
+        "objects": [_compact_object(o, level) for o in (z.get("objects") or [])],
+    }
+
+
+def _dumps_tree(tree) -> str:
+    return json.dumps(tree, ensure_ascii=False, separators=(",", ":"))
+
+
+def serialize_existing_tree(
+    zones: list[dict], max_chars: int = SMART_GUIDE_TREE_MAX_CHARS
+) -> tuple[str, bool]:
+    """把现有风险树序列化为紧凑 JSON 文本；超长时逐级降级，仍超则截断分区。
+
+    逐级降级：L1 措施带描述（截 60 字）→ L2 措施只留数量 → L3 仅结构骨架。
+    返回 (text, truncated)：truncated=True 表示未包含全部分区。
+    """
+    for level in (1, 2, 3):
+        text = _dumps_tree([_compact_zone(z, level) for z in zones])
+        if len(text) <= max_chars:
+            return text, False
+    kept: list[dict] = []
+    for z in zones:
+        trial = kept + [_compact_zone(z, 3)]
+        if len(_dumps_tree(trial)) > max_chars:
+            break
+        kept = trial
+    return _dumps_tree(kept), True
+
+
 async def suggest_objects(
     zone_name: str,
     zone_desc: str,
