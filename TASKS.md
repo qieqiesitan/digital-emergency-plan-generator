@@ -1,7 +1,100 @@
-## 当前状态快照（压缩恢复用 · 「空报告重复报错」修复 · 2026-09-21）
-- 正在做什么（2026-09-21）：用户报「风险评估报告和资源调查报告若没有数据，报错会重复、控制台也有很多报错」，
+## 当前状态快照（压缩恢复用 · 「设计最大量/临界量/β 能否自动带出」问答 · 2026-10-13）
+- 任务（2026-10-13）：用户问「重大危险源中品种与存量里，设计最大量、临界量、β 的值可以自动带出来么？
+  不太懂这些值应该去哪找」→ 自动匹配 `$graphify`（主技能，项目有图谱）。
+  **状态：只读问答已答完，未改任何源码。**
+- 结论（三分法）：**临界量 Q 能自动带出**（品名命中 GB18218 表1 的 85 个品种）；
+  **β 能自动带出**（命中表3 的 14 种毒性气体；不在表3 时前端列出表4 的 24 个危险性类别让用户选，
+  选项文字里直接带 β 值）；**设计最大量只能给"建议初值"，必须人工确认**。
+- 代码位置：`backend/app/services/major_hazard_lookup.py`（取值顺序：Q 查表1、β 查表3→表4）、
+  `frontend/src/components/enterprise/majorHazard/UnitChemicalTable.tsx`
+  （`:186-215` 品名 AutoComplete 搜 `listCriticalQuantities` → 选中即 `resolveStandard`；
+  `:217-230` 关联台账 → `suggestDesignMaxFromLedger`；`:288-315` β 列的表4 类别下拉）、
+  `backend/app/services/major_hazard_linkage.py:suggest_design_max_from_ledger`。
+- 真接口实测（`GET /major-hazard/definitions/lookup?name=X`，qa 账号）：
+  氯 Q=5 β=4 来源table3 别名「液氯;氯气」｜甲醇 Q=500 β=空 需选类别（别名「木醇;木精」）｜
+  **汽油 / 液化石油气 / 氢气 → Q 也是空**。
+- 数据规模（真库）：`critical_quantities` 109 条 = 表1 85 + 表2 24；`hazard_beta_factors` = 表3 14 + 表4 24。
+- **本轮发现一个真实缺口（待用户决定是否修）**：表2「按危险性类别取 Q」的数据在库里但**没接上**——
+  `major_hazard_lookup.py` docstring 写着"不在表1 则按危险性类别查表2"，但查询只用
+  `CriticalQuantity.chemical_name == name` 精确匹配，而表2 的 chemical_name 是类别描述文本
+  （"类别1"、"1.4项爆炸物"），永远匹配不上真实品名；表2 的 `symbol`(J1~J5/W1.1~W11) 与 `category` 列没被查询用到。
+  后果：汽油、液化石油气、氢气这类"表1 没有但表2 能按类别定 Q"的品种，Q 拿不到，要用户自己查。
+- 次要数据观察（不影响功能）：`major_hazard_unit_chemicals` 里「罐区A（冒烟测试）/甲醇」那行
+  β=1.0 且 `beta_source='table3'`，但实测甲醇查询 β 为空（甲醇不在表3）→ 早期种子或手填留下的，
+  属冒烟数据；说明 `beta_source` 标记本身可能骗人。
+- 用户可自查的参考文档：`docs/标准数据-GB18218-2018/GB18218-2018-临界量与分级参数.md`（表1~表6 人读版）
+  + 同名 6 个 JSON + `校验报告.md`（表1/2/3/4 = 85/26/14/24 条，其中表2 的 26 条含 2 行分组表头 J、W，
+  实数据 24 条，与真库一致）。
+- 设计最大量口径（要告诉用户的话）：GB 18218-2018 4.2.2「实际存在量按设计最大量确定」——
+  出处是**用户自己厂的设备资料**（储罐/容器设计容积或铭牌额定充装量、仓储区设计储量），
+  不是标准表；前端该列提示语为"通常 ≥ 台账最大储存量；请勿直接照抄台账数字"（`UnitChemicalTable.tsx:28-29`）。
+- 图谱维护（铁律二）：`graphify update .` 已跑（15895 节点 / 27829 边 / 1104 社区）。
+  ⚠ **新 AGENTS.md 要求的 `python graphify-out/_finalize_graph.py` 在本机不存在**（仓库与 site-packages
+  全盘搜过都没有），`graphify` CLI 里对应的实际命令是 `graphify label .`（需 LLM）。
+  当前 graph.json 里 15895 个节点仅 492 个带 `community_name`，且多数仍是 "Community N" 占位。
+  **未擅自跑 `graphify label .`**（要调 LLM、有成本），等用户决定。
+
+## 当前状态快照（压缩恢复用 · 「5438 浏览器打不开」诊断**已完成** · 2026-10-13）
+- 任务（2026-10-13）：用户报「http://localhost:5438/ 打不开，是不是要换端口」→ 自动匹配 `$systematic-debugging`。
+  **状态：已诊断完毕，非故障，未改任何配置。**
+- 结论：5438 是 **PostgreSQL 数据库端口，不是网页**；浏览器用 http:// 访问会被 Postgres 按非法协议包拒绝
+  （db 容器日志 `LOG: invalid length of startup packet`，06:09-06:10 UTC 与用户访问时间对上；netstat 显示
+  Edge PID 29340 以 ESTABLISHED 连着 ::1:5438）→ 浏览器打不开属**正常现象**，与 2026-10-10 的 8000 端口 WinNAT
+  保留段问题无关（当前保留段 3336/5357/26762/50000-50059/55053+ 不含 5438）。**不需要换端口。**
+- 证据链：`Test-NetConnection localhost 5438` → TcpTestSucceeded=True；`docker exec emergency-plan-db psql` →
+  PostgreSQL 16.14；宿主经 5438 完整协议登录 `python output/tmp/check-db-5438.py` → LOGIN OK、public 85 表；
+  db 容器 Up (healthy)，pg_stat_activity 内 backend 容器 3 个 idle 连接正常。
+- 正确连法（pgAdmin/DBeaver/Navicat/DataGrip）：host=localhost port=5438 user=postgres password=postgres
+  db=emergency_plan。
+- 可选后续（待用户确认）：如需浏览器内管理数据库，装 Adminer/pgAdmin 容器（如 `docker run -p 18080:8080 adminer`）。
+
+## 当前状态快照（压缩恢复用 · 「Docker 后端 8000 端口起不来」修复**已完成** · 2026-10-10）
+- 任务（2026-10-10）：用户报「本地 docker 数字化预案服务起不来」→ 自动匹配 `$systematic-debugging`（主技能）。
+  **状态：已修复 + 全链路验证通过，未改任何源码。**
+- 根因（复现：`docker compose up -d backend` 报错原文）：
+  `Error response from daemon: ports are not available: exposing port TCP 0.0.0.0:8000 ... bind: An attempt was made to
+  access a socket in a way forbidden by its access permissions.`
+  → WinNAT（Hyper-V）动态保留段本次占走 **7974–8073**（`netsh int ipv4 show excludedportrange protocol=tcp` 实锤，8000 在段内），
+  Docker 绑定宿主 8000 被 WSAEACCES 拒绝 → backend 容器启动即失败（Exited 137，非 OOM）；与 2026-09-20 的 5173 被占同源
+  （保留段每次重排，这次轮到 8000）。非代码问题；db/frontend 容器不受影响。
+- 修复（需管理员，非管理员 shell 无法 `net stop winnat`），脚本：`output/tmp/fix-port8000.ps1`（**下次同类问题可直接提权复用**）：
+  停 winnat → `docker start emergency-plan-backend` 抢占 8000 → 启 winnat（重排保留段时避开已占用的 8000）。
+  提权方式：`Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File <脚本路径>' -Wait -PassThru`；
+  ⚠ 坑：`-Verb RunAs` 传**中文路径**脚本会静默不执行（提权命令行编码丢失），脚本须放全英文无空格路径（本次复制到
+  `C:\Users\55061\AppData\Local\Temp\` 后执行成功）。
+- 验证证据（日志 `output/tmp/fix-port8000.log`）：停 winnat 后保留段仅剩 3336/26762/50000-50059 → 容器起后
+  `0.0.0.0:8000->8000/tcp` LISTENING → winnat 重启后保留段不再含 8000、服务 Running；`GET :8000/health` 200、`/docs` 200；
+  `localhost:15173/` 200；`POST 15173/api/v1/auth/login {}` → 422（前端代理→backend 链路通）。
+- 附注：探因时 `compose up` 把 db 容器 recreate（外部卷 shuzihuayuan_pgdata，数据无影响）；宿主 5438/15173/8000 映射均正常。
+- 下一步：无阻塞。今后遇「某端口服务起不来」先 `netsh int ipv4 show excludedportrange protocol=tcp` 核对是否落保留段。
+
+## 当前状态快照（压缩恢复用 · 「组织与人员管理-成员角色」问答 · 2026-10-09）
+- 正在做什么（2026-10-09）：用户问「添加成员时的『选择角色』怎么维护、有什么用」→ 自动匹配
+  `$graphify`（主技能）。**全程只读，未改任何源码。**
+- 已查清结论（证据行号）：
+  - 前端：`frontend/src/pages/Enterprise/EnterpriseOrgPage.tsx` ROLE_OPTIONS `:98-102`
+    （企业管理员/班组长/员工）、编辑表单 `:977-979`、列表标签 `ROLE_META :67-71`、成员表 `:628`。
+  - 后端：`backend/app/schemas/enterprise_org.py:45,58` Literal 三值校验；
+    `backend/app/models/enterprise_org.py:38` role String(20) 默认 member；
+    写权限仅企业主 `backend/app/routers/enterprise_org.py:57 _get_owned_ent`；
+    role=null → 422（`:237-240`）。
+  - 导入：`backend/app/services/enterprise_org_service.py:19 ROLE_LABEL_MAP`、`:57` 模板下拉、
+    `:64-70 parse`（缺省 member）。
+  - 用途：仅隐患管理按 `role=enterprise_admin` 提权（`backend/app/routers/hazard_management.py:433-446
+    _is_enabled_member`、`_get_admin_ent :462`、`_require_task_actor :478`、`_map_actor_role :1690`）；
+    前端 `frontend/src/pages/Hazard/HazardRecordDetailPage.tsx:391-398`。
+    **team_leader 目前无权限差异**（仅标注；设计语义见
+    `docs/superpowers/specs/2026-08-14-hazard-management-design.md:59`，未落地）。
+    角色还随 `load_org_members` 进入资源调查报告上下文（`backend/app/services/report_data_loader.py:52-73`）。
+  - `enabled=false` 后一切权限判断失效（所有 role 判断均带 enabled=true 条件）。
+- 下一步：等用户追问；如需把班组长权限落地或角色可配置化再立项。
+- 关键上下文：角色是硬编码枚举，无 UI 角色字典；加角色需同时改前端 ROLE_OPTIONS/ROLE_META
+  + 后端 Literal + 导入下拉与映射。
+
+## 当前状态快照（压缩恢复用 · 「空报告重复报错」修复**已完成** · 2026-09-21）
+- 任务（2026-09-21）：用户报「风险评估报告和资源调查报告若没有数据，报错会重复、控制台也有很多报错」，
   附 `GET /enterprises/{id}/risk-assessment 404` 的重复堆栈。自动匹配 `$systematic-debugging`（主技能）
-  + `$verification-before-completion`（辅助技能）。
+  + `$verification-before-completion`（辅助技能）。**状态：已修完 + 三端验证通过，未推送远程。**
 - **已复现（探针 `output/playwright/e2e-20260921/scripts/_empty_report_error_probe.py`，
   dev 服务器 15173，新建空企业）**，证据 `empty-report-errors.json`：
   每个 tab 各发出 **2 次**相同的 `GET .../risk-assessment`（或 `/resource-investigation`）**均 404**；
@@ -16,18 +109,43 @@
      于是空态被当成故障弹窗（移动端 `MobileApp.tsx:15 retry: 1` 还会再补一次请求 → 报错更"多"）。
   3. **控制台 404 红字**：后端把「报告不存在」表达为 HTTP 404（`access_control.load_report_for_owner`
      `raise HTTPException(404, report_detail)`），浏览器对 404 必然打印红字，前端再怎么兜底也消不掉。
-- 方案（本次实施）：
-  - 后端 `load_report_for_owner(..., required=True)` 新增开关；`GET /{id}/risk-assessment` 与
-    `GET /{id}/resource-investigation` 用 `required=False` → 无报告时 **200 + `data: null`**（企业不存在/无权仍是 404）。
-  - 前端 `getRiskAssessment`/`getResourceInvestigation` 返回可空值；默认 `skipGlobalError: true`（空态不弹错误）；
-    加 `dedupeInflight` 合并并发同名 GET（StrictMode 双挂载 → 只发 1 次）。
-  - `reportAdapters.load` 可返回 null；`ReportWorkspace` 收到 null 走空态；
-    `RiskAssessmentPreview`/`ResourceInvestigationPreview` 空值保护；
-    `ReportWorkspace.tsx:670` 的 `<Spin tip>` 改 `description`（antd 6 弃用告警）。
-- 下一步：先写失败测试（后端 200 空态 / 前端 null 与并发合并）→ 改代码 → 三端门禁 → 复跑探针（期望 0 toast、0 console error、1 次请求）。
+- 已落地的改动（本地 commit，未 push）：
+  - 后端 `backend/app/services/access_control.py` 加 `required: bool = True`；
+    `backend/app/routers/risk_assessment.py`、`resource_investigation.py` 的 `GET` 正文端点用
+    `required=False` → 无报告时 **200 + `data: null`**（企业不存在/无权仍是 404）。
+  - 前端新增 `frontend/src/services/inflight.ts`（`dedupeInflight` 合并并发同名 GET）；
+    `riskAssessmentService.getRiskAssessment` / `resourceInvestigationService.getResourceInvestigation`
+    返回可空值（**不默认 skipGlobalError**：空态已由后端 200 表达，真故障仍要弹全局提示——
+    符合本仓库「调用方自带失败态才 skip」的既有约定；自带 message.error 的 Preview 编辑入口显式传 skip）；
+    `reportAdapters.load` 可返回 null（`types/reportWorkspace.ts` 同步）；
+    `ReportWorkspace.loadDocument` 收 null 走空态、`<Spin tip>`→`description`；
+    两个 Preview 页空值保护（`.then(r => r?.current_version ?? 0)`、编辑前判空）。
+  - 测试：`backend/tests/test_empty_report_contract.py`（3 例）、
+    `frontend/src/services/inflight.test.ts`（4 例）、`frontend/src/services/reportLoad.test.ts`（5 例）。
+- 验证证据（全部通过）：
+  - 后端 `python -m pytest backend/tests -q` → **2186 passed**（基线 2183 + 新增 3；尾部 asyncio
+    `I/O operation on closed pipe` 是 Windows 解释器退出噪声，非用例失败）。
+  - 前端四项门禁（容器内）：`tsc -b` 0 / `vitest run` **344 passed**（基线 334 + 新增 10）/
+    `eslint src --max-warnings=0` 0 / `vite build` OK。
+  - 浏览器探针 `output/playwright/e2e-20260921/scripts/_empty_report_error_probe.py` → **22/22**，
+    证据 `empty-report-errors.json` + 4 张截图：空态页 1 次请求 / 200 / 0 toast / 0 控制台报错
+    （修复前：2 次 404 / 1 toast / 4 条报错）；有数据页正文与章节标题正常渲染、同样 0 报错。
+  - 图谱已同步：`codegraph sync backend/app/services|routers|tests`、`frontend/src` 均成功
+    （仓库根全量 sync 仍会栈溢出，属既有问题）；`graphify update .` → 15841 节点 / 27687 边。
+  - 本地提交：`653d858 fix(report): 报告无数据不再重复报错——读取返回 200 空态 + 合并重复请求`
+    （只含本次 21 个文件；工作区里并行的 `WorkTicketNewPage.tsx` 等他人改动未动、未提交）。
+  - **已推送（2026-09-21，用户确认「推」）**：`origin`(GitHub) 与 `gitee` 均 `6e6fcd5..653d858`，
+    `git ls-remote` 两个远端 refs/heads/master 都是 `653d858`；本地 master 与 origin/master 同步（ahead 0）。
+  - **未走 `git finish` 包装脚本**（该脚本遇脏工作区会 `git add -A` 建 savepoint 并把**他人未提交的
+    作业票改动一起提交**再推），改为直接 `git push origin master` + `git push gitee master`，
+    效果等价且不裹挟他人 WIP；`TASKS.md` 按约定仍不提交。
+- ⚠ 未做/待用户定：① 未执行 `git finish`（推送 GitHub+Gitee）——沿用上次会话的待决策项，
+  savepoint `2fc5eaa` 仍把 `TASKS.md` 一起提交了；② 8082 的移动端/生产 dist 未重建，
+  移动端要享受本次改动需重新 build 镜像；③ 两个 Preview 页的 `/preview` 端点仍是 404
+  （预览必须要有正文，语义合理，未改）。
 - 关键上下文：前端 dev 服务器 = 容器 `emergency-plan-frontend`（宿主 15173，StrictMode 生效）；
   8082 = 生产构建（`shuzihuayuan`）。前端门禁在容器里跑 `docker exec emergency-plan-frontend npx ...`；
-  pytest 必须从仓库根目录跑。
+  pytest 必须从仓库根目录跑且输出别经 PowerShell 管道（会触发 pytest capture 内部错误）。
 
 ## 当前状态快照（压缩恢复用 · 重大危险源↔风险管控「联动/自动带出」调研 · 2026-09-21）
 - 正在做什么（2026-09-21）：用户先问「重大危险源和风险管控的数据有没有可以联通的」，续问
@@ -5683,3 +5801,67 @@
   出实现计划 → 内联执行。粗估 3~5 天。
 - 关联：本轮之前的三个计划（措施库修复 / 智能预填 / 批量开票）已全部完成并推送 Gitee（`33ea67e`）；
   GitHub 因网络不通仍落后 4 个提交。用户反馈的「作业情景不随票种变化」正是本规格要解决的问题。
+- **追加（2026-09-21 · 修复「提交时报全部必填项未填写」，已实测并推送 `a99bbb3`）**：用户按步骤填完后点提交，
+  报 11 条必填项未填写。根因：`WorkTicketNewPage.tsx` 的 `<Form>` 只在第 1 步挂载
+  （`{step === 1 && <Form/>}`），走到第 5 步时组件已卸载、antd 的 Form store 随之销毁，
+  提交时 `form.getFieldsValue()` 返回空对象（连第 0 步联动写入的"动火作业级别"也一起丢）。
+  修复：Form 改为**常驻挂载**，用 `display` 控制显隐。
+  验证：新增探针 `output/playwright/e2e-20260921/scripts/_work_ticket_form_persistence_probe.py`，
+  **先在修复前的构建上复现（正好 11 条）**，修复后已填/预填字段被误报 **0 条**（剩余 5 条是探针确实没填的字段）；
+  前端 vitest **344 passed**；浏览器实测 8/8 未回归。
+- **追加（2026-09-21 · 步骤状态与草稿续填，已实测并推送 `c64ef81`）**：用户反馈两点——
+  ① 前面没表态却能一路走到提交，检查全堆在最后；② 草稿只能存不能改（详情页 draft 只有"提交审批"）。
+  用户选方案 B（放行 + 步骤状态 + 提交跳转）。已实现：
+  1. `stepStatus.ts` 纯函数算每步缺项 → 步骤条显示「待补 N 项」（红叉），点「下一步」给提示但**不拦人**
+  2. 提交校验失败时**自动跳到第一个出问题的步骤**并在该步顶部逐条列出缺项（不再只甩一份文字清单）
+  3. 草稿可继续编辑：新增路由 `:ticketId/edit`；列表页/详情页 draft 票给出「继续填写」；向导加载草稿并回填
+     票面值 / 来源徽标 / 措施三态 / 气体检测 / JSA；**编辑草稿时完全不跑预填**（否则预填响应后到会覆盖草稿值，
+     这个竞态是实测踩到后修的）
+  验证：浏览器探针 `output/playwright/e2e-20260921/scripts/_work_ticket_step_draft_probe.py` **9/9 通过**
+  （步骤条待补、放行+提示、草稿创建、列表入口、**草稿值回填成功**、已加载草稿提示、提交跳转、跳转 toast、0 console error）；
+  前端 vitest **352 passed**；证据 `work-ticket-step-draft.json` + 两张截图。
+- **追加（2026-09-23 · 新建企业 422 修复 + 作业票审批人诊断，已推送 `8bb3708`）**：
+  1. **422 根因（已修）**：前端表单把未填的数字字段传成空字符串，pydantic 判类型错误 →
+     整个创建请求 422（实测复现：只传 name = 201，带 `employee_count: ""` = 422）。
+     三层修复：前端提交前不发空字符串（`EnterpriseInfoCards`）；后端 `EnterpriseCreate`
+     把数字字段的空串归一化为 None（**只加在 Create**——加到 Base 会误伤 Response 的
+     `created_at: str` 和 Update 的文本清空语义，实测踩到 2 个回归后收窄）；
+     新增统一错误提取 `frontend/src/utils/apiError.ts`（原实现散落多处且多数不认 pydantic
+     校验数组，用户只看到「422」看不到字段），企业创建页与作业票 errorDetail 均已改用它。
+  2. **作业票审批人诊断（真实卡单）**：真库 `DHZY-91610132MAEJWD6F01-20260923-0001`（特级动火，
+     用户提交）status=approving、节点 approve，该节点 `role_code="主管领导"`；
+     而企业"西安宝岳空间科技有限公司"组织架构为 公司/应急安全事业部/管网事业部/资规事业部/
+     部门经理/技术开发 —— **没有名为「主管领导」的节点**，且成员系统角色只有
+     `enterprise_admin/team_leader` → `_resolve_node_actors` 按"组织岗位名 → 系统角色码"
+     两级匹配都落空 → **无人可审批，票卡住且不在任何人待办里**。
+     给用户的操作指引：在组织架构新增**与审批要求同名**的岗位节点（特级动火="主管领导"、
+     一级动火="安全管理部门"、二级动火/受限空间="所在基层单位"、动土="所在单位专业部门"+
+     会签单位等，均为 GB 30871 附录B 表B.1 原文岗位名），再把成员挂到该节点下（程磊当前 position 为空）。
+     待办是实时按当前节点算的，补好配置后已卡住的票会自动出现，无需重提交。
+  3. **待用户拍板的产品改进**：① 提交前提示"该节点要求『主管领导』但当前企业未匹配到人员"
+     （现在毫无提示，提交后才发现没人审）；② 更根本：让企业**显式指定各节点审批人**，
+     而不是靠岗位名与组织节点名巧合匹配。
+- **追加（2026-09-23 · 开票前预检审批链，已实测并推送 `0b12637`）**：用户确认做"提交前提示无人可审批"。
+  实现：
+  1. 后端 `preview_approval_chain(db, enterprise_id, template_id)`（`work_ticket_service.py`）——
+     **复用 `eligible_users_for_node`**（审批动作与待办列表用的是同一套判定），返回每节点的
+     role_code / countersign_units / condition_expr / is_statutory / eligible_count / eligible_names；
+     新端点 `GET /work-ticket/approval-preview`
+  2. 前端开票第 0 步：**红色警告**列出"无人可签"的节点 + 要求的岗位 + 操作指引
+     （「请先到 企业 → 组织架构 建立同名节点并安排成员」）；提交时若仍无人可签 →
+     `modal.confirm` 让用户明确知情后再决定（可"仍然提交"，配置好后票会自动出现在对应人待办里）
+  3. `handleSubmit` 拆出 `doSubmit()` 以便确认弹窗复用；提交前置检查顺序 = 缺项优先、再查审批人
+  验证：后端 **2194 passed** + ruff 全绿；前端 tsc 0 / **vitest 358 passed** / eslint 0 / build OK；
+  接口探针 **5/5**（空白企业→各节点匹配人数全 0、要求岗位正是「主管领导」，对照组正常）；
+  浏览器探针 **5/5**（警告可见、说明岗位、给出组织架构指引、0 console error），
+  截图 `output/playwright/e2e-20260923/scripts/work-ticket-approval-warning.png`
+- **追加（2026-09-23 · industry 类型 422 排查，已推送 `6fc7cf6`）**：用户报「新建企业」错误变为
+  `industry：Input should be a valid string`（这正是上一轮错误提示改进生效的证据——之前只显示 422）。
+  排查三条路径均**未能复现**：① 接口层直传 name=201、空串数字=已修；
+  ② AI 自动填充返回的 `data.fields` 是**空对象**（探针 `_enterprise_autofill_types_probe.py`，
+  注意前端读的是嵌套的 `data.fields` 而非 data 顶层，第一版探针查错层级）；③ 浏览器真实抓包
+  （`_enterprise_create_payload_probe.py` 用 request 事件截 POST /enterprises 的 payload）→ 201 成功、
+  无类型问题，但 industry 未进 payload（抽屉交互未填上，未能覆盖该字段）。
+  已做的两层加固：**错误信息带上实际值**（`apiError.ts` 增加 `input` 展示 + 60 字截断，8 例单测），
+  以及**前端提交前把字符串字段归一化为字符串**（`EnterpriseInfoCards` 的 STRING_FIELDS，
+  排除日期字段以免破坏 dayjs）。等用户重试反馈：若仍报，提示里会直接显示「实际值：…」。
