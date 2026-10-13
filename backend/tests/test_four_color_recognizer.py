@@ -461,3 +461,70 @@ def test_recognize_keeps_aspect_for_slanted_dominant_zone():
     result = recognize_from_bytes(_png_bytes(img))
     assert abs(result.width / result.height - 2000 / 1400) < 0.01
     assert len(result.zones) >= 2
+
+
+def _hollow_border_map(width=600, height=450):
+    """白底彩边图（真实电子四色图常见画法）：大橙框内嵌两个小橙框 + 一个蓝框，填充为白色。"""
+    img = Image.new("RGB", (width, height), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([40, 30, 560, 420], outline=(255, 127, 0), width=6)
+    d.rectangle([120, 120, 220, 180], outline=(255, 127, 0), width=6)
+    d.rectangle([320, 120, 420, 180], outline=(255, 127, 0), width=6)
+    d.rectangle([450, 250, 540, 380], outline=(0, 0, 255), width=6)
+    return img
+
+
+def test_recognize_detects_nested_zones_in_hollow_border_map():
+    """白底彩边图：大框内部的每个小框都要成为独立分区（修复前 RETR_EXTERNAL 会把它们全部丢掉），
+    大分区多边形取描边内边界（修复前取的是外轮廓，会把整个大框连同内部空间并成一个分区）。"""
+    result = recognize_from_bytes(_png_bytes(_hollow_border_map()))
+    assert (result.width, result.height) == (600, 450)
+    assert len(result.zones) == 4, [(z["risk_level"], z["polygons"][0]["points"][:2]) for z in result.zones]
+
+    def bbox(zone):
+        xs = [p["x"] for p in zone["polygons"][0]["points"]]
+        ys = [p["y"] for p in zone["polygons"][0]["points"]]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    # 两个小橙框（内边界 126..214 / 326..414 × 126..174）与蓝框（456..534 × 256..374）都应在列
+    centers = {}
+    for zone in result.zones:
+        x0, y0, x1, y1 = bbox(zone)
+        centers[(round((x0 + x1) / 2), round((y0 + y1) / 2))] = zone
+    assert (28, 33) in centers, centers            # 小橙框1 中心 ≈ (170,150)
+    assert (62, 33) in centers, centers            # 小橙框2 中心 ≈ (370,150)
+    assert centers[(28, 33)]["risk_level"] == "较大"
+    blue = centers[(82, 70)]                       # 蓝框中心 ≈ (495,315)
+    assert blue["risk_level"] == "低"
+
+    # 大分区（面积最大）应取内边界：(46..554, 36..414) → 归一化 (7.67..92.33, 8..92)
+    big = max(result.zones, key=lambda z: (bbox(z)[2] - bbox(z)[0]) * (bbox(z)[3] - bbox(z)[1]))
+    bx0, by0, bx1, by1 = bbox(big)
+    # 大分区左边界应为描边内沿(≈7.67)而不是外沿(6.67)
+    assert 7.0 <= bx0 <= 9.0, bbox(big)
+    assert 91.0 <= bx1 <= 93.0, bbox(big)
+    assert big["risk_level"] == "较大"
+
+
+def test_recognize_container_frame_goes_to_excluded():
+    """包住小框的"容器围框"（有洞且面积 <1% 画布）→ 进"已自动排除"可恢复；小框本体正常识别。"""
+    img = Image.new("RGB", (800, 800), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([100, 100, 184, 184], outline=(255, 127, 0), width=4)  # 容器围框
+    d.rectangle([120, 120, 170, 170], outline=(255, 127, 0), width=4)  # 内部小框
+    result = recognize_from_bytes(_png_bytes(img))
+    assert len(result.zones) == 1
+    assert result.zones[0]["risk_level"] == "较大"
+    assert any(item["reason"] == "frame" for item in result.excluded)
+
+
+def test_recognize_uhaped_container_frame_goes_to_excluded():
+    """内部框体贴边把围框打散成无洞 U 形区域时，也要按围框排除（真实图左上托架形态）。"""
+    img = Image.new("RGB", (1600, 900), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([100, 100, 300, 240], outline=(255, 127, 0), width=4)  # 容器围框
+    d.rectangle([120, 100, 280, 210], outline=(255, 127, 0), width=4)  # 内部框体与围框上边贴边
+    result = recognize_from_bytes(_png_bytes(img))
+    assert len(result.zones) == 1, [(z["risk_level"], z["polygons"][0]["points"]) for z in result.zones]
+    assert result.zones[0]["risk_level"] == "较大"
+    assert any(item["reason"] == "frame" for item in result.excluded)

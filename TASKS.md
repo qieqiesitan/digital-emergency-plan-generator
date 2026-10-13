@@ -38,30 +38,29 @@
   且 09-21 那个 savepoint `0a631e9`（含他人 WIP）仍是祖先；另 ⚠ 新 AGENTS.md 要求的
   `python graphify-out/_finalize_graph.py` 本机不存在，对应实际命令是 `graphify label .`（要 LLM，未跑）。
 
-## 当前状态快照（压缩恢复用 · 「四色图嵌套分区被并成大分区」诊断**已完成** · 2026-10-13）
+## 当前状态快照（压缩恢复用 · 「四色图嵌套分区识别」**已实施+验证完成** · 2026-10-13）
 - 任务（2026-10-13）：用户报「四色图识别时很多分区内的分区识别不到，画成一个统一的大分区」，
-  附原图 `C:\Users\55061\Desktop\永昇加油站风险四色图.jpg` + 识别结果截图，问「可行么」。
-  自动匹配 `$systematic-debugging`（主技能，诊断阶段）；**状态：根因已定位 + 修复方案已原型验证，未改任何源码，等用户确认方案。**
-- 根因（三条，实证）：
-  1. 该图是「白底 + 彩色粗描边」画法：填充近纯白（HSV S≈0-24）被归背景，颜色掩码里只剩边框线条（空心环）。
-     934×681 图：橙掩码仅 32289 px 的描边，但 `cv2.contourArea` 按"外轮廓包围面积"算出 177376 px（占全图 27.9%）。
-  2. `mask_to_polygons` 用 `RETR_EXTERNAL` 只取最外层轮廓 → 大框内部所有独立小框（加油机×6、储罐×4、
-     卸油口、办公室、营业室…全在"洞"里）整批丢失，这正是"分区内的分区识别不到"。
-  3. 大环外轮廓本身直接成为一个"统一大分区"（用户截图那块大色块）；左上角两个储罐+卸油口因描边相连成一个怪形大分区。
-- 复现证据（可重跑）：`output/tmp/fourcolor-debug/debug_reco.py`（只读脚本）+ 中间图
-  `mask_raw_橙.png` / `vis_external_contours.png`（=用户截图同款 7 个分区）/ `vis_cells_boundary.png`（改进原型 ~28 个格）。
-  真实管线实跑：`recognize_from_bytes(原图)` → **7 个分区、0 排除**，与用户截图逐一对应。
-- 改进原型（已验证 2 种）：把四色描边并集为"墙"→ 膨胀 1px 封抗锯齿缝 → 非墙像素连通域里
-  "不与图像边缘连通"的格 = 分区候选 → 颜色按"格边界像素最近墙色"投票（顺带修好办公室/营业室因橙块跨压蓝线导致的丢失）。
-  过滤：面积 <0.2% 画布丢弃（数字徽章白字等）；有洞且 <1% 的"围框"（储罐外框、左上托架）→ 进"已自动排除"；细长比 >12 排除。
-  实心色块路径改用「腐蚀 r=3 存活」判定保持与现有行为一致（现有 33 个单测均为实心图，可全绿）：本图预期 7 → ~28~31 个分区。
-- 关键文件：识别器 `backend/app/services/four_color_recognizer.py`（`mask_to_polygons:69`、`classify_interference:154`、
-  `recognize_from_bytes:310`）；接口 `backend/app/routers/risk_management.py:216 analyze_four_color`；
-  前端排除项文案表 `frontend/src/components/enterprise/riskMapping/FourColorImportModal.tsx:40 REASON_LABEL`（新增 reason 需补文案）。
-- 备选方案 B（最小改动：RETR_CCOMP 把"洞"当分区）已评估：跨色覆盖处仍漏 2 个房间、外围环与洞会重复出分区，不推荐；
-  方案 C（上多模态大模型直出分区）不推荐（成本/稳定性）。
-- 下一步：等用户确认走推荐方案 A → 按 TDD 实施（先写失败测试：合成"空心描边 + 嵌套内框"图断言嵌套分区被识别），
-  再改识别器 + 前端文案，最后全文回归 + `graphify update .`。
+  附原图 `C:\Users\55061\Desktop\永昇加油站风险四色图.jpg` + 识别结果截图 → 用户确认方案后实施。
+  自动匹配 `$systematic-debugging`（诊断）→ `$test-driven-development`（实施）。
+  **状态：代码已改完 + 单测/真接口/前端全绿；已提交待推送（见「git 收尾」）。**
+- 根因（已修复）：白底彩边图 → 颜色掩码只有描边（空心环）+ `RETR_EXTERNAL` 只取最外层轮廓
+  → 大环内的所有小框（加油机/储罐/房间…）整批丢失，大环自己成为统一大分区。
+- 修复方案（已落地）：识别器新增「封闭格提取」路径 —— 四色描边并集为墙（膨胀 1px 封缝）→
+  反相连通域里"不与图像边缘连通"的格 = 分区；颜色按格边界最近墙色投票；实心色块路径改为
+  「腐蚀后存活」判定（细描边被清除，不再产生空心大分区）；OCR 文字归"面积最小（最内层）"分区。
+  过滤：<0.2% 画布静默丢弃；有洞或低填充且 <1% 的"容器围框" → excluded（新 reason `frame`，可恢复）。
+- 涉及文件：`backend/app/services/four_color_recognizer.py`（主改动）、
+  `backend/app/schemas/risk_management.py`（reason Literal 加 frame）、
+  `frontend/src/types/riskMappingWorkbench.ts`、`frontend/src/components/enterprise/riskMapping/FourColorImportModal.tsx`（文案"容器围框"）、
+  `backend/tests/test_four_color_recognizer.py`（+3 用例）、
+  设计文档 `docs/superpowers/specs/2026-10-13-four-color-nested-zone-recognition-design.md`。
+- 验证证据：单测 39 全绿；相关测试文件（import API/报告/楼层）41 全绿；**真实原图 7 → 26 个分区 + 2 个围框排除**，
+  25/26 有 OCR 建议名；真接口（docker :8000 analyze，qa 账号）zone=26/excluded=2/frame ✓；
+  前端 `tsc -b` ✓、`vitest riskMappingWorkbenchService` ✓。中间产物在 `output/tmp/fourcolor-debug/`
+  （`verify_real_map_zones.png` = 新识别效果叠加图；`debug_reco.py` 复现脚本）。
+- ⚠ 注意：本次为验证重启过 `emergency-plan-backend` 容器（bind mount 手动生效，属预期流程）。
+- git 收尾：已 `git save`（4299f0f）；提交时**未用 `git finish` 压缩**（会把上一会话 3 个未推送的
+  major-hazard 功能提交一起压缩进单个提交、丢失各自信息），改为细粒度提交 + 直接 push origin/gitee。
 
 ## 当前状态快照（压缩恢复用 · 「设计最大量/临界量/β 能否自动带出」问答 · 2026-10-13）
 - 任务（2026-10-13）：用户问「重大危险源中品种与存量里，设计最大量、临界量、β 的值可以自动带出来么？

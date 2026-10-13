@@ -167,7 +167,7 @@ export interface FourColorDraftZone {
 }
 export interface FourColorExcludedItem {
   color: string;
-  reason: "legend" | "thin" | "border_frame" | "tiny";
+  reason: "legend" | "thin" | "border_frame" | "tiny" | "frame";
   polygons: FourColorDraftPolygon[];
 }
 export interface FourColorTextItem {

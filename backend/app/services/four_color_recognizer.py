@@ -32,6 +32,13 @@ THIN_ASPECT_RATIO = 12.0
 BORDER_FRAME_THICKNESS_RATIO = 0.01
 SUSPECT_AREA_RATIO = 0.05
 SUSPECT_SOLIDITY = 0.5
+SOLID_FILL_MIN = 0.5            # 实心组件最低填充率：低于此值视为"胖描边环"，内部交封闭格路径
+WALL_SEAL_DILATE_ITER = 1       # 描边并集膨胀次数：封住抗锯齿/JPEG 压缩留下的 1px 缺口
+CELL_MIN_AREA_RATIO = 2e-3      # 封闭格（分区候选）最小面积占比，低于此值按噪点丢弃
+FRAME_MAX_AREA_RATIO = 0.01     # 有洞的小格面积上限：低于它视为"容器围框"而非分区本体
+FRAME_FILL_MIN = 0.5            # 小格在自身外接矩形内的最低填充率：低于它同样视为围框（无洞的 U 形托架）
+SOLID_CELL_OVERLAP_MIN = 0.9    # 格落在实心色块内部的比例上限：超过则视为实心分区内的文字/图案镂空
+CELL_COLOR_SEARCH_RADII = (1, 2, 3)  # 格边界像素向外找最近墙色的搜索半径（像素）
 DEFAULT_CANVAS_MAX = (1600, 1000)
 COLOR_HEX_BY_LEVEL = {"重大": "#ff4d4f", "较大": "#fa8c16", "一般": "#fadb14", "低": "#52c41a"}
 
@@ -73,6 +80,19 @@ def clean_mask(mask: np.ndarray, kernel_size: int = 3) -> np.ndarray:
     return cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
 
 
+def _simplify_contour(cnt: np.ndarray, epsilon: float) -> np.ndarray | None:
+    """Douglas-Peucker 简化 + 点数上限采样；简化后不足 3 点返回 None。"""
+    approx = cv2.approxPolyDP(cnt, epsilon, True)
+    if len(approx) < 3:
+        return None
+    if len(approx) > MAX_POLYGON_POINTS:
+        step = max(1, len(approx) // MAX_POLYGON_POINTS)
+        approx = approx[::step]
+        if len(approx) < 3:
+            approx = approx[:3]
+    return approx.reshape(-1, 2)
+
+
 def mask_to_polygons(mask: np.ndarray, width: int, height: int, min_area: float, epsilon: float) -> list[np.ndarray]:
     """外轮廓提取 + Douglas-Peucker 简化 + 最小面积过滤，返回像素坐标多边形列表。"""
     _require_cv2()
@@ -81,15 +101,10 @@ def mask_to_polygons(mask: np.ndarray, width: int, height: int, min_area: float,
     for cnt in contours:
         if cv2.contourArea(cnt) < min_area:
             continue
-        approx = cv2.approxPolyDP(cnt, epsilon, True)
-        if len(approx) < 3:
+        points = _simplify_contour(cnt, epsilon)
+        if points is None:
             continue
-        if len(approx) > MAX_POLYGON_POINTS:
-            step = max(1, len(approx) // MAX_POLYGON_POINTS)
-            approx = approx[::step]
-            if len(approx) < 3:
-                approx = approx[:3]
-        polys.append(approx.reshape(-1, 2))
+        polys.append(points)
     return polys
 
 
@@ -119,6 +134,16 @@ def _point_in_polygon(px: float, py: float, points: list[dict]) -> bool:
                 inside = not inside
         j = i
     return inside
+
+
+def _polygon_area(points: list[dict]) -> float:
+    """归一化坐标多边形的鞋带公式面积（用于给文字挑"最内层"的分区）。"""
+    area = 0.0
+    n = len(points)
+    for i in range(n):
+        j = (i + 1) % n
+        area += points[i]["x"] * points[j]["y"] - points[j]["x"] * points[i]["y"]
+    return abs(area) / 2.0
 
 
 def _crop_from_zone(bgr: np.ndarray, zone: dict, width: int, height: int) -> np.ndarray:
@@ -202,6 +227,170 @@ def classify_interference(components: list[ComponentInfo], width: int, height: i
         else:
             kept.append(c)
     return InterferenceResult(kept=kept, excluded=excluded, suspected=suspected)
+
+
+def extract_solid_components(mask: np.ndarray, color: str, min_area: float, epsilon: float,
+                             erode_radius: int) -> list[ComponentInfo]:
+    """实心色块提取：腐蚀后仍存活的连通块才算"实心"（实心分区/图例/图标）。
+
+    白底彩边图（真实电子四色图常见画法）的分区只有细描边、填充近白被归背景：
+    这类描边腐蚀后整块消失 → 这里不产出分区，它们的内部区域由
+    `extract_enclosed_cells` 以"封闭格"方式识别，从而保住嵌套小分区。
+    """
+    _require_cv2()
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * erode_radius + 1, 2 * erode_radius + 1))
+    # borderValue=0：把图像外沿当作背景，否则紧贴图片边缘的色块不会被腐蚀（OpenCV 默认按 +∞ 填充）
+    core = cv2.erode(mask, kernel, borderValue=0)
+    if not core.any():
+        return []
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    survivor_labels = {int(v) for v in np.unique(labels[core > 0]) if v > 0}
+    if not survivor_labels:
+        return []
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    best: dict[int, np.ndarray] = {}
+    for cnt in contours:
+        if cv2.contourArea(cnt) < min_area:
+            continue
+        px = cnt.reshape(-1, 2)[0]
+        lbl = int(labels[px[1], px[0]])
+        if lbl not in survivor_labels:
+            continue
+        prev = best.get(lbl)
+        if prev is None or cv2.contourArea(cnt) > cv2.contourArea(prev):
+            best[lbl] = cnt
+    out: list[ComponentInfo] = []
+    for lbl, cnt in best.items():
+        outer_area = float(cv2.contourArea(cnt))
+        # 胖描边环：轮廓内大部分不是色块像素，内部区域应交给封闭格路径，避免再产出空心大分区
+        if float(stats[lbl, cv2.CC_STAT_AREA]) / max(1.0, outer_area) < SOLID_FILL_MIN:
+            continue
+        points = _simplify_contour(cnt, epsilon)
+        if points is None:
+            continue
+        xs, ys = points[:, 0], points[:, 1]
+        out.append(ComponentInfo(
+            color=color,
+            points=points,
+            area=outer_area,
+            bbox=(int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())),
+        ))
+    return out
+
+
+def extract_enclosed_cells(cleaned_masks: dict[str, np.ndarray], width: int, height: int,
+                           min_area: float, epsilon: float, solid_fill: np.ndarray | None = None
+                           ) -> tuple[list[ComponentInfo], list[ComponentInfo], list[tuple[ComponentInfo, str]]]:
+    """封闭格提取（白底彩边图的主识别路径）。
+
+    把四色描边并集为"墙" → 反相后做连通域 → 不与图像边缘连通的连通域 = 被描边围住的格；
+    每个格就是一个分区候选，大框内部的小框各自成格，嵌套关系天然保留（这是
+    RETR_EXTERNAL 外轮廓方案丢失"分区内的分区"的根因所在）。
+    颜色归属：格边界像素由近及远找最近的墙像素颜色投票，跨色覆盖（如橙色块压住蓝线）也能判对。
+    `solid_fill`（实心色块区域内填充图）：格若几乎完全落在某个实心色块内部
+    （典型：实心分区里被文字/图案挖出的白洞），说明它是实心分区的一部分而不是独立分区，跳过。
+    返回 (正常格, 疑似格, [(被排除格, reason)])。
+    """
+    _require_cv2()
+    walls = np.zeros((height, width), dtype=np.uint8)
+    for mask in cleaned_masks.values():
+        walls = cv2.bitwise_or(walls, mask)
+    walls = cv2.dilate(walls, np.ones((3, 3), np.uint8), iterations=WALL_SEAL_DILATE_ITER)
+    free = cv2.bitwise_not(walls)
+    num, labels, stats, _ = cv2.connectedComponentsWithStats(free, connectivity=4)
+    border_labels = {
+        int(v) for v in np.unique(np.concatenate([labels[0, :], labels[-1, :], labels[:, 0], labels[:, -1]]))
+    }
+    reach: list[dict[str, np.ndarray]] = []
+    for radius in CELL_COLOR_SEARCH_RADII:
+        kernel = np.ones((2 * radius + 1, 2 * radius + 1), np.uint8)
+        reach.append({name: cv2.dilate(mask, kernel) > 0 for name, mask in cleaned_masks.items()})
+    cell_min_area = max(min_area, CELL_MIN_AREA_RATIO * width * height)
+    frame_max_area = FRAME_MAX_AREA_RATIO * width * height
+    suspect_area = SUSPECT_AREA_RATIO * width * height
+    kept: list[ComponentInfo] = []
+    suspected: list[ComponentInfo] = []
+    excluded: list[tuple[ComponentInfo, str]] = []
+    for lbl in range(1, num):
+        if lbl in border_labels:
+            continue
+        area = float(stats[lbl, cv2.CC_STAT_AREA])
+        if area < cell_min_area:
+            continue  # 极小格（数字徽章白字、笔画缝隙）按噪点丢弃
+        x0 = int(stats[lbl, cv2.CC_STAT_LEFT])
+        y0 = int(stats[lbl, cv2.CC_STAT_TOP])
+        w_c = int(stats[lbl, cv2.CC_STAT_WIDTH])
+        h_c = int(stats[lbl, cv2.CC_STAT_HEIGHT])
+        labels_crop = labels[y0:y0 + h_c, x0:x0 + w_c]
+        cell_bool = labels_crop == lbl
+        if solid_fill is not None:
+            covered = int(np.count_nonzero(cell_bool & (solid_fill[y0:y0 + h_c, x0:x0 + w_c] > 0)))
+            if covered >= SOLID_CELL_OVERLAP_MIN * area:
+                continue
+        cell = np.where(cell_bool, 255, 0).astype(np.uint8)
+        # 颜色投票：边界像素由近及远（半径 1→3）找墙色
+        boundary = cv2.subtract(
+            cell,
+            cv2.erode(cell, np.ones((3, 3), np.uint8), borderValue=0),
+        )
+        ys, xs = np.where(boundary > 0)
+        ys = ys + y0
+        xs = xs + x0
+        votes = {name: 0 for name in cleaned_masks}
+        pending = np.ones(len(ys), dtype=bool)
+        for layer in reach:
+            for name, mask_r in layer.items():
+                hit = mask_r[ys, xs] & pending
+                votes[name] += int(np.count_nonzero(hit))
+                pending &= ~hit
+            if not pending.any():
+                break
+        total = sum(votes.values())
+        if total == 0:
+            continue
+        color = max(votes, key=votes.get)
+        contours, hierarchy = cv2.findContours(cell, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            continue
+        areas = [cv2.contourArea(c) for c in contours]
+        outer_idx = int(np.argmax(areas))
+        outer = contours[outer_idx]
+        has_holes = False
+        if hierarchy is not None:
+            hier = hierarchy[0]
+            child = hier[outer_idx][2]
+            while child != -1:
+                if cv2.contourArea(contours[child]) >= min_area:
+                    has_holes = True
+                    break
+                child = hier[child][0]
+        points = _simplify_contour(outer, epsilon)
+        if points is None:
+            continue
+        points = points + np.array([x0, y0], dtype=points.dtype)
+        outer_area = max(1.0, float(areas[outer_idx]))
+        item = ComponentInfo(
+            color=color,
+            points=points,
+            area=outer_area,
+            bbox=(x0, y0, x0 + w_c, y0 + h_c),
+        )
+        # 细长缝（两条描边之间的窄条）
+        short = max(1.0, float(min(w_c, h_c)))
+        long = float(max(w_c, h_c))
+        if long / short > THIN_ASPECT_RATIO:
+            excluded.append((item, "thin"))
+            continue
+        # 围框：包着别的东西（有洞）或形状大面积空心（如被内部框体贴边打散的 U 形托架），
+        # 且面积很小 → 是容器外圈而不是分区本体
+        if area < frame_max_area and (has_holes or area < FRAME_FILL_MIN * (w_c * h_c)):
+            excluded.append((item, "frame"))
+            continue
+        if area > suspect_area and area / outer_area < SUSPECT_SOLIDITY:
+            suspected.append(item)
+        else:
+            kept.append(item)
+    return kept, suspected, excluded
 
 
 def _kernel_size(width: int, height: int) -> int:
@@ -308,7 +497,8 @@ class RecognizeResult:
 
 
 def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
-    """识别管线入口：解码 → 透视校正（保守门控）→ 分类 → 清理 → 轮廓 → 干扰过滤 → 分区。"""
+    """识别管线入口：解码 → 透视校正（保守门控）→ 分类 → 清理
+    → 实心色块提取 + 封闭格提取（嵌套分区）→ 干扰过滤 → 分区。"""
     _require_cv2()
     img = Image.open(io.BytesIO(data))
     img = ImageOps.exif_transpose(img)
@@ -324,27 +514,32 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
     min_area = MIN_AREA_RATIO * width * height
     epsilon = EPSILON_RATIO * diag
     kernel_size = _kernel_size(width, height)
+    # 实心色块路径：白底彩边图的分区只有细描边（腐蚀后会被清除，不产出空心大分区），
+    # 它们的内部区域由下面的封闭格路径逐格识别，嵌套小分区因此得以保留。
+    cleaned: dict[str, np.ndarray] = {}
     components: list[ComponentInfo] = []
     for name in ("红", "橙", "黄", "蓝"):
         mask = clean_mask(masks[name], kernel_size)
-        polys = mask_to_polygons(mask, width, height, min_area, epsilon)
-        for poly in polys:
-            xs = poly[:, 0]
-            ys = poly[:, 1]
-            components.append(ComponentInfo(
-                color=name,
-                points=poly,
-                area=float(cv2.contourArea(poly.astype(np.float32))),
-                bbox=(int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())),
-            ))
+        cleaned[name] = mask
+        components.extend(extract_solid_components(mask, name, min_area, epsilon, max(2, kernel_size)))
     filtered = classify_interference(components, width, height)
+    solid_fill = np.zeros((height, width), dtype=np.uint8)
+    for c in components:
+        cv2.drawContours(solid_fill, [c.points.reshape(-1, 1, 2).astype(np.int32)], -1, 255, thickness=-1)
+    cell_kept, cell_suspected, cell_excluded = extract_enclosed_cells(
+        cleaned, width, height, min_area, epsilon, solid_fill=solid_fill,
+    )
     kept_ids = {id(c) for c in filtered.kept}
     suspected_ids = {id(c) for c in filtered.suspected}
+    cell_suspected_ids = {id(c) for c in cell_suspected}
+    zone_components: list[ComponentInfo] = [
+        c for c in components if id(c) in kept_ids or id(c) in suspected_ids
+    ]
+    zone_components.extend(cell_kept)
+    zone_components.extend(cell_suspected)
     zones: list[dict] = []
     seq = 0
-    for c in components:
-        if id(c) not in kept_ids and id(c) not in suspected_ids:
-            continue
+    for c in zone_components:
         if len(zones) >= MAX_ZONES:
             if "识别区域过多" not in warnings:
                 warnings.append("识别区域过多，已保留前 200 个")
@@ -355,7 +550,7 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
             "name": f"分区{seq}",
             "risk_level": LEVEL_BY_COLOR[c.color],
             "color": COLOR_HEX_BY_LEVEL[LEVEL_BY_COLOR[c.color]],
-            "suspected": id(c) in suspected_ids,
+            "suspected": id(c) in suspected_ids or id(c) in cell_suspected_ids,
             "polygons": [{
                 "id": f"poly-{uuid4().hex}",
                 "label": None,
@@ -370,7 +565,7 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
             "label": None,
             "points": normalize_points(c.points, width, height),
         }],
-    } for c, reason in filtered.excluded]
+    } for c, reason in list(filtered.excluded) + list(cell_excluded)]
     if ocr is None:
         from app.services.vision_helpers import extract_texts
         ocr = extract_texts
@@ -387,13 +582,21 @@ def recognize_from_bytes(data: bytes, ocr=None, clip=None) -> RecognizeResult:
             continue
         cx = sum(p["x"] for p in pts) / len(pts) / width * 100
         cy = sum(p["y"] for p in pts) / len(pts) / height * 100
+        # 分区现在允许嵌套（大区内的小框各自成区）：文字优先归给"最内层"（面积最小）的容纳分区
+        target_zone = None
+        target_area: float | None = None
         for zone in zones:
             if zone.get("suggested_name"):
                 continue
             for poly in zone["polygons"]:
                 if _point_in_polygon(cx, cy, poly["points"]):
-                    zone["suggested_name"] = text["text"]
+                    poly_area = _polygon_area(poly["points"])
+                    if target_area is None or poly_area < target_area:
+                        target_zone = zone
+                        target_area = poly_area
                     break
+        if target_zone is not None:
+            target_zone["suggested_name"] = text["text"]
     # OCR 返回像素坐标；API schema 要求 0-100 归一化，统一在管线输出前转换
     for text in texts:
         pts = text.get("points") or []

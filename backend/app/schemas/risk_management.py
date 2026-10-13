@@ -367,7 +367,7 @@ class FourColorDraftZone(BaseModel):
 
 class FourColorExcludedItem(BaseModel):
     color: str
-    reason: Literal["legend", "thin", "border_frame", "tiny"]
+    reason: Literal["legend", "thin", "border_frame", "tiny", "frame"]
     polygons: list[FourColorDraftPolygon]
 
 

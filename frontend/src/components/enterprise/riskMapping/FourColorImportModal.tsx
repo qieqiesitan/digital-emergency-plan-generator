@@ -42,6 +42,7 @@ const REASON_LABEL: Record<string, string> = {
   thin: "细长线/符号",
   border_frame: "贴边图框",
   tiny: "极小噪点",
+  frame: "容器围框",
 };
 
 function extractToken(previewUrl: string): string {
