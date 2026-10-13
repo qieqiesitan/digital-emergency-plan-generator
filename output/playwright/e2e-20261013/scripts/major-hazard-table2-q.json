@@ -1,0 +1,43 @@
+{
+  "checks": {
+    "q_hint_says_not_in_table1": true,
+    "category_picker_appears": true,
+    "option_shows_q_and_beta": true,
+    "q_filled_from_table2": true,
+    "beta_filled_from_table4": true,
+    "q_source_hint_shown": true,
+    "q_persisted": true,
+    "beta_persisted": true,
+    "beta_source_is_table4": true,
+    "no_console_error": true
+  },
+  "detail": {
+    "fixture": {
+      "enterprise": "807a3fc1-4d84-4e97-ad01-36b72e9784cc",
+      "unit": "9145065e-8570-404b-b3e7-cd285674729e"
+    },
+    "q_cell_after_blur": "未在表1列举，请选右侧危险性类别",
+    "beta_cell_after_blur": "选危险性类别，Q 与 β 一并带出",
+    "dropdown_sample": "W5.1\nW5.1 易燃液体（Q=10 t，β=1.5）",
+    "q_value": "10.0",
+    "beta_value": "1.5",
+    "q_cell_after_pick": "按所选危险性类别取自表2",
+    "saved_rows": [
+      {
+        "chemical_name": "汽油",
+        "chemical_id": null,
+        "physical_state": null,
+        "storage_location": null,
+        "q_design_max": "12.000000",
+        "q_actual": null,
+        "critical_quantity_t": "10.000000",
+        "beta": "1.500",
+        "beta_source": "table4",
+        "id": "c718d6ca-df2b-4a9c-ab80-efd9778f9e18",
+        "unit_id": "9145065e-8570-404b-b3e7-cd285674729e"
+      }
+    ],
+    "errors": []
+  },
+  "all_passed": true
+}
