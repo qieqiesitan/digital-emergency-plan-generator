@@ -1,3 +1,39 @@
+## 当前状态快照（压缩恢复用 · 台账选入品种也带出标准值（CAS 兜底）**已实现实测** · 2026-10-13）
+- 任务（2026-10-13）：用户反馈「添加品种时直接在关联台账里选汽油或柴油，自己不会带出来，想也带出来，可行么？」
+  → 自动匹配 `$test-driven-development`。**状态：3 处提交完成，全部门禁 + 浏览器实测通过。**
+- 数据核实（回答"可行么"的依据，别再重复查）：
+  - **汽油在表1 里**，标准写法 `汽油(乙醇汽油、甲醇汽油)`、CAS `86290-81-5(汽油)`、**Q=200t**
+    → 台账里的"汽油"因为名字对不上才带不出来
+  - **柴油不在表1**（标准确实没列举），只能走表2 按危险性类别；且该台账条目连 CAS 都没有
+  - 台账 34 条里 27 条有 CAS；靠 CAS 能接上的还有：液化石油气 `68476-85-7`、
+    盐酸 `7647-01-0`（↔表1「氯化氢(无水)」）、乙醇（酒精）`64-17-5`、氢气 `1333-74-0`
+  - 标准里 CAS 字段很脏（一个格子塞多个号 + 括号注名），要按 `；`/`;` 切分再剥括号后缀
+- 交付（用户可见）：在「关联台账」里选汽油 → 品种名带出、**临界量自动=200**（靠 CAS 认出来）、
+  设计最大量给"台账建议"、β 那格提示按危险性类别选；选柴油 → 名字带出、Q 不瞎填，
+  落到"选危险性类别"那条路。
+- 本轮 commit：`99e00f6`（后端 CAS 兜底）、`e67f927`（前端接线 + patch 改函数式）、
+  `967005f`（浏览器探针与证据）
+- 改动：
+  - `backend/app/services/major_hazard_lookup.py`：+`_cas_tokens`（脏 CAS 归一化）、
+    `cas_no` 参数与 CAS 兜底查询（SQL LIKE 粗筛 + Python 精确判定，防 `81-5` 这种子串误挂）
+  - `backend/app/routers/major_hazard.py`：lookup 端点 +`cas_no` 查询参数
+  - `frontend/src/services/majorHazardService.ts`：`lookupChemical(name, hazardSymbol?, casNo?)`
+  - `frontend/src/components/enterprise/majorHazard/UnitChemicalTable.tsx`：
+    `handleLedgerSelect` 里也调 `resolveStandard`（带台账 CAS）；**`patch` 改函数式 setState**
+    ——原来用闭包里的 `rows`，同一事件里改两次同一行会互相覆盖（我引入的隐患，读代码时发现并修掉）
+- 验证：后端全量 `pytest` **2205 passed / 1 skipped**；前端 `tsc` 0 / `vitest` 370 / `eslint` 0 / `build` OK；
+  浏览器探针 `output/playwright/e2e-20261013/scripts/_major_hazard_ledger_prefill_probe.py` **9/9**
+  （含"关联没被带出的值冲掉"这条回归断言），证据 `major-hazard-ledger-prefill.json` + 两张截图。
+- ⚠ **协作事故与恢复（重要，别再犯）**：本环境有**另一个会话在同一个工作区并行工作**。
+  我第一次 `git commit` 时把**别人已暂存的 7 个文件**（四色图嵌套分区识别那一摊 + `TASKS.md`）
+  一起提交了。已用 `git reset --soft HEAD~1` 拆开（不丢改动），改用**按路径精确提交**
+  （`git commit -m "..." -- <files>`）重做，现已干净分离：我的 `99e00f6`/`e67f927`/`967005f`，
+  对方的 `98a0ab0`（含 `TASKS.md`，是对方提交的，我没有动）。
+  **今后提交一律用路径精确提交，不要依赖暂存区状态。**
+- 已部署：8082 生产构建已更新（`shuzihuayuan:/app/dist`，备份 `/app/dist.bak.20261013`）；后端容器已重启。
+- 下一步（等用户拍板）：推送仍未定；`python graphify-out/_finalize_graph.py` 本机不存在（对应命令是
+  `graphify label .`，需 LLM，未跑）。
+
 ## 当前状态快照（压缩恢复用 · 表2 按危险性类别取临界量**已实现并实测** · 2026-10-13）
 - 任务（2026-10-13）：用户问「重大危险源品种与存量里，设计最大量、临界量、β 能自动带出么？去哪找」→
   只读答完（自动匹配 `$graphify`）→ 用户「**帮我改好**」→ 自动匹配 `$test-driven-development`
@@ -38,11 +74,32 @@
   且 09-21 那个 savepoint `0a631e9`（含他人 WIP）仍是祖先；另 ⚠ 新 AGENTS.md 要求的
   `python graphify-out/_finalize_graph.py` 本机不存在，对应实际命令是 `graphify label .`（要 LLM，未跑）。
 
+## 当前状态快照（压缩恢复用 · 「风险树编辑 左右分屏 + 四色图联动」方案待确认 · 2026-10-13）
+- 任务（2026-10-13）：用户要求「风险树编辑」页布局调整 —— 左右分屏：左侧保持现有风险树编辑
+  （稍紧凑），右侧 = 节点详情（小）+ 四色图（与左侧联动）。自动匹配 `$brainstorming`（设计阶段）。
+  **状态：方案已提出，等用户确认后实施；未改任何源码。**
+- 关键事实（已核实）：
+  - 页面 = `frontend/src/pages/Enterprise/RiskManagementTab.tsx`（现状已是 左树 flex:1 + 右 300px 详情；
+    embedded 模式挂在 routes/index.tsx 的 ModulePageShell 下；非 embedded 分支仅遗留导航按钮）。
+  - 树组件 `frontend/src/components/enterprise/RiskHierarchyTree.tsx`：antd Tree，key 格式
+    `zone-<id>` / `object-` / `unit-` / `event-` / `measure-` / `floor-<id>`，`_meta` 里带
+    `floorId`（仅 zone 节点）与 `floor_plan_polygon`；目前**选择态非受控**（无 selectedKeys prop），
+    地图→树反向联动需要加受控 selectedKeys + 自动展开祖先。
+  - 四色图只读渲染可直接复用 `frontend/src/components/enterprise/riskMapping/RiskDistributionStage.tsx`
+    （底图 + 分区色块 effective_color + 风险点 + 文本；props：floorId / highlightZone 高亮加粗 / onZoneClick），
+    数据走 `getRiskMappingOverview(enterpriseId, floorId)`；公示页/总览页已在用同款组件。
+  - e2e `frontend/e2e/risk-hierarchy-tree.spec.ts`（全 mock）需补 `/risk-management/overview` mock 才不报错。
+- 方案要点（待确认）：左栏紧凑（工具栏单行小按钮、树行高 28→26、padding 收紧，功能不动）；
+  右栏固定 ~420px 两卡：节点详情（紧凑）+ 四色图；双向联动（树→图高亮/切楼层；点图分区→树选中展开+详情同步）；
+  多楼层时地图头部加楼层下拉；地图只读不做缩放。
+- 下一步：用户确认（或调整后）→ TDD/实现：改 RiskManagementTab + RiskHierarchyTree（受控选择）+ 
+  新增右栏组件 + 更新 e2e mock，跑 vitest/tsc/playwright。
+
 ## 当前状态快照（压缩恢复用 · 「四色图嵌套分区识别」**已实施+验证完成** · 2026-10-13）
 - 任务（2026-10-13）：用户报「四色图识别时很多分区内的分区识别不到，画成一个统一的大分区」，
   附原图 `C:\Users\55061\Desktop\永昇加油站风险四色图.jpg` + 识别结果截图 → 用户确认方案后实施。
   自动匹配 `$systematic-debugging`（诊断）→ `$test-driven-development`（实施）。
-  **状态：代码已改完 + 单测/真接口/前端全绿；已提交待推送（见「git 收尾」）。**
+  **状态：全部完成 —— 代码已改完 + 单测/真接口/前端全绿 + 已提交并推送 GitHub/Gitee（`98a0ab0`）。**
 - 根因（已修复）：白底彩边图 → 颜色掩码只有描边（空心环）+ `RETR_EXTERNAL` 只取最外层轮廓
   → 大环内的所有小框（加油机/储罐/房间…）整批丢失，大环自己成为统一大分区。
 - 修复方案（已落地）：识别器新增「封闭格提取」路径 —— 四色描边并集为墙（膨胀 1px 封缝）→
@@ -59,8 +116,12 @@
   前端 `tsc -b` ✓、`vitest riskMappingWorkbenchService` ✓。中间产物在 `output/tmp/fourcolor-debug/`
   （`verify_real_map_zones.png` = 新识别效果叠加图；`debug_reco.py` 复现脚本）。
 - ⚠ 注意：本次为验证重启过 `emergency-plan-backend` 容器（bind mount 手动生效，属预期流程）。
-- git 收尾：已 `git save`（4299f0f）；提交时**未用 `git finish` 压缩**（会把上一会话 3 个未推送的
-  major-hazard 功能提交一起压缩进单个提交、丢失各自信息），改为细粒度提交 + 直接 push origin/gitee。
+- git 收尾：已 `git save`（4299f0f）→ 细粒度提交 + 直接 push origin/gitee（`6fc7cf6..98a0ab0`）。
+  **未用 `git finish` 压缩**：会把其它会话未推送的功能提交一起压成单提交、丢各自信息。
+  ⚠ 并发插曲：另一会话 15:14 的 `git commit` 把本会话已暂存的 7 个文件一起带进了它的
+  major-hazard 提交（共享索引冲突）；已用 `reset --soft` 拆回两个各自署名/信息的提交
+  （`99e00f6` = major-hazard CAS 兜底，`98a0ab0` = 四色图），`git diff 2b3793f HEAD` 为空 = 内容零丢失。
+  另一会话仍在改的 2 个前端文件（UnitChemicalTable/majorHazardService）保持未动。
 
 ## 当前状态快照（压缩恢复用 · 「设计最大量/临界量/β 能否自动带出」问答 · 2026-10-13）
 - 任务（2026-10-13）：用户问「重大危险源中品种与存量里，设计最大量、临界量、β 的值可以自动带出来么？
