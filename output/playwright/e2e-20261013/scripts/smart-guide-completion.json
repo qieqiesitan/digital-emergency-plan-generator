@@ -1,0 +1,66 @@
+{
+  "checks": {
+    "B_blank_desc_preview_ok": true,
+    "A_preview_zone_path": true,
+    "A_merge_badge_shown": true,
+    "A_new_badge_shown": true,
+    "A_summary_shown": true,
+    "A_import_done": true,
+    "zone_not_duplicated": true,
+    "tank_got_children": true,
+    "tank_event_has_measures": true,
+    "no_console_errors": true
+  },
+  "detail": {
+    "fixture": {
+      "enterprise": "95d9af9d-05ef-4009-a2a5-679fdd88ff7c",
+      "zone": "aa7b2a71-3b82-4fea-bcea-012cd8e487a1"
+    },
+    "before_import": {
+      "zone_count": 1,
+      "zone_names": [
+        "储罐区"
+      ],
+      "tank": {
+        "under_zone": "储罐区",
+        "unit_count": 0,
+        "unit_event_count": 0,
+        "obj_event_count": 0
+      }
+    },
+    "B_preview": {
+      "zone_visible": true,
+      "tree_nodes": 11
+    },
+    "A_preview": {
+      "zone_visible": true,
+      "merge_badge": true,
+      "new_badge": true,
+      "summary_has_counts": true
+    },
+    "import_toast": "导入完成：新增 70 条，并入现有 2 条，跳过重复 0 条",
+    "after_import": {
+      "zone_count": 4,
+      "zone_names": [
+        "卸油区",
+        "站房",
+        "储罐区",
+        "加油区"
+      ],
+      "tank": {
+        "under_zone": "储罐区",
+        "unit_count": 1,
+        "unit_event_count": 2,
+        "obj_event_count": 0
+      }
+    },
+    "tank_after": {
+      "under_zone": "储罐区",
+      "unit_count": 1,
+      "unit_event_count": 2,
+      "obj_event_count": 0
+    }
+  },
+  "errors": [],
+  "passed": true
+}
