@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildExistingIndex, buildImportPlan, buildMergeBadges } from "./smartGuideImport";
+import { buildExistingIndex, buildImportPlan, buildMergeBadges, planZoneTargets } from "./smartGuideImport";
 import type { HierarchyZone, SmartGuideZone } from "@/types/riskManagement";
 
 const hierarchy: SmartGuideZone[] = [
@@ -62,8 +62,8 @@ describe("buildExistingIndex", () => {
 
     const index = buildExistingIndex(zones);
 
-    expect(index.zones.get("储罐区")).toBe("z1");
-    expect(index.objects.get("储罐区")?.get("1#储罐")).toBe("o1");
+    expect(index.zones.get("储罐区")).toEqual(["z1"]);
+    expect(index.objects.get("z1")?.get("1#储罐")).toBe("o1");
     expect(index.units.get("o1")?.get("阀门组")).toBe("u1");
     expect(index.events.get("u1")?.has("泄漏")).toBe(true);
     expect(index.events.get("o1")?.has("火灾")).toBe(true);
@@ -122,14 +122,14 @@ describe("buildMergeBadges", () => {
       },
     ];
     const badges = buildMergeBadges(index, hierarchy, {});
-    expect(badges.get("z-0")).toBe("merge");
-    expect(badges.get("z-0-o-0")).toBe("merge");
-    expect(badges.get("z-0-o-0-u-0")).toBe("merge");
-    expect(badges.get("z-0-o-0-u-0-ev-0")).toBe("merge");
-    expect(badges.get("z-0-o-0-u-0-ev-1")).toBe("new");
-    expect(badges.get("z-0-o-0-u-1")).toBe("new");
-    expect(badges.get("z-0-o-1")).toBe("new");
-    expect(badges.get("z-0-o-1-u-0")).toBe("new");
+    expect(badges.get("z-0")).toEqual({ kind: "merge", count: 1 });
+    expect(badges.get("z-0-o-0")?.kind).toBe("merge");
+    expect(badges.get("z-0-o-0-u-0")?.kind).toBe("merge");
+    expect(badges.get("z-0-o-0-u-0-ev-0")?.kind).toBe("merge");
+    expect(badges.get("z-0-o-0-u-0-ev-1")?.kind).toBe("new");
+    expect(badges.get("z-0-o-0-u-1")?.kind).toBe("new");
+    expect(badges.get("z-0-o-1")?.kind).toBe("new");
+    expect(badges.get("z-0-o-1-u-0")?.kind).toBe("new");
   });
 
   it("对象级事件按父对象判定；改名 override 参与匹配", () => {
@@ -139,15 +139,15 @@ describe("buildMergeBadges", () => {
     ];
     // 不改名：分区名对不上 → 整条路径全新
     const withoutOverride = buildMergeBadges(index, hierarchy, {});
-    expect(withoutOverride.get("z-0")).toBe("new");
-    expect(withoutOverride.get("z-0-o-0")).toBe("new");
-    expect(withoutOverride.get("z-0-o-0-ev-0")).toBe("new");
+    expect(withoutOverride.get("z-0")?.kind).toBe("new");
+    expect(withoutOverride.get("z-0-o-0")?.kind).toBe("new");
+    expect(withoutOverride.get("z-0-o-0-ev-0")?.kind).toBe("new");
 
     // 用户把分区/对象改名为现有名称 → 并入；对象级事件「火灾」已有 → merge
     const renamed = buildMergeBadges(index, hierarchy, { "z-0": "储罐区", "z-0-o-0": "1号储罐" });
-    expect(renamed.get("z-0")).toBe("merge");
-    expect(renamed.get("z-0-o-0")).toBe("merge");
-    expect(renamed.get("z-0-o-0-ev-0")).toBe("merge");
+    expect(renamed.get("z-0")?.kind).toBe("merge");
+    expect(renamed.get("z-0-o-0")?.kind).toBe("merge");
+    expect(renamed.get("z-0-o-0-ev-0")?.kind).toBe("merge");
   });
 
   it("全新分区其下全部为 new", () => {
@@ -156,9 +156,79 @@ describe("buildMergeBadges", () => {
       { name: "锅炉房", objects: [{ name: "1号锅炉", units: [{ name: "炉体", events: [{ accident_type: "爆炸" }] }] }] },
     ];
     const badges = buildMergeBadges(index, hierarchy, {});
-    expect(badges.get("z-0")).toBe("new");
-    expect(badges.get("z-0-o-0")).toBe("new");
-    expect(badges.get("z-0-o-0-u-0")).toBe("new");
-    expect(badges.get("z-0-o-0-u-0-ev-0")).toBe("new");
+    expect(badges.get("z-0")?.kind).toBe("new");
+    expect(badges.get("z-0-o-0")?.kind).toBe("new");
+    expect(badges.get("z-0-o-0-u-0")?.kind).toBe("new");
+    expect(badges.get("z-0-o-0-u-0-ev-0")?.kind).toBe("new");
+  });
+});
+
+// 同名多分区（四色图识别产生的设备位置，如 4 个「加油机」）：AI 段数与现有数量不匹配时的分发/对应策略
+const multiNameZones: HierarchyZone[] = [1, 2, 3].map((i) => ({
+  id: `pump-${i}`, name: "加油机", description: null, objects: [],
+})) as unknown as HierarchyZone[];
+
+describe("planZoneTargets", () => {
+  it("无同名分区 → 新建（空目标列表）", () => {
+    const index = buildExistingIndex([]);
+    const hierarchy: SmartGuideZone[] = [{ name: "锅炉房", objects: [] }];
+    const plan = planZoneTargets(index, hierarchy, {});
+    expect(plan.get("z-0")).toEqual([]);
+  });
+
+  it("常规一对一：1 段对 1 个现有同名分区", () => {
+    const index = buildExistingIndex(multiNameZones.slice(0, 1));
+    const hierarchy: SmartGuideZone[] = [{ name: "加油机", objects: [] }];
+    const plan = planZoneTargets(index, hierarchy, {});
+    expect(plan.get("z-0")).toEqual(["pump-1"]);
+  });
+
+  it("AI 段数 < 现有同名分区数 → 分发到全部同名分区", () => {
+    const index = buildExistingIndex(multiNameZones);
+    const hierarchy: SmartGuideZone[] = [{ name: "加油机", objects: [] }];
+    const plan = planZoneTargets(index, hierarchy, {});
+    expect(plan.get("z-0")).toEqual(["pump-1", "pump-2", "pump-3"]);
+  });
+
+  it("AI 段数 = 现有同名分区数 → 按出现顺序一一对应", () => {
+    const index = buildExistingIndex(multiNameZones);
+    const hierarchy: SmartGuideZone[] = [
+      { name: "加油机", objects: [] },
+      { name: "加油机", objects: [] },
+      { name: "加油机", objects: [] },
+    ];
+    const plan = planZoneTargets(index, hierarchy, {});
+    expect(plan.get("z-0")).toEqual(["pump-1"]);
+    expect(plan.get("z-1")).toEqual(["pump-2"]);
+    expect(plan.get("z-2")).toEqual(["pump-3"]);
+  });
+
+  it("AI 段数 > 现有同名分区数 → 前 k 段一一对应，超出部分新建", () => {
+    const index = buildExistingIndex(multiNameZones.slice(0, 2));
+    const hierarchy: SmartGuideZone[] = [
+      { name: "加油机", objects: [] },
+      { name: "加油机", objects: [] },
+      { name: "加油机", objects: [] },
+    ];
+    const plan = planZoneTargets(index, hierarchy, {});
+    expect(plan.get("z-0")).toEqual(["pump-1"]);
+    expect(plan.get("z-1")).toEqual(["pump-2"]);
+    expect(plan.get("z-2")).toEqual([]);
+  });
+
+  it("改名 override 参与同名判定", () => {
+    const index = buildExistingIndex(multiNameZones);
+    const hierarchy: SmartGuideZone[] = [{ name: "加油设备", objects: [] }];
+    const renamed = planZoneTargets(index, hierarchy, { "z-0": "加油机" });
+    expect(renamed.get("z-0")).toEqual(["pump-1", "pump-2", "pump-3"]);
+  });
+});
+
+describe("buildMergeBadges 同名分发", () => {
+  it("1 段并入 3 个同名分区 → merge ×3（分发）", () => {
+    const index = buildExistingIndex(multiNameZones);
+    const hierarchy: SmartGuideZone[] = [{ name: "加油机", objects: [] }];
+    const badges = buildMergeBadges(index, hierarchy, {});
+    expect(badges.get("z-0")).toEqual({ kind: "merge", count: 3 });
   });
 });

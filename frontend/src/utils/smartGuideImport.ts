@@ -25,9 +25,9 @@ export function buildImportPlan(
 }
 
 export interface ExistingIndex {
-  /** 分区名 → 分区 id */
-  zones: Map<string, string>;
-  /** 分区名 → (对象名 → 对象 id) */
+  /** 分区名 → 分区 id 列表（同名多分区，如四色图识别出的多个「加油机」，按顺序保留） */
+  zones: Map<string, string[]>;
+  /** 分区 id → (对象名 → 对象 id)（按 id 存：同名分区各自的对象不串数据） */
   objects: Map<string, Map<string, string>>;
   /** 对象 id → (单元名 → 单元 id) */
   units: Map<string, Map<string, string>>;
@@ -41,7 +41,7 @@ export interface ExistingIndex {
 
 /** 把现有风险层级树建成去重索引，供智能引导「补充合并」导入使用。 */
 export function buildExistingIndex(zones: HierarchyZone[]): ExistingIndex {
-  const zonesMap = new Map<string, string>();
+  const zonesMap = new Map<string, string[]>();
   const objectsMap = new Map<string, Map<string, string>>();
   const unitsMap = new Map<string, Map<string, string>>();
   const eventsMap = new Map<string, Set<string>>();
@@ -63,9 +63,11 @@ export function buildExistingIndex(zones: HierarchyZone[]): ExistingIndex {
   };
 
   for (const z of zones) {
-    zonesMap.set(z.name, z.id);
+    const ids = zonesMap.get(z.name) ?? [];
+    ids.push(z.id);
+    zonesMap.set(z.name, ids);
     const objByName = new Map<string, string>();
-    objectsMap.set(z.name, objByName);
+    objectsMap.set(z.id, objByName);
     for (const o of z.objects ?? []) {
       objByName.set(o.name, o.id);
       const unitByName = new Map<string, string>();
@@ -87,12 +89,58 @@ export function buildExistingIndex(zones: HierarchyZone[]): ExistingIndex {
   };
 }
 
-export type MergeBadge = "new" | "merge";
+/**
+ * 决策每个 AI 分区段要并入的现有分区 id 列表（空数组 = 新建）。
+ *
+ * 现有树里可能存在多个同名分区（四色图识别出的设备位置，如 4 个「加油机」），
+ * 它们是多个实体、不是重复数据。策略：
+ * - 无同名 → 新建；
+ * - AI 同名段数 ≥ 现有同名分区数 → 按出现顺序一一对应（第 k 段 → 第 k 个现有，超出则新建）；
+ * - AI 同名段数 <  现有同名分区数 → 该段分发到全部同名分区（同类设备共享相同风险内容）。
+ */
+export function planZoneTargets(
+  index: ExistingIndex,
+  hierarchy: SmartGuideZone[],
+  nameOverrides: Record<string, string> = {},
+): Map<string, string[]> {
+  const occurrences = new Map<string, number>();
+  hierarchy.forEach((zone, zi) => {
+    const name = nameOverrides[`z-${zi}`] ?? zone.name;
+    occurrences.set(name, (occurrences.get(name) ?? 0) + 1);
+  });
+  const plan = new Map<string, string[]>();
+  const seen = new Map<string, number>();
+  hierarchy.forEach((zone, zi) => {
+    const zoneKey = `z-${zi}`;
+    const name = nameOverrides[zoneKey] ?? zone.name;
+    const existing = index.zones.get(name) ?? [];
+    const emitted = seen.get(name) ?? 0;
+    seen.set(name, emitted + 1);
+    if (existing.length === 0) {
+      plan.set(zoneKey, []);
+      return;
+    }
+    if ((occurrences.get(name) ?? 1) >= existing.length) {
+      const target = existing[emitted];
+      plan.set(zoneKey, target ? [target] : []);
+    } else {
+      plan.set(zoneKey, [...existing]);
+    }
+  });
+  return plan;
+}
+
+export interface MergeBadge {
+  kind: "new" | "merge";
+  /** 目标现有分区数（>1 表示分发到多个同名分区，UI 显示「并入 ×N」） */
+  count: number;
+}
 
 /**
  * 预判 AI 生成树各节点导入时是「并入现有」还是「新增」。
  * key 体系与预览树一致（z-{zi} / {parent}-o-{oi} / {parent}-u-{ui} / {parent}-ev-{ei}）；
- * 判定与 RiskSmartGuideModal.importMut 的合并逻辑一一对应；父节点新增时子节点必为 new。
+ * 分区级判定与 planZoneTargets 完全一致（含同名分发 ×N）；
+ * 对象/单元/事件级在分发场景取第一个目标分区的数据做近似提示（导入结果统计以实际执行为准）。
  */
 export function buildMergeBadges(
   index: ExistingIndex,
@@ -100,29 +148,34 @@ export function buildMergeBadges(
   nameOverrides: Record<string, string> = {},
 ): Map<string, MergeBadge> {
   const badges = new Map<string, MergeBadge>();
+  const plan = planZoneTargets(index, hierarchy, nameOverrides);
+  const single = (kind: "new" | "merge"): MergeBadge => ({ kind, count: 1 });
   hierarchy.forEach((zone, zi) => {
     const zoneKey = `z-${zi}`;
-    const zoneName = nameOverrides[zoneKey] ?? zone.name;
-    const zoneId = index.zones.get(zoneName);
-    badges.set(zoneKey, zoneId ? "merge" : "new");
+    const targets = plan.get(zoneKey) ?? [];
+    badges.set(zoneKey, targets.length
+      ? { kind: "merge", count: targets.length }
+      : single("new"));
+    const anyZoneId = targets[0];
+    const objById = anyZoneId ? index.objects.get(anyZoneId) : undefined;
 
     (zone.objects || []).forEach((obj, oi) => {
       const objKey = `${zoneKey}-o-${oi}`;
       const objName = nameOverrides[objKey] ?? obj.name;
-      const objId = zoneId ? index.objects.get(zoneName)?.get(objName) : undefined;
-      badges.set(objKey, objId ? "merge" : "new");
+      const objId = objById?.get(objName);
+      badges.set(objKey, single(objId ? "merge" : "new"));
 
       (obj.units || []).forEach((unit, ui) => {
         const unitKey = `${objKey}-u-${ui}`;
         const unitName = nameOverrides[unitKey] ?? unit.name;
         const unitId = objId ? index.units.get(objId)?.get(unitName) : undefined;
-        badges.set(unitKey, unitId ? "merge" : "new");
+        badges.set(unitKey, single(unitId ? "merge" : "new"));
 
         (unit.events || []).forEach((ev, ei) => {
           const evKey = `${unitKey}-ev-${ei}`;
           const evName = nameOverrides[evKey] ?? ev.accident_type;
           const merged = unitId ? index.eventIds.get(unitId)?.has(evName) ?? false : false;
-          badges.set(evKey, merged ? "merge" : "new");
+          badges.set(evKey, single(merged ? "merge" : "new"));
         });
       });
 
@@ -130,7 +183,7 @@ export function buildMergeBadges(
         const evKey = `${objKey}-ev-${ei}`;
         const evName = nameOverrides[evKey] ?? ev.accident_type;
         const merged = objId ? index.eventIds.get(objId)?.has(evName) ?? false : false;
-        badges.set(evKey, merged ? "merge" : "new");
+        badges.set(evKey, single(merged ? "merge" : "new"));
       });
     });
   });

@@ -15,7 +15,7 @@ import {
   createEvent,
   createMeasure,
 } from "@/services/riskManagementService";
-import { buildExistingIndex, buildMergeBadges } from "@/utils/smartGuideImport";
+import { buildExistingIndex, buildMergeBadges, planZoneTargets } from "@/utils/smartGuideImport";
 import type { ExistingIndex, MergeBadge } from "@/utils/smartGuideImport";
 import type {
   MethodType,
@@ -240,30 +240,9 @@ export default function RiskSmartGuideModal({
         }
       };
 
-      for (let zi = 0; zi < hierarchy.length; zi++) {
-        const zone = hierarchy[zi];
-        const zoneKey = "z-" + zi;
-        if (!keySet.has(zoneKey)) continue;
+      const plan = planZoneTargets(index, hierarchy, nameOverrides);
 
-        const zoneName = nameOverrides[zoneKey] || zone.name;
-        let zoneId: string;
-        const existingZoneId = index.zones.get(zoneName);
-        if (existingZoneId) {
-          zoneId = existingZoneId;
-          merged++;
-        } else if (newZoneIds.has(zoneName)) {
-          zoneId = newZoneIds.get(zoneName)!;
-          skipped++;
-        } else {
-          const createdZone = await createZone(enterpriseId, {
-            name: zoneName,
-            description: zone.description || undefined,
-          });
-          zoneId = createdZone.id;
-          newZoneIds.set(zoneName, zoneId);
-          created++;
-        }
-
+      const importZoneInto = async (zoneId: string, zone: SmartGuideZone, zoneKey: string) => {
         for (let oi = 0; oi < (zone.objects || []).length; oi++) {
           const obj = zone.objects![oi];
           const objKey = zoneKey + "-o-" + oi;
@@ -271,7 +250,7 @@ export default function RiskSmartGuideModal({
 
           const objName = nameOverrides[objKey] || obj.name;
           let objectId: string;
-          const existingObjectId = index.objects.get(zoneName)?.get(objName);
+          const existingObjectId = index.objects.get(zoneId)?.get(objName);
           const batchObjects = newObjectIds.get(zoneId) ?? new Map<string, string>();
           newObjectIds.set(zoneId, batchObjects);
           if (existingObjectId) {
@@ -378,6 +357,38 @@ export default function RiskSmartGuideModal({
             await createMeasures(createdEv.id, ev, evKey, new Set<string>());
           }
         }
+      };
+
+      for (let zi = 0; zi < hierarchy.length; zi++) {
+        const zone = hierarchy[zi];
+        const zoneKey = "z-" + zi;
+        if (!keySet.has(zoneKey)) continue;
+
+        const zoneName = nameOverrides[zoneKey] || zone.name;
+        const targets = plan.get(zoneKey) ?? [];
+        if (targets.length > 0) {
+          // 并入现有同名分区；分发场景（AI 段数不足）依次导入到每个同名分区，
+          // 保证「好几个加油机」这类多位置分区全部被补充
+          for (const targetZoneId of targets) {
+            merged++;
+            await importZoneInto(targetZoneId, zone, zoneKey);
+          }
+          continue;
+        }
+        let zoneId: string;
+        if (newZoneIds.has(zoneName)) {
+          zoneId = newZoneIds.get(zoneName)!;
+          skipped++;
+        } else {
+          const createdZone = await createZone(enterpriseId, {
+            name: zoneName,
+            description: zone.description || undefined,
+          });
+          zoneId = createdZone.id;
+          newZoneIds.set(zoneName, zoneId);
+          created++;
+        }
+        await importZoneInto(zoneId, zone, zoneKey);
       }
 
       return { created, merged, skipped };
@@ -549,6 +560,7 @@ export default function RiskSmartGuideModal({
 
       const nodeType = meta.nodeType;
       const key = String(nodeData.key);
+      const badge = badges.get(key);
       const isEditing = editingKey === key;
       const displayName = nameOverrides[key] || getNodeDisplayName(meta.source, nodeType);
 
@@ -595,14 +607,14 @@ export default function RiskSmartGuideModal({
               >
                 {displayName}
               </span>
-              {badges.get(key) === "new" && (
+              {badge?.kind === "new" && (
                 <Tag color="green" style={{ margin: 0, fontSize: 11, lineHeight: "16px", flexShrink: 0 }}>
                   {"新增"}
                 </Tag>
               )}
-              {badges.get(key) === "merge" && (
+              {badge?.kind === "merge" && (
                 <Tag color="blue" style={{ margin: 0, fontSize: 11, lineHeight: "16px", flexShrink: 0 }}>
-                  {"并入"}
+                  {badge.count > 1 ? `并入 ×${badge.count}` : "并入"}
                 </Tag>
               )}
               <Button
@@ -637,7 +649,7 @@ export default function RiskSmartGuideModal({
     let merge = 0;
     badges.forEach((badge, key) => {
       if (!keySet.has(key)) return;
-      if (badge === "merge") merge++;
+      if (badge.kind === "merge") merge++;
       else fresh++;
     });
     return { fresh, merge };
