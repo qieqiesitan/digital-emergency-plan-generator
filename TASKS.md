@@ -1,3 +1,68 @@
+## 当前状态快照（压缩恢复用 · 表2 按危险性类别取临界量**已实现并实测** · 2026-10-13）
+- 任务（2026-10-13）：用户问「重大危险源品种与存量里，设计最大量、临界量、β 能自动带出么？去哪找」→
+  只读答完（自动匹配 `$graphify`）→ 用户「**帮我改好**」→ 自动匹配 `$test-driven-development`
+  （主技能）实现「表2 按危险性类别取 Q」这个缺口。**状态：5/5 任务完成，全部门禁与浏览器实测通过。**
+- 背景（上一轮的结论）：Q 能自动带出（表1 85 品种）／β 能（表3 14 种毒性气体，否则选表4 类别）；
+  **设计最大量只能给建议值，必须人工填**（GB 18218 4.2.2，出处是设备设计容积/额定充装量）。
+  本轮修的是缺口：`major_hazard_lookup.py` 注释写着"不在表1 则按类别查表2"，代码里没实现，
+  导致汽油/液化石油气/氢气这类品种的 Q 拿不到（实测 Q=null）。
+- **关键设计依据（实测坐实）**：表2（按类别取 Q）与表4（按类别取 β）是**同一套 24 个符号**
+  （J1~J5、W1.1~W11 一一对应，SQL full join 核对过），所以**选一次危险性类别就同时定下 Q 与 β**。
+- 交付（用户可见）：品种表里手打品种名 → 失焦即查标准值 → Q 列提示「未在表1列举，请选右侧危险性类别」
+  → β 列出现「选危险性类别，Q 与 β 一并带出」下拉（选项写明 `W5.1 易燃液体（Q=10 t，β=1.5）`）
+  → 选一次 → Q 与 β 同时填好，Q 列标注「按所选危险性类别取自表2」。
+- 本轮 commit：`5725e98`（后端表2 取值）、`f59f89a`（前端失焦查表 + 类别下拉带出 Q/β + 忽略规则）、
+  `422c534`（浏览器探针与证据）
+- 改动文件：
+  - `backend/app/services/major_hazard_lookup.py`：新增表2 查询 + `_q_by_symbol`；
+    选项里带 `critical_quantity_t`；返回加 `critical_source`（table1/table2）；
+    `needs_hazard_symbol` 改为「Q 或 β 任一未定」即为 True
+  - `backend/tests/test_major_hazard_lookup.py`：+4 例（**注意 mock 路由必须认带冒号的绑定参数名
+    `:table_no_`**——`select(Model)` 会把所有列名渲染进 SELECT 列表，裸列名两条查询里都有，踩过）
+  - `frontend/src/components/enterprise/majorHazard/unitChemicalStandard.ts`（新建）+ 6 例单测：
+    `decideCriticalQuantity` 三条互相冲突的规则（有值就采用／换品种要清空／首次查未知品种不动）
+  - `UnitChemicalTable.tsx`：**新增失焦触发查表**（原代码只在"从下拉选中标准名"时查，
+    而汽油压根不在下拉里 → 新逻辑够不着，这是本轮第二个真缺口）；β 列下拉改 `formatSymbolOption`
+    文案 + `showSearch`（24 个选项超出虚拟滚动可视区，不搜就点不到）；Q 列加来源提示
+  - `frontend/src/utils/majorHazardFormat.ts`：+`formatSymbolOption`（+4 例单测）
+- 验证：后端全量 `pytest` **2198 passed / 1 skipped**；前端 `tsc -b` 0 / `vitest` **370 passed** /
+  `eslint src` 0 / `npm run build` OK；浏览器探针
+  `output/playwright/e2e-20261013/scripts/_major_hazard_table2_q_probe.py` **10/10**，
+  证据 `major-hazard-table2-q.json` + 下拉/选完两张截图，含"保存后从接口读回 Q=10、β=1.5"的落库回读。
+- 踩过的三个坑（复用价值）：① 测试 mock 路由要用带冒号的绑定参数名；② rc-select 虚拟滚动下
+  超出可视区的选项点不到，得先搜；③ Q 输入框 `step=0.1` 使 antd 把 10 显示成 "10.0"，
+  断言要比数值不比字符串（**不是值错**）。
+- 已部署：8082 生产构建已更新（`shuzihuayuan:/app/dist`，旧版备份 `/app/dist.bak.20261013`）；
+  后端容器已重启加载新代码。
+- 下一步（等用户拍板）：**推送与否仍未定**——本地领先 `origin/master` 与 `gitee/master` 多个提交，
+  且 09-21 那个 savepoint `0a631e9`（含他人 WIP）仍是祖先；另 ⚠ 新 AGENTS.md 要求的
+  `python graphify-out/_finalize_graph.py` 本机不存在，对应实际命令是 `graphify label .`（要 LLM，未跑）。
+
+## 当前状态快照（压缩恢复用 · 「四色图嵌套分区被并成大分区」诊断**已完成** · 2026-10-13）
+- 任务（2026-10-13）：用户报「四色图识别时很多分区内的分区识别不到，画成一个统一的大分区」，
+  附原图 `C:\Users\55061\Desktop\永昇加油站风险四色图.jpg` + 识别结果截图，问「可行么」。
+  自动匹配 `$systematic-debugging`（主技能，诊断阶段）；**状态：根因已定位 + 修复方案已原型验证，未改任何源码，等用户确认方案。**
+- 根因（三条，实证）：
+  1. 该图是「白底 + 彩色粗描边」画法：填充近纯白（HSV S≈0-24）被归背景，颜色掩码里只剩边框线条（空心环）。
+     934×681 图：橙掩码仅 32289 px 的描边，但 `cv2.contourArea` 按"外轮廓包围面积"算出 177376 px（占全图 27.9%）。
+  2. `mask_to_polygons` 用 `RETR_EXTERNAL` 只取最外层轮廓 → 大框内部所有独立小框（加油机×6、储罐×4、
+     卸油口、办公室、营业室…全在"洞"里）整批丢失，这正是"分区内的分区识别不到"。
+  3. 大环外轮廓本身直接成为一个"统一大分区"（用户截图那块大色块）；左上角两个储罐+卸油口因描边相连成一个怪形大分区。
+- 复现证据（可重跑）：`output/tmp/fourcolor-debug/debug_reco.py`（只读脚本）+ 中间图
+  `mask_raw_橙.png` / `vis_external_contours.png`（=用户截图同款 7 个分区）/ `vis_cells_boundary.png`（改进原型 ~28 个格）。
+  真实管线实跑：`recognize_from_bytes(原图)` → **7 个分区、0 排除**，与用户截图逐一对应。
+- 改进原型（已验证 2 种）：把四色描边并集为"墙"→ 膨胀 1px 封抗锯齿缝 → 非墙像素连通域里
+  "不与图像边缘连通"的格 = 分区候选 → 颜色按"格边界像素最近墙色"投票（顺带修好办公室/营业室因橙块跨压蓝线导致的丢失）。
+  过滤：面积 <0.2% 画布丢弃（数字徽章白字等）；有洞且 <1% 的"围框"（储罐外框、左上托架）→ 进"已自动排除"；细长比 >12 排除。
+  实心色块路径改用「腐蚀 r=3 存活」判定保持与现有行为一致（现有 33 个单测均为实心图，可全绿）：本图预期 7 → ~28~31 个分区。
+- 关键文件：识别器 `backend/app/services/four_color_recognizer.py`（`mask_to_polygons:69`、`classify_interference:154`、
+  `recognize_from_bytes:310`）；接口 `backend/app/routers/risk_management.py:216 analyze_four_color`；
+  前端排除项文案表 `frontend/src/components/enterprise/riskMapping/FourColorImportModal.tsx:40 REASON_LABEL`（新增 reason 需补文案）。
+- 备选方案 B（最小改动：RETR_CCOMP 把"洞"当分区）已评估：跨色覆盖处仍漏 2 个房间、外围环与洞会重复出分区，不推荐；
+  方案 C（上多模态大模型直出分区）不推荐（成本/稳定性）。
+- 下一步：等用户确认走推荐方案 A → 按 TDD 实施（先写失败测试：合成"空心描边 + 嵌套内框"图断言嵌套分区被识别），
+  再改识别器 + 前端文案，最后全文回归 + `graphify update .`。
+
 ## 当前状态快照（压缩恢复用 · 「设计最大量/临界量/β 能否自动带出」问答 · 2026-10-13）
 - 任务（2026-10-13）：用户问「重大危险源中品种与存量里，设计最大量、临界量、β 的值可以自动带出来么？
   不太懂这些值应该去哪找」→ 自动匹配 `$graphify`（主技能，项目有图谱）。
