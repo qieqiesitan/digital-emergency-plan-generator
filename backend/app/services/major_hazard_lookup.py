@@ -13,6 +13,7 @@ GB 18218 的取值顺序是**先查表**、不是"读出来"：
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from sqlalchemy import select
@@ -21,6 +22,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.standard_constants import CriticalQuantity, HazardBetaFactor
 
 STANDARD = "GB18218-2018"
+
+
+def _cas_tokens(raw) -> set:
+    """从写法很脏的 CAS 字段里取出纯净的 CAS 号集合。
+
+    标准原文一个格子里可能塞多个号、还带括号注名，例如
+    `68476-85-7；74-98-6(丙烷)；106-97-8(丁烷)`、`86290-81-5(汽油)`。
+    所以按分号切、再剥掉括号后缀。
+    """
+    if not raw:
+        return set()
+    out = set()
+    for part in re.split(r"[;；]", str(raw)):
+        token = part.split("(")[0].split("（")[0].strip()
+        if token:
+            out.add(token)
+    return out
 
 
 def _q_by_symbol(rows) -> dict:
@@ -41,11 +59,16 @@ async def lookup_chemical_definition(
     *,
     name: str,
     hazard_symbol: Optional[str] = None,
+    cas_no: Optional[str] = None,
 ) -> dict:
     """按品种名查 Q 与 β。
 
     Q 或 β 任一查不到时，返回危险性类别清单供用户选择——选项里同时带该类别
     在表2 的 Q 与表4 的 β，选一次补齐两列。
+
+    `cas_no` 是**名字对不上时的兜底键**：台账写法常与标准不一致
+    （台账「汽油」↔ 表1「汽油(乙醇汽油、甲醇汽油)」、台账「盐酸」↔ 表1「氯化氢(无水)」），
+    名字精确匹配不到就用 CAS 认。
     """
     cq_res = await db.execute(
         select(CriticalQuantity)
@@ -56,6 +79,21 @@ async def lookup_chemical_definition(
         .limit(1)
     )
     cq = cq_res.scalar_one_or_none()
+
+    if cq is None and cas_no:
+        want = _cas_tokens(cas_no)
+        if want:
+            # SQL 只做粗筛（标准里一个 CAS 格可能塞几个号），精确判定交给 _cas_tokens：
+            # 必须整体相等，不能让 `81-5` 这种子串挂到别的品种上
+            candidates = (
+                await db.execute(
+                    select(CriticalQuantity).where(
+                        CriticalQuantity.standard == STANDARD,
+                        CriticalQuantity.cas_no.like(f"%{sorted(want)[0]}%"),
+                    )
+                )
+            ).scalars().all()
+            cq = next((r for r in candidates if _cas_tokens(r.cas_no) & want), None)
 
     # 表2 的分组表头（"J(健康危害性符号)"之类）与无符号行不参与取值
     table2_res = await db.execute(

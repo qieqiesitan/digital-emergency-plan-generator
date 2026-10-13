@@ -30,14 +30,14 @@ class _Result:
         return self._items[0] if self._items else None
 
 
-def _cq(name, q, table="1", symbol=None, category=None):
+def _cq(name, q, table="1", symbol=None, category=None, cas_no=None):
     c = MagicMock()
     c.chemical_name = name
     c.critical_t = q
     c.critical_note = None
     c.table_no = table
     c.alias = None
-    c.cas_no = None
+    c.cas_no = cas_no
     # 表2 的行按危险性类别符号索引（表2/表4 是同一套 J/W 符号）
     c.symbol = symbol
     c.category = category
@@ -54,17 +54,19 @@ def _beta(name=None, symbol=None, category=None, beta="4.0", table="3"):
     return b
 
 
-def _db(critical=None, betas=None, table2=None):
+def _db(critical=None, betas=None, table2=None, by_cas=None):
     db = MagicMock()
 
     async def execute(stmt, *a, **k):
         text = str(stmt)
         if "critical_quantities" in text:
-            # 表2 查询按 table_no 过滤、表1 按 chemical_name 过滤。
+            # 表2 按 table_no 过滤、按名字查用 chemical_name、CAS 兜底用 cas_no。
             # 必须认**带冒号的绑定参数名**：select(Model) 会把所有列名都渲染进
             # SELECT 列表，裸列名两条查询里都有，拿它判断会串（实测踩过）。
             if ":table_no_" in text:
                 return _Result(table2 or [])
+            if ":cas_no_" in text:
+                return _Result(by_cas or [])
             return _Result([critical] if critical else [])
         if "hazard_beta_factors" in text:
             return _Result(betas or [])
@@ -212,3 +214,61 @@ async def test_table1_hit_marks_critical_source_as_table1():
     assert float(out["critical_quantity_t"]) == 5.0
     assert out["critical_source"] == "table1"
     assert out["needs_hazard_symbol"] is False
+
+
+# --- CAS 兜底：台账里的名字与标准写法对不上时 ------------------------------------
+# 真库实例：台账「汽油」↔ 表1「汽油(乙醇汽油、甲醇汽油)」（CAS 86290-81-5(汽油)）；
+# 台账「盐酸」↔ 表1「氯化氢(无水)」；台账「乙醇（酒精）」↔ 表1「乙醇」。
+# 标准原文一个格子里可能塞多个 CAS 并带括号注名，所以要按分号切分、剥掉括号后缀。
+
+
+def test_cas_tokens_normalizes_messy_standard_values():
+    from app.services.major_hazard_lookup import _cas_tokens
+
+    assert _cas_tokens("86290-81-5(汽油)") == {"86290-81-5"}
+    assert _cas_tokens("68476-85-7；74-98-6(丙烷)；106-97-8(丁烷)") == {
+        "68476-85-7",
+        "74-98-6",
+        "106-97-8",
+    }
+    assert _cas_tokens("74-82-8(甲烷);8006-14-2(天然气)") == {"74-82-8", "8006-14-2"}
+    assert _cas_tokens(None) == set()
+    assert _cas_tokens("  ") == set()
+
+
+@pytest.mark.asyncio
+async def test_lookup_by_cas_when_name_does_not_match():
+    """台账名「汽油」对不上标准名，靠 CAS 兜底命中，Q 才能带出来。"""
+    db = _db(
+        critical=None,  # 精确名字查不到
+        by_cas=[_cq("汽油(乙醇汽油、甲醇汽油)", 200, table="1", cas_no="86290-81-5(汽油)")],
+    )
+    out = await lookup_chemical_definition(db, name="汽油", cas_no="86290-81-5")
+    assert float(out["critical_quantity_t"]) == 200.0
+    assert out["critical_source"] == "table1"
+    # chemical_name 回报的是调用方传进来的名字（前端表格里显示的就是它）
+    assert out["chemical_name"] == "汽油"
+
+
+@pytest.mark.asyncio
+async def test_cas_fallback_rejects_partial_substring():
+    """SQL 的 LIKE 只是粗筛：`81-5` 能在 `86290-81-5` 里当子串，
+    但切分后的 CAS 必须整体相等才算命中，否则会挂到错误的品种上。"""
+    db = _db(
+        critical=None,
+        by_cas=[_cq("汽油(乙醇汽油、甲醇汽油)", 200, table="1", cas_no="86290-81-5(汽油)")],
+    )
+    out = await lookup_chemical_definition(db, name="汽油", cas_no="81-5")
+    assert out["critical_quantity_t"] is None
+    assert out["needs_hazard_symbol"] is True
+
+
+@pytest.mark.asyncio
+async def test_no_cas_query_when_name_hits():
+    """名字精确命中时就用它，不必再走 CAS（也就不会串到别的行）。"""
+    db = _db(
+        critical=_cq("甲醇", 500),
+        by_cas=[_cq("汽油(乙醇汽油、甲醇汽油)", 200, table="1", cas_no="86290-81-5(汽油)")],
+    )
+    out = await lookup_chemical_definition(db, name="甲醇", cas_no="86290-81-5")
+    assert float(out["critical_quantity_t"]) == 500.0
