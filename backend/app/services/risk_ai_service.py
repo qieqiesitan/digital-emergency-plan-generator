@@ -135,6 +135,35 @@ def normalize_smart_guide_summary(value) -> dict:
     return {}
 
 
+def build_smart_guide_enterprise_info(ent, ledger_rows: list[dict]) -> dict:
+    """构造智能导引的企业信息 dict（空值剔除；危化品台账合并为 chemicals_ledger）。
+
+    字段对应 Enterprise 模型：让 AI 结合企业实际情况查漏补缺；
+    未填写的一律不注入，避免提示词噪声。
+    """
+    raw = {
+        "name": ent.name,
+        "industry": ent.industry,
+        "business_scope": ent.business_scope,
+        "address": ent.address,
+        "employee_count": ent.employee_count,
+        "building_overview": ent.building_overview,
+        "main_products": ent.main_products,
+        "annual_capacity": ent.annual_capacity,
+        "hazardous_chemicals": ent.hazardous_chemicals,
+        "special_equipment": ent.special_equipment,
+        "special_equipment_detail": ent.special_equipment_detail,
+        "main_equipment_list": ent.main_equipment_list,
+        "natural_conditions": ent.natural_conditions,
+        "fire_protection_summary": ent.fire_protection_summary,
+        "surrounding_info": ent.surrounding_info,
+    }
+    info = {k: v for k, v in raw.items() if v not in (None, "", [], {})}
+    if ledger_rows:
+        info["chemicals_ledger"] = ledger_rows
+    return info
+
+
 SMART_GUIDE_TREE_MAX_CHARS = 20000
 
 

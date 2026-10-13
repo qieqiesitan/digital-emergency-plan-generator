@@ -4,6 +4,7 @@ import pytest
 
 from app.services.risk_ai_service import (
     _normalize_smart_guide_hierarchy,
+    build_smart_guide_enterprise_info,
     build_existing_tree_dict,
     serialize_existing_tree,
     smart_guide,
@@ -115,3 +116,46 @@ def test_serialize_existing_tree_truncated_when_even_skeleton_too_long():
     assert len(text) <= 300
     assert "分区000" in text
     assert "分区299" not in text
+
+
+def test_build_smart_guide_enterprise_info_filters_empty_and_merges_ledger():
+    from types import SimpleNamespace
+
+    ent = SimpleNamespace(
+        name="测试企业", industry="加油站", business_scope=None, address="XX路1号",
+        employee_count=None, building_overview="", main_products="汽油、柴油",
+        annual_capacity=None, hazardous_chemicals="汽油", special_equipment=None,
+        special_equipment_detail=None, main_equipment_list="1号储罐、2号储罐",
+        natural_conditions=None, fire_protection_summary="消防栓8个",
+        surrounding_info={"nearby_units": [], "sensitive_targets": [],
+                          "traffic_info": "东侧国道"},
+    )
+    info = build_smart_guide_enterprise_info(
+        ent, [{"name": "汽油", "cas_no": "86290-81-5", "location": "罐区"}]
+    )
+    assert info["name"] == "测试企业"
+    assert info["address"] == "XX路1号"
+    assert info["main_products"] == "汽油、柴油"
+    assert info["main_equipment_list"] == "1号储罐、2号储罐"
+    assert info["fire_protection_summary"] == "消防栓8个"
+    assert info["hazardous_chemicals"] == "汽油"
+    assert info["surrounding_info"]["traffic_info"] == "东侧国道"
+    assert info["chemicals_ledger"][0]["name"] == "汽油"
+    for empty_key in ("business_scope", "employee_count", "annual_capacity",
+                      "building_overview", "special_equipment",
+                      "special_equipment_detail", "natural_conditions"):
+        assert empty_key not in info
+
+
+def test_build_smart_guide_enterprise_info_without_ledger_skips_key():
+    from types import SimpleNamespace
+
+    ent = SimpleNamespace(
+        name="乙", industry=None, business_scope=None, address=None,
+        employee_count=None, building_overview=None, main_products=None,
+        annual_capacity=None, hazardous_chemicals=None, special_equipment=None,
+        special_equipment_detail=None, main_equipment_list=None,
+        natural_conditions=None, fire_protection_summary=None, surrounding_info=None,
+    )
+    info = build_smart_guide_enterprise_info(ent, [])
+    assert info == {"name": "乙"}
