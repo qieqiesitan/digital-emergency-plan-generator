@@ -36,11 +36,14 @@ export const listCriticalQuantities = (keyword?: string) =>
  *
  * β 查不到时（表3 未命中）返回 needs_hazard_symbol=true 与表4 的类别清单，
  * 前端让用户选类别后再调一次本函数并传 hazard_symbol。
+ *
+ * `casNo` 是名字对不上时的兜底键：从危化品台账选入的品种，台账名常与标准写法不一致
+ * （台账「汽油」↔ 标准「汽油(乙醇汽油、甲醇汽油)」），所以把台账的 CAS 一并送过去。
  */
-export const lookupChemical = (name: string, hazardSymbol?: string) =>
+export const lookupChemical = (name: string, hazardSymbol?: string, casNo?: string) =>
   api
     .get<ApiResponse<ChemicalDefinition>>(`${BASE}/definitions/lookup`, {
-      params: { name, hazard_symbol: hazardSymbol },
+      params: { name, hazard_symbol: hazardSymbol, cas_no: casNo },
     })
     .then((r) => r.data.data);
 

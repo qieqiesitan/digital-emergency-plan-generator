@@ -103,8 +103,15 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
       beta_source: r.beta_source,
     }));
 
+  /**
+   * 改一行。
+   *
+   * 必须用函数式 setState：同一个事件里可能连着改两次同一行
+   * （例如"从台账选入"先写关联、再写标准值带出的 Q/β），
+   * 用闭包里的 rows 会把前一次的改动覆盖掉。
+   */
   const patch = (key: string, patchObj: Partial<Row>) =>
-    push(rows.map((r) => (r.key === key ? { ...r, ...patchObj } : r)));
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patchObj } : r)));
 
   const addRow = () =>
     push([
@@ -138,6 +145,14 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
       });
       return;
     }
+
+    // 选台账这一步也要把标准值带出来：台账名常与标准写法对不上，
+    // 所以把台账的 CAS 一起送过去认（没有 CAS 的品种会落到"选危险性类别"那条路）。
+    const effectiveName = (nextPatch.chemical_name ?? row?.chemical_name ?? "").trim();
+    if (effectiveName) {
+      await resolveStandard(key, effectiveName, undefined, entry?.cas_no ?? undefined);
+    }
+
     try {
       const suggestion = await suggestDesignMaxFromLedger(chemicalId, enterpriseId);
       setSuggestions((prev) => ({ ...prev, [key]: suggestion }));
@@ -149,12 +164,22 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
   const applySuggestion = (key: string, suggestedQ: number) =>
     patch(key, { q_design_max: asNumString(suggestedQ) });
 
-  /** 选中/输入品种名后查标准值，自动带出 Q 与 β。 */
-  const resolveStandard = async (key: string, name: string, hazardSymbol?: string) => {
+  /**
+   * 选中/输入品种名后查标准值，自动带出 Q 与 β。
+   *
+   * `casNo` 只有从台账选入时才传：台账名常与标准写法对不上
+   * （台账「汽油」↔ 标准「汽油(乙醇汽油、甲醇汽油)」），靠 CAS 才能认出来。
+   */
+  const resolveStandard = async (
+    key: string,
+    name: string,
+    hazardSymbol?: string,
+    casNo?: string,
+  ) => {
     if (!name.trim()) return;
     setQuerying((s) => ({ ...s, [key]: true }));
     try {
-      const def = await lookupChemical(name, hazardSymbol);
+      const def = await lookupChemical(name, hazardSymbol, casNo);
       const next: Partial<Row> = {
         beta: asNumString(def.beta),
         beta_source: def.beta_source ?? "manual",
