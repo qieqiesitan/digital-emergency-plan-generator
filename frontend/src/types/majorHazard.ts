@@ -192,6 +192,13 @@ export interface HazardSymbolOption {
   symbol: string;
   category?: string | null;
   beta?: number | null;
+  /**
+   * 同一符号在表2 里的临界量 Q。
+   *
+   * 表2（按类别取 Q）与表4（按类别取 β）是同一套符号，所以选一次类别就能
+   * 同时定下 Q 与 β；该符号不在表2 时为 null（选了也拿不到 Q）。
+   */
+  critical_quantity_t?: number | null;
 }
 
 /**
@@ -206,6 +213,8 @@ export interface ChemicalDefinition {
   cas_no?: string | null;
   table_no?: string | null;
   critical_quantity_t?: number | null;
+  /** Q 的来路：table1（按品种名命中）或 table2（按危险性类别取值）。 */
+  critical_source?: "table1" | "table2" | null;
   critical_note?: string | null;
   beta?: number | null;
   beta_source?: "table3" | "table4" | null;

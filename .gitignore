@@ -127,6 +127,7 @@ backups/
 #   output/migrations/  应急组织拆分的回滚备份，migrate_emergency_org_split.py 依赖
 #   output/evidence-*/  改配置前的证据备份
 /tmp/
+/output/tmp/
 /output/dist-*/
 /output/_pt/dist-*/
 /output/eslint-report*.json

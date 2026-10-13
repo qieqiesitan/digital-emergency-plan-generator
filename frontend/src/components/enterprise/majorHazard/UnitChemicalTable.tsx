@@ -14,7 +14,8 @@ import type {
   HazardSymbolOption,
   MajorHazardUnitChemicalPayload,
 } from "@/types/majorHazard";
-import { formatQty, toNumber } from "@/utils/majorHazardFormat";
+import { decideCriticalQuantity } from "./unitChemicalStandard";
+import { formatQty, formatSymbolOption, toNumber } from "@/utils/majorHazardFormat";
 
 const { Text } = Typography;
 
@@ -53,6 +54,13 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
   );
   /** 每行的危险性类别选项（仅在 β 需人工选择时非空）。 */
   const [symbolOptions, setSymbolOptions] = useState<Record<string, HazardSymbolOption[]>>({});
+  /**
+   * 每行临界量的来路。只用来在界面上说明「这个 Q 是选类别带出来的」——
+   * 值本身仍存在 critical_quantity_t 里，这里不参与计算。
+   */
+  const [qSource, setQSource] = useState<Record<string, string | null | undefined>>({});
+  /** 每行上一次查成功的品种名：失焦时据此判断"名字变了没"，避免重复查询冲掉手填值。 */
+  const [resolvedName, setResolvedName] = useState<Record<string, string>>({});
   const [querying, setQuerying] = useState<Record<string, boolean>>({});
   /**
    * 品种名的候选列表。antd v5 的 AutoComplete 是受控组件——
@@ -148,11 +156,22 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
     try {
       const def = await lookupChemical(name, hazardSymbol);
       const next: Partial<Row> = {
-        critical_quantity_t: asNumString(def.critical_quantity_t),
         beta: asNumString(def.beta),
         beta_source: def.beta_source ?? "manual",
       };
+      // 「该不该改 Q」有三条互相冲突的规则，抽成纯函数单测着（见 unitChemicalStandard.ts）
+      const q = decideCriticalQuantity({
+        returnedQ: def.critical_quantity_t ?? null,
+        hazardSymbol,
+        typedName: name,
+        previousResolvedName: resolvedName[key],
+      });
+      if (q !== undefined) {
+        next.critical_quantity_t = q;
+      }
       patch(key, next);
+      setQSource((s) => ({ ...s, [key]: def.critical_source ?? null }));
+      setResolvedName((s) => ({ ...s, [key]: name.trim() }));
       setSymbolOptions((s) => ({
         ...s,
         [key]: def.needs_hazard_symbol ? def.hazard_symbol_options : [],
@@ -191,6 +210,15 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
           style={{ width: "100%" }}
           onChange={(v) => patch(r.key, { chemical_name: v })}
           onSelect={(v: string) => resolveStandard(r.key, v)}
+          // 表1 没列举的品种（汽油、液化石油气…）在下拉里根本搜不到，只能手打名字；
+          // 没有这一步，手打的品种永远触发不了查表，「选危险性类别补 Q」就够不着。
+          // 已查过的名字不重复查，免得一失焦就把人工填的值冲掉。
+          onBlur={() => {
+            const typed = (r.chemical_name ?? "").trim();
+            if (typed && typed !== (resolvedName[r.key] ?? "")) {
+              resolveStandard(r.key, typed);
+            }
+          }}
           options={nameOptions[r.key] ?? []}
           onSearch={async (kw) => {
             if (kw.trim().length < 2) {
@@ -277,13 +305,29 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
       title: "临界量 Q(t)",
       width: 140,
       render: (_, r) => (
-        <InputNumber
-          min={0}
-          step={0.1}
-          style={{ width: "100%" }}
-          value={toNumber(r.critical_quantity_t)}
-          onChange={(v) => patch(r.key, { critical_quantity_t: asNumString(v ?? undefined) })}
-        />
+        <div>
+          <InputNumber
+            min={0}
+            step={0.1}
+            style={{ width: "100%" }}
+            value={toNumber(r.critical_quantity_t)}
+            onChange={(v) => {
+              patch(r.key, { critical_quantity_t: asNumString(v ?? undefined) });
+              // 手改之后就不再是标准表带出来的值了，把来源标注撤掉
+              setQSource((s) => ({ ...s, [r.key]: null }));
+            }}
+          />
+          {qSource[r.key] === "table2" ? (
+            <div style={{ fontSize: 11, color: "#1677ff", lineHeight: 1.4, marginTop: 2 }}>
+              按所选危险性类别取自表2
+            </div>
+          ) : null}
+          {qSource[r.key] !== "table2" && toNumber(r.critical_quantity_t) === null ? (
+            <div style={{ fontSize: 11, color: "#b45309", lineHeight: 1.4, marginTop: 2 }}>
+              未在表1列举，请选右侧危险性类别
+            </div>
+          ) : null}
+        </div>
       ),
     },
     {
@@ -294,13 +338,20 @@ export default function UnitChemicalTable({ enterpriseId, value, onSave, saving 
         if (opts.length > 0) {
           return (
             <Select
-              placeholder="请选择危险性类别"
+              showSearch
+              optionFilterProp="label"
+              // Q 还空着说明这个品种不在表1，这次选择会同时把 Q 和 β 带出来
+              placeholder={
+                toNumber(r.critical_quantity_t) === null
+                  ? "选危险性类别，Q 与 β 一并带出"
+                  : "请选择危险性类别"
+              }
               style={{ width: "100%" }}
               loading={querying[r.key]}
               status="warning"
               options={opts.map((o) => ({
                 value: o.symbol,
-                label: `${o.category ?? o.symbol}（β=${formatQty(o.beta ?? null, 3)}）`,
+                label: formatSymbolOption(o),
               }))}
               onChange={(symbol) => resolveStandard(r.key, r.chemical_name, symbol)}
             />

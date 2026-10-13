@@ -16,6 +16,30 @@ export function formatQty(v: string | number | null | undefined, digits = 6): st
 
 export type LevelColor = "red" | "orange" | "gold" | "blue" | "default";
 
+/** 危险性类别选项的最小字段集（表4 的 β + 表2 的同符号 Q）。 */
+export interface SymbolOptionLike {
+  symbol: string;
+  category?: string | null;
+  beta?: number | null;
+  critical_quantity_t?: number | null;
+}
+
+/**
+ * 危险性类别下拉的选项文案。
+ *
+ * GB 18218 的表2（按类别取 Q）与表4（按类别取 β）用的是**同一套符号**，
+ * 所以一个选项同时决定临界量和 β 两列——文案必须把两者都写出来，
+ * 否则用户不知道选完会得到什么。该符号不在表2 时只写 β。
+ */
+export function formatSymbolOption(o: SymbolOptionLike): string {
+  const head = [o.symbol, o.category].filter(Boolean).join(" ");
+  const parts: string[] = [];
+  // 用 != null 而不是真值判断：Q=0 是合法值，不能被当成缺失
+  if (o.critical_quantity_t != null) parts.push(`Q=${formatQty(o.critical_quantity_t)} t`);
+  parts.push(`β=${formatQty(o.beta ?? null, 3)}`);
+  return `${head}（${parts.join("，")}）`;
+}
+
 /** 等级色板：一级最重。 */
 export function levelColor(level?: string | null): LevelColor {
   switch (level) {

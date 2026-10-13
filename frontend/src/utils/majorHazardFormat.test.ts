@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeConclusionText,
   formatQty,
+  formatSymbolOption,
   levelColor,
   toNumber,
   UNIT_TYPE_LABEL,
@@ -21,6 +22,35 @@ describe("majorHazardFormat", () => {
     expect(formatQty("0.300000")).toBe("0.3");
     expect(formatQty("0.750000")).toBe("0.75");
     expect(formatQty(null)).toBe("—");
+  });
+
+  // 表2（按类别取 Q）与表4（按类别取 β）是同一套符号：一个选项同时决定两列，
+  // 所以文案必须把 Q 和 β 都写出来，用户才知道选完会得到什么。
+  it("formatSymbolOption 同时写出 Q 与 β", () => {
+    expect(
+      formatSymbolOption({
+        symbol: "W5.1",
+        category: "易燃液体",
+        beta: 1.5,
+        critical_quantity_t: 10,
+      }),
+    ).toBe("W5.1 易燃液体（Q=10 t，β=1.5）");
+  });
+
+  it("formatSymbolOption 缺 Q 时只写 β（该符号不在表2）", () => {
+    expect(
+      formatSymbolOption({ symbol: "J3", category: "急性毒性", beta: 2, critical_quantity_t: null }),
+    ).toBe("J3 急性毒性（β=2）");
+  });
+
+  it("formatSymbolOption 类别为空时只用符号", () => {
+    expect(formatSymbolOption({ symbol: "W8", beta: 1 })).toBe("W8（β=1）");
+  });
+
+  it("formatSymbolOption 保留 0 值（不能被当成缺失）", () => {
+    expect(
+      formatSymbolOption({ symbol: "W3", category: "气溶胶", beta: 1, critical_quantity_t: 0 }),
+    ).toBe("W3 气溶胶（Q=0 t，β=1）");
   });
 
   it("levelColor 按等级给色", () => {
