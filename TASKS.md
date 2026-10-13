@@ -1,3 +1,23 @@
+## 当前状态快照（压缩恢复用 · 风险树 AI 智能生成——补全模式设计已提交待用户审查 · 2026-10-13）
+- 任务（2026-10-13）：用户要求「风险树中 AI 智能生成逻辑调整，要根据企业基本情况和用户输入的内容进行完善风险树」。
+  自动匹配 `$brainstorming`。**状态：用户已确认方案 1（在智能导引内做"补全现有树"）；设计规格已写并提交
+  （commit `1a01eba`，`docs/superpowers/specs/2026-10-13-smart-guide-tree-completion-design.md`）；
+  下一步：用户审查规格 → writing-plans → TDD 实施（后端 risk_ai_service/risk_management/schemas + 前端 RiskSmartGuideModal/smartGuideImport）。**
+- 调研结论（已核实，别再重复查）：
+  - 入口①「🚀 智能导引」= `frontend/src/components/enterprise/RiskSmartGuideModal.tsx`（弹窗标题「AI 智能生成风险层级」）
+    → `frontend/src/services/riskManagementService.ts::aiSmartGuide` → 后端 `backend/app/routers/risk_management.py:1291 /ai/smart-guide`
+    → `backend/app/services/risk_ai_service.py::smart_guide`。
+    - 当前已传企业信息：name/industry/business_scope/building_overview/hazardous_chemicals/special_equipment + 危化品台账 chemicals_ledger；
+      已有树仅传分区名+对象名（existing_names），用途只是「避免重复」；prompt 明确「不得生成与现有分区重名/语义重复的分区」——**做不到对现有树补全**。
+    - 未利用的企业档案字段：main_equipment_list / special_equipment_detail / surrounding_info / natural_conditions / main_products / annual_capacity 等。
+  - 入口② 右键「智能填充下级」（`frontend/src/components/enterprise/RiskHierarchyTree.tsx:72,80`，仅对象/单元节点）**未实现**：
+    `frontend/src/pages/Enterprise/RiskManagementTab.tsx::handleTreeAction` 无 ai-fill 分支，落入 default 只弹提示。
+  - 入口③ 事件表单 AI 建议（`RiskEventForm.tsx:214`）enterprise_info 只传 `{accident_type}`（缺企业基本情况）；
+    入口④ 措施表单 AI 建议（`RiskMeasureForm.tsx:49`）传 `{context:{...}}` 与后端期望字段（accident_type/risk_level/unit_name/object_name/enterprise_info）不匹配。
+- 下一步：用户审查设计规格（`docs/superpowers/specs/2026-10-13-smart-guide-tree-completion-design.md`）→ 批准后 writing-plans → TDD 实施。
+- ⚠ 工作区内另一会话正在改 `RiskManagementTab.tsx` / `RiskHierarchyTree.tsx` / `RiskTreeFourColorMap.tsx`（左右分屏+四色图联动），
+  本任务实现时不要碰这些文件；提交一律按路径精确提交。
+
 ## 当前状态快照（压缩恢复用 · 台账选入品种也带出标准值（CAS 兜底）**已实现实测** · 2026-10-13）
 - 任务（2026-10-13）：用户反馈「添加品种时直接在关联台账里选汽油或柴油，自己不会带出来，想也带出来，可行么？」
   → 自动匹配 `$test-driven-development`。**状态：3 处提交完成，全部门禁 + 浏览器实测通过。**

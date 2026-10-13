@@ -161,16 +161,18 @@ test("智能引导导入跳过重名分区且对象不标风险点", async ({ pa
   await page.locator('button[type="submit"]').click();
   await page.waitForURL(/\/(dashboard|enterprises)/);
 
-  await page.goto(`/enterprises/${ENTERPRISE_ID}`);
-  await page.getByRole("tab", { name: "风险分级管控" }).click();
+  // 直达风险分级管控模块路由（企业驾驶舱已改为模块导航，不再有 tab）
+  await page.goto(`/enterprises/${ENTERPRISE_ID}/risk-management`);
+  await expect(page.getByRole("button", { name: "添加分区" }).first()).toBeVisible({ timeout: 15000 });
   await page.getByRole("button", { name: /智能导引/ }).click();
   await page.locator("textarea").first().fill("厂区有原料库和储罐");
   await page.getByRole("button", { name: /AI 分析/ }).click();
   await expect(page.getByText("AI 生成数据请核实后确认导入")).toBeVisible({ timeout: 15000 });
   await page.getByRole("button", { name: /确认并导入全部/ }).click();
 
-  await expect(page.getByText(/成功导入 2 条数据/)).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText(/跳过 1 个重名分区/)).toBeVisible();
+  // 提示文案："导入完成：新增 N 条，并入现有 M 条，跳过重复 K 条"
+  await expect(page.getByText(/导入完成：新增 2 条/)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(/跳过重复 1 条/)).toBeVisible();
 
   const objectPayloads = createdPayloads.filter((p) => (p as { name?: string }).name !== undefined);
   expect(objectPayloads.some((p) => (p as { name?: string }).name === "1号储罐")).toBe(false);

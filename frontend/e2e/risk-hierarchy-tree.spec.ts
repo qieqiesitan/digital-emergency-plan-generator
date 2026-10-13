@@ -102,12 +102,64 @@ const USER = {
   created_at: "2026-08-05T00:00:00+08:00",
 };
 
+/** 企业驾驶舱摘要（进入企业页需要，缺失会让 tab 区域被错误态替换） */
+const COCKPIT_SUMMARY = {
+  code: 0,
+  message: "ok",
+  data: {
+    risk_counts: { major: 2, larger: 4, general: 18, low: 10, total: 34 },
+    zone_risks: [
+      { zone_name: "危险品储存区", counts: { major: 1, larger: 2, general: 8, low: 2 }, total: 13 },
+    ],
+    top_risks: [
+      { name: "危险品储存区", level: "重大", score: 82, responsible_unit: "生产部" },
+    ],
+    risk_index: 38,
+    hazard_counts: { open: 3, due: 2, overdue: 0 },
+    todos: [
+      { priority: "high", title: "风险评估报告未生成", note: "建议本周完成 · AI 可辅助生成" },
+    ],
+    completion: { percent: 78, modules: [
+      { key: "enterprise_info", label: "基本信息", done: true },
+      { key: "reports", label: "报告", done: false },
+    ] },
+    recent_activities: [{ actor: "系统", action: "企业档案更新", time: "2026-08-16T10:32:00+08:00" }],
+  },
+};
+
+/** /overview（右侧四色图数据源）按楼层的 mock 分区 */
+function makeOverviewZone(id: string, name: string, floorId: string, floorName: string) {
+  return {
+    id,
+    enterprise_id: ENTERPRISE_ID,
+    floor_id: floorId,
+    floor_name: floorName,
+    name,
+    description: null,
+    sort_order: 0,
+    floor_plan_polygon: {
+      version: 2,
+      level_mode: "manual",
+      risk_level: "较大",
+      polygons: [
+        { id: `${id}-p1`, label: null, points: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }] },
+      ],
+    },
+    max_risk_level: "较大",
+    effective_color: "#fa8c16",
+    object_count: 0,
+    created_at: "2026-08-05T00:00:00+08:00",
+    updated_at: "2026-08-05T00:00:00+08:00",
+  };
+}
+
 async function mockApis(
   page: Page,
   onZoneCreate?: (payload: unknown) => void,
   onZoneUpdate?: (payload: unknown) => void,
   hierarchyData: typeof HIERARCHY = HIERARCHY,
   floorsData: Array<typeof FLOOR_1> = [FLOOR_1, FLOOR_2],
+  onOverview?: (floorId: string) => void,
 ) {
   const json = (status: number, body: unknown) => ({
     status,
@@ -130,6 +182,10 @@ async function mockApis(
     }
     if (path === `/api/v1/enterprises/${ENTERPRISE_ID}` && method === "GET") {
       await route.fulfill(json(200, { code: 0, message: "ok", data: ENTERPRISE }));
+      return;
+    }
+    if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/cockpit-summary` && method === "GET") {
+      await route.fulfill(json(200, COCKPIT_SUMMARY));
       return;
     }
     if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/floors` && method === "GET") {
@@ -155,6 +211,18 @@ async function mockApis(
       await route.fulfill(json(200, hierarchyData));
       return;
     }
+    if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/overview` && method === "GET") {
+      const requestedFloor = url.searchParams.get("floor_id") ?? floorsData[0]?.id ?? "floor-1";
+      onOverview?.(requestedFloor);
+      const floor = floorsData.find((f) => f.id === requestedFloor) ?? floorsData[0];
+      const zones = !floor
+        ? []
+        : requestedFloor === "floor-2"
+          ? [makeOverviewZone("zone-2", "二层办公区", "floor-2", "二层")]
+          : [makeOverviewZone("zone-1", "危险品储存区", "floor-1", "一层")];
+      await route.fulfill(json(200, { code: 0, message: "ok", data: { floor, zones, risk_points: [] } }));
+      return;
+    }
     if (path === `/api/v1/enterprises/${ENTERPRISE_ID}/risk-management/zones` && method === "POST") {
       onZoneCreate?.(request.postDataJSON());
       await route.fulfill(json(200, { code: 0, message: "ok", data: { id: "new-zone-1" } }));
@@ -174,14 +242,14 @@ async function gotoEnterpriseWithAuth(page: Page) {
     localStorage.setItem("access_token", "e2e-mock-token");
     localStorage.setItem("refresh_token", "e2e-mock-refresh");
   });
-  await page.goto(`/enterprises/${ENTERPRISE_ID}`);
-  await expect(page.getByRole("tab", { name: "风险分级管控" })).toBeVisible({ timeout: 15000 });
+  // 直达风险分级管控模块路由（企业驾驶舱已改为模块导航，不再有 tab）
+  await page.goto(`/enterprises/${ENTERPRISE_ID}/risk-management`);
+  await expect(page.getByRole("button", { name: "添加分区" }).first()).toBeVisible({ timeout: 15000 });
 }
 
 test("层级树按楼层分组且跨楼层分区可见", async ({ page }) => {
   await mockApis(page);
   await gotoEnterpriseWithAuth(page);
-  await page.getByRole("tab", { name: "风险分级管控" }).click();
 
   await expect(page.locator(".ant-tree")).toContainText("一层");
   await expect(page.locator(".ant-tree")).toContainText("二层");
@@ -199,7 +267,6 @@ test("从楼层节点添加分区时 payload 携带目标楼层", async ({ page 
     createdZonePayload = payload;
   });
   await gotoEnterpriseWithAuth(page);
-  await page.getByRole("tab", { name: "风险分级管控" }).click();
 
   // 树内第二个「添加分区」= 二层楼层节点操作
   await page.locator(".ant-tree").getByRole("button", { name: "添加分区" }).nth(1).click();
@@ -218,7 +285,6 @@ test("编辑未分配楼层分区时保存不携带 floor_id（避免静默迁�
     updatedZonePayload = payload;
   });
   await gotoEnterpriseWithAuth(page);
-  await page.getByRole("tab", { name: "风险分级管控" }).click();
 
   // 展开「未分配楼层」节点（最后一个楼层节点的 switcher）
   await page.locator(".ant-tree-treenode").filter({ hasText: "未分配楼层" }).locator(".ant-tree-switcher").click();
@@ -241,17 +307,47 @@ test("树显示没有分区的空楼层", async ({ page }) => {
   };
   await mockApis(page, undefined, undefined, emptyFloorHierarchy);
   await gotoEnterpriseWithAuth(page);
-  await page.getByRole("tab", { name: "风险分级管控" }).click();
 
   await expect(page.locator(".ant-tree")).toContainText("二层");
   await expect(page.locator(".ant-tree")).toContainText("0 分区");
   await expect(page.locator(".ant-tree")).toContainText("危险品储存区");
 });
 
+test("右侧节点详情与四色图跟随树选择联动（含地图反选）", async ({ page }) => {
+  const overviewFloors: string[] = [];
+  await mockApis(page, undefined, undefined, HIERARCHY, [FLOOR_1, FLOOR_2], (fid) => overviewFloors.push(fid));
+  await gotoEnterpriseWithAuth(page);
+
+  const mapPanel = page.getByTestId("risk-tree-map-panel");
+  const detailCard = page.getByTestId("risk-tree-node-detail");
+  await expect(mapPanel).toBeVisible({ timeout: 15000 });
+  // 初始展示默认楼层
+  await expect(mapPanel).toHaveAttribute("data-floor-id", "floor-1");
+  await expect(detailCard).toContainText("点击左侧风险树节点");
+  await expect.poll(() => overviewFloors.includes("floor-1")).toBe(true);
+
+  // ① 树选中分区 → 详情更新 + 地图高亮该分区
+  await page.locator(".ant-tree-treenode").filter({ hasText: "危险品储存区" }).first().click();
+  await expect(mapPanel).toHaveAttribute("data-highlight-zone", "zone-1");
+  await expect(detailCard).toContainText("危险品储存区");
+  await expect(detailCard).toContainText("楼层：一层");
+
+  // ② 点楼层节点 → 地图切换到该楼层
+  await page.locator(".ant-tree-treenode").filter({ hasText: "二层" }).first().locator(".ant-tree-node-content-wrapper").click();
+  await expect(mapPanel).toHaveAttribute("data-floor-id", "floor-2");
+  await expect.poll(() => overviewFloors.includes("floor-2")).toBe(true);
+  await expect(mapPanel).toHaveAttribute("data-highlight-zone", "");
+
+  // ③ 点地图上的分区 → 树反选并自动展开到该分区，详情同步
+  await page.locator('[data-testid="risk-distribution-stage"] canvas').first().click();
+  await expect(page.locator(".ant-tree-node-selected")).toContainText("二层办公区");
+  await expect(mapPanel).toHaveAttribute("data-highlight-zone", "zone-2");
+  await expect(detailCard).toContainText("二层办公区");
+});
+
 test("通过楼层管理抽屉添加楼层后树出现新楼层", async ({ page }) => {
   await mockApis(page);
   await gotoEnterpriseWithAuth(page);
-  await page.getByRole("tab", { name: "风险分级管控" }).click();
 
   await page.getByRole("button", { name: "楼层管理" }).click();
   await expect(page.getByText("楼层管理", { exact: true }).last()).toBeVisible();

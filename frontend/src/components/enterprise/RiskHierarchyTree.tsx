@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useState } from "react";
 import { Tree, Tag, Tooltip, Button } from "antd";
 import type { DataNode, EventDataNode } from "antd/es/tree";
 import {
@@ -43,6 +43,8 @@ export interface TreeNodeMeta {
 interface Props {
   data: HierarchyZone[];
   floors?: EnterpriseFloor[];
+  /** 受控选中节点（如右侧四色图点选分区后反向联动）；undefined = 非受控，由 Tree 自己维护 */
+  selectedKey?: React.Key | null;
   onSelect: (node: TreeNodeMeta) => void;
   onRefresh?: () => void;
   onAction: (action: string, meta: TreeNodeMeta) => void;
@@ -399,20 +401,67 @@ function buildTreeData(zones: HierarchyZone[], floors: EnterpriseFloor[]): DataN
 
 // Component
 
-export default function RiskHierarchyTree({ data, floors, onSelect, onAction }: Props) {
+function collectExpandableKeys(nodes: DataNode[]): React.Key[] {
+  const keys: React.Key[] = [];
+  const walk = (list: DataNode[]) => {
+    for (const node of list) {
+      if (node.children?.length) {
+        keys.push(node.key);
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return keys;
+}
+
+function findAncestorKeys(nodes: DataNode[], target: React.Key, trail: React.Key[] = []): React.Key[] | null {
+  for (const node of nodes) {
+    if (node.key === target) return trail;
+    if (node.children?.length) {
+      const found = findAncestorKeys(node.children, target, [...trail, node.key]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export default function RiskHierarchyTree({ data, floors, selectedKey, onSelect, onAction }: Props) {
   const treeData = useMemo(() => buildTreeData(data, floors ?? []), [data, floors]);
   const totalNodes = useMemo(() => {
     const groups = groupZonesByFloor(data, floors ?? []);
     return groups.reduce((acc, g) => acc + 1 + countZoneTree(g.zones), 0);
   }, [data, floors]);
   const multiFloor = useMemo(() => groupZonesByFloor(data, floors ?? []).length > 1, [data, floors]);
-  const defaultExpandedKeys = useMemo(() => {
-    if (!multiFloor) return undefined;
-    // 无默认楼层标记时退回第一个楼层，避免多楼层树全部折叠
-    const defaultFloor = floors?.find((f) => f.is_default) ?? floors?.[0];
-    if (!defaultFloor) return undefined;
-    return [`floor-${defaultFloor.id}`];
-  }, [multiFloor, floors]);
+
+  // 展开态受控：保留原有"默认展开"策略（多楼层展开默认楼层；单楼层节点少时全展开），
+  // 并支持地图联动选中分区时自动展开其祖先节点
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>(() => {
+    if (multiFloor) {
+      // 无默认楼层标记时退回第一个楼层，避免多楼层树全部折叠
+      const defaultFloor = floors?.find((f) => f.is_default) ?? floors?.[0];
+      return defaultFloor ? [`floor-${defaultFloor.id}`] : [];
+    }
+    if (totalNodes < 100) return collectExpandableKeys(treeData);
+    return [];
+  });
+
+  useEffect(() => {
+    if (selectedKey == null) return;
+    const ancestors = findAncestorKeys(treeData, selectedKey);
+    if (!ancestors?.length) return;
+    setExpandedKeys((prev) => {
+      const set = new Set(prev);
+      let changed = false;
+      for (const key of ancestors) {
+        if (!set.has(key)) {
+          set.add(key);
+          changed = true;
+        }
+      }
+      return changed ? Array.from(set) : prev;
+    });
+  }, [selectedKey, treeData]);
 
   const handleSelect = useCallback(
     (_selectedKeys: React.Key[], info: { node: EventDataNode<DataNode> }) => {
@@ -480,10 +529,11 @@ export default function RiskHierarchyTree({ data, floors, onSelect, onAction }: 
       treeData={treeData}
       titleRender={titleRender}
       onSelect={handleSelect}
+      selectedKeys={selectedKey === undefined ? undefined : selectedKey == null ? [] : [selectedKey]}
+      expandedKeys={expandedKeys}
+      onExpand={(keys) => setExpandedKeys(keys)}
       showLine={{ showLeafIcon: false }}
       blockNode
-      defaultExpandAll={totalNodes < 100 && !multiFloor}
-      defaultExpandedKeys={defaultExpandedKeys}
       virtual={totalNodes > 200}
       height={totalNodes > 200 ? 600 : undefined}
       style={{

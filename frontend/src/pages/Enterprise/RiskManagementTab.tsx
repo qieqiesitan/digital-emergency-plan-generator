@@ -1,13 +1,14 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { App as AntApp, Alert, Button, Spin, Space, Tag } from "antd";
-import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined, UnorderedListOutlined } from "@ant-design/icons";
+import { App as AntApp, Alert, Button, Dropdown, Spin, Space, Tag } from "antd";
+import { PlusOutlined, ThunderboltOutlined, BarChartOutlined, SettingOutlined, EditOutlined, ApartmentOutlined, UnorderedListOutlined, DownOutlined } from "@ant-design/icons";
 import AppEmpty from "@/components/common/AppEmpty";
 import AppIcon from "@/components/common/AppIcon";
 import { useQuery } from "@tanstack/react-query";
 import { getFullHierarchy, createZone, updateZone, deleteZone, createObject, updateObject, deleteObject, createUnit, updateUnit, deleteUnit, createEvent, updateEvent, deleteEvent, createMeasure, updateMeasure, deleteMeasure, getMigrationPreview } from "@/services/riskManagementService";
 import { deleteEnterpriseFloor, listEnterpriseFloors } from "@/services/riskMappingWorkbenchService";
 import RiskHierarchyTree, { type TreeNodeMeta } from "@/components/enterprise/RiskHierarchyTree";
+import RiskTreeFourColorMap from "@/components/enterprise/RiskTreeFourColorMap";
 import RiskMigrationWizard from "@/components/enterprise/RiskMigrationWizard";
 import type { HierarchyZone, HierarchyObject, HierarchyUnit, HierarchyEvent, HierarchyMeasure, CheckItem, RiskZoneFloorPlanPolygon, MethodType, MeasureCategory } from "@/types/riskManagement";
 import { buildZonePayload } from "@/utils/zoneSubmit";
@@ -100,7 +101,8 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
      queryFn: () => listEnterpriseFloors(enterpriseId),
    });
  
-   const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; name: string } | null>(null);
+   const [selectedNode, setSelectedNode] = useState<TreeNodeMeta | null>(null);
+   const [mapFloorId, setMapFloorId] = useState<string | null>(null);
    const [form, setForm] = useState<FormState>({ type: null, open: false });
   const [smartGuideOpen, setSmartGuideOpen] = useState(false);
   const [floorDrawerOpen, setFloorDrawerOpen] = useState(false);
@@ -147,6 +149,39 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
       }
     }
     return map;
+  }, [hierarchy]);
+
+  // ── 风险树 ⇄ 四色图 联动 ──
+  // 树选中键（受控）：让地图点选分区后能反向选中/展开树节点
+  const treeSelectedKey = useMemo(
+    () => (selectedNode ? `${selectedNode.type}-${selectedNode.id}` : null),
+    [selectedNode],
+  );
+  // 需要在地图上高亮的分区：分区节点=自身；深层节点=其所属分区；楼层节点=不高亮
+  const highlightZoneId = useMemo(() => {
+    if (!selectedNode || selectedNode.type === "floor") return null;
+    if (selectedNode.type === "zone") return selectedNode.id;
+    return hierarchyMap[selectedNode.id]?.zone?.id ?? null;
+  }, [selectedNode, hierarchyMap]);
+  // 地图楼层跟随所选节点（楼层节点直接切换；分区及深层节点跟随所属分区楼层）
+  useEffect(() => {
+    if (!selectedNode) return;
+    const floorOfNode = selectedNode.type === "floor"
+      ? (selectedNode.id !== "unassigned" ? selectedNode.id : null)
+      : (hierarchyMap[selectedNode.id]?.zone?.floor_id ?? null);
+    if (floorOfNode) setMapFloorId(floorOfNode);
+  }, [selectedNode, hierarchyMap]);
+  // 地图点选分区 → 反向选中树节点（树自动展开祖先定位）
+  const handleMapZoneClick = useCallback((zoneId: string) => {
+    const zone = hierarchy.find((z) => z.id === zoneId);
+    if (!zone) return;
+    setSelectedNode({
+      id: zone.id,
+      type: "zone",
+      name: zone.name,
+      floorId: zone.floor_id,
+      floor_plan_polygon: zone.floor_plan_polygon ?? null,
+    });
   }, [hierarchy]);
 
   const confirmDelete = useCallback((meta: TreeNodeMeta) => {
@@ -363,15 +398,37 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
  
    if (isLoading) return <Spin size="large" />;
  
+   const navMenuItems = [
+     { key: `/enterprises/${enterpriseId}/risk-overview`, icon: <BarChartOutlined />, label: "📊 可视化总览" },
+     { key: `/enterprises/${enterpriseId}/risk-mapping-workbench`, icon: <EditOutlined />, label: "四色分布图工作台" },
+     { key: `/enterprises/${enterpriseId}/risk-control-list`, icon: <UnorderedListOutlined />, label: "管控清单" },
+     { key: `/enterprises/${enterpriseId}/risk-publicity`, icon: <AppIcon name="notice" size={14} />, label: "重大风险公示" },
+     { key: `/enterprises/${enterpriseId}/risk-notice-cards`, icon: <ApartmentOutlined />, label: "风险告知卡" },
+     { key: `/enterprises/${enterpriseId}/risk-methods`, icon: <SettingOutlined />, label: "⚙ 评估方法" },
+     { key: `/enterprises/${enterpriseId}/data-dicts`, icon: <SettingOutlined />, label: "风险与隐患配置" },
+     { key: `/enterprises/${enterpriseId}/org`, icon: <ApartmentOutlined />, label: "组织与人员" },
+   ];
+
    return (
-     <div style={{ display: "flex", gap: 16, height: "calc(100vh - 200px)" }}>
-       {/* LEFT: Tree */}
-       <div style={{ flex: 1, minWidth: 360, overflow: "auto", background: "#fff", borderRadius: 8, padding: 12, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+     <div style={{ display: "flex", gap: 12, height: "calc(100vh - 200px)" }}>
+       {/* LEFT: 风险树编辑（紧凑） */}
+       <div
+         style={{
+           flex: 1,
+           minWidth: 380,
+           display: "flex",
+           flexDirection: "column",
+           background: "#fff",
+           borderRadius: 8,
+           padding: 10,
+           boxShadow: "0 2px 8px rgba(0,0,0,.08)",
+         }}
+       >
          {migrationPreview && migrationPreview.total > 0 && (
            <Alert
              type="warning"
              showIcon
-             style={{ marginBottom: 12 }}
+             style={{ marginBottom: 8 }}
              title={`检测到 ${migrationPreview.total} 条旧版风险源数据未迁移`}
              action={
                <Button size="small" type="primary" onClick={() => setMigrationOpen(true)}>
@@ -380,23 +437,17 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
              }
            />
          )}
-        <Space style={{ marginBottom: 12 }}>
-          <Button icon={<PlusOutlined />} onClick={() => setForm({ type: "zone", open: true })}>添加分区</Button>
-          <Button icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
-          <Button icon={<ApartmentOutlined />} onClick={() => setFloorDrawerOpen(true)}>楼层管理</Button>
+        <Space size={8} wrap style={{ marginBottom: 8 }}>
+          <Button size="small" icon={<PlusOutlined />} onClick={() => setForm({ type: "zone", open: true })}>添加分区</Button>
+          <Button size="small" icon={<ThunderboltOutlined />} onClick={() => setSmartGuideOpen(true)}>🚀 智能导引</Button>
+          <Button size="small" icon={<ApartmentOutlined />} onClick={() => setFloorDrawerOpen(true)}>楼层管理</Button>
           {!embedded && (
-            <>
-              <Button icon={<BarChartOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-overview`)}>📊 可视化总览</Button>
-              <Button icon={<EditOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-mapping-workbench`)}>四色分布图工作台</Button>
-              <Button icon={<UnorderedListOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-control-list`)}>管控清单</Button>
-              <Button icon={<AppIcon name="notice" size={14} />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-publicity`)}>重大风险公示</Button>
-              <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-notice-cards`)}>风险告知卡</Button>
-              <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/risk-methods`)}>⚙ 评估方法</Button>
-              <Button icon={<SettingOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/data-dicts`)}>风险与隐患配置</Button>
-              <Button icon={<ApartmentOutlined />} onClick={() => navigate(`/enterprises/${enterpriseId}/org`)}>组织与人员</Button>
-            </>
+            <Dropdown menu={{ items: navMenuItems, onClick: ({ key }) => navigate(key) }}>
+              <Button size="small" icon={<DownOutlined />}>更多</Button>
+            </Dropdown>
           )}
         </Space>
+        <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
          {hierarchy.length === 0 ? (
            <AppEmpty
              title="暂无风险分区"
@@ -406,18 +457,23 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
              style={{ padding: "24px 8px" }}
            />
          ) : (
-           <RiskHierarchyTree data={hierarchy} floors={floors} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />
+           <RiskHierarchyTree data={hierarchy} floors={floors} selectedKey={treeSelectedKey} onSelect={setSelectedNode} onRefresh={refetch} onAction={handleTreeAction} />
          )}
+        </div>
        </div>
  
-       {/* RIGHT: Detail Panel */}
-       <div style={{ width: 300, background: "#fff", borderRadius: 8, padding: 16, boxShadow: "0 2px 8px rgba(0,0,0,.08)", overflow: "auto" }}>
-        <h4 style={{ fontSize: 14, marginBottom: 12 }}>📌 节点详情</h4>
+       {/* RIGHT: 节点详情（小）+ 四色图（与左侧联动） */}
+       <div style={{ width: 420, flexShrink: 0, display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
+        <div
+          data-testid="risk-tree-node-detail"
+          style={{ flexShrink: 0, maxHeight: "38%", overflow: "auto", background: "#fff", borderRadius: 8, padding: 12, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}
+        >
+        <h4 style={{ fontSize: 13, marginBottom: 8 }}>📌 节点详情</h4>
         {selectedNode ? (() => {
           if (selectedNode.type === "floor") {
             const f = floors.find((x) => x.id === selectedNode.id);
             return (
-              <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+              <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
                 <p><strong>{selectedNode.name}</strong></p>
                 {f?.is_default && <p><Tag color="blue">默认楼层</Tag></p>}
                 <p>分区数：{f?.zone_count ?? 0}</p>
@@ -427,8 +483,12 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
           }
           const info = hierarchyMap[selectedNode.id] || {};
           return (
-            <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+            <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
               <p><strong>{selectedNode.name}</strong></p>
+              {info.zone && <p>楼层：{info.zone.floor_name || "未分配"}</p>}
+              {info.zone?.max_risk_level && (
+                <p>分区等级：<Tag color={RISK_LEVEL_COLORS[info.zone.max_risk_level] || "#d9d9d9"}>{info.zone.max_risk_level}</Tag></p>
+              )}
               {info.zone && info.zone.id !== selectedNode.id && <p>分区：{info.zone.name}</p>}
               {info.object && info.object.id !== selectedNode.id && <p>对象：{info.object.name}</p>}
               {info.unit && info.unit.id !== selectedNode.id && <p>单元：{info.unit.name}</p>}
@@ -447,7 +507,16 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
               {info.unit?.unit_type && <p>类型：{info.unit.unit_type}</p>}
             </div>
           );
-        })() : <p style={{ color: "#8c8c8c", fontSize: 13 }}>点击层级树中的节点查看详情</p>}
+        })() : <p style={{ color: "#8c8c8c", fontSize: 12.5 }}>点击左侧风险树节点查看详情（地图联动高亮）</p>}
+        </div>
+        <RiskTreeFourColorMap
+          floors={floors}
+          floorId={mapFloorId}
+          highlightZoneId={highlightZoneId}
+          onFloorChange={setMapFloorId}
+          onZoneClick={handleMapZoneClick}
+          onManageFloors={() => setFloorDrawerOpen(true)}
+        />
        </div>
  
        {/* FORMS */}
