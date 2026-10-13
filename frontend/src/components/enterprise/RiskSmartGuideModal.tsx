@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { App as AntApp, Modal, Input, Button, Tree, Alert, Spin } from "antd";
+import { App as AntApp, Modal, Input, Button, Tree, Alert, Spin, Tag } from "antd";
 import type { DataNode } from "antd/es/tree";
 import {
   ThunderboltOutlined,
@@ -15,7 +15,8 @@ import {
   createEvent,
   createMeasure,
 } from "@/services/riskManagementService";
-import { buildExistingIndex } from "@/utils/smartGuideImport";
+import { buildExistingIndex, buildMergeBadges } from "@/utils/smartGuideImport";
+import type { ExistingIndex, MergeBadge } from "@/utils/smartGuideImport";
 import type {
   MethodType,
   MeasureCategory,
@@ -144,6 +145,7 @@ export default function RiskSmartGuideModal({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
+  const [existingIndex, setExistingIndex] = useState<ExistingIndex | null>(null);
 
   // 打开时重置向导：渲染期调整 state（避免 effect 内同步 setState 造成级联渲染）
   const [prevOpen, setPrevOpen] = useState(open);
@@ -157,13 +159,25 @@ export default function RiskSmartGuideModal({
       setExpandedKeys([]);
       setEditingKey(null);
       setNameOverrides({});
+      setExistingIndex(null);
     }
   }
 
   const guideMut = useMutation({
-    mutationFn: () => aiSmartGuide(enterpriseId, description),
-    onSuccess: (data) => {
+    mutationFn: async () => {
+      const [guideRes, treeRes] = await Promise.allSettled([
+        aiSmartGuide(enterpriseId, description),
+        getFullHierarchy(enterpriseId),
+      ]);
+      if (guideRes.status === "rejected") throw guideRes.reason;
+      return {
+        data: guideRes.value,
+        index: treeRes.status === "fulfilled" ? buildExistingIndex(treeRes.value) : null,
+      };
+    },
+    onSuccess: ({ data, index }) => {
       setHierarchy(data.hierarchy);
+      setExistingIndex(index);
       const allKeys = collectAllKeys(data.hierarchy);
       setCheckedKeys(allKeys);
       setExpandedKeys(allKeys.filter((k) => String(k).startsWith("z-") && String(k).split("-").length === 2));
@@ -176,10 +190,6 @@ export default function RiskSmartGuideModal({
   });
 
   const handleStartAnalysis = () => {
-    if (!description.trim()) {
-      antMessage.warning("请先描述区域情况");
-      return;
-    }
     setStep("loading");
     guideMut.mutate();
   };
@@ -524,6 +534,14 @@ export default function RiskSmartGuideModal({
     setEditingKey(null);
   }, []);
 
+  const badges = useMemo<Map<string, MergeBadge>>(
+    () =>
+      existingIndex
+        ? buildMergeBadges(existingIndex, hierarchy, nameOverrides)
+        : new Map<string, MergeBadge>(),
+    [existingIndex, hierarchy, nameOverrides],
+  );
+
   const titleRender = useCallback(
     (nodeData: DataNode) => {
       const meta = (nodeData as DataNode & { _meta?: TreeNodeMeta })._meta;
@@ -577,6 +595,16 @@ export default function RiskSmartGuideModal({
               >
                 {displayName}
               </span>
+              {badges.get(key) === "new" && (
+                <Tag color="green" style={{ margin: 0, fontSize: 11, lineHeight: "16px", flexShrink: 0 }}>
+                  {"新增"}
+                </Tag>
+              )}
+              {badges.get(key) === "merge" && (
+                <Tag color="blue" style={{ margin: 0, fontSize: 11, lineHeight: "16px", flexShrink: 0 }}>
+                  {"并入"}
+                </Tag>
+              )}
               <Button
                 size="small"
                 type="link"
@@ -592,7 +620,7 @@ export default function RiskSmartGuideModal({
         </span>
       );
     },
-    [editingKey, editValue, nameOverrides, startEdit, saveEdit, cancelEdit],
+    [editingKey, editValue, nameOverrides, badges, startEdit, saveEdit, cancelEdit],
   );
 
   const handleCheck = useCallback((keys: React.Key[] | { checked: React.Key[]; halfChecked: React.Key[] }) => {
@@ -602,6 +630,18 @@ export default function RiskSmartGuideModal({
       setCheckedKeys(keys.checked);
     }
   }, []);
+
+  const badgeSummary = useMemo(() => {
+    const keySet = new Set(checkedKeys.map(String));
+    let fresh = 0;
+    let merge = 0;
+    badges.forEach((badge, key) => {
+      if (!keySet.has(key)) return;
+      if (badge === "merge") merge++;
+      else fresh++;
+    });
+    return { fresh, merge };
+  }, [badges, checkedKeys]);
 
   const counts = useMemo(() => countChecked(hierarchy, checkedKeys), [hierarchy, checkedKeys]);
 
@@ -656,7 +696,7 @@ export default function RiskSmartGuideModal({
       {step === "input" && (
         <div>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>
-            {"请描述需要 AI 分析的区域情况"}
+            {"请描述需要 AI 分析的区域情况（可选）"}
           </div>
           <Input.TextArea
             value={description}
@@ -681,7 +721,7 @@ export default function RiskSmartGuideModal({
           >
             <span style={{ flexShrink: 0 }}>{"💡"}</span>
             <span>
-              {"请详细描述区域内的设备、工艺、物料、周边环境等信息，描述越详细，AI 生成的层级结构越准确。支持中文自然语言输入。"}
+              {"可不填：留空时 AI 将依据企业档案与现有风险树自动查漏补缺；填写设备、工艺、物料、周边等补充说明可让结果更准确。支持中文自然语言输入。"}
             </span>
           </div>
         </div>
@@ -691,7 +731,7 @@ export default function RiskSmartGuideModal({
         <div style={{ textAlign: "center", padding: "60px 0" }}>
           <Spin size="large" />
           <p style={{ marginTop: 20, color: "#8c8c8c", fontSize: 14 }}>
-            {"AI 正在分析区域描述，生成风险层级结构…"}
+            {"AI 正在结合企业档案与现有风险树查漏补缺…"}
           </p>
         </div>
       )}
@@ -701,7 +741,7 @@ export default function RiskSmartGuideModal({
           <Alert
             type="warning"
             showIcon
-            title="AI 生成数据请核实后确认导入；同名分区/对象/单元/事件将并入现有树（只补充缺失内容），措施按类别与描述去重"
+            title="AI 已按企业档案与现有风险树查漏补缺；同名节点并入现有树（只补充缺失内容，不改写已有描述/等级），新增节点单独创建。请核实后确认导入"
             style={{ marginBottom: 12 }}
           />
 
@@ -750,6 +790,9 @@ export default function RiskSmartGuideModal({
             <span style={{ fontWeight: 500 }}>{"选中汇总："}</span>
             <span>
               {counts.zones}{"分区 · "}{counts.objects}{"对象 · "}{counts.events}{"事件 · "}{counts.measures}{"措施"}
+            </span>
+            <span style={{ marginLeft: 12 }}>
+              {`将新增 ${badgeSummary.fresh} · 并入 ${badgeSummary.merge}`}
             </span>
           </div>
         </div>
