@@ -1,34 +1,32 @@
-## 当前状态快照（压缩恢复用 · 风险树 AI 智能生成——补全模式：后端 4 任务完成，前端进行中 · 2026-10-13）
+## 当前状态快照（压缩恢复用 · 风险树 AI 智能生成——补全模式【已实现+验证+部署】 · 2026-10-13）
 - 任务（2026-10-13）：用户要求「风险树中 AI 智能生成逻辑调整，要根据企业基本情况和用户输入的内容进行完善风险树」。
-  自动匹配 `$brainstorming` → 用户确认方案 1 → 规格+计划已提交 → 用户选**内联执行**（executing-plans）。
-  **状态：任务 1-4（后端）完成并逐个提交；任务 5-6（前端）进行中；7-9（门禁/实测/收尾）待做。**
-- 关键文档（都已 commit，实施照做即可）：
-  - 设计规格：`docs/superpowers/specs/2026-10-13-smart-guide-tree-completion-design.md`（commit `1a01eba`）
-  - 实现计划：`docs/superpowers/plans/2026-10-13-smart-guide-tree-completion.md`（commit `c28322c`，1066 行）
-  - 前置 savepoint：`6c2e571`（2026-10-13 16:04）
-- 已完成提交（后端）：
-  - `1234b96` 现有树紧凑序列化（serialize_existing_tree 逐级降级+截断）
-  - `74a0fd9` 企业信息扩展（build_smart_guide_enterprise_info，空值剔除；**注意**：测试里 hazardous_chemicals 非空属保留项，勿再误改）
-  - `997a6b7` prompt 改查漏补缺（三段输入；旧 `existing_names` 参数与 duplicates 规则已删）
-  - `c73f592` 路由接线（完整树 selectinload+序列化注入；description: str = ""；_get_ent 去重复调用）
-- ⚠ 本机 pytest 前置：`backend/.env` 的 SECRET_KEY 是弱值会直接报错，跑测试用
-  `$env:SECRET_KEY = (python -c "import secrets;print(secrets.token_hex(48))")` 覆盖。
-- 下一步：任务 5（前端 buildMergeBadges TDD）→ 任务 6（Modal 接线）→ 任务 7 全量门禁 → 任务 8 浏览器实测（8082）→ 任务 9 收尾。
-- 验证基线：后端 pytest 2205 passed / 1 skipped；前端 tsc/vitest 370/eslint/build。
-- 调研结论（已核实，别再重复查）：
-  - 入口①「🚀 智能导引」= `frontend/src/components/enterprise/RiskSmartGuideModal.tsx`（弹窗标题「AI 智能生成风险层级」）
-    → `frontend/src/services/riskManagementService.ts::aiSmartGuide` → 后端 `backend/app/routers/risk_management.py:1291 /ai/smart-guide`
-    → `backend/app/services/risk_ai_service.py::smart_guide`。
-    - 当前已传企业信息：name/industry/business_scope/building_overview/hazardous_chemicals/special_equipment + 危化品台账 chemicals_ledger；
-      已有树仅传分区名+对象名（existing_names），用途只是「避免重复」；prompt 明确「不得生成与现有分区重名/语义重复的分区」——**做不到对现有树补全**。
-    - 未利用的企业档案字段：main_equipment_list / special_equipment_detail / surrounding_info / natural_conditions / main_products / annual_capacity 等。
-  - 入口② 右键「智能填充下级」（`frontend/src/components/enterprise/RiskHierarchyTree.tsx:72,80`，仅对象/单元节点）**未实现**：
-    `frontend/src/pages/Enterprise/RiskManagementTab.tsx::handleTreeAction` 无 ai-fill 分支，落入 default 只弹提示。
-  - 入口③ 事件表单 AI 建议（`RiskEventForm.tsx:214`）enterprise_info 只传 `{accident_type}`（缺企业基本情况）；
-    入口④ 措施表单 AI 建议（`RiskMeasureForm.tsx:49`）传 `{context:{...}}` 与后端期望字段（accident_type/risk_level/unit_name/object_name/enterprise_info）不匹配。
-- 下一步：用户审查设计规格（`docs/superpowers/specs/2026-10-13-smart-guide-tree-completion-design.md`）→ 批准后 writing-plans → TDD 实施。
-- ⚠ 工作区内另一会话正在改 `RiskManagementTab.tsx` / `RiskHierarchyTree.tsx` / `RiskTreeFourColorMap.tsx`（左右分屏+四色图联动），
-  本任务实现时不要碰这些文件；提交一律按路径精确提交。
+  流程：`$brainstorming`（方案 1 获确认）→ `$writing-plans` 计划（9 任务）→ 用户选内联执行 → `$executing-plans`。**状态：9 任务全部完成。**
+- 用户可见效果：智能导引生成依据 = 企业档案完整字段（含设备清单/特种设备/周边/自然条件等，空值不注入）
+  + 现有树完整结构（紧凑序列化，逐级降级、上限 2 万字符）+ 用户补充说明（**可留空**）→ AI 查漏补缺
+  （补对象/单元/事件/措施；同名并入、不改写已有描述等级）→ 预览标「新增/并入」+ 汇总计数 → 导入复用同名合并。
+- 本轮提交（均按路径精确提交）：
+  - `1234b96` 树序列化 serialize_existing_tree；`74a0fd9` 企业信息扩展 build_smart_guide_enterprise_info
+  - `997a6b7` prompt 改查漏补缺（三段；旧 existing_names/duplicates 规则已删）；`c73f592` 路由接线（description 默认空串）
+  - `8796606` buildMergeBadges（预览判定与导入逻辑一一对应）；`116c94d` Modal 接线（描述可选/并行拉树/标签/文案）
+  - `de0cadd`+`8bbf1e4` **环境级修复（重要复用知识）**：系统 AI 配置为推理模型 deepseek-flash（max_tokens=4096）时，
+    **reasoning 把预算吃满 → content 为空 → smart-guide 500**（llm_call_logs.completion_tokens 恰好等于上限即命中）。
+    修复：payload_overrides 强制 max_tokens ≥16384 + deepseek 系传 `"thinking": {"type": "disabled"}`（实测 reasoning=0；
+    非 deepseek 不传防 400）+ timeout 60→150s。
+  - `9d45aee` 实测证据（探针 `output/playwright/e2e-20261013/scripts/_smart_guide_completion_probe.py` **10/10**，
+    证据 smart-guide-completion.json + 2 截图；含留空描述、标签、导入回读、"储罐区未重复 + 1号储罐补出下级"）。
+- 验证：后端全量 pytest **2214 passed**；前端 tsc 0 / vitest **373 passed** / eslint src 0；e2e `smart-guide-import.spec.ts` 1 passed；
+  codegraph sync（3 文件 30 节点）+ graphify update 已跑。
+- ⚠ 本机环境坑（复用）：
+  - pytest 需 `$env:SECRET_KEY = (python -c "import secrets;print(secrets.token_hex(48))")`（backend/.env 弱值会被拒）。
+  - **Node 24 本机 `npm run build` 崩**（vite/rollup 原生模块 0xC0000409，与代码无关）；正确路径 =
+    容器构建 `docker exec emergency-plan-frontend sh -c "cd /app && npm run build"` →
+    `docker cp emergency-plan-frontend:/app/dist/. frontend/dist/`（src 与 vite.config 是挂载，构建即取当前代码）。
+  - 前端 vitest 需 `$env:ALLOW_PWA_SKIP=1`。
+- 已部署：8082 = 最新（宿主 dist → `shuzihuayuan:/app/dist`，备份 `/app/dist.bak.20261013.smartguide`；
+  核验 live main-DlpqESoi.js 与宿主一致）；后端容器已重启加载新代码（bind mount + restart）。
+- 遗留未做（后续可接）：右键「智能填充下级」（ai-fill）仍未实现；事件/措施表单 AI 建议传参缺口仍在
+  （`RiskEventForm.tsx:214` / `RiskMeasureForm.tsx:49`）。
+- 下一步（等用户拍板）：推送与否——本地领先 origin/gitee 多个提交（含 09-21 与另一会话成果）。
 
 ## 当前状态快照（压缩恢复用 · 台账选入品种也带出标准值（CAS 兜底）**已实现实测** · 2026-10-13）
 - 任务（2026-10-13）：用户反馈「添加品种时直接在关联台账里选汽油或柴油，自己不会带出来，想也带出来，可行么？」
