@@ -30,7 +30,7 @@ def test_normalize_smart_guide_forces_risk_point_false():
 
 
 @pytest.mark.asyncio
-async def test_smart_guide_prompt_includes_existing_names():
+async def test_smart_guide_prompt_includes_existing_tree():
     captured = {}
 
     async def fake_llm(messages, ai_config, timeout=120, **kwargs):
@@ -43,16 +43,43 @@ async def test_smart_guide_prompt_includes_existing_names():
             fake_llm,
         )
         await smart_guide(
-            "描述",
+            "储罐区要补充泄漏事件",
             {"name": "测试企业"},
             ai_config=object(),
-            existing_names={"zones": ["储罐区"], "objects": ["1号储罐"]},
+            existing_tree_text='[{"name":"储罐区","objects":[{"name":"1号储罐","units":[]}]}]',
         )
 
     prompt = captured["messages"][-1]["content"]
     assert "储罐区" in prompt
     assert "1号储罐" in prompt
-    assert "不得生成与现有分区" in prompt
+    assert "查漏补缺" in prompt
+    assert "不得生成与现有分区" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_smart_guide_prompt_handles_empty_description_and_extended_fields():
+    captured = {}
+
+    async def fake_llm(messages, ai_config, timeout=120, **kwargs):
+        captured["messages"] = messages
+        return '{"zones": [], "summary": {}}'
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "app.services.risk_ai_service.llm_text_completion",
+            fake_llm,
+        )
+        await smart_guide(
+            "",
+            {"name": "甲", "main_equipment_list": "1号储罐、2号储罐",
+             "surrounding_info": {"traffic_info": "东侧国道"}},
+            ai_config=object(),
+        )
+
+    prompt = captured["messages"][-1]["content"]
+    assert "未填写补充说明" in prompt
+    assert "1号储罐、2号储罐" in prompt
+    assert "东侧国道" in prompt
 
 
 def _sample_tree():

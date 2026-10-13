@@ -426,46 +426,47 @@ async def smart_guide(
     description: str,
     enterprise_info: dict,
     ai_config: AIConfig,
-    existing_names: dict | None = None,
+    existing_tree_text: str = "",
+    tree_truncated: bool = False,
 ) -> dict:
-    """一键智能导引：自然语言描述 → 完整层级结构。
+    """一键智能导引：企业档案 + 现有树 + 用户补充 → 查漏补缺的完整层级结构。
 
     Args:
-        description: 用户自然语言描述（如"储罐区有3个5000m³原油储罐..."）
-        enterprise_info: 企业基本信息
+        description: 用户自然语言补充说明（可为空；为空时仅依据档案与现有树分析）
+        enterprise_info: 企业基本信息（见 build_smart_guide_enterprise_info）
         ai_config: AI 配置
-        existing_names: 企业已有层级名称，形如 {"zones": [...], "objects": [...]}，
-            用于约束 AI 避免生成重复分区/对象
+        existing_tree_text: serialize_existing_tree 输出的紧凑 JSON（空串=尚未建树）
+        tree_truncated: 现有树文本是否因过大被截断
 
     Returns:
-        dict 含 zones 和 summary 字段，zones 为完整层级结构
+        dict 含 zones 和 summary 字段；zones 中同名节点在导入时自动并入现有树。
     """
-    existing_names = existing_names or {}
-    existing_zones = existing_names.get("zones") or []
-    existing_objects = existing_names.get("objects") or []
-    existing_summary = ""
-    if existing_zones:
-        existing_summary += "现有分区：" + "、".join(existing_zones) + "\n"
-    if existing_objects:
-        existing_summary += "现有对象：" + "、".join(existing_objects) + "\n"
-    prompt = (
-        f"用户描述了以下企业区域，请分析并生成完整的风险分级管控层级结构"
-        f"（分区 → 对象 → 单元 → 事件 → 措施）。\n\n"
-        f"用户描述：\n{description}\n\n"
-        f"企业信息：\n{json.dumps(enterprise_info, ensure_ascii=False, indent=2)}\n\n"
+    description_text = (description or "").strip() or (
+        "（用户未填写补充说明，请仅依据企业档案与现有风险树分析）"
     )
-    if existing_summary:
-        prompt += f"企业已有层级（请勿重复生成）：\n{existing_summary}\n"
-    prompt += (
+    tree_text = existing_tree_text or "[]"
+    tree_note = ""
+    if tree_truncated:
+        tree_note = "\n（注意：现有树过大，以上仅展示部分内容；未展示部分不要臆断其缺失或存在。）"
+    prompt = (
+        f"请对企业风险分级管控层级结构进行「查漏补缺」，并补充用户新提到的内容。\n\n"
+        f"用户补充说明：\n{description_text}\n\n"
+        f"企业基本情况：\n{json.dumps(enterprise_info, ensure_ascii=False, indent=2)}\n\n"
+        f"企业现有风险分级管控树（JSON，供你查漏补缺）：\n{tree_text}{tree_note}\n\n"
         "要求：\n"
-        "1. 解析描述中的实体关系，生成到措施层级\n"
-        "2. 每个事件使用 LS 矩阵法评估（L: 1-5, S: 1-5），含 risk_level 和 risk_score\n"
-        "3. 每事件至少 2 条管控措施\n"
-        "4. 最多生成 5 个分区、50 个对象\n"
-        "5. 不得生成与现有分区名称相同或语义重复的分区；描述若已对应现有分区，"
-        "将该分区名写入 summary 的 duplicates 数组，而不是重复生成\n"
-        "6. 同一区域内多个同类设备用编号区分命名（如「1号储罐」「2号储罐」），避免对象名重复\n"
-        "7. 所有对象 is_risk_point 一律输出 false（风险点由用户在画布上手动标记）\n\n"
+        "1. 你的输出将与现有树合并：同名分区/对象/单元自动并入现有节点，只在其下补充缺失内容；"
+        "输出路径中的已有节点名称必须与现有树完全一致（用于合并匹配）\n"
+        "2. 对照现有树查漏补缺：已有分区缺分析对象的补对象；已有对象缺单元/风险事件的补单元/事件；"
+        "已有单元缺事件的补事件；已有事件缺管控措施的补措施（措施按类别与描述去重）\n"
+        "3. 不得重复已有事件（同一父节点下相同事故类型）与已有措施\n"
+        "4. 用户补充说明中提到的新内容，正常生成新分区/对象\n"
+        "5. 不要改写已有节点的描述与等级（合并时只取你的补充部分）\n"
+        "6. 每个事件使用 LS 矩阵法评估（L: 1-5, S: 1-5），含 risk_level 和 risk_score\n"
+        "7. 每事件至少 2 条管控措施\n"
+        "8. 最多覆盖 8 个分区；对象（含作为路径的已有对象）合计不超过 80 个，"
+        "优先覆盖最重要的缺口\n"
+        "9. 同一区域内多个同类设备用编号区分命名（如「1号储罐」「2号储罐」），避免对象名重复\n"
+        "10. 所有对象 is_risk_point 一律输出 false（风险点由用户在画布上手动标记）\n\n"
         '输出 JSON 格式（完整层级）：\n'
         '{"zones": [{"name": "...", "description": "...", '
         '"objects": [{"name": "...", "category": "...", '
@@ -473,7 +474,9 @@ async def smart_guide(
         '"unit_type": "...", "events": [{"accident_type": "...", '
         '"risk_level": "重大|较大|一般|低", "risk_score": "R=XX", '
         '"method_type": "LS", "method_params": {"l": X, "s": X}, '
-        '"measures": [...]}]}]}]}]}\n'
+        '"measures": [{"measure_category": "engineering|management|ppe|emergency", '
+        '"description": "...", '
+        '"check_items": [{"name": "...", "standard": "...", "frequency": "..."}]}]}]}]}]}]}\n'
         "只输出 JSON，不要任何解释。"
     )
 
