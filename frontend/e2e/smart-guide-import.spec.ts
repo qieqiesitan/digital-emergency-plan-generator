@@ -93,7 +93,7 @@ const AI_HIERARCHY = {
   summary: {},
 };
 
-test("智能引导导入跳过重名分区且对象不标风险点", async ({ page }: { page: Page }) => {
+test("智能引导导入：重名分区并入现有分区、对象保留 is_risk_point 语义", async ({ page }: { page: Page }) => {
   const createdPayloads: unknown[] = [];
   page.on("pageerror", (err) => {
     console.log("PAGEERROR:", err.message);
@@ -167,15 +167,22 @@ test("智能引导导入跳过重名分区且对象不标风险点", async ({ pa
   await page.getByRole("button", { name: /智能导引/ }).click();
   await page.locator("textarea").first().fill("厂区有原料库和储罐");
   await page.getByRole("button", { name: /AI 分析/ }).click();
-  await expect(page.getByText("AI 生成数据请核实后确认导入")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(/AI 已按企业档案与现有风险树查漏补缺/)).toBeVisible({ timeout: 15000 });
   await page.getByRole("button", { name: /确认并导入全部/ }).click();
 
   // 提示文案："导入完成：新增 N 条，并入现有 M 条，跳过重复 K 条"
-  await expect(page.getByText(/导入完成：新增 2 条/)).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText(/跳过重复 1 条/)).toBeVisible();
+  // 新增 5 = 原料库分区 + 1号储罐 + 火灾爆炸事件 + 设置液位联锁措施 + 货架；并入 1 = 重名「储罐区」并入现有分区
+  await expect(page.getByText(/导入完成：新增 5 条/)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(/并入现有 1 条/)).toBeVisible();
 
-  const objectPayloads = createdPayloads.filter((p) => (p as { name?: string }).name !== undefined);
-  expect(objectPayloads.some((p) => (p as { name?: string }).name === "1号储罐")).toBe(false);
-  const shelf = objectPayloads.find((p) => (p as { name?: string }).name === "货架") as { is_risk_point?: boolean } | undefined;
+  const payloads = createdPayloads as Array<Record<string, unknown>>;
+  // 重名「储罐区」不重复新建分区，其子级对象并入现有分区下创建
+  expect(payloads.some((p) => p.name === "储罐区")).toBe(false);
+  const tank = payloads.find((p) => p.name === "1号储罐");
+  expect(tank?.zone_id).toBe("existing-zone-1");
+  // 不同名「原料库」正常新建
+  expect(payloads.some((p) => p.name === "原料库")).toBe(true);
+  // 对象保留 AI 输出的 is_risk_point 语义（不会被强制标为风险点）
+  const shelf = payloads.find((p) => p.name === "货架") as { is_risk_point?: boolean } | undefined;
   expect(shelf?.is_risk_point).toBe(false);
 });

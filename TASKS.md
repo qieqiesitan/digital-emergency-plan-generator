@@ -1,8 +1,20 @@
-## 当前状态快照（压缩恢复用 · 风险树 AI 智能生成——补全模式设计已提交待用户审查 · 2026-10-13）
+## 当前状态快照（压缩恢复用 · 风险树 AI 智能生成——补全模式：后端 4 任务完成，前端进行中 · 2026-10-13）
 - 任务（2026-10-13）：用户要求「风险树中 AI 智能生成逻辑调整，要根据企业基本情况和用户输入的内容进行完善风险树」。
-  自动匹配 `$brainstorming`。**状态：用户已确认方案 1（在智能导引内做"补全现有树"）；设计规格已写并提交
-  （commit `1a01eba`，`docs/superpowers/specs/2026-10-13-smart-guide-tree-completion-design.md`）；
-  下一步：用户审查规格 → writing-plans → TDD 实施（后端 risk_ai_service/risk_management/schemas + 前端 RiskSmartGuideModal/smartGuideImport）。**
+  自动匹配 `$brainstorming` → 用户确认方案 1 → 规格+计划已提交 → 用户选**内联执行**（executing-plans）。
+  **状态：任务 1-4（后端）完成并逐个提交；任务 5-6（前端）进行中；7-9（门禁/实测/收尾）待做。**
+- 关键文档（都已 commit，实施照做即可）：
+  - 设计规格：`docs/superpowers/specs/2026-10-13-smart-guide-tree-completion-design.md`（commit `1a01eba`）
+  - 实现计划：`docs/superpowers/plans/2026-10-13-smart-guide-tree-completion.md`（commit `c28322c`，1066 行）
+  - 前置 savepoint：`6c2e571`（2026-10-13 16:04）
+- 已完成提交（后端）：
+  - `1234b96` 现有树紧凑序列化（serialize_existing_tree 逐级降级+截断）
+  - `74a0fd9` 企业信息扩展（build_smart_guide_enterprise_info，空值剔除；**注意**：测试里 hazardous_chemicals 非空属保留项，勿再误改）
+  - `997a6b7` prompt 改查漏补缺（三段输入；旧 `existing_names` 参数与 duplicates 规则已删）
+  - `c73f592` 路由接线（完整树 selectinload+序列化注入；description: str = ""；_get_ent 去重复调用）
+- ⚠ 本机 pytest 前置：`backend/.env` 的 SECRET_KEY 是弱值会直接报错，跑测试用
+  `$env:SECRET_KEY = (python -c "import secrets;print(secrets.token_hex(48))")` 覆盖。
+- 下一步：任务 5（前端 buildMergeBadges TDD）→ 任务 6（Modal 接线）→ 任务 7 全量门禁 → 任务 8 浏览器实测（8082）→ 任务 9 收尾。
+- 验证基线：后端 pytest 2205 passed / 1 skipped；前端 tsc/vitest 370/eslint/build。
 - 调研结论（已核实，别再重复查）：
   - 入口①「🚀 智能导引」= `frontend/src/components/enterprise/RiskSmartGuideModal.tsx`（弹窗标题「AI 智能生成风险层级」）
     → `frontend/src/services/riskManagementService.ts::aiSmartGuide` → 后端 `backend/app/routers/risk_management.py:1291 /ai/smart-guide`
@@ -94,26 +106,32 @@
   且 09-21 那个 savepoint `0a631e9`（含他人 WIP）仍是祖先；另 ⚠ 新 AGENTS.md 要求的
   `python graphify-out/_finalize_graph.py` 本机不存在，对应实际命令是 `graphify label .`（要 LLM，未跑）。
 
-## 当前状态快照（压缩恢复用 · 「风险树编辑 左右分屏 + 四色图联动」方案待确认 · 2026-10-13）
-- 任务（2026-10-13）：用户要求「风险树编辑」页布局调整 —— 左右分屏：左侧保持现有风险树编辑
-  （稍紧凑），右侧 = 节点详情（小）+ 四色图（与左侧联动）。自动匹配 `$brainstorming`（设计阶段）。
-  **状态：方案已提出，等用户确认后实施；未改任何源码。**
-- 关键事实（已核实）：
-  - 页面 = `frontend/src/pages/Enterprise/RiskManagementTab.tsx`（现状已是 左树 flex:1 + 右 300px 详情；
-    embedded 模式挂在 routes/index.tsx 的 ModulePageShell 下；非 embedded 分支仅遗留导航按钮）。
-  - 树组件 `frontend/src/components/enterprise/RiskHierarchyTree.tsx`：antd Tree，key 格式
-    `zone-<id>` / `object-` / `unit-` / `event-` / `measure-` / `floor-<id>`，`_meta` 里带
-    `floorId`（仅 zone 节点）与 `floor_plan_polygon`；目前**选择态非受控**（无 selectedKeys prop），
-    地图→树反向联动需要加受控 selectedKeys + 自动展开祖先。
-  - 四色图只读渲染可直接复用 `frontend/src/components/enterprise/riskMapping/RiskDistributionStage.tsx`
-    （底图 + 分区色块 effective_color + 风险点 + 文本；props：floorId / highlightZone 高亮加粗 / onZoneClick），
-    数据走 `getRiskMappingOverview(enterpriseId, floorId)`；公示页/总览页已在用同款组件。
-  - e2e `frontend/e2e/risk-hierarchy-tree.spec.ts`（全 mock）需补 `/risk-management/overview` mock 才不报错。
-- 方案要点（待确认）：左栏紧凑（工具栏单行小按钮、树行高 28→26、padding 收紧，功能不动）；
-  右栏固定 ~420px 两卡：节点详情（紧凑）+ 四色图；双向联动（树→图高亮/切楼层；点图分区→树选中展开+详情同步）；
-  多楼层时地图头部加楼层下拉；地图只读不做缩放。
-- 下一步：用户确认（或调整后）→ TDD/实现：改 RiskManagementTab + RiskHierarchyTree（受控选择）+ 
-  新增右栏组件 + 更新 e2e mock，跑 vitest/tsc/playwright。
+## 当前状态快照（压缩恢复用 · 「风险树编辑 左右分屏 + 四色图联动」**已实施+验证完成** · 2026-10-13）
+- 任务（2026-10-13）：用户要求「风险树编辑」页左右分屏（左树紧凑、右=节点详情小卡+四色图联动）。
+  自动匹配 `$brainstorming`（设计）→ `$test-driven-development`（e2e 先行）。**状态：完成，已提交待推送。**
+- 实现（文件清单）：
+  - `frontend/src/pages/Enterprise/RiskManagementTab.tsx`：左右分屏（左 flex:1 紧凑工具栏+独立滚动树；
+    右 420px 两卡：详情小卡 + 四色图）；`treeSelectedKey`/`highlightZoneId`/`mapFloorId` 派生与
+    楼层跟随；`handleMapZoneClick` 地图点选反选树；详情卡新增「楼层」「分区等级」行。
+  - `frontend/src/components/enterprise/RiskHierarchyTree.tsx`：受控 `selectedKey`；展开态改为
+    「autoExpandedKeys 派生 + userExpandedKeys 接管 + 恒并入选中节点祖先」。
+  - `frontend/src/components/enterprise/RiskTreeFourColorMap.tsx`（新增）：四色图卡片，
+    复用 RiskDistributionStage；`data-floor-id`/`data-highlight-zone` 供 e2e 断言。
+  - 设计文档 `docs/superpowers/specs/2026-10-13-risk-tree-split-layout-design.md`。
+- ⚠ 关键坑（已修复）：floors 查询晚于 hierarchy 到达 → useState 初值算错（floor-unassigned）导致
+  楼层永远折叠；改为派生展开态解耦数据到达顺序（真实环境复现→修复→复验）。
+- 验证证据：`tsc -b` ✓；`vitest run` 370 例 ✓；`eslint-ratchet` 无新增债务 ✓；源码卫生 ✓；
+  Playwright：`risk-hierarchy-tree.spec.ts` **6/6**（含新增联动用例）、`smart-guide-import` 1/1、
+  其余规格 22 例通过；真实环境（15173 + docker 后端 + 永昇演示数据）：树选「办公室」→地图高亮+
+  详情"楼层/分区等级"，点地图→树反选「分区13」；截图 `output/tmp/risktree-layout/s{1,2,3}_*.png`。
+- 顺手修复的陈旧 e2e（与布局改动无关但阻塞验证）：驾驶舱 tab→模块路由入口、`cockpit-summary` mock、
+  智能导引提示文案与"重名分区并入现有"语义断言。预存在失败（未处理）：mobile-routing（写死 5173）、
+  risk-mapping-workbench 2 例（旧 URL 断言）。
+- ⚠ 并发说明：另一会话 16:04 的 `git save` 把本任务 16:04 时刻的中间态卷进了
+  `6c2e571 [savepoint]`（内容经查**纯为本任务 6 个文件**，无损）；其后本任务的收尾修正
+  （派生展开态、智能导引断言、快照）作为独立提交补齐。另一会话当时在连续提交 smart-guide
+  功能（c28322c..c73f592），**未做任何历史重写以免干扰**。
+- 下一步：推送 origin/gitee；如后续用户反馈四色图卡片想要更大/可拖拽分栏，再迭代。
 
 ## 当前状态快照（压缩恢复用 · 「四色图嵌套分区识别」**已实施+验证完成** · 2026-10-13）
 - 任务（2026-10-13）：用户报「四色图识别时很多分区内的分区识别不到，画成一个统一的大分区」，

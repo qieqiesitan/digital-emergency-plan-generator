@@ -169,6 +169,7 @@ export default function RiskManagementTab({ enterpriseId, floorPlanUrl, embedded
     const floorOfNode = selectedNode.type === "floor"
       ? (selectedNode.id !== "unassigned" ? selectedNode.id : null)
       : (hierarchyMap[selectedNode.id]?.zone?.floor_id ?? null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 四色图楼层跟随所选节点切换，属对外部选中值变更的同步
     if (floorOfNode) setMapFloorId(floorOfNode);
   }, [selectedNode, hierarchyMap]);
   // 地图点选分区 → 反向选中树节点（树自动展开祖先定位）
