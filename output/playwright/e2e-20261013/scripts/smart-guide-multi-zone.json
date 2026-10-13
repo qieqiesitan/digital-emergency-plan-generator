@@ -1,0 +1,74 @@
+{
+  "checks": {
+    "distribute_badge_shown": true,
+    "all_pump_zones_visible": true,
+    "all_pump_zones_filled": true,
+    "pump_obj_has_children": true,
+    "tank_zone_new_object_created": true,
+    "no_console_errors": true
+  },
+  "detail": {
+    "fixture": {
+      "enterprise": "a0344e66-eecf-4fbe-bde8-d2ea2f1b3fdb",
+      "pump_zones": [
+        "30bf2167-98da-4515-9d02-cdda09b51c09",
+        "77ffdd0d-e5d3-400d-b7ac-22fee4fd3687",
+        "03527eb4-ab0b-4669-8f53-56a476d65f3c"
+      ],
+      "tank_zone": "5fd9ba76-e5ef-4222-ba22-e2c1955ad969"
+    },
+    "preview": {
+      "distribute_badge_x3": true,
+      "tree_nodes": 5
+    },
+    "import_toast": "导入完成：新增 17 条，并入现有 4 条，跳过重复 0 条",
+    "after_import": [
+      {
+        "zone": "加油机",
+        "objects": [
+          {
+            "name": "加油机本体",
+            "unit_count": 1,
+            "event_count": 1,
+            "measure_count": 2
+          }
+        ]
+      },
+      {
+        "zone": "加油机",
+        "objects": [
+          {
+            "name": "加油机本体",
+            "unit_count": 1,
+            "event_count": 1,
+            "measure_count": 2
+          }
+        ]
+      },
+      {
+        "zone": "加油机",
+        "objects": [
+          {
+            "name": "加油机本体",
+            "unit_count": 1,
+            "event_count": 1,
+            "measure_count": 2
+          }
+        ]
+      },
+      {
+        "zone": "储罐区",
+        "objects": [
+          {
+            "name": "1号储罐",
+            "unit_count": 1,
+            "event_count": 0,
+            "measure_count": 0
+          }
+        ]
+      }
+    ]
+  },
+  "errors": [],
+  "passed": true
+}
