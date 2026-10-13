@@ -49,7 +49,7 @@ async def test_smart_guide_prompt_includes_existing_tree():
         await smart_guide(
             "储罐区要补充泄漏事件",
             {"name": "测试企业"},
-            ai_config=SimpleNamespace(max_tokens=4096),
+            ai_config=SimpleNamespace(max_tokens=4096, model_name="deepseek-flash"),
             existing_tree_text='[{"name":"储罐区","objects":[{"name":"1号储罐","units":[]}]}]',
         )
 
@@ -61,8 +61,36 @@ async def test_smart_guide_prompt_includes_existing_tree():
     # 输出预算下限：系统配置偏小（如 deepseek-flash 4096）时完整层级 JSON 会被截断
     # （reasoning 吃满预算、content 为空，2026-10-13 实测 500），必须抬高下限
     assert captured["kwargs"]["payload_overrides"]["max_tokens"] >= 16384
+    # reasoning 型模型必须关闭思考，否则 reasoning 会把整份预算吃光（实测）
+    assert captured["kwargs"]["payload_overrides"]["thinking"] == {"type": "disabled"}
     # 推理模型生成慢：超时必须大于 60s 才能容纳完整输出
     assert captured["timeout"] >= 120
+
+
+@pytest.mark.asyncio
+async def test_smart_guide_does_not_disable_thinking_for_non_deepseek():
+    """非 deepseek 供应商不传 thinking 参数，避免严格网关 400。"""
+    from types import SimpleNamespace
+
+    captured = {}
+
+    async def fake_llm(messages, ai_config, timeout=120, **kwargs):
+        captured["kwargs"] = kwargs
+        return '{"zones": [], "summary": {}}'
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "app.services.risk_ai_service.llm_text_completion",
+            fake_llm,
+        )
+        await smart_guide(
+            "",
+            {"name": "甲"},
+            ai_config=SimpleNamespace(max_tokens=4096, model_name="mock-json"),
+        )
+
+    assert "thinking" not in captured["kwargs"]["payload_overrides"]
+    assert captured["kwargs"]["payload_overrides"]["max_tokens"] >= 16384
 
 
 @pytest.mark.asyncio

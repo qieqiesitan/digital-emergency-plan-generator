@@ -492,9 +492,17 @@ async def smart_guide(
     # reasoning+正文会被截断在半路 → content 为空、解析失败（deepseek-flash 4096 实测）。
     # 这里加一个输出下限，不限制更大预算的模型配置；推理模型生成较慢，超时相应放大。
     budget = max(ai_config.max_tokens or 0, 16384)
+    overrides: dict = {"max_tokens": budget}
+    # 结构化 JSON 输出场景：推理模型的 reasoning 会把整份预算吃光
+    # （deepseek-flash 实测：4096/16384 两次均被 reasoning 占满、content 为空 → 解析 500）。
+    # deepseek 系 API 实测支持 thinking.type=disabled（完全关闭推理、输出正常）；
+    # 其他供应商不传该参数，避免严格网关 400。
+    model_name = (getattr(ai_config, "model_name", "") or "").lower()
+    if "deepseek" in model_name:
+        overrides["thinking"] = {"type": "disabled"}
     raw = await llm_text_completion(
         messages, ai_config, timeout=150, module="risk",
-        payload_overrides={"max_tokens": budget},
+        payload_overrides=overrides,
     )
     data = _parse_ai_json(raw)
     return _normalize_smart_guide_hierarchy(data)
