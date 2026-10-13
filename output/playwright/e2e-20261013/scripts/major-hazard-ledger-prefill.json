@@ -1,0 +1,33 @@
+{
+  "checks": {
+    "name_filled_from_ledger": true,
+    "q_filled_by_cas": true,
+    "gasoline_beta_asks_category": true,
+    "design_max_suggestion_shown": true,
+    "ledger_link_survived": true,
+    "diesel_name_filled": true,
+    "diesel_q_left_empty": true,
+    "diesel_asks_category": true,
+    "no_console_error": true
+  },
+  "detail": {
+    "fixture": {
+      "enterprise": "7ea79051-98d3-4711-95d3-d1cb5fa6fbb3",
+      "unit": "d5e5f104-0f1a-4ded-8c06-94131ba47f6a"
+    },
+    "row1": {
+      "name": "汽油",
+      "q": "200.0",
+      "beta_cell": "请选择危险性类别",
+      "design_cell": "设计最大量口径（GB 18218 4.2.2），通常 ≥ 台账最大储存量；请勿直接照抄台账数字\n台账建议 40 t\n采用",
+      "ledger_cell": "汽油\n汽油"
+    },
+    "row2": {
+      "name": "柴油",
+      "q_cell": "未在表1列举，请选右侧危险性类别",
+      "beta_cell": "选危险性类别，Q 与 β 一并带出"
+    },
+    "errors": []
+  },
+  "all_passed": true
+}
