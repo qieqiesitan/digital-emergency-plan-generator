@@ -86,3 +86,53 @@ export function buildExistingIndex(zones: HierarchyZone[]): ExistingIndex {
     measures: measuresMap,
   };
 }
+
+export type MergeBadge = "new" | "merge";
+
+/**
+ * 预判 AI 生成树各节点导入时是「并入现有」还是「新增」。
+ * key 体系与预览树一致（z-{zi} / {parent}-o-{oi} / {parent}-u-{ui} / {parent}-ev-{ei}）；
+ * 判定与 RiskSmartGuideModal.importMut 的合并逻辑一一对应；父节点新增时子节点必为 new。
+ */
+export function buildMergeBadges(
+  index: ExistingIndex,
+  hierarchy: SmartGuideZone[],
+  nameOverrides: Record<string, string> = {},
+): Map<string, MergeBadge> {
+  const badges = new Map<string, MergeBadge>();
+  hierarchy.forEach((zone, zi) => {
+    const zoneKey = `z-${zi}`;
+    const zoneName = nameOverrides[zoneKey] ?? zone.name;
+    const zoneId = index.zones.get(zoneName);
+    badges.set(zoneKey, zoneId ? "merge" : "new");
+
+    (zone.objects || []).forEach((obj, oi) => {
+      const objKey = `${zoneKey}-o-${oi}`;
+      const objName = nameOverrides[objKey] ?? obj.name;
+      const objId = zoneId ? index.objects.get(zoneName)?.get(objName) : undefined;
+      badges.set(objKey, objId ? "merge" : "new");
+
+      (obj.units || []).forEach((unit, ui) => {
+        const unitKey = `${objKey}-u-${ui}`;
+        const unitName = nameOverrides[unitKey] ?? unit.name;
+        const unitId = objId ? index.units.get(objId)?.get(unitName) : undefined;
+        badges.set(unitKey, unitId ? "merge" : "new");
+
+        (unit.events || []).forEach((ev, ei) => {
+          const evKey = `${unitKey}-ev-${ei}`;
+          const evName = nameOverrides[evKey] ?? ev.accident_type;
+          const merged = unitId ? index.eventIds.get(unitId)?.has(evName) ?? false : false;
+          badges.set(evKey, merged ? "merge" : "new");
+        });
+      });
+
+      (obj.events || []).forEach((ev, ei) => {
+        const evKey = `${objKey}-ev-${ei}`;
+        const evName = nameOverrides[evKey] ?? ev.accident_type;
+        const merged = objId ? index.eventIds.get(objId)?.has(evName) ?? false : false;
+        badges.set(evKey, merged ? "merge" : "new");
+      });
+    });
+  });
+  return badges;
+}
