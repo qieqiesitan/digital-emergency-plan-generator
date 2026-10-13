@@ -58,6 +58,9 @@ async def test_smart_guide_prompt_includes_existing_tree():
     assert "1号储罐" in prompt
     assert "查漏补缺" in prompt
     assert "不得生成与现有分区" not in prompt
+    # 同名多分区（如四色图识别出的 4 个「加油机」）必须逐段分别补充，而不是合并成一段
+    assert "多个同名分区" in prompt
+    assert "分别输出" in prompt
     # 输出预算下限：系统配置偏小（如 deepseek-flash 4096）时完整层级 JSON 会被截断
     # （reasoning 吃满预算、content 为空，2026-10-13 实测 500），必须抬高下限
     assert captured["kwargs"]["payload_overrides"]["max_tokens"] >= 16384
