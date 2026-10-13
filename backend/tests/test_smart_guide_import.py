@@ -31,10 +31,14 @@ def test_normalize_smart_guide_forces_risk_point_false():
 
 @pytest.mark.asyncio
 async def test_smart_guide_prompt_includes_existing_tree():
+    from types import SimpleNamespace
+
     captured = {}
 
     async def fake_llm(messages, ai_config, timeout=120, **kwargs):
         captured["messages"] = messages
+        captured["timeout"] = timeout
+        captured["kwargs"] = kwargs
         return '{"zones": [], "summary": {}}'
 
     with pytest.MonkeyPatch.context() as mp:
@@ -45,7 +49,7 @@ async def test_smart_guide_prompt_includes_existing_tree():
         await smart_guide(
             "储罐区要补充泄漏事件",
             {"name": "测试企业"},
-            ai_config=object(),
+            ai_config=SimpleNamespace(max_tokens=4096),
             existing_tree_text='[{"name":"储罐区","objects":[{"name":"1号储罐","units":[]}]}]',
         )
 
@@ -54,10 +58,17 @@ async def test_smart_guide_prompt_includes_existing_tree():
     assert "1号储罐" in prompt
     assert "查漏补缺" in prompt
     assert "不得生成与现有分区" not in prompt
+    # 输出预算下限：系统配置偏小（如 deepseek-flash 4096）时完整层级 JSON 会被截断
+    # （reasoning 吃满预算、content 为空，2026-10-13 实测 500），必须抬高下限
+    assert captured["kwargs"]["payload_overrides"]["max_tokens"] >= 16384
+    # 推理模型生成慢：超时必须大于 60s 才能容纳完整输出
+    assert captured["timeout"] >= 120
 
 
 @pytest.mark.asyncio
 async def test_smart_guide_prompt_handles_empty_description_and_extended_fields():
+    from types import SimpleNamespace
+
     captured = {}
 
     async def fake_llm(messages, ai_config, timeout=120, **kwargs):
@@ -73,7 +84,7 @@ async def test_smart_guide_prompt_handles_empty_description_and_extended_fields(
             "",
             {"name": "甲", "main_equipment_list": "1号储罐、2号储罐",
              "surrounding_info": {"traffic_info": "东侧国道"}},
-            ai_config=object(),
+            ai_config=SimpleNamespace(max_tokens=4096),
         )
 
     prompt = captured["messages"][-1]["content"]

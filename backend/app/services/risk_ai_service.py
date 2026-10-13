@@ -488,7 +488,14 @@ async def smart_guide(
         {"role": "user", "content": prompt},
     ]
 
-    raw = await llm_text_completion(messages, ai_config, timeout=60, module="risk")
+    # 输出预算是「完整层级 JSON」的硬约束：系统配置偏小（如推理模型 4096）时，
+    # reasoning+正文会被截断在半路 → content 为空、解析失败（deepseek-flash 4096 实测）。
+    # 这里加一个输出下限，不限制更大预算的模型配置；推理模型生成较慢，超时相应放大。
+    budget = max(ai_config.max_tokens or 0, 16384)
+    raw = await llm_text_completion(
+        messages, ai_config, timeout=150, module="risk",
+        payload_overrides={"max_tokens": budget},
+    )
     data = _parse_ai_json(raw)
     return _normalize_smart_guide_hierarchy(data)
 
